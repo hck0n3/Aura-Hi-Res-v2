@@ -11,6 +11,11 @@
 > `BottomSheetPlayer`) se borró: con `SINGLE_UI = true` ya no se podía abrir desde ningún sitio. Las filas de
 > este inventario que citan `ui/player/Player.kt` describen ese reproductor; su equivalente vivo es
 > `ui/newui/AuraPlayer.kt`. `InlineLyricsView` sigue existiendo, ahora en `ui/player/InlineLyricsView.kt`.
+>
+> Desde la reconciliación del 2026-11-23 (fila 775 del registro), cada fila que cita `ui/player/Player.kt` lleva
+> **[RETIRADO D-002]**: esa cita ya no existe. Los controles vivos del reproductor Aura que no tenían fila están en §2.3b.
+> Las filas de archivos borrados después (chat de sala, Qobuz, `Preference.kt`, `SearchBar.kt`, `IntegrationScreen.kt`,
+> visualizador de espectro) llevan **[RETIRADO: …]** con el motivo; se conservan para que se vea qué se quitó.
 
 ---
 
@@ -148,7 +153,7 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 3 | `library` | `LibraryScreen` | `:96` | sí (barra/rail, atajo de app) |
 | 4 | `listen_together` | `ListenTogetherScreen` | `:100` | sí (top bar / barra) |
 | 5 | `listen_together_from_topbar` | `ListenTogetherScreen` (con top bar) | `:105` | ⚠️ **NO — ruta muerta** |
-| 6 | `listen_together/chat` | `CommentTogetherScreen` | `:110` | sí (`ListenTogetherScreen.kt:736`) |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** 6 | `listen_together/chat` | `CommentTogetherScreen` | `:110` | sí (`ListenTogetherScreen.kt:736`) |
 | 7 | `history` | `HistoryScreen` | `:114` | sí (`MainActivity.kt:1286`) |
 | 8 | `local_songs` | `LocalSongScreen` | `:118` | sí (Biblioteca Mix) |
 | 9 | `favorite_albums` | `FavoriteAlbumsScreen` | `:122` | sí (Biblioteca Mix) |
@@ -175,7 +180,7 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 30 | `settings/update` | `UpdateSettings` | `:336` | sí |
 | 31 | `settings/accounts` | `AccountsScreen` | `:342` | sí |
 | 32 | `settings/lastfm` | `LastFMSettingsScreen` | `:346` | sí |
-| 33 | `settings/qobuz` | `QobuzSettingsScreen` | `:350` | sí |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** 33 | `settings/qobuz` | `QobuzSettingsScreen` | `:350` | sí |
 | 34 | `settings/appearance` | `AppearanceSettings` | `:354` | sí |
 | 35 | `settings/appearance/theme` | `ThemeScreen` | `:358` | sí |
 | 36 | `settings/appearance/liquidglass` | `GlassEffectSettings` | `:362` | sí (solo si el dispositivo es elegible) |
@@ -420,22 +425,22 @@ mini reproductor), según el contenido (audio / vídeo / canvas), según la orie
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Miniatura 56 dp → reproducir/pausar *(solo icono, sin contentDescription)* | Reproductor > cabecera, modo letras | `app/.../ui/player/Player.kt:1633` | acción primaria | ocasional | solo con letras abiertas (`showInlineLyrics`) **y** `isFullScreen` **y** ajuste `EnableLyricsThumbnailPlayPause` ON **y** `!hidePlayerThumbnail` |
-| Pantalla completa de letras *(solo icono `fullscreen`)* | Reproductor > cabecera | `app/.../ui/player/Player.kt:1698` | conmutador | ocasional | solo si `showInlineLyrics` **y** `useNewPlayerDesign` (por defecto true) |
-| Descargar / quitar descarga *(solo icono `download`/`offline`)* | Reproductor > cabecera | `app/.../ui/player/Player.kt:1714` | conmutador | diaria | solo si `!showInlineLyrics` **y** `useNewPlayerDesign` |
-| Menú de letras *(solo icono `more_horiz`)* | Reproductor > cabecera, modo letras | `app/.../ui/player/Player.kt:1782` | navegación | ocasional | solo si `showInlineLyrics` **y** `useNewPlayerDesign` |
-| Pantalla completa de letras — diseño antiguo | Reproductor > cabecera | `app/.../ui/player/Player.kt:1828` | conmutador | ocasional | solo si `showInlineLyrics` **y** `!useNewPlayerDesign` |
-| Menú de letras — diseño antiguo | Reproductor > cabecera | `app/.../ui/player/Player.kt:1855` | navegación | ocasional | solo si `showInlineLyrics` **y** `!useNewPlayerDesign` |
+| **[RETIRADO D-002]** Miniatura 56 dp → reproducir/pausar *(solo icono, sin contentDescription)* | Reproductor > cabecera, modo letras | `app/.../ui/player/Player.kt:1633` | acción primaria | ocasional | solo con letras abiertas (`showInlineLyrics`) **y** `isFullScreen` **y** ajuste `EnableLyricsThumbnailPlayPause` ON **y** `!hidePlayerThumbnail` |
+| **[RETIRADO D-002]** Pantalla completa de letras *(solo icono `fullscreen`)* | Reproductor > cabecera | `app/.../ui/player/Player.kt:1698` | conmutador | ocasional | solo si `showInlineLyrics` **y** `useNewPlayerDesign` (por defecto true) |
+| **[RETIRADO D-002]** Descargar / quitar descarga *(solo icono `download`/`offline`)* | Reproductor > cabecera | `app/.../ui/player/Player.kt:1714` | conmutador | diaria | solo si `!showInlineLyrics` **y** `useNewPlayerDesign` |
+| **[RETIRADO D-002]** Menú de letras *(solo icono `more_horiz`)* | Reproductor > cabecera, modo letras | `app/.../ui/player/Player.kt:1782` | navegación | ocasional | solo si `showInlineLyrics` **y** `useNewPlayerDesign` |
+| **[RETIRADO D-002]** Pantalla completa de letras — diseño antiguo | Reproductor > cabecera | `app/.../ui/player/Player.kt:1828` | conmutador | ocasional | solo si `showInlineLyrics` **y** `!useNewPlayerDesign` |
+| **[RETIRADO D-002]** Menú de letras — diseño antiguo | Reproductor > cabecera | `app/.../ui/player/Player.kt:1855` | navegación | ocasional | solo si `showInlineLyrics` **y** `!useNewPlayerDesign` |
 
 ## 2.2 Reproductor > título y artista
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Título de la canción → abre el álbum | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1926` | navegación | ocasional | solo si se resuelve un álbum (`rememberResolvedAlbum` ≠ null); oculto en vídeo inmersivo |
-| Copiar título *(mantener pulsado; Toast «Título copiado»)* | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1932` | acción secundaria | rara | siempre que haya título |
-| Nombre del artista → abre el artista | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1958` | navegación | diaria | solo si algún artista tiene id y la lista no está vacía |
-| Copiar artista *(mantener pulsado; Toast «Artista copiado»)* | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1964` | acción secundaria | rara | siempre que haya artista |
-| Cambiar a vídeo / volver a audio *(solo icono `videocam`/`music_note`)* | Reproductor > fin de la fila del título | `app/.../ui/player/Player.kt:1990` | conmutador | ocasional | solo si hay vídeo (`isVideoSong` o `podcastVideoUrl`) **y** (`!highPerfMode` **o** pantalla ancha/TV) |
+| **[RETIRADO D-002]** Título de la canción → abre el álbum | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1926` | navegación | ocasional | solo si se resuelve un álbum (`rememberResolvedAlbum` ≠ null); oculto en vídeo inmersivo |
+| **[RETIRADO D-002]** Copiar título *(mantener pulsado; Toast «Título copiado»)* | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1932` | acción secundaria | rara | siempre que haya título |
+| **[RETIRADO D-002]** Nombre del artista → abre el artista | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1958` | navegación | diaria | solo si algún artista tiene id y la lista no está vacía |
+| **[RETIRADO D-002]** Copiar artista *(mantener pulsado; Toast «Artista copiado»)* | Reproductor > bloque de título | `app/.../ui/player/Player.kt:1964` | acción secundaria | rara | siempre que haya artista |
+| **[RETIRADO D-002]** Cambiar a vídeo / volver a audio *(solo icono `videocam`/`music_note`)* | Reproductor > fin de la fila del título | `app/.../ui/player/Player.kt:1990` | conmutador | ocasional | solo si hay vídeo (`isVideoSong` o `podcastVideoUrl`) **y** (`!highPerfMode` **o** pantalla ancha/TV) |
 
 ## 2.3 Reproductor > fila de chips de acción
 
@@ -443,14 +448,36 @@ Fila con scroll horizontal y degradado en el borde derecho. **Todas las etiqueta
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| **Me gusta** *(mitad izquierda de un pill dividido)* | Reproductor > chips | `app/.../ui/player/Player.kt:3655` (comp.) · llamada `:2036`/`:2042` | conmutador | diaria | siempre |
-| **No me gusta** *(mitad derecha del pill)* | Reproductor > chips | `app/.../ui/player/Player.kt:3678` (comp.) · llamada `:2043` | conmutador | ocasional | siempre |
-| **Agregar** *(hardcoded)* → diálogo de listas | Reproductor > chips | `app/.../ui/player/Player.kt:2047` | acción secundaria | diaria | siempre |
-| **Compartir** *(hardcoded)* → chooser de Android | Reproductor > chips | `app/.../ui/player/Player.kt:2050` | acción secundaria | ocasional | siempre |
-| **Descargar** *(hardcoded)* → descarga / cancela | Reproductor > chips | `app/.../ui/player/Player.kt:2064` | conmutador | diaria | siempre |
-| **Mix** *(hardcoded)* → radio infinita (`startRadioSeamlessly`) | Reproductor > chips | `app/.../ui/player/Player.kt:2091` | acción primaria | diaria | siempre; el chip se rellena cuando `mixActive` |
-| **Audio** *(hardcoded)* → ecualizador (`settings/equalizer`), colapsa el reproductor | Reproductor > chips | `app/.../ui/player/Player.kt:2095` | navegación | ocasional | siempre |
-| **Más** *(hardcoded, icono `add`)* → abre `OldPlayerMenu` (§3) | Reproductor > chips | `app/.../ui/player/Player.kt:2109` | navegación | diaria | siempre |
+| **[RETIRADO D-002]** **Me gusta** *(mitad izquierda de un pill dividido)* | Reproductor > chips | `app/.../ui/player/Player.kt:3655` (comp.) · llamada `:2036`/`:2042` | conmutador | diaria | siempre |
+| **[RETIRADO D-002]** **No me gusta** *(mitad derecha del pill)* | Reproductor > chips | `app/.../ui/player/Player.kt:3678` (comp.) · llamada `:2043` | conmutador | ocasional | siempre |
+| **[RETIRADO D-002]** **Agregar** *(hardcoded)* → diálogo de listas | Reproductor > chips | `app/.../ui/player/Player.kt:2047` | acción secundaria | diaria | siempre |
+| **[RETIRADO D-002]** **Compartir** *(hardcoded)* → chooser de Android | Reproductor > chips | `app/.../ui/player/Player.kt:2050` | acción secundaria | ocasional | siempre |
+| **[RETIRADO D-002]** **Descargar** *(hardcoded)* → descarga / cancela | Reproductor > chips | `app/.../ui/player/Player.kt:2064` | conmutador | diaria | siempre |
+| **[RETIRADO D-002]** **Mix** *(hardcoded)* → radio infinita (`startRadioSeamlessly`) | Reproductor > chips | `app/.../ui/player/Player.kt:2091` | acción primaria | diaria | siempre; el chip se rellena cuando `mixActive` |
+| **[RETIRADO D-002]** **Audio** *(hardcoded)* → ecualizador (`settings/equalizer`), colapsa el reproductor | Reproductor > chips | `app/.../ui/player/Player.kt:2095` | navegación | ocasional | siempre |
+| **[RETIRADO D-002]** **Más** *(hardcoded, icono `add`)* → abre `OldPlayerMenu` (§3) | Reproductor > chips | `app/.../ui/player/Player.kt:2109` | navegación | diaria | siempre |
+
+## 2.3b Reproductor Aura > fila de acciones del artista (VIVA, añadida 2026-11-23, fila 775)
+
+Se abre al tocar el nombre del artista bajo el título y aparece DEBAJO de la fila del título; se parte en varias
+líneas (`FlowRow`) porque con «Suscribirme» hay hasta cuatro chips. Todas las etiquetas vienen de recursos. Cada
+diálogo pertenece a la canción para la que se abrió: si la canción cambia, se cierra (`chooserIsCurrent`,
+`ui/newui/AuraPlayer.kt:879-887`).
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Tocar el nombre del artista → abre / cierra la fila *(mantener pulsado copia el artista)* | Reproductor Aura > bloque de título | `ui/newui/AuraPlayer.kt:1728-1731` (copiar `:1734`) | conmutador | diaria | solo si algún artista tiene nombre (`hasArtists`, `:1574`) |
+| **Ver álbum** (R.string.view_album) | Reproductor Aura > fila del artista | `ui/newui/AuraPlayer.kt:1780` | navegación | ocasional | solo si se resuelve un álbum (`resolvedAlbum != null`) |
+| **Ver artista** (R.string.view_artist) → página del artista (o búsqueda por nombre si no se resuelve) | Reproductor Aura > fila del artista | `ui/newui/AuraPlayer.kt:1790` → `goToArtist` `:1609-1630` | navegación | diaria | siempre con la fila abierta |
+| Diálogo **elegir artista** (lista de nombres) → navega a ese artista | Reproductor Aura > Ver artista | `ui/newui/AuraPlayer.kt:993-1027` | navegación | ocasional | solo con más de un artista con nombre |
+| **Suscribirme** / **Suscrito** (R.string.subscribe / subscribed) — un artista | Reproductor Aura > fila del artista | `ui/newui/AuraPlayer.kt:1808` · `ui/newui/PlayerArtistFollow.kt:128` (`toggleFollowIfStillShown`) | conmutador | ocasional | solo con UN artista con nombre; la fila sigue abierta y el chip cambia a «Suscrito» |
+| **Suscribirme** / **Suscrito a N de M** (R.string.player_artists_some_subscribed) / **Suscrito** — varios artistas → abre el selector | Reproductor Aura > fila del artista | `ui/newui/AuraPlayer.kt:1826-1845` · `PlayerArtistFollow.kt:93` (`several`) | navegación | ocasional | solo con más de un artista con nombre; el texto dice cuántos sigue ya |
+| Selector de artistas para suscribirse: nombre + chip **Suscribirme / Suscrito** por fila | Reproductor Aura > «Suscribirme» con varios artistas | `ui/newui/AuraPlayer.kt:960-992` (chip `:984`) | conmutador | ocasional | sigue abierto: cada fila cambia en su sitio, así se pueden seguir varios en una visita |
+| Diálogo **«¿Suscribirte a X?»** (R.string.player_subscribe_confirm) con la foto del canal + **Cancelar** / **Suscribirme** | Reproductor Aura > tras «Suscribirme» | `ui/newui/AuraPlayer.kt:1053-1084` (foto `:1074`) | acción primaria | rara | solo si el canal se encontró por NOMBRE y aún no se sigue (fila 646); nada se suscribe sin confirmar |
+| Toast «No se encontró en YouTube Music» / «No se pudo cargar el artista. Revisa tu conexión.» | Reproductor Aura > tras «Suscribirme» | `ui/newui/AuraPlayer.kt:918` / `:921` | informativo | rara | canal no encontrado / búsqueda fallida (sin conexión) |
+| **Ir a la lista** (R.string.go_to_playlist) — una lista → la abre | Reproductor Aura > fila del artista | `ui/newui/AuraPlayer.kt:1853` · `ui/newui/PlayerPlaylistRoute.kt:38-44` (`door`) | navegación | ocasional | solo si la canción está en UNA de TUS listas (`isUsersPlaylist`, `PlayerPlaylistRoute.kt:29`), suene desde donde suene |
+| **Ir a la lista** — varias listas → selector | Reproductor Aura > fila del artista | `ui/newui/AuraPlayer.kt:1862-1871` | navegación | ocasional | solo si la canción está en más de una de tus listas |
+| Selector **Ir a la lista** (nombres de tus listas) → abre `local_playlist/{id}` | Reproductor Aura > Ir a la lista | `ui/newui/AuraPlayer.kt:1030-1050` · `PlayerPlaylistRoute.kt:36` (`route`) | navegación | ocasional | en vivo: una lista de la que sale la canción con el selector abierto desaparece de él |
 
 ## 2.4 Reproductor > barra de progreso, tiempos e indicadores
 
@@ -458,30 +485,30 @@ La barra tiene **cuatro implementaciones distintas** según el ajuste de estilo.
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Barra de progreso — estilo **DEFAULT** | Reproductor > línea de tiempo | `app/.../ui/player/Player.kt:2140` | acción primaria | constante | `SliderStyle = DEFAULT`; deshabilitada si `isListenTogetherGuest` |
-| Barra ondulada **«squiggly»** | Reproductor > línea de tiempo | `app/.../ui/player/Player.kt:2178` (impl. `ui/component/SquigglySlider.kt:40`) | acción primaria | constante | `SliderStyle = WAVY` **y** `SquigglySlider` ON **y** sin Modo Rendimiento |
-| Barra ondulada **M3 «wavy»** | Reproductor > línea de tiempo | `app/.../ui/player/Player.kt:2207` (impl. `ui/component/WavySlider.kt:37`) | acción primaria | constante | `SliderStyle = WAVY` **y** `SquigglySlider` OFF (o Modo Rendimiento) |
-| Barra fina **SLIM** (engorda al tocarla) | Reproductor > línea de tiempo | `app/.../ui/player/Player.kt:2253` | acción primaria | constante | `SliderStyle = SLIM`; deshabilitada si `isListenTogetherGuest` |
-| Tiempo transcurrido | Reproductor > bajo la barra, izq. | `app/.../ui/player/Player.kt:2305` | informativo | constante | siempre |
-| Duración total | Reproductor > bajo la barra, der. | `app/.../ui/player/Player.kt:2448` | informativo | constante | solo si `duration != C.TIME_UNSET` |
-| Chip **«Fundido cruzado»** (parpadea) | Reproductor > bajo la barra, centro | `app/.../ui/player/Player.kt:2333` | informativo | ocasional | solo mientras `isCrossfading` |
-| Chip del temporizador (cuenta atrás) → abre el diálogo | Reproductor > bajo la barra, centro | `app/.../ui/player/Player.kt:2379` | navegación | rara | solo si `!useNewPlayerDesign` **y** temporizador activo |
-| Códec / bitrate / **«Lossless»** | Reproductor > bajo la barra, centro | `app/.../ui/player/Player.kt:2419-2445` | informativo | ocasional | solo si `ShowCodecOnPlayer` ON y hay texto de formato |
-| Visualizador de espectro | Reproductor > sobre la barra | `app/.../ui/player/Player.kt:2131` | informativo | rara | `SpectrumVisualizerEnabled` ON y sin throttling — ⚠️ **hoy no dibuja nada, ver §23** |
+| **[RETIRADO D-002]** Barra de progreso — estilo **DEFAULT** | Reproductor > línea de tiempo | `app/.../ui/player/Player.kt:2140` | acción primaria | constante | `SliderStyle = DEFAULT`; deshabilitada si `isListenTogetherGuest` |
+| **[RETIRADO D-002]** Barra ondulada **«squiggly»** | Reproductor > línea de tiempo | `app/.../ui/player/Player.kt:2178` (impl. `ui/component/SquigglySlider.kt:40`) | acción primaria | constante | `SliderStyle = WAVY` **y** `SquigglySlider` ON **y** sin Modo Rendimiento |
+| **[RETIRADO D-002]** Barra ondulada **M3 «wavy»** | Reproductor > línea de tiempo | `app/.../ui/player/Player.kt:2207` (impl. `ui/component/WavySlider.kt:37`) | acción primaria | constante | `SliderStyle = WAVY` **y** `SquigglySlider` OFF (o Modo Rendimiento) |
+| **[RETIRADO D-002]** Barra fina **SLIM** (engorda al tocarla) | Reproductor > línea de tiempo | `app/.../ui/player/Player.kt:2253` | acción primaria | constante | `SliderStyle = SLIM`; deshabilitada si `isListenTogetherGuest` |
+| **[RETIRADO D-002]** Tiempo transcurrido | Reproductor > bajo la barra, izq. | `app/.../ui/player/Player.kt:2305` | informativo | constante | siempre |
+| **[RETIRADO D-002]** Duración total | Reproductor > bajo la barra, der. | `app/.../ui/player/Player.kt:2448` | informativo | constante | solo si `duration != C.TIME_UNSET` |
+| **[RETIRADO D-002]** Chip **«Fundido cruzado»** (parpadea) | Reproductor > bajo la barra, centro | `app/.../ui/player/Player.kt:2333` | informativo | ocasional | solo mientras `isCrossfading` |
+| **[RETIRADO D-002]** Chip del temporizador (cuenta atrás) → abre el diálogo | Reproductor > bajo la barra, centro | `app/.../ui/player/Player.kt:2379` | navegación | rara | solo si `!useNewPlayerDesign` **y** temporizador activo |
+| **[RETIRADO D-002]** Códec / bitrate / **«Lossless»** | Reproductor > bajo la barra, centro | `app/.../ui/player/Player.kt:2419-2445` | informativo | ocasional | solo si `ShowCodecOnPlayer` ON y hay texto de formato |
+| **[RETIRADO: el visualizador de espectro (`SpectrumVisualizer`) y su ajuste se borraron]** Visualizador de espectro | Reproductor > sobre la barra | `app/.../ui/player/Player.kt:2131` | informativo | rara | `SpectrumVisualizerEnabled` ON y sin throttling — ⚠️ **hoy no dibuja nada, ver §23** |
 
 ## 2.5 Reproductor > barra de transporte
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Anterior *(solo icono `skip_previous`)* | Reproductor > transporte, diseño nuevo | `app/.../ui/player/Player.kt:2513` | acción primaria | constante | `useNewPlayerDesign`; deshabilitado si `!canSkipPrevious` o invitado de Escuchar juntos |
-| Reproducir / Pausar *(o Silenciar / Activar sonido como invitado)* | Reproductor > transporte, diseño nuevo | `app/.../ui/player/Player.kt:2536` | acción primaria | constante | `useNewPlayerDesign`; como invitado de Escuchar juntos silencia en vez de pausar; con Cast controla el dispositivo remoto; si `STATE_ENDED` reinicia |
-| Siguiente *(solo icono `skip_next`)* | Reproductor > transporte, diseño nuevo | `app/.../ui/player/Player.kt:2591` | acción primaria | constante | `useNewPlayerDesign`; deshabilitado si `!canSkipNext` o invitado |
-| Anterior *(icono `apple_skip_previous`)* | Reproductor > transporte, diseño antiguo | `app/.../ui/player/Player.kt:2650` | acción primaria | constante | `!useNewPlayerDesign` |
-| Reproducir / Pausar / Reiniciar | Reproductor > transporte, diseño antiguo | `app/.../ui/player/Player.kt:2663` | acción primaria | constante | `!useNewPlayerDesign` |
-| Siguiente *(icono `apple_skip_next`)* | Reproductor > transporte, diseño antiguo | `app/.../ui/player/Player.kt:2722` | acción primaria | constante | `!useNewPlayerDesign` |
-| Volumen del sistema (deslizador) | Reproductor > bajo el transporte | `app/.../ui/player/Player.kt:2806` | acción secundaria | diaria | solo si `!useNewPlayerDesign` **y** `!hidePlayerSlider`; con Cast cambia el volumen remoto |
-| Iconos de volumen mín./máx. | Reproductor > fila de volumen | `app/.../ui/player/Player.kt:2793` y `:2832` | informativo | diaria | igual que arriba |
-| Nombre del dispositivo Bluetooth + icono (altavoz / auriculares / buds) | Reproductor > bajo el volumen | `app/.../ui/player/Player.kt:2852-2894` | informativo | ocasional | solo si `!useNewPlayerDesign` y hay dispositivo BT conectado |
+| **[RETIRADO D-002]** Anterior *(solo icono `skip_previous`)* | Reproductor > transporte, diseño nuevo | `app/.../ui/player/Player.kt:2513` | acción primaria | constante | `useNewPlayerDesign`; deshabilitado si `!canSkipPrevious` o invitado de Escuchar juntos |
+| **[RETIRADO D-002]** Reproducir / Pausar *(o Silenciar / Activar sonido como invitado)* | Reproductor > transporte, diseño nuevo | `app/.../ui/player/Player.kt:2536` | acción primaria | constante | `useNewPlayerDesign`; como invitado de Escuchar juntos silencia en vez de pausar; con Cast controla el dispositivo remoto; si `STATE_ENDED` reinicia |
+| **[RETIRADO D-002]** Siguiente *(solo icono `skip_next`)* | Reproductor > transporte, diseño nuevo | `app/.../ui/player/Player.kt:2591` | acción primaria | constante | `useNewPlayerDesign`; deshabilitado si `!canSkipNext` o invitado |
+| **[RETIRADO D-002]** Anterior *(icono `apple_skip_previous`)* | Reproductor > transporte, diseño antiguo | `app/.../ui/player/Player.kt:2650` | acción primaria | constante | `!useNewPlayerDesign` |
+| **[RETIRADO D-002]** Reproducir / Pausar / Reiniciar | Reproductor > transporte, diseño antiguo | `app/.../ui/player/Player.kt:2663` | acción primaria | constante | `!useNewPlayerDesign` |
+| **[RETIRADO D-002]** Siguiente *(icono `apple_skip_next`)* | Reproductor > transporte, diseño antiguo | `app/.../ui/player/Player.kt:2722` | acción primaria | constante | `!useNewPlayerDesign` |
+| **[RETIRADO D-002]** Volumen del sistema (deslizador) | Reproductor > bajo el transporte | `app/.../ui/player/Player.kt:2806` | acción secundaria | diaria | solo si `!useNewPlayerDesign` **y** `!hidePlayerSlider`; con Cast cambia el volumen remoto |
+| **[RETIRADO D-002]** Iconos de volumen mín./máx. | Reproductor > fila de volumen | `app/.../ui/player/Player.kt:2793` y `:2832` | informativo | diaria | igual que arriba |
+| **[RETIRADO D-002]** Nombre del dispositivo Bluetooth + icono (altavoz / auriculares / buds) | Reproductor > bajo el volumen | `app/.../ui/player/Player.kt:2852-2894` | informativo | ocasional | solo si `!useNewPlayerDesign` y hay dispositivo BT conectado |
 
 ## 2.6 Reproductor > portada y carrusel
 
@@ -503,44 +530,44 @@ La barra tiene **cuatro implementaciones distintas** según el ajuste de estilo.
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Superficie de vídeo | Reproductor > vídeo retrato | `app/.../ui/player/Player.kt:3394` · impl. `ui/player/PlayerVideoSurface.kt:32` | informativo | ocasional | `videoMode` con URL y sin PiP |
-| Volver a audio *(solo icono `music_note`, esquina inf. der.)* | Reproductor > vídeo retrato | `app/.../ui/player/Player.kt:3401` | conmutador | ocasional | solo con controles visibles y sin PiP |
-| Título + artista sobre el vídeo | Reproductor > vídeo retrato | `app/.../ui/player/Player.kt:3356-3373` | informativo | ocasional | con controles visibles o en PiP |
-| Controles completos superpuestos (los mismos chips + barra + transporte) | Reproductor > vídeo retrato | `app/.../ui/player/Player.kt:3440` | — | ocasional | con controles visibles y sin PiP |
+| **[RETIRADO D-002]** Superficie de vídeo | Reproductor > vídeo retrato | `app/.../ui/player/Player.kt:3394` · impl. `ui/player/PlayerVideoSurface.kt:32` | informativo | ocasional | `videoMode` con URL y sin PiP |
+| **[RETIRADO D-002]** Volver a audio *(solo icono `music_note`, esquina inf. der.)* | Reproductor > vídeo retrato | `app/.../ui/player/Player.kt:3401` | conmutador | ocasional | solo con controles visibles y sin PiP |
+| **[RETIRADO D-002]** Título + artista sobre el vídeo | Reproductor > vídeo retrato | `app/.../ui/player/Player.kt:3356-3373` | informativo | ocasional | con controles visibles o en PiP |
+| **[RETIRADO D-002]** Controles completos superpuestos (los mismos chips + barra + transporte) | Reproductor > vídeo retrato | `app/.../ui/player/Player.kt:3440` | — | ocasional | con controles visibles y sin PiP |
 
 ## 2.8 Reproductor > vídeo a pantalla completa (apaisado)
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Vídeo a pantalla completa (recortado, sin barras del sistema) | Reproductor > vídeo apaisado | `app/.../ui/player/Player.kt:2973` | informativo | ocasional | landscape real + `videoMode` con URL + sin PiP |
-| Anterior *(solo icono)* | Reproductor > vídeo apaisado, barra inferior | `app/.../ui/player/Player.kt:3035` | acción primaria | ocasional | con controles visibles y sin PiP |
-| Reproducir / Pausar *(solo icono)* | Reproductor > vídeo apaisado, barra inferior | `app/.../ui/player/Player.kt:3041` | acción primaria | ocasional | igual |
-| Siguiente *(solo icono)* | Reproductor > vídeo apaisado, barra inferior | `app/.../ui/player/Player.kt:3049` | acción primaria | ocasional | igual |
-| Salir del modo vídeo *(solo icono `music_note`)* | Reproductor > vídeo apaisado, barra inferior | `app/.../ui/player/Player.kt:3056` | conmutador | ocasional | igual |
-| Título + artista (vista limpia PiP) | Reproductor > vídeo apaisado en PiP | `app/.../ui/player/Player.kt:2996-3011` | informativo | rara | solo en PiP |
+| **[RETIRADO D-002]** Vídeo a pantalla completa (recortado, sin barras del sistema) | Reproductor > vídeo apaisado | `app/.../ui/player/Player.kt:2973` | informativo | ocasional | landscape real + `videoMode` con URL + sin PiP |
+| **[RETIRADO D-002]** Anterior *(solo icono)* | Reproductor > vídeo apaisado, barra inferior | `app/.../ui/player/Player.kt:3035` | acción primaria | ocasional | con controles visibles y sin PiP |
+| **[RETIRADO D-002]** Reproducir / Pausar *(solo icono)* | Reproductor > vídeo apaisado, barra inferior | `app/.../ui/player/Player.kt:3041` | acción primaria | ocasional | igual |
+| **[RETIRADO D-002]** Siguiente *(solo icono)* | Reproductor > vídeo apaisado, barra inferior | `app/.../ui/player/Player.kt:3049` | acción primaria | ocasional | igual |
+| **[RETIRADO D-002]** Salir del modo vídeo *(solo icono `music_note`)* | Reproductor > vídeo apaisado, barra inferior | `app/.../ui/player/Player.kt:3056` | conmutador | ocasional | igual |
+| **[RETIRADO D-002]** Título + artista (vista limpia PiP) | Reproductor > vídeo apaisado en PiP | `app/.../ui/player/Player.kt:2996-3011` | informativo | rara | solo en PiP |
 
 ## 2.9 Reproductor > canvas inmersivo al rotar (opcional)
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Anterior *(solo icono)* | Reproductor > canvas apaisado | `app/.../ui/player/Player.kt:3121` | acción primaria | rara | hay canvas **y** `ImmersiveCanvasOnRotate` ON (por defecto OFF) **y** landscape **y** controles visibles |
-| Reproducir / Pausar *(solo icono)* | Reproductor > canvas apaisado | `app/.../ui/player/Player.kt:3127` | acción primaria | rara | igual |
-| Siguiente *(solo icono)* | Reproductor > canvas apaisado | `app/.../ui/player/Player.kt:3135` | acción primaria | rara | igual |
+| **[RETIRADO D-002]** Anterior *(solo icono)* | Reproductor > canvas apaisado | `app/.../ui/player/Player.kt:3121` | acción primaria | rara | hay canvas **y** `ImmersiveCanvasOnRotate` ON (por defecto OFF) **y** landscape **y** controles visibles |
+| **[RETIRADO D-002]** Reproducir / Pausar *(solo icono)* | Reproductor > canvas apaisado | `app/.../ui/player/Player.kt:3127` | acción primaria | rara | igual |
+| **[RETIRADO D-002]** Siguiente *(solo icono)* | Reproductor > canvas apaisado | `app/.../ui/player/Player.kt:3135` | acción primaria | rara | igual |
 
 ## 2.10 Reproductor > diseño ancho / dividido (tablet, TV, coche, plegable abierto)
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Fila de la cola → salta a esa canción (o pausa/reanuda si ya es la actual) | Reproductor ancho > panel izquierdo | `app/.../ui/player/Player.kt:3736` · `:3775` | acción primaria | diaria | `isWideLayout` **y** sin letras **y** sin vídeo |
-| Portada grande (máx. 420 dp) | Reproductor ancho > panel derecho | `app/.../ui/player/Player.kt:3218` | informativo | constante | solo pantalla ancha |
-| Controles completos (mismo bloque `controlsContent`) | Reproductor ancho > panel derecho | `app/.../ui/player/Player.kt:3228` / `:3277` | — | constante | landscape real o pantalla ancha sin vídeo |
-| Letras a pantalla partida | Reproductor apaisado > panel izquierdo | `app/.../ui/player/Player.kt:3250` | informativo | ocasional | `showInlineLyrics` en landscape/ancho |
+| **[RETIRADO D-002]** Fila de la cola → salta a esa canción (o pausa/reanuda si ya es la actual) | Reproductor ancho > panel izquierdo | `app/.../ui/player/Player.kt:3736` · `:3775` | acción primaria | diaria | `isWideLayout` **y** sin letras **y** sin vídeo |
+| **[RETIRADO D-002]** Portada grande (máx. 420 dp) | Reproductor ancho > panel derecho | `app/.../ui/player/Player.kt:3218` | informativo | constante | solo pantalla ancha |
+| **[RETIRADO D-002]** Controles completos (mismo bloque `controlsContent`) | Reproductor ancho > panel derecho | `app/.../ui/player/Player.kt:3228` / `:3277` | — | constante | landscape real o pantalla ancha sin vídeo |
+| **[RETIRADO D-002]** Letras a pantalla partida | Reproductor apaisado > panel izquierdo | `app/.../ui/player/Player.kt:3250` | informativo | ocasional | `showInlineLyrics` en landscape/ancho |
 
 ## 2.11 Reproductor > botón Cast (superpuesto)
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| **Cast** / **Stop casting** *(hardcoded, en inglés — contentDescription)* | Reproductor > esquina sup. der., todos los layouts | colocación `app/.../ui/player/Player.kt:3549` · onClick `app/src/gms/kotlin/com/music/echo/ui/component/CastButton.kt:138` | navegación | ocasional | **solo en la compilación `gms`** (en FOSS es un stub vacío), `EnableGoogleCast` ON, SDK disponible, sin PiP, cola no expandida, controles visibles |
+| **[RETIRADO D-002]** **Cast** / **Stop casting** *(hardcoded, en inglés — contentDescription)* | Reproductor > esquina sup. der., todos los layouts | colocación `app/.../ui/player/Player.kt:3549` · onClick `app/src/gms/kotlin/com/music/echo/ui/component/CastButton.kt:138` | navegación | ocasional | **solo en la compilación `gms`** (en FOSS es un stub vacío), `EnableGoogleCast` ON, SDK disponible, sin PiP, cola no expandida, controles visibles |
 | Selector de dispositivos Cast (hoja) | Reproductor > Cast | `app/src/gms/kotlin/com/music/echo/ui/component/CastButton.kt:186` | navegación | ocasional | igual |
 | **Cast** *(overlay TopEnd; ÚNICO botón de esa esquina)* | Reproductor Aura > cabecera | `ui/newui/AuraPlayer.kt:1845-1848` | navegación | ocasional | mismas condiciones que el clásico |
 | Títulos con reserva de 40 dp para no correr bajo el Cast | Reproductor Aura > cabecera central | `ui/newui/AuraPlayer.kt:902-910` | informativo | constante | la reserva se anula con la letra abierta |
@@ -599,7 +626,7 @@ La barra tiene **cuatro implementaciones distintas** según el ajuste de estilo.
 >
 > | Composable | Se abre desde | ¿Vivo? |
 > |---|---|---|
-> | `OldPlayerMenu` | chip **«Más»** del reproductor (`ui/player/Player.kt:2111`) | **SÍ — es el menú real del REPRODUCTOR** |
+> | **[RETIRADO D-002]** `OldPlayerMenu` | chip **«Más»** del reproductor (`ui/player/Player.kt:2111`) | **SÍ — es el menú real del REPRODUCTOR** |
 > | `PlayerMenu` | botón ⋮ de la barra de la cola (`ui/player/Queue.kt:475`) y ⋮ de la cabecera de la Cola (`Queue.kt:891`) | **SÍ — pero solo desde la COLA** |
 > | `MoreActionsButton` (`Player.kt:3918`) y `PlayerMoreMenuButton` (`Player.kt:3960`) | nada | **NO — huérfanos** |
 >
@@ -672,7 +699,7 @@ Es la fila de iconos que se ve siempre bajo los controles del reproductor.
 | Al finalizar la canción | Cola > diálogo del temporizador | `ui/player/Queue.kt:694-701` | acción primaria | ocasional | igual |
 | Confirmar / Cancelar / Restablecer | Cola > diálogo del temporizador | `ui/player/Queue.kt:661` / `:665` / `:668` | acción primaria / navegación / destructiva | ocasional | igual; «Restablecer» vuelve a 30 min |
 
-*(El reproductor tiene además su PROPIO diálogo de temporizador, definido en `ui/player/Player.kt:861-918`
+*(El reproductor tiene además su PROPIO diálogo de temporizador, definido en `ui/player/Player.kt:861-918` **[RETIRADO D-002]**
 con slider 5–120 min, «Al finalizar la canción» `:913` y Aceptar/Cancelar `:879`/`:885`. Son dos diálogos
 distintos para la misma función.)*
 
@@ -834,7 +861,7 @@ Se abre con el ⋮ de una fila de la cola (`ui/player/Queue.kt:1376`) y con una 
 
 ## 7.1 Letras > menú ⋯ — `LyricsMenu`
 
-Se abre con el botón `more_horiz` del reproductor **solo cuando las letras están visibles** (`ui/player/Player.kt:1784` diseño nuevo, `:1857` diseño antiguo).
+Se abre con el botón `more_horiz` del reproductor **solo cuando las letras están visibles** (`ui/player/Player.kt:1784` diseño nuevo, `:1857` diseño antiguo). **[RETIRADO D-002]**
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
@@ -1558,7 +1585,7 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 | Aviso de desconexión al crear sala sin música | Juntos > aviso | `ui/screens/ListenTogetherScreen.kt:282` | informativo | ocasional | conectado y sin sala |
 | **Código de sala** *(texto grande)* — ⚠️ **no es copiable al tocarlo** | Juntos > tarjeta de sala | `ui/screens/ListenTogetherScreen.kt:707-721` | informativo | constante | solo en sala |
 | **Eres el anfitrión** / **Eres un invitado** | Juntos > tarjeta de sala | `ui/screens/ListenTogetherScreen.kt:724-727` | informativo | constante | igual |
-| **Comentarios** *(icono chat)* → `listen_together/chat` | Juntos > tarjeta de sala | `ui/screens/ListenTogetherScreen.kt:735-754` | navegación | diaria | solo en sala |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** **Comentarios** *(icono chat)* → `listen_together/chat` | Juntos > tarjeta de sala | `ui/screens/ListenTogetherScreen.kt:735-754` | navegación | diaria | solo en sala |
 | **Copiar enlace** | Juntos > tarjeta de sala | `ui/screens/ListenTogetherScreen.kt:768-786` | acción secundaria | ocasional | **solo el anfitrión** |
 | **Copiar código** | Juntos > tarjeta de sala | `ui/screens/ListenTogetherScreen.kt:788-804` | acción secundaria | ocasional | **solo el anfitrión** |
 | **Usuarios conectados (N)** + avatar → diálogo de gestión | Juntos > usuarios | `ui/screens/ListenTogetherScreen.kt:859-906` (llamada `:324-330`) | acción secundaria | ocasional | el avatar solo es pulsable siendo anfitrión y sobre otro usuario |
@@ -1578,16 +1605,16 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 | **«How it Works»** + 3 pasos *(hardcoded, en inglés)* | Juntos > ayuda | `ui/screens/ListenTogetherScreen.kt:444-464` | informativo | rara | solo fuera de sala |
 | Diálogo **Administrar usuario**: **Expulsar** / **Bloquear permanentemente** / **Transferir propiedad** / **Cancelar** | Juntos > diálogo | `ui/screens/ListenTogetherScreen.kt:1399-1523` | destructiva | ocasional | ⚠️ **las tres acciones destructivas se ejecutan a un solo toque, sin confirmación** |
 
-## 14.2 Chat de la sala
+## 14.2 Chat de la sala — **RETIRADO (`CommentTogether.kt` borrado; la ruta `listen_together/chat` ya no existe)**
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| **Comentarios** + **«Room: {código}»** *(hardcoded, en inglés)* | Chat > barra | `ui/screens/CommentTogether.kt:74-85` | informativo | constante | siempre |
-| Flecha atrás | Chat > barra | `ui/screens/CommentTogether.kt:88-92` | navegación | diaria | siempre |
-| Previsualización de respuesta + cancelar | Chat > barra inferior | `ui/screens/CommentTogether.kt:112-157` | acción secundaria | ocasional | solo respondiendo |
-| Campo **«Escribe un mensaje…»** *(máx. 4 líneas)* + **Enviar** | Chat > entrada | `ui/screens/CommentTogether.kt:332-366` | acción primaria | constante | siempre |
-| Enlace de YouTube Music dentro de un mensaje → reproduce | Chat > burbuja | `ui/screens/CommentTogether.kt:430-450` | navegación | ocasional | solo si el mensaje trae esa URL |
-| **«No messages yet» / «Start the conversation!»** *(en inglés)* | Chat > vacío | `ui/screens/CommentTogether.kt:400-410` | informativo | ocasional | sin mensajes |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** **Comentarios** + **«Room: {código}»** *(hardcoded, en inglés)* | Chat > barra | `ui/screens/CommentTogether.kt:74-85` | informativo | constante | siempre |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** Flecha atrás | Chat > barra | `ui/screens/CommentTogether.kt:88-92` | navegación | diaria | siempre |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** Previsualización de respuesta + cancelar | Chat > barra inferior | `ui/screens/CommentTogether.kt:112-157` | acción secundaria | ocasional | solo respondiendo |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** Campo **«Escribe un mensaje…»** *(máx. 4 líneas)* + **Enviar** | Chat > entrada | `ui/screens/CommentTogether.kt:332-366` | acción primaria | constante | siempre |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** Enlace de YouTube Music dentro de un mensaje → reproduce | Chat > burbuja | `ui/screens/CommentTogether.kt:430-450` | navegación | ocasional | solo si el mensaje trae esa URL |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** **«No messages yet» / «Start the conversation!»** *(en inglés)* | Chat > vacío | `ui/screens/CommentTogether.kt:400-410` | informativo | ocasional | sin mensajes |
 
 ## 14.3 Comentarios de YouTube
 
@@ -2674,7 +2701,7 @@ Nota: esta pantalla NO tiene barra superior ni botón Atrás propios (`SoundSett
 **Fila 358 (2026-10-08) — orden nuevo:** interruptor del ecualizador → Preamplificación (+ medidor FFT si está activo) → curva + presets de fábrica → presets guardados → Auto-EQ → Gráfico/Paramétrico + bandas → Guardar → **Efectos** (Firma de sonido Tidal, Audio espacial) → **Herramientas** (Medidor FFT en vivo, Verificar ecualizador) → EQ por dispositivo → Exportar / Importar. «Volumen Seguro» SALE de esta pantalla (era el mismo interruptor que el de Ajustes > Sonido, donde sigue). Fila 357: quedan 14 presets de fábrica (ver `FactoryPreset`). Los números de línea de la tabla son anteriores.
 
 Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqScreen.kt`
-(También accesible desde el reproductor: `ui/menu/PlayerMenu.kt:838` y `ui/player/Player.kt:2100`.)
+(También accesible desde el reproductor: `ui/menu/PlayerMenu.kt:838` y `ui/player/Player.kt:2100`.) **[RETIRADO D-002]**
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
@@ -2960,8 +2987,8 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/AccountsScreen.
 | Conectar / Finalizar sesión (botón Spotify) | Ajustes > Cuentas | AccountsScreen.kt:243 | acción primaria / destructiva | rara | según estado de sesión |
 | Fila Last.fm — grupo «Last.fm» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:269 | navegación | ocasional | siempre |
 | Conectar / Finalizar sesión (botón Last.fm) | Ajustes > Cuentas | AccountsScreen.kt:284 | acción primaria / destructiva | rara | según estado de sesión |
-| Fila Qobuz — «Hi-Res con tu suscripción — activo» / «Sesión no iniciada» — grupo «Qobuz» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:310 | navegación (`settings/qobuz`) | rara | siempre |
-| Administrar / Conectar (botón Qobuz) | Ajustes > Cuentas | AccountsScreen.kt:326 | acción primaria | rara | `settings/qobuz` |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Fila Qobuz — «Hi-Res con tu suscripción — activo» / «Sesión no iniciada» — grupo «Qobuz» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:310 | navegación (`settings/qobuz`) | rara | siempre |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Administrar / Conectar (botón Qobuz) | Ajustes > Cuentas | AccountsScreen.kt:326 | acción primaria | rara | `settings/qobuz` |
 | Fila ListenBrainz — grupo «ListenBrainz» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:350 | navegación | rara | siempre |
 | Conectar / Finalizar sesión (botón ListenBrainz) | Ajustes > Cuentas | AccountsScreen.kt:371 | acción primaria / destructiva | rara | según estado |
 
@@ -3026,23 +3053,23 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/LastFMSettingsS
 
 ---
 
-## 18.19 Ajustes > Cuentas > Qobuz — `settings/qobuz`
+## 18.19 Ajustes > Cuentas > Qobuz — `settings/qobuz` — **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]**
 
-Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/QobuzSettingsScreen.kt`
+Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/QobuzSettingsScreen.kt` **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]**
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Atrás (tap) / Ir al inicio (mantener) | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:55 (`onLongClick` 57) | navegación | constante | siempre |
-| Texto introductorio «Reproduce en calidad Qobuz (FLAC Hi-Res) con TU propia suscripción…» | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:80 | informativo | — | siempre |
-| «Conectado a Qobuz» + plan («Plan: %s», «Hi-Res 24-bit disponible» / «Cuenta estándar/sin pérdida») | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:86 | informativo | ocasional | solo si `state.linked` |
-| Cerrar sesión | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:135 | destructiva | rara | solo si `state.linked` |
-| Usar mi suscripción Qobuz — desc. «Cuando está activo, las pistas sin pérdida se reproducen desde tu Qobuz (FLAC Hi-Res) en vez del proxy.» | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:177 (Switch 186) | conmutador | rara | solo si `state.linked` |
-| Token (user_auth_token) (campo de texto) — hint «Pega tu user_auth_token de Qobuz (recomendado, sin contraseña).» | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:221 | acción secundaria | rara | solo si NO hay sesión |
-| Usar token (botón) | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:229 | acción primaria | rara | solo si NO hay sesión |
-| Correo electrónico (campo) — sección «O inicia sesión con tu correo y contraseña» | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:253 | acción secundaria | rara | solo si NO hay sesión |
-| Contraseña (campo) | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:262 | acción secundaria | rara | solo si NO hay sesión |
-| Iniciar sesión (botón) | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:272 | acción primaria | rara | solo si NO hay sesión |
-| OK [SIN TRADUCIR] (diálogo de aviso, p. ej. «No activamos "Usar mi suscripción Qobuz": tu plan no incluye 24-bit…») | Diálogo: aviso Qobuz | QobuzSettingsScreen.kt:304 | acción primaria | rara | solo con el diálogo abierto |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Atrás (tap) / Ir al inicio (mantener) | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:55 (`onLongClick` 57) | navegación | constante | siempre |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Texto introductorio «Reproduce en calidad Qobuz (FLAC Hi-Res) con TU propia suscripción…» | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:80 | informativo | — | siempre |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** «Conectado a Qobuz» + plan («Plan: %s», «Hi-Res 24-bit disponible» / «Cuenta estándar/sin pérdida») | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:86 | informativo | ocasional | solo si `state.linked` |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Cerrar sesión | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:135 | destructiva | rara | solo si `state.linked` |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Usar mi suscripción Qobuz — desc. «Cuando está activo, las pistas sin pérdida se reproducen desde tu Qobuz (FLAC Hi-Res) en vez del proxy.» | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:177 (Switch 186) | conmutador | rara | solo si `state.linked` |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Token (user_auth_token) (campo de texto) — hint «Pega tu user_auth_token de Qobuz (recomendado, sin contraseña).» | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:221 | acción secundaria | rara | solo si NO hay sesión |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Usar token (botón) | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:229 | acción primaria | rara | solo si NO hay sesión |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Correo electrónico (campo) — sección «O inicia sesión con tu correo y contraseña» | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:253 | acción secundaria | rara | solo si NO hay sesión |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Contraseña (campo) | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:262 | acción secundaria | rara | solo si NO hay sesión |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Iniciar sesión (botón) | Ajustes > Cuentas > Qobuz | QobuzSettingsScreen.kt:272 | acción primaria | rara | solo si NO hay sesión |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** OK [SIN TRADUCIR] (diálogo de aviso, p. ej. «No activamos "Usar mi suscripción Qobuz": tu plan no incluye 24-bit…») | Diálogo: aviso Qobuz | QobuzSettingsScreen.kt:304 | acción primaria | rara | solo con el diálogo abierto |
 
 ---
 
@@ -3067,9 +3094,12 @@ Se llega desde Ajustes > Cuentas (fila YouTube), Ajustes > Copias de seguridad >
 | Cada 3 días (hardcoded, recomendada; default si la clave no existe) | Sincronizar desde YouTube Music | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
 | Cada día (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
 | Cada semana (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
-| Sincronizar mi biblioteca con mi cuenta — desc. «Tus playlists, artistas seguidos, me gusta y álbumes se guardan en tu cuenta de YouTube Music…» (sección «Copia de seguridad en YouTube Music») | Sincronizar desde YouTube Music | YtmSyncScreen.kt:318 | conmutador | rara | siempre |
-| «%d artistas solo en Aura — volver a preguntar» (sección «Copia de seguridad en YouTube Music») | Sincronizar desde YouTube Music | YtmSyncScreen.kt:470 | acción secundaria | rara | solo si hay artistas importados que el usuario dejó «Solo en Aura»; los devuelve a la espera de confirmación |
-| Sincronizar toda mi biblioteca ahora — desc. «Sube todo lo que falte. Corre en segundo plano, por tandas, y continúa donde se quedó.» | Sincronizar desde YouTube Music | YtmSyncScreen.kt:335 | acción primaria | rara | siempre; muestra «Activa "Sincronizar mi biblioteca…"» si el conmutador está apagado y «Primero inicia sesión en YouTube Music» sin sesión |
+| Sincronizar mi biblioteca con mi cuenta — desc. «Tus playlists, artistas seguidos, me gusta y álbumes se guardan en tu cuenta de YouTube Music…» (sección «Copia de seguridad en YouTube Music») | Sincronizar desde YouTube Music | YtmSyncScreen.kt:454 (Switch `:462`) | conmutador | rara | siempre; al ENCENDER pasa por `requestUploadEnabled` (`:351`), que puede abrir el diálogo de la fila siguiente |
+| Diálogo **«Sincronizar mi biblioteca con mi cuenta»** — «%1$d artistas que sigues en Aura aún no están en tu cuenta de YouTube Music. Al activarlo, tu cuenta se suscribirá a ellos.» + **Habilitar** / **Cancelar** | Sincronizar desde YouTube Music > al encender el conmutador | YtmSyncScreen.kt:370-388 | acción primaria | rara | solo si hay artistas seguidos en Aura pendientes de subir (sin contar los importados que esperan confirmación o quedaron «Solo en Aura»); si no hay ninguno, se enciende sin preguntar |
+| **«%d artistas esperan tu confirmación para suscribirse en tu cuenta»** (R.plurals.ytm_upload_import_awaiting) → abre el diálogo de la fila siguiente | Sincronizar desde YouTube Music > «Copia de seguridad en YouTube Music» | YtmSyncScreen.kt:470-476 | navegación | rara | solo si hay artistas importados esperando confirmación (`ImportFollowsAwaitingConfirmKey`) |
+| Diálogo de los artistas importados: mismo texto + **Suscribir** (los sube a tu cuenta) / **Solo en Aura** (los deja solo en la app) | Sincronizar desde YouTube Music > fila «… esperan tu confirmación» | YtmSyncScreen.kt:391-438 | acción primaria | rara | igual que la fila anterior |
+| «%d artistas solo en Aura — volver a preguntar» (sección «Copia de seguridad en YouTube Music») | Sincronizar desde YouTube Music | YtmSyncScreen.kt:477-500 | acción secundaria | rara | solo si hay artistas importados que el usuario dejó «Solo en Aura»; los devuelve a la espera de confirmación |
+| Sincronizar toda mi biblioteca ahora — desc. «Sube todo lo que falte. Corre en segundo plano, por tandas, y continúa donde se quedó.» | Sincronizar desde YouTube Music | YtmSyncScreen.kt:504 | acción primaria | rara | siempre; muestra «Activa "Sincronizar mi biblioteca…"» si el conmutador está apagado y «Primero inicia sesión en YouTube Music» sin sesión |
 
 ---
 
@@ -3322,17 +3352,17 @@ Vive en `ui/screens/settings/` pero **no dibuja ninguna pantalla de ajustes**. S
 | `String.parseMarkdown()` | UpdaterComponents.kt:187 | — | render del changelog |
 | `ChangelogItem(text, shape)` | UpdaterComponents.kt:256 | informativo | `echomusicupdater.kt:527` |
 
-### 30.8 `ui/component/Preference.kt` — **NO SE USA EN NINGÚN SITIO** (ver sección MUERTO)
+### 30.8 `ui/component/Preference.kt` — **NO SE USA EN NINGÚN SITIO** (ver sección MUERTO) — **[RETIRADO: `ui/component/Preference.kt` borrado]**
 
 | Composable | archivo:línea | Soporta |
 |---|---|---|
-| `PreferenceEntry` | Preference.kt:46 | `trailingContent` (52), `isEnabled` (54), atenuación al 50 % si deshabilitado (64) |
-| `ListPreference` | Preference.kt:105 | `isEnabled` (113) |
-| (entrada de lista con acción) | Preference.kt:166 | `isEnabled` |
-| `SwitchPreference` | Preference.kt:181 | `isEnabled` (188), Switch en `trailingContent` (195) |
-| `EditTextPreference` | Preference.kt:217 | `isEnabled` (225) |
-| `SliderPreference` | Preference.kt:257 | `isEnabled` (263) |
-| `PreferenceGroupTitle` | Preference.kt:335 | — |
+| **[RETIRADO: `ui/component/Preference.kt` borrado]** `PreferenceEntry` | Preference.kt:46 | `trailingContent` (52), `isEnabled` (54), atenuación al 50 % si deshabilitado (64) |
+| **[RETIRADO: `ui/component/Preference.kt` borrado]** `ListPreference` | Preference.kt:105 | `isEnabled` (113) |
+| **[RETIRADO: `ui/component/Preference.kt` borrado]** (entrada de lista con acción) | Preference.kt:166 | `isEnabled` |
+| **[RETIRADO: `ui/component/Preference.kt` borrado]** `SwitchPreference` | Preference.kt:181 | `isEnabled` (188), Switch en `trailingContent` (195) |
+| **[RETIRADO: `ui/component/Preference.kt` borrado]** `EditTextPreference` | Preference.kt:217 | `isEnabled` (225) |
+| **[RETIRADO: `ui/component/Preference.kt` borrado]** `SliderPreference` | Preference.kt:257 | `isEnabled` (263) |
+| **[RETIRADO: `ui/component/Preference.kt` borrado]** `PreferenceGroupTitle` | Preference.kt:335 | — |
 
 ---
 
@@ -3447,29 +3477,29 @@ en él. Son los candidatos número uno a desaparecer sin que nadie lo note hasta
 
 | Condición | Qué cambia | Dónde |
 |---|---|---|
-| **`useNewPlayerDesign`** (ON por defecto) | El reproductor tiene **dos maquetaciones completas** de transporte, y la barra de la Cola cambia de 7 botones a 4. En el diseño ANTIGUO aparecen: el deslizador de volumen del sistema, el nombre del dispositivo Bluetooth, el chip del temporizador y **el ÚNICO acceso al selector de salida de audio de toda la app** | `ui/player/Player.kt:2513` vs `:2650` · `ui/player/Queue.kt:366-464` vs `:513-638` |
+| **[RETIRADO D-002]** **`useNewPlayerDesign`** (ON por defecto) | El reproductor tiene **dos maquetaciones completas** de transporte, y la barra de la Cola cambia de 7 botones a 4. En el diseño ANTIGUO aparecen: el deslizador de volumen del sistema, el nombre del dispositivo Bluetooth, el chip del temporizador y **el ÚNICO acceso al selector de salida de audio de toda la app** | `ui/player/Player.kt:2513` vs `:2650` · `ui/player/Queue.kt:366-464` vs `:513-638` |
 | **`UseNewMiniPlayerDesign`** (ON por defecto) | El mini reproductor tiene dos maquetaciones (anillo de progreso vs barra inferior; con y sin botón «anterior») | `ui/player/MiniPlayer.kt:440` vs `:773` |
-| **Estilo de la barra de progreso** (4 valores) | DEFAULT / squiggly / wavy M3 / SLIM — cuatro implementaciones distintas del mismo control | `ui/player/Player.kt:2140`, `:2178`, `:2207`, `:2253` |
+| **[RETIRADO D-002]** **Estilo de la barra de progreso** (4 valores) | DEFAULT / squiggly / wavy M3 / SLIM — cuatro implementaciones distintas del mismo control | `ui/player/Player.kt:2140`, `:2178`, `:2207`, `:2253` |
 | **Modo Rendimiento** | Sustituye el carrusel héroe del Inicio y las tarjetas de mix diario por versiones compactas **sin pulsación larga (sin menú)**, y oculta secciones enteras | `ui/screens/HomeScreen.kt:1457`, `:1687`, `:1936` |
 | **«Solo mi gusto» en el Inicio** (ON por defecto) | **Oculta** las secciones crudas de YouTube, «De la comunidad» y «Estado de ánimo y géneros» | `ui/screens/HomeScreen.kt:1611`, `:2265`, `:2400` |
 | **Marcación rápida** (OFF por defecto) | Toda la sección de marcación rápida del Inicio, con su botón «aleatorio» y su paginación | `ui/screens/HomeScreen.kt:1247-1415` |
 | **«Deslizar canción»** (OFF por defecto) | Los dos gestos de deslizar filas («Reproducir a continuación» / «Añadir a la cola») en TODAS las listas | `ui/component/Items.kt:1732-1742` |
 | **`ShowCommentButton`** (OFF por defecto) | El botón de comentarios de la barra de la Cola y, con él, las 437 líneas de la hoja de comentarios | `ui/player/Queue.kt:413-426` |
-| **`ImmersiveCanvasOnRotate`** (OFF por defecto) | Los 3 controles del canvas inmersivo al girar el móvil | `ui/player/Player.kt:3121-3135` |
-| **`ShowCodecOnPlayer`** | El indicador de códec / bitrate / «Lossless» bajo la barra | `ui/player/Player.kt:2419-2445` |
+| **[RETIRADO D-002]** **`ImmersiveCanvasOnRotate`** (OFF por defecto) | Los 3 controles del canvas inmersivo al girar el móvil | `ui/player/Player.kt:3121-3135` |
+| **[RETIRADO D-002]** **`ShowCodecOnPlayer`** | El indicador de códec / bitrate / «Lossless» bajo la barra | `ui/player/Player.kt:2419-2445` |
 | **`HidePlayerThumbnail`** | Sustituye la portada por un placeholder con el logo | `ui/player/Thumbnail.kt:786` |
 | **`RotatingThumbnail`** | Portada giratoria con forma de trébol | `ui/player/Thumbnail.kt:774-780` |
 | **`CanvasThumbnailAnimation`** | Portada animada (canvas de Apple/Tidal) | `ui/player/Thumbnail.kt:938` |
 | **`SwipeThumbnail`** | El carrusel de portadas del reproductor y el deslizamiento del mini reproductor | `ui/player/Thumbnail.kt:525` · `ui/player/MiniPlayer.kt:328` |
-| **`EnableLyricsThumbnailPlayPause`** | La miniatura de 56 dp que reproduce/pausa en la cabecera de las letras | `ui/player/Player.kt:1633` |
-| **`hidePlayerSlider`** | La fila de volumen del diseño antiguo (⚠️ el nombre engaña, no es la barra de progreso) | `ui/player/Player.kt:2740` |
+| **[RETIRADO D-002]** **`EnableLyricsThumbnailPlayPause`** | La miniatura de 56 dp que reproduce/pausa en la cabecera de las letras | `ui/player/Player.kt:1633` |
+| **[RETIRADO D-002]** **`hidePlayerSlider`** | La fila de volumen del diseño antiguo (⚠️ el nombre engaña, no es la barra de progreso) | `ui/player/Player.kt:2740` |
 | **`EnableExportAsMp3`** (OFF por defecto) | Las 3 filas «Exportando / Exportado / Exportar» en 4 menús distintos | `SongMenu.kt:746-767` · `YouTubeSongMenu.kt:615-636` · `PlayerMenu.kt:637-657` · `OldPlayerMenu.kt:428-453` |
 | **`ListenTogetherInTopBar`** (ON por defecto) | **La barra inferior tiene 3 o 4 pestañas.** Con ON, «Juntos» sale como icono del top bar | `MainActivity.kt:792-799`, `:1273-1284` |
 | **`ForceSplitView`** | Fuerza el rail lateral y el panel «Sonando ahora» en cualquier tamaño de pantalla | `ui/utils/TvUi.kt:60-63` |
 | **`ShowNowPlayingPanel`** (ON por defecto) / **`SidePanelOnLeft`** | Muestra/oculta y coloca el panel lateral de reproducción | `MainActivity.kt:879`, `:1540` |
 | **Efecto Liquid Glass** (OFF por defecto) | Cambia el aspecto de 3 superficies. ⚠️ **El reproductor a pantalla completa NUNCA lo renderiza** aunque exista la opción (`ui/component/GlassEffect.kt:80-82`) | `ui/component/GlassEffect.kt:40-252` |
 | **`AskTranslateLyricsOnOpen`** (OFF por defecto) | El diálogo «¿Traducir la letra?» | `ui/component/Lyrics.kt:643-666` |
-| **`SpectrumVisualizerEnabled`** (sembrado ON) | ⚠️ Reserva espacio y **no dibuja nada** — ver la sección de placebos | `ui/player/Player.kt:2131` |
+| **[RETIRADO: el visualizador de espectro (`SpectrumVisualizer`) y su ajuste se borraron]** **`SpectrumVisualizerEnabled`** (sembrado ON) | ⚠️ Reserva espacio y **no dibuja nada** — ver la sección de placebos | `ui/player/Player.kt:2131` |
 
 ## 20.2 Por estado de sesión / cuenta
 
@@ -3485,7 +3515,7 @@ en él. Son los candidatos número uno a desaparecer sin que nadie lo note hasta
 
 Ser **invitado** de una sala degrada el reproductor entero. Un mockup nunca enseña este estado:
 
-- Reproducir/pausar **se convierte en silenciar/activar sonido** (`ui/player/Player.kt:2536`).
+- Reproducir/pausar **se convierte en silenciar/activar sonido** (`ui/player/Player.kt:2536`). **[RETIRADO D-002]**
 - Se deshabilitan anterior, siguiente y la barra de progreso (salvo las onduladas — ver errores).
 - Se desactiva el deslizamiento de portadas y del mini reproductor.
 - Desaparecen del menú: Iniciar radio, Aleatorio, Repetir.
@@ -3571,24 +3601,24 @@ diario descubre que ya no está. Todos los de abajo existen hoy y están verific
 
 | Gesto | Qué hace exactamente | archivo:línea | Condicional |
 |---|---|---|---|
-| **Mantener pulsado el título** | Copia el título al portapapeles + Toast «Título copiado» | `ui/player/Player.kt:1932` | siempre |
-| **Mantener pulsado el artista** | Copia el nombre del artista + Toast «Artista copiado» | `ui/player/Player.kt:1964` | siempre |
+| **[RETIRADO D-002]** **Mantener pulsado el título** | Copia el título al portapapeles + Toast «Título copiado» | `ui/player/Player.kt:1932` | siempre |
+| **[RETIRADO D-002]** **Mantener pulsado el artista** | Copia el nombre del artista + Toast «Artista copiado» | `ui/player/Player.kt:1964` | siempre |
 | **Doble toque en el centro de la portada** (35–65 % del ancho) | Reproducir / pausar | `ui/player/Thumbnail.kt:735` | no como invitado de Escuchar juntos |
 | **Doble toque en la mitad izquierda de la portada** | Retrocede 5 s. Con «segundos extra» activado y toques a menos de 1 s, se acumula: 5, 10, 15… + overlay «−N segundos hacia atrás» | `ui/player/Thumbnail.kt:757` | igual; se invierte en idiomas de derecha a izquierda |
 | **Doble toque en la mitad derecha de la portada** | Avanza 5 s con el mismo multiplicador acumulativo | `ui/player/Thumbnail.kt:760` | igual |
 | **Deslizar horizontal sobre el carrusel de portadas** | Cambia de canción con encaje (snap) | `ui/player/Thumbnail.kt:525-559` · salto `:363-371` · encaje `ui/player/ThumbnailSnapUtils.kt:16` | solo con «Deslizar miniatura» ON, reproductor expandido y sin ser invitado |
-| **Deslizar horizontal sobre la portada a pantalla completa** | Derecha = anterior, izquierda = siguiente (umbral 100 px) | `ui/player/Player.kt:3497` (retrato), `:3238`, `:3212` (apaisado) | **solo en modo pantalla completa** |
-| **Deslizar hacia ARRIBA en el cuerpo del reproductor** | Abre la hoja de la Cola arrastrando | `ui/player/Player.kt:3468-3488` | solo retrato sin vídeo, expandido, no pantalla completa y cola cerrada |
-| **Deslizar hacia ABAJO en el reproductor** | Colapsa a mini reproductor. Si se pasa del umbral inferior, **descarta la hoja: para la reproducción, limpia la cola y el automix** | `ui/component/BottomSheet.kt:92-105` · efecto `ui/player/Player.kt:1551-1555` | siempre — **es una acción destructiva escondida en un gesto** |
-| **Atrás del sistema con el reproductor abierto** | Colapsa a mini reproductor (deliberadamente NO sale del modo vídeo) | `ui/component/BottomSheet.kt:114-116` · nota `ui/player/Player.kt:3311` | mientras no esté colapsado |
+| **[RETIRADO D-002]** **Deslizar horizontal sobre la portada a pantalla completa** | Derecha = anterior, izquierda = siguiente (umbral 100 px) | `ui/player/Player.kt:3497` (retrato), `:3238`, `:3212` (apaisado) | **solo en modo pantalla completa** |
+| **[RETIRADO D-002]** **Deslizar hacia ARRIBA en el cuerpo del reproductor** | Abre la hoja de la Cola arrastrando | `ui/player/Player.kt:3468-3488` | solo retrato sin vídeo, expandido, no pantalla completa y cola cerrada |
+| **[RETIRADO D-002]** **Deslizar hacia ABAJO en el reproductor** | Colapsa a mini reproductor. Si se pasa del umbral inferior, **descarta la hoja: para la reproducción, limpia la cola y el automix** | `ui/component/BottomSheet.kt:92-105` · efecto `ui/player/Player.kt:1551-1555` | siempre — **es una acción destructiva escondida en un gesto** |
+| **[RETIRADO D-002]** **Atrás del sistema con el reproductor abierto** | Colapsa a mini reproductor (deliberadamente NO sale del modo vídeo) | `ui/component/BottomSheet.kt:114-116` · nota `ui/player/Player.kt:3311` | mientras no esté colapsado |
 | **Deslizar horizontal sobre el MINI reproductor** | Cambia de canción, con animación de arrastre e icono direccional; umbral por velocidad (ajuste «Sensibilidad del deslizamiento», 0,73 por defecto) o por distancia | `ui/player/MiniPlayer.kt:328` (diseño nuevo), `:678` (legacy) | solo con «Deslizar miniatura» ON y sin ser invitado |
-| **Tocar el vídeo en retrato** | Alterna TODOS los controles y el título. **Sin auto-ocultado** | `ui/player/Player.kt:3316` | solo vídeo en retrato |
-| **Tocar el vídeo en apaisado** | Alterna la barra de controles; se auto-ocultan a los 3,5 s (**no en TV/coche**) | `ui/player/Player.kt:2968`, `:2985` | solo vídeo apaisado, sin PiP |
-| **Tocar el canvas en apaisado** | Alterna la barra de transporte; auto-ocultado a 3,5 s | `ui/player/Player.kt:3100` | solo con canvas inmersivo activado |
-| **Cualquier tecla del mando (TV/coche)** | Vuelve a mostrar los controles de vídeo o canvas | `ui/player/Player.kt:2964`, `:3096` | solo TV/coche |
+| **[RETIRADO D-002]** **Tocar el vídeo en retrato** | Alterna TODOS los controles y el título. **Sin auto-ocultado** | `ui/player/Player.kt:3316` | solo vídeo en retrato |
+| **[RETIRADO D-002]** **Tocar el vídeo en apaisado** | Alterna la barra de controles; se auto-ocultan a los 3,5 s (**no en TV/coche**) | `ui/player/Player.kt:2968`, `:2985` | solo vídeo apaisado, sin PiP |
+| **[RETIRADO D-002]** **Tocar el canvas en apaisado** | Alterna la barra de transporte; auto-ocultado a 3,5 s | `ui/player/Player.kt:3100` | solo con canvas inmersivo activado |
+| **[RETIRADO D-002]** **Cualquier tecla del mando (TV/coche)** | Vuelve a mostrar los controles de vídeo o canvas | `ui/player/Player.kt:2964`, `:3096` | solo TV/coche |
 | **Arrastrar o tocar las barras onduladas** | Tocar = salto directo; arrastrar = búsqueda continua (la onda se aplana al arrastrar) | `ui/component/SquigglySlider.kt:121`/`:129` · `ui/component/WavySlider.kt:86`/`:94` | según el estilo de barra elegido |
-| **Deslizar desde el borde con la barra de estado oculta** | Revela temporalmente las barras del sistema | `ui/player/Player.kt:967-969`, `:2930-2938` | pantalla completa con «ocultar barra de estado» ON |
-| **Foco inicial del mando al abrir el reproductor** | Enfoca reproducir/pausar (hasta 40 reintentos de 50 ms) | `ui/player/Player.kt:423-438` | solo TV/coche |
+| **[RETIRADO D-002]** **Deslizar desde el borde con la barra de estado oculta** | Revela temporalmente las barras del sistema | `ui/player/Player.kt:967-969`, `:2930-2938` | pantalla completa con «ocultar barra de estado» ON |
+| **[RETIRADO D-002]** **Foco inicial del mando al abrir el reproductor** | Enfoca reproducir/pausar (hasta 40 reintentos de 50 ms) | `ui/player/Player.kt:423-438` | solo TV/coche |
 
 **No existen en el reproductor:** pinza/zoom, doble toque en el mini reproductor, ni arrastre vertical
 para el volumen.
@@ -3632,7 +3662,7 @@ para el volumen.
 | **Mantener pulsada la flecha «volver»** | Vuelve DIRECTAMENTE a la pantalla principal, saltándose toda la pila | `ui/component/IconButton.kt:64-96`; usado en ~12 pantallas | ⚠️ **gesto oculto, sin ninguna pista visual** |
 | **Volver a tocar la pestaña ya seleccionada** | Hace *scroll* al principio de la pantalla en vez de navegar | `MainActivity.kt:1358-1362` (barra), `:1503-1507` (rail) | siempre |
 | **Mantener pulsado «Buscar» en el rail lateral** | Abre Reconocer música | `ui/component/AppNavigation.kt:80-103` | ⚠️ **solo en el rail; la barra inferior del móvil NO tiene este gesto** |
-| **Mantener pulsada una burbuja del chat** | Activa el modo responder (el toque simple no hace nada) | `ui/screens/CommentTogether.kt:249-252` | en el chat de la sala |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** **Mantener pulsada una burbuja del chat** | Activa el modo responder (el toque simple no hace nada) | `ui/screens/CommentTogether.kt:249-252` | en el chat de la sala |
 | **Atrás con un chip de mood activo en Inicio** | Desactiva el chip en vez de navegar | `ui/screens/HomeScreen.kt:700-704` | con chip activo |
 | **Atrás con un filtro de Biblioteca activo** | Vuelve al filtro «Biblioteca» | `ui/screens/library/LibraryScreen.kt:70-72` | con filtro activo |
 | **Atrás en cualquier modo selección** | Sale del modo selección | Cola, Álbum, Historial, listas, Letras — 10 pantallas | en selección |
@@ -3808,7 +3838,7 @@ Los diálogos del **reproductor** están en §3.8, §4.3, §5.1, §5.2, §7.1 y 
 | Diálogo de acceso a Last.fm (usuario + contraseña) | Scrobbling | LastFMSettingsScreen.kt:~160 |
 | 3 diálogos de slider de scrobbling | Scrobbling | LastFMSettingsScreen.kt:~460, ~525, ~590 |
 | Diálogo de token de ListenBrainz | Scrobbling | LastFMSettingsScreen.kt:713 |
-| Diálogo de aviso de Qobuz | Cuentas > Qobuz | QobuzSettingsScreen.kt:~300 |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Diálogo de aviso de Qobuz | Cuentas > Qobuz | QobuzSettingsScreen.kt:~300 |
 | Diálogo de información de «Borrar actualizaciones descargadas» | Update | UpdateSettings.kt:200 |
 | Diálogos de Escuchar juntos (nombre de usuario, crear sala, unirse, registros, elegir servidor, usuarios bloqueados) | Escuchar juntos | ListenTogetherSettings.kt:172, 209, 260, 508, 583, 748 |
 | Pantalla de suscripción en línea (no es diálogo, sustituye el contenido) | Ajustes raíz | SettingsScreen.kt:77 |
@@ -3827,7 +3857,7 @@ Los diálogos del **reproductor** están en §3.8, §4.3, §5.1, §5.2, §7.1 y 
 
 | Qué | Dónde | Evidencia | Certeza |
 |---|---|---|---|
-| **Visualizador de espectro: no dibuja NADA.** El composable completo es `Box(modifier = modifier)`, un contenedor vacío. Reserva el espacio sobre la barra de progreso y no pinta un solo píxel. Además la preferencia se **siembra ENCENDIDA** en dispositivos que no son de gama baja | `ui/component/SpectrumVisualizer.kt:9-14` · uso `ui/player/Player.kt:2131` · siembra `App.kt:624-625` | El archivo entero son 14 líneas; el cuerpo es un `Box` sin hijos. Hoy **no hay ningún interruptor en Ajustes** para él (`ui/screens/settings/SoundSettings.kt:29` documenta que se quitaron los imports) | **Total** |
+| **[RETIRADO: el visualizador de espectro (`SpectrumVisualizer`) y su ajuste se borraron]** **Visualizador de espectro: no dibuja NADA.** El composable completo es `Box(modifier = modifier)`, un contenedor vacío. Reserva el espacio sobre la barra de progreso y no pinta un solo píxel. Además la preferencia se **siembra ENCENDIDA** en dispositivos que no son de gama baja | `ui/component/SpectrumVisualizer.kt:9-14` · uso `ui/player/Player.kt:2131` · siembra `App.kt:624-625` | El archivo entero son 14 líneas; el cuerpo es un `Box` sin hijos. Hoy **no hay ningún interruptor en Ajustes** para él (`ui/screens/settings/SoundSettings.kt:29` documenta que se quitaron los imports) | **Total** |
 | **`applyAudioQuality` es una función vacía.** El selector de calidad de audio de la hoja de dispositivos llama a una función cuyo cuerpo no tiene nada | `echomusic/AudioDeviceBottomSheet.kt:912-914`, llamada en `:818` | Funciona igual porque el resolver lee la preferencia por su cuenta, pero la llamada es engañosa | **Total** |
 | **Deslizador cableado que nunca se dibuja.** En la hoja de dispositivos se crea un `sliderState` completo, con callbacks y una animación viva, pero no existe ningún `Slider(` en el archivo | `echomusic/AudioDeviceBottomSheet.kt:632-668` | El volumen real lo mueven los gestos de `:698-718`. El estado y su animación se mantienen vivos para nada | **Total** |
 | **Botones ▶ decorativos.** El play centrado sobre las tarjetas de canción y sobre las miniaturas locales **no tiene `onClick`**: parece un botón y no lo es (el toque lo captura la tarjeta entera) | `ui/component/Items.kt:1618-1643`, usos `:584`, `:1238`, `:1485-1508`, `:1510-1533` | Definiciones sin parámetro de clic | **Total** |
@@ -3838,7 +3868,7 @@ Los diálogos del **reproductor** están en §3.8, §4.3, §5.1, §5.2, §7.1 y 
 | **Filas de menú «Exportando» / «Exportado» con `onClick = {}`**: se dibujan como opciones pulsables y no responden | `ui/menu/SongMenu.kt:746`/`:756` · `ui/menu/YouTubeSongMenu.kt:615`/`:625` · `ui/menu/PlayerMenu.kt:637`/`:647` · `ui/menu/OldPlayerMenu.kt:428`/`:440` | Intencionalmente informativas, pero visualmente indistinguibles de una acción | **Total** |
 | **Tocar una canción de «Relacionados» en la Cola no hace nada** (`onClick = {}`); solo funcionan los dos botones de acción y la pulsación larga | `ui/player/Queue.kt:1646` | Lambda vacía | **Total** |
 | **Tocar el vídeo de fondo del artista no hace nada**, pero el `Box` es `clickable`: consume el toque y muestra ondas de pulsación | `ui/screens/artist/ArtistScreen.kt:387-391` · `artistvideo/.../ArtistVideo.kt:126` | Lambda vacía sobre un elemento clicable | **Total** |
-| **Tocar una burbuja del chat no hace nada** (solo la pulsación larga responde) | `ui/screens/CommentTogether.kt:250` | Lambda vacía | **Total** |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** **Tocar una burbuja del chat no hace nada** (solo la pulsación larga responde) | `ui/screens/CommentTogether.kt:250` | Lambda vacía | **Total** |
 | **Ramas vacías en Explorar genérico**: si el `browseId` devuelve canciones o vídeos, ni el toque ni la pulsación larga hacen nada | `ui/screens/BrowseScreen.kt:86-88`, `:116-118` | Bloques `{ }` literalmente vacíos | Alta en el código |
 | **Auto-foco de la barra de búsqueda muerto**: se crea y se invoca un `focusRequester` que **nunca se aplica a ningún componente**; lanza excepción y se traga en un log | `ui/screens/search/SearchScreen.kt:137`, `:574-579` | Verificado | Alta |
 | **La preferencia de «actualizaciones beta» no afecta a la comprobación**: se lee en Ajustes pero el comprobador siempre pide la última versión estable | lectura `ui/screens/settings/UpdateSettings.kt:71` · comprobador `echomusic/updater/echomusicupdater.kt:672-808` | La preferencia no aparece en el comprobador | Media-alta |
@@ -3852,7 +3882,7 @@ Los diálogos del **reproductor** están en §3.8, §4.3, §5.1, §5.2, §7.1 y 
 | **Commits** (`CommitScreen`) | `echomusic/commitscreen/commitscreen.kt:86` | Ruta `settings/commits` registrada (`NavigationBuilder.kt:548`), cero llamadas. **Además apunta al repositorio upstream ajeno** (`EchoMusicApp/Echo-Music`, `:108`), no al del dueño | **Total** |
 | **Escuchar juntos con barra superior** | ruta `listen_together_from_topbar`, `NavigationBuilder.kt:105` | Registrada, nadie navega; solo se compara como ruta actual en `MainActivity.kt:1046`. Su parámetro `showTopBar` **siempre llega apagado** | **Total** |
 | **Ajustes de cuenta** (`AccountSettingsScreen`) | `ui/screens/settings/AccountSettingsScreen.kt` | Su ruta `settings/account` está des-registrada (`NavigationBuilder.kt:340`) | **Total** |
-| **Integraciones** (`IntegrationScreen`) | `ui/screens/settings/integrations/IntegrationScreen.kt` | Ruta des-registrada (`NavigationBuilder.kt:432`) y cuerpo vacío | **Total** |
+| **[RETIRADO: `integrations/IntegrationScreen.kt` borrado]** **Integraciones** (`IntegrationScreen`) | `ui/screens/settings/integrations/IntegrationScreen.kt` | Ruta des-registrada (`NavigationBuilder.kt:432`) y cuerpo vacío | **Total** |
 | **Diálogo de canción compartida** | `MainActivity.kt:1694-1718` | El estado `sharedSong` **solo se asigna a `null`** (`:1053`, `:1697`, `:1712`); jamás recibe una canción | **Total** |
 | **«Importar lista de reproducción»** (`ImportPlaylistDialog`) | `ui/menu/ImportPlaylistDialog.kt` | Su único punto de montaje (`ui/menu/YouTubePlaylistMenu.kt:265`) nunca pone su bandera a verdadero | **Total** |
 | **Selector de dispositivo de audio desde el mini reproductor** | `ui/player/MiniPlayer.kt:252`, `:464-465` | La bandera solo se pone a `false`, nunca a `true`. **Solo se llega a la hoja desde la Cola en el diseño ANTIGUO** (`ui/player/Queue.kt:543`) | **Total** |
@@ -3870,13 +3900,13 @@ Verificado con `grep` sobre todo `app/src`: la única aparición es su propia de
 
 | Composable | Archivo:línea | Nota |
 |---|---|---|
-| **`ui/component/Preference.kt` ENTERO** | `PreferenceEntry:46`, `ListPreference:105`, `EnumListPreference:159`, `SwitchPreference:181`, `EditTextPreference:217`, `SliderPreference:257`, `PreferenceGroupTitle:335` | El sistema de preferencias heredado de InnerTune. Lo sustituyó `Material3SettingsItem` / `Material3SettingsGroup`. **Ninguna pantalla de Ajustes lo usa** |
+| **[RETIRADO: `ui/component/Preference.kt` borrado]** **`ui/component/Preference.kt` ENTERO** | `PreferenceEntry:46`, `ListPreference:105`, `EnumListPreference:159`, `SwitchPreference:181`, `EditTextPreference:217`, `SliderPreference:257`, `PreferenceGroupTitle:335` | El sistema de preferencias heredado de InnerTune. Lo sustituyó `Material3SettingsItem` / `Material3SettingsGroup`. **Ninguna pantalla de Ajustes lo usa** |
 | **`ui/component/NewMenuComponents.kt` casi entero** | `NewMenuItem:127`, `NewMenuContainer:328`, `NewIconButton`, `NewActionButton`, `NewMenuSectionHeader`, `NewMenuContent` | De este archivo solo viven `NewActionGrid` y `NewAction` (la rejilla de botones grandes de los menús). Unas 200 de sus 340 líneas están muertas |
-| **`ui/component/SearchBar.kt` ENTERO** | `TopSearch:66` + su privada `SearchBarInputField:151` | La búsqueda real usa el `SearchBar` de Material 3. Incluye un manejador de «atrás» que nunca se ejecuta |
+| **[RETIRADO: `ui/component/SearchBar.kt` borrado]** **`ui/component/SearchBar.kt` ENTERO** | `TopSearch:66` + su privada `SearchBarInputField:151` | La búsqueda real usa el `SearchBar` de Material 3. Incluye un manejador de «atrás» que nunca se ejecuta |
 | **`AppNavigationBar`** | `ui/component/AppNavigation.kt:129-218` | La barra inferior real es `FloatingNavigationToolbar`. Arrastra consigo la preferencia `SlimNavBarKey`, que **no se lee en ningún sitio** |
 | **`AutoResizeText`** | `ui/component/AutoResizeText.kt` | Sin referencias |
-| **`MoreActionsButton`** | `ui/player/Player.kt:3918` | Envoltorio de `PlayerMenu` sin puntos de llamada |
-| **`PlayerMoreMenuButton`** | `ui/player/Player.kt:3960` | Ídem |
+| **[RETIRADO D-002]** **`MoreActionsButton`** | `ui/player/Player.kt:3918` | Envoltorio de `PlayerMenu` sin puntos de llamada |
+| **[RETIRADO D-002]** **`PlayerMoreMenuButton`** | `ui/player/Player.kt:3960` | Ídem |
 | **`FavoriteButton`** | `ui/player/MiniPlayer.kt:949` | Sin referencias |
 | **`DeviceSelector`** | `echomusic/AudioDeviceBottomSheet.kt:1226-1278` | ~53 líneas de selección por chips que nadie renderiza |
 | **`ConnectionStatusCard`** | `ui/screens/ListenTogetherScreen.kt:565-684` | Tarjeta con 3 botones (Conectar / Desconectar / Reconectar); su parámetro `onReconnect` no tiene implementación en ninguna parte |
@@ -3909,8 +3939,8 @@ No son parte del inventario, pero salieron al leer el código y el dueño querr�
 | El texto de confirmación de borrar descargas de una selección inserta el literal `"selection"` | `ui/menu/SelectionSongsMenu.kt:154`, `:606` · `YouTubeSelectionSongMenu.kt:174` | «…de la lista de reproducción «selection»…» |
 | `allInLibrary` se calcula con `remember {}` sin claves | `ui/menu/SelectionSongsMenu.kt:85` | El texto «Añadir/Quitar de la biblioteca» no se actualiza tras pulsarlo |
 | «Me gusta a todo» nunca cambia a «No me gusta a todo» en el menú de la Cola (el icono sí cambia) | `ui/menu/SelectionSongsMenu.kt:781`, `:787` | Incoherente con los otros dos menús de selección |
-| Las barras onduladas **no reciben** `enabled = !esInvitado`, a diferencia de las otras dos | `ui/player/Player.kt:2178`, `:2207` vs `:2162`, `:2275` | Un invitado de Escuchar juntos SÍ puede mover la posición con el estilo ondulado |
-| `hidePlayerSlider` («ocultar la barra del reproductor») en realidad oculta la **fila de volumen**, no la barra de progreso | `ui/player/Player.kt:303`, `:2740` | ⚠️ Si el rediseño interpreta el nombre literalmente, romperá el ajuste |
+| **[RETIRADO D-002]** Las barras onduladas **no reciben** `enabled = !esInvitado`, a diferencia de las otras dos | `ui/player/Player.kt:2178`, `:2207` vs `:2162`, `:2275` | Un invitado de Escuchar juntos SÍ puede mover la posición con el estilo ondulado |
+| **[RETIRADO D-002]** `hidePlayerSlider` («ocultar la barra del reproductor») en realidad oculta la **fila de volumen**, no la barra de progreso | `ui/player/Player.kt:303`, `:2740` | ⚠️ Si el rediseño interpreta el nombre literalmente, romperá el ajuste |
 | Cifras de reproducciones **fabricadas** en la pestaña Sugerencias (`2.500.000 / (rank+2)` y `15.000.000 / (rank+8)`) | `ui/screens/search/suggestions/TabNewsSuggestion.kt:323-327`, `:403-407` | Se muestran «X.XM plays» que no vienen de ninguna fuente real |
 | La marca **«echo-music»** aparece en el pie de Sugerencias | `ui/screens/search/suggestions/TabNewsSuggestion.kt:244` | Contradice la regla de marca «solo Aura» |
 | Dos `println` de depuración en producción | `ui/player/Thumbnail.kt:830`, `:926` | Ruido en el log |
@@ -3930,7 +3960,7 @@ Kotlin, que no pasa por el sistema de traducción.
 | Desfase de la letra | «Reset», «Decrease», «Increase» (`ShowOffsetDialog.kt:180`, `:200`, `:225`) |
 | Tono de llamada | «Trim Ringtone», «Select the part of…», «Selected duration…», «Play Preview», «Setting Ringtone…», «Success!», «Failed», «Open Settings», «Close» (`RingtoneTrimmerDialog.kt:94-178`, `RingtoneProgressDialog.kt:36-83`) |
 | Escuchar juntos | «How it Works» + 3 pasos (`ListenTogetherScreen.kt:444-464`), «Listen Together Link», «Room Code» (`PlayerMenu.kt:1498`, `:1517`), motivos «Removed by host» / «Rejected by host» que viajan al servidor (`:222`, `:326`, `:337`) |
-| Chat de la sala | «Room: {código}», «No messages yet», «Start the conversation!» (`CommentTogether.kt:81`, `:401`, `:407`) |
+| **[RETIRADO: chat de sala borrado (`CommentTogether.kt`, ruta `listen_together/chat`)]** Chat de la sala | «Room: {código}», «No messages yet», «Start the conversation!» (`CommentTogether.kt:81`, `:401`, `:407`) |
 | Comentarios | «Replies», «Back», «N Replies» (`CommentSheet.kt:317`, `:374`, `:378`) |
 | Historial de reconocimiento | «No recognition history», «No results for …» (`RecognitionHistoryScreen.kt:281`, `:305`) |
 | Modo Ambiente | «Album Art» (`AmbientModeScreen.kt:138`) |
@@ -4032,8 +4062,8 @@ Los ficheros `ui/menu/*.kt` no formaban parte del encargo. Aquí solo se inventa
 
 | Qué | Dónde | Evidencia |
 |---|---|---|
-| **`ui/component/Preference.kt` entero — 7 composables sin un solo invocador** | Preference.kt:46, 105, 166, 181, 217, 257, 335 | `grep -rn "PreferenceEntry\|SwitchPreference\|ListPreference\|EditTextPreference\|SliderPreference\|PreferenceGroupTitle" app/src/main/kotlin/` fuera del propio archivo devuelve **0 resultados**. Todas las pantallas usan `Material3SettingsGroup`/`Material3SettingsItem`. El rediseño NO debe partir de este archivo. |
-| **`IntegrationScreen.kt` — pantalla vacía y sin ruta** | integrations/IntegrationScreen.kt:34-40 (cuerpo `Column { }` vacío) | La ruta `settings/integrations` fue **de-registrada a propósito** en `NavigationBuilder.kt` (comentario en la línea ~468: «IA hygiene (F0): "settings/integrations" (IntegrationScreen) de-registered — empty screen body, no navigate() caller»). Solo dibuja una barra superior con Atrás. |
+| **[RETIRADO: `ui/component/Preference.kt` borrado]** **`ui/component/Preference.kt` entero — 7 composables sin un solo invocador** | Preference.kt:46, 105, 166, 181, 217, 257, 335 | `grep -rn "PreferenceEntry\|SwitchPreference\|ListPreference\|EditTextPreference\|SliderPreference\|PreferenceGroupTitle" app/src/main/kotlin/` fuera del propio archivo devuelve **0 resultados**. Todas las pantallas usan `Material3SettingsGroup`/`Material3SettingsItem`. El rediseño NO debe partir de este archivo. |
+| **[RETIRADO: `integrations/IntegrationScreen.kt` borrado]** **`IntegrationScreen.kt` — pantalla vacía y sin ruta** | integrations/IntegrationScreen.kt:34-40 (cuerpo `Column { }` vacío) | La ruta `settings/integrations` fue **de-registrada a propósito** en `NavigationBuilder.kt` (comentario en la línea ~468: «IA hygiene (F0): "settings/integrations" (IntegrationScreen) de-registered — empty screen body, no navigate() caller»). Solo dibuja una barra superior con Atrás. |
 | **Ruta `settings/commits` registrada pero sin ningún invocador** | NavigationBuilder.kt:548 | `grep -rn "settings/commits"` solo aparece en `NavigationBuilder.kt`. Inalcanzable desde la UI. |
 | **Conmutador «Reproductor de cristal» inoperable** | GlassEffectSettings.kt:309-327 | `enabled = false`, `onCheckedChange = null`, `checked = false` fijos. El propio comentario del código lo dice: nada llama a `GlassEffectConfig.isEnabledFor(GlassComponent.PLAYER)`. **No es placebo engañoso** — está etiquetado «Aún no disponible…» — pero es una fila que no hace nada. |
 | **Import muerto `EnableDynamicIconKey`** | AppearanceSettings.kt:70 | Importado y jamás usado en el cuerpo; la clave (`enableDynamicIcon`, PreferenceKeys.kt:223) no aparece en ningún otro `.kt`. Rastro de un conmutador de icono dinámico eliminado. |
@@ -4065,7 +4095,7 @@ Sin interfaz asociada, así que no son controles placebo, pero son basura que co
 | `ListenTogetherSettings` | `settings/integrations/listen_together` | Solo desde `ui/screens/ListenTogetherScreen.kt:424`. La fila «Escuchar juntos» de Ajustes (`SettingsScreen.kt:235`) navega a `Screens.ListenTogether.route` = `"listen_together"`, que es la **pantalla principal**, no estos ajustes. Sin embargo, 31 entradas del buscador de Ajustes sí apuntan aquí. |
 | `AccountSettingsScreen` | `account` | No está en el menú raíz (que va a `settings/accounts`). |
 | `YtmSyncScreen` | `settings/ytm_sync` | Desde Cuentas, Copias de seguridad, onboarding y `MainActivity.kt:1115`. |
-| `QobuzSettingsScreen` | `settings/qobuz` | Solo desde `AccountsScreen.kt:327/339`. |
+| **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** `QobuzSettingsScreen` | `settings/qobuz` | Solo desde `AccountsScreen.kt:327/339`. |
 | `YoutubeDecryptionSettings` | `settings/youtube_decryption` | Solo desde `PlayerSettings.kt:1043`. |
 | `AxionEqScreen` | `settings/equalizer` | Desde `SoundSettings.kt:73`, `PlayerMenu.kt:838` y `Player.kt:2100`. |
 | `AutoEqScreen` | `settings/sound/autoeq` | Solo desde `SoundSettings.kt:79`. |
@@ -4278,3 +4308,18 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Ajustes ▸ Sincronizar dispositivos: «Sincronizar me gusta, no me gusta y listas» | Interruptor (activo por defecto); mientras los dispositivos están conectados, YouTube no sincroniza me gusta ni listas | 536 |
 | Reproductor ▸ «SONANDO EN <dispositivo> · CONTINUAR AQUÍ» (cabecera, arriba de la portada) y barra de tiempo / play / anterior / siguiente | Cuando otro de tus dispositivos suena y este no, el reproductor (y el mini) muestra y controla ESA reproducción con sus propios botones; tocar el aviso trae la reproducción aquí. Sustituye a la tarjeta flotante | 537 |
 | Ajustes ▸ Sincronizar dispositivos: fila «Biblioteca» | Estado real de la sincronización (al día / esperando / servidor desactualizado / fallo); tocarla sincroniza ahora | 539 |
+
+## Anexo 2026-11-23 (fila 775): avisos que la app muestra por su cuenta (no se quitó ni se ocultó nada)
+
+Toasts y mensajes que no salen de ningún botón y que, por eso, ningún mockup enseña. Textos de `values-es`.
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Toast «Sin internet: sigo con lo disponible sin conexión» (R.string.offline_session_started) | Toda la app | `playback/MusicService.kt:3947` y `:4185` | informativo | ocasional | al entrar en la sesión sin conexión con música sonando; una vez por sesión |
+| Toast «Sin internet: la cola cambió a tu música sin conexión» (R.string.offline_queue_switched) | Toda la app | `playback/MusicService.kt:4185-4186` | informativo | ocasional | igual, cuando la cola se cambió a lo disponible sin conexión (fila 705) |
+| Toast «Conexión recuperada» (R.string.offline_session_ended) | Toda la app | `playback/MusicService.kt:4331-4332` | informativo | ocasional | al salir de la sesión sin conexión, solo si se avisó al entrar y la red está comprobada |
+| Toast «Conexión recuperada: volviste a tu cola» (R.string.offline_queue_restored) | Toda la app | `playback/MusicService.kt:4331-4332` | informativo | ocasional | igual, cuando se restauró la cola de antes |
+| Toast «La cola inteligente no encontró canciones nuevas para seguir (nunca repite lo que ya escuchaste), así que la cola terminó.» (R.string.smart_queue_no_new_songs) | Toda la app | `playback/RadioContinuationEngine.kt:1310` | informativo | rara | con conexión, una vez por cola, cuando la radio no encontró nada nuevo (fila 655) |
+| Toast «Solo el anfitrión puede cambiar la cola» (R.string.listen_together_guest_queue_locked) | Toda la app, como invitado de Escuchar juntos | `playback/PlayerConnection.kt:308` | informativo | ocasional | solo como invitado, al intentar cambiar la reproducción |
+| Aviso «Aún no se puede cambiar la cola de %1$s desde aquí. Toca «Continuar aquí» para añadir canciones en este dispositivo.» (R.string.device_sync_queue_edit_not_sent) | Mientras se controla otro dispositivo | `playback/MusicService.kt:6252-6254` → `devicesync/DeviceSyncHub.kt:99` | informativo | rara | al añadir a la cola mientras se controla otro dispositivo. ⚠️ **Hoy no se ve:** `DeviceSyncHub.notices` no tiene ningún colector en la app (comprobado con grep el 2026-11-23); lo mismo vale para los demás `DeviceSyncHub.notice(…)` |
+| Tarjeta de error del escaneo local: «Aura no tiene permiso para leer tu música: no se ha escaneado ni quitado nada de tu biblioteca.» / «No se encontró ninguna canción en este dispositivo, así que se conservan tus %1$d canciones locales…» / «No se ha quitado nada de tu biblioteca.» (R.string.local_songs_scan_no_permission / local_songs_scan_empty_kept / local_songs_scan_nothing_removed) | Biblioteca > Local | `viewmodels/LocalSongsViewModel.kt:111-113` → `ui/screens/library/LocalSongScreen.kt:1197` | informativo | rara | solo cuando un escaneo se negó a borrar (fila 694): sin permiso, sin pistas con canciones guardadas, o cualquier otro fallo del escáner |
