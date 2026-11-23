@@ -33,6 +33,8 @@ object EqBypass {
     data class ToneStages(
         val spatial: Boolean,
         val tidalSignature: Boolean,
+        /** The dynamic de-esser: its switch lives in the equalizer screen's «Efectos» group (row 793). */
+        val deEsser: Boolean,
     )
 
     /**
@@ -55,9 +57,11 @@ object EqBypass {
         masterEqOn: Boolean,
         spatialEnabled: Boolean,
         tidalSignatureEnabled: Boolean,
+        deEsserEnabled: Boolean,
     ): ToneStages =
         ToneStages(
             spatial = masterEqOn && spatialEnabled,
             tidalSignature = masterEqOn && tidalSignatureEnabled,
+            deEsser = masterEqOn && deEsserEnabled,
         )
 }

@@ -234,6 +234,8 @@ struct EqSnapshot {
     bool safeVolumeEnabled = false;
     float safeVolumeGain = 1.0f;
     bool tidalSimulationEnabled = false;
+    /// Dynamic de-esser (runs only inside the EQ block). ON by default so an update changes nothing.
+    bool deEsserEnabled = true;
     /// Spatial stage (opt-in). Disabled by default so EQ-only playback stays bit-identical in this
     /// branch. Parameter layout is owned by Kotlin SpatialAudioProfile.toNativeParams().
     bool spatialEnabled = false;
@@ -338,6 +340,7 @@ public:
     bool activeSafeVolumeEnabled = false;
     float activeSafeVolumeGain = 1.0f;
     bool activeTidalSimulationEnabled = false;
+    bool activeDeEsserEnabled = true;
     bool activeSpatialEnabled = false;
     int activeSpatialAlgorithm = 0;
     float activeAzL = 330.0f;
@@ -448,6 +451,7 @@ public:
         activeSafeVolumeEnabled = s.safeVolumeEnabled;
         activeSafeVolumeGain = s.safeVolumeGain;
         activeTidalSimulationEnabled = s.tidalSimulationEnabled;
+        activeDeEsserEnabled = s.deEsserEnabled;
         activeSpatialEnabled = s.spatialEnabled;
         activeSpatialAlgorithm = s.spatialAlgorithm;
         activeAzL = s.azL;
@@ -1198,7 +1202,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
             // detection: RMS energy of the 6.5 kHz band through a one-pole envelope (fast attack / slow
             // release), with a PROPORTIONAL cut (up to -5 dB) instead of the old binary -4/0 peak gate —
             // less twitchy, less likely to audibly dull the top on loud bright material.
-            if (processor->deEsser && processor->deEsserDetector) {
+            if (processor->activeDeEsserEnabled && processor->deEsser && processor->deEsserDetector) {
                 memcpy(processor->deEsserBuffer, workBuffer, requiredSize * sizeof(float));
                 if (channels == 1) processor->deEsserDetector->processMono(processor->deEsserBuffer, processor->deEsserBuffer, num_frames);
                 else processor->deEsserDetector->process(processor->deEsserBuffer, processor->deEsserBuffer, num_frames);
@@ -1222,6 +1226,10 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
 
                 if (channels == 1) processor->deEsser->processMono(workBuffer, workBuffer, num_frames);
                 else processor->deEsser->process(workBuffer, workBuffer, num_frames);
+            } else {
+                // Switched off: start from flat when it is switched back on.
+                processor->currentDeEsserDb = 0.0f;
+                processor->deEsserEnv = 0.0f;
             }
         }
 
@@ -1430,6 +1438,18 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setTidalSimulatio
 
     std::lock_guard<std::mutex> lock(processor->writerMutex);
     processor->staging.tidalSimulationEnabled = (enabled == JNI_TRUE);
+    processor->publishIfNotBatchingLocked();
+#endif
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setDeEsserEnabled(JNIEnv *env, jobject thiz, jlong ptr, jboolean enabled) {
+#if HAS_SUPERPOWERED
+    auto* processor = reinterpret_cast<SuperpoweredProcessor*>(ptr);
+    if (!processor) return;
+
+    std::lock_guard<std::mutex> lock(processor->writerMutex);
+    processor->staging.deEsserEnabled = (enabled == JNI_TRUE);
     processor->publishIfNotBatchingLocked();
 #endif
 }

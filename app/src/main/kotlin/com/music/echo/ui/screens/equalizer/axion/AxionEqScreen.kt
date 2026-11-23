@@ -99,6 +99,8 @@ import iad1tya.echo.music.constants.HighPerformanceModeKey
 import iad1tya.echo.music.constants.SpatialAudioEnabledKey
 import iad1tya.echo.music.constants.SpatialAudioProfileKey
 import iad1tya.echo.music.constants.TidalSimulationEnabledKey
+import iad1tya.echo.music.constants.DeEsserDefault
+import iad1tya.echo.music.constants.DeEsserEnabledKey
 import iad1tya.echo.music.eq.audio.SpatialAudioProfile
 import iad1tya.echo.music.ui.newui.AuraDialogWindowEffects
 import iad1tya.echo.music.ui.newui.AuraFloatingSurface
@@ -1015,13 +1017,14 @@ private fun ColumnScope.EqMainContent(
     // ── Efectos sobre el ecualizador ──────────────────────────────────────────────────────────────
     // Both depend on the switch above (EqBypass.toneStages), which is why they live here and not in Sonido.
     val (tidalSimulation, onTidalSimulationChange) = rememberPreference(TidalSimulationEnabledKey, defaultValue = true)
+    val (deEsser, onDeEsserChange) = rememberPreference(DeEsserEnabledKey, defaultValue = DeEsserDefault)
     Material3SettingsGroup(
-        title = "Efectos",
+        title = stringResource(R.string.eq_effects_title),
         items = listOf(
             Material3SettingsItem(
                 icon = painterResource(R.drawable.tune),
-                title = { Text("Firma de sonido Tidal") },
-                description = { Text("Curva suave fija: +1 dB de sub-grave (60 Hz), −0,5 dB a 250 Hz, +0,5 dB de presencia (3 kHz) y +1,5 dB de aire (12 kHz). Solo con el ecualizador activado.") },
+                title = { Text(stringResource(R.string.eq_tidal_signature_title)) },
+                description = { Text(stringResource(R.string.eq_tidal_signature_desc)) },
                 trailingContent = {
                     Switch(
                         checked = tidalSimulation,
@@ -1029,6 +1032,18 @@ private fun ColumnScope.EqMainContent(
                     )
                 },
                 onClick = { onTidalSimulationChange(!tidalSimulation) },
+            ),
+            Material3SettingsItem(
+                icon = painterResource(R.drawable.tune),
+                title = { Text(stringResource(R.string.eq_de_esser_title)) },
+                description = { Text(stringResource(R.string.eq_de_esser_desc)) },
+                trailingContent = {
+                    Switch(
+                        checked = deEsser,
+                        onCheckedChange = onDeEsserChange,
+                    )
+                },
+                onClick = { onDeEsserChange(!deEsser) },
             ),
         ),
     )

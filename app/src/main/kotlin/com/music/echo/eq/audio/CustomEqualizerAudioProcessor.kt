@@ -139,6 +139,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     private external fun setPreamp(ptr: Long, preampDb: Float)
     private external fun setSafeVolume(ptr: Long, enabled: Boolean, gainLinear: Float)
     private external fun setTidalSimulationEnabled(ptr: Long, enabled: Boolean)
+    private external fun setDeEsserEnabled(ptr: Long, enabled: Boolean)
     private external fun setSpatial(ptr: Long, enabled: Boolean, algorithm: Int, params: FloatArray)
     private external fun setMasteringOptions(ptr: Long, compressor: Boolean, dither: Boolean, speakerBassProtect: Boolean)
     private external fun setStereoWidth(ptr: Long, width: Float)
@@ -171,6 +172,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     private var safeVolumeEnabled = false
     private var safeVolumeGain = 1f
     private var tidalSimulationEnabled = false
+    private var deEsserEnabled = iad1tya.echo.music.constants.DeEsserDefault
     private var spatialEnabled = false
     private var spatialAlgorithm = 0
     private var spatialParams: FloatArray = FloatArray(SpatialAudioProfile.NATIVE_PARAM_COUNT)
@@ -205,6 +207,16 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             // Through pushToneStages, never straight to the native setter: with the master EQ off this
             // stores the choice and publishes the bypass, so a settings change cannot switch a stage back
             // on behind a disabled equalizer.
+            if (isInitialized && ptr != 0L) pushToneStages(ptr)
+        }
+    }
+
+    /** Enable/disable the dynamic de-esser (row 793). It only ever runs with the equalizer on. */
+    fun applyDeEsser(enabled: Boolean) {
+        synchronized(eqApplyLock) {
+            deEsserEnabled = enabled
+            val ptr = nativePtr
+            // Through pushToneStages, like applyTidalSimulation: the only caller of the tone setters.
             if (isInitialized && ptr != 0L) pushToneStages(ptr)
         }
     }
@@ -340,9 +352,11 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             masterEqOn = enabled,
             spatialEnabled = spatialEnabled,
             tidalSignatureEnabled = tidalSimulationEnabled,
+            deEsserEnabled = deEsserEnabled,
         )
         setSpatial(ptr, plan.spatial, spatialAlgorithm, spatialParams)
         setTidalSimulationEnabled(ptr, plan.tidalSignature)
+        setDeEsserEnabled(ptr, plan.deEsser)
         // Stereo width and the mastering stages live in Ajustes ▸ Sonido, NOT inside the equalizer, so the
         // equalizer switch has no say over them: they are published exactly as the user set them. They stay
         // in this function only so every native tone setter keeps a single call site.
