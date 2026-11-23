@@ -78,7 +78,8 @@ class ArtistPageSubscriptionReadBackTest {
         assertTrue("row 700: one tap at a time", tap.contains("if (!toggleInFlight.compareAndSet(false, true)) return"))
         assertTrue(
             "row 700: a tap against a state the button did not show toggles",
-            tap.contains("database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artistId)).first() != shownFollowed"),
+            // row 716: checked inside the toggle's own transaction, not by a read before it
+            tap.contains("shownFollowed = shownFollowed,"),
         )
         assertTrue("row 700: the guard is released", tap.contains("finally {\n                toggleInFlight.set(false)"))
         assertTrue("the shared tap is still the one used", tap.contains("database.toggleArtistFollow("))

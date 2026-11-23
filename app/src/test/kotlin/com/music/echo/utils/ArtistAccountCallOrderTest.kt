@@ -126,7 +126,7 @@ class ArtistAccountCallOrderTest {
         val entity = main("db/entities/ArtistEntity.kt")
         val toggle = entity.substringAfter("    fun toggleLike(").substringBefore("\n    }\n")
         assertTrue("submitted at tap time, in tap order", toggle.contains("accountCalls.submit("))
-        assertTrue(toggle.contains("ArtistSyncPolicy.channelKey(channelId ?: id)"))
+        assertTrue("row 716: one queue per channel, all spellings", toggle.contains("ArtistSyncPolicy.accountCallKey(id, channelId)"))
         assertFalse("an unordered call per tap came back", toggle.contains("subscribeChannel("))
         assertEquals("one door to the account", 1, Regex("""YouTube\.subscribeChannel\(""").findAll(entity).count())
         val send = entity.substringAfter("private suspend fun sendToAccount(").substringBefore("\n        }\n")
@@ -144,7 +144,7 @@ class ArtistAccountCallOrderTest {
         assertTrue("one tap at a time", artist.contains("if (followInFlight.compareAndSet(false, true)) {"))
         assertTrue(
             "only against what the tile showed",
-            artist.contains("isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id)).first() == shownFollowed"),
+            artist.contains("shownFollowed = shownFollowed,"),
         )
         assertTrue(artist.contains("env.database.toggleArtistFollow("))
         assertFalse("a second, alias-blind toggle came back", artist.contains(".toggleLike("))

@@ -173,7 +173,7 @@ data class ArtistEntity(
         // unfollow). `toggled` is the row we are about to persist, so its `unfollowedByUserAt` is the
         // exact timestamp the write-back must not overshoot.
         accountCalls.submit(
-            iad1tya.echo.music.utils.ArtistSyncPolicy.channelKey(channelId ?: id),
+            iad1tya.echo.music.utils.ArtistSyncPolicy.accountCallKey(id, channelId),
             AccountCall(this, subscribing, toggled.unfollowedByUserAt, onLiveUnsubscribeConfirmed),
         )
     }

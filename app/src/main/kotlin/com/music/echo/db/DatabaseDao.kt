@@ -2564,6 +2564,10 @@ interface DatabaseDao {
     @Query("SELECT * FROM artist WHERE id IN (:ids)")
     suspend fun getArtistEntitiesByIds(ids: List<String>): List<ArtistEntity>
 
+    /** Blocking twin of [getArtistEntitiesByIds], for reads inside a running transaction (row 716). */
+    @Query("SELECT * FROM artist WHERE id IN (:ids)")
+    fun artistEntitiesByIdsInTransaction(ids: List<String>): List<ArtistEntity>
+
     @Query("SELECT * FROM album WHERE id IN (:ids)")
     suspend fun getAlbumEntitiesByIds(ids: List<String>): List<AlbumEntity>
 
