@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- UX audit P22C (registry row 734): texts that were hardcoded in English in Kotlin, so the Spanish UI showed them in English. -->
+<resources>
+    <string name="lyrics_from_provider">Lyrics from %1$s</string>
+    <string name="label_copied">%1$s copied</string>
+    <string name="lyrics_offset_decrease">Decrease</string>
+    <string name="lyrics_offset_increase">Increase</string>
+    <string name="no_recognition_history">No recognition history</string>
+    <string name="no_results_for_query">No results for \"%1$s\"</string>
+    <string name="ringtone_trim_title">Trim ringtone</string>
+    <string name="ringtone_trim_instructions">Select the part of \"%1$s\" to use as ringtone (30 s max recommended).</string>
+    <string name="ringtone_preview_play">Play preview</string>
+    <string name="ringtone_preview_pause">Pause preview</string>
+    <string name="ringtone_selected_duration">Selected duration: %1$s</string>
+    <string name="ringtone_setting">Setting ringtone…</string>
+    <string name="ringtone_done">Done!</string>
+    <string name="ringtone_failed">Failed</string>
+    <string name="ringtone_open_settings">Open settings</string>
+    <string name="ringtone_progress_stream">Getting audio stream…</string>
+    <string name="ringtone_progress_fetching">Fetching audio…</string>
+    <string name="ringtone_progress_cached">Preparing cached audio…</string>
+    <string name="ringtone_progress_downloading">Downloading… %1$d%%</string>
+    <string name="ringtone_progress_processing">Processing audio…</string>
+    <string name="ringtone_progress_saving">Saving ringtone…</string>
+    <string name="ringtone_progress_saved">Song saved to ringtones…</string>
+    <string name="ringtone_error_stream">Couldn\'t get the audio stream</string>
+    <string name="ringtone_error_source">Couldn\'t prepare the source file</string>
+    <string name="ringtone_error_process">Couldn\'t process the audio</string>
+    <string name="ringtone_error_generic">Couldn\'t create the ringtone</string>
+</resources>

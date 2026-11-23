@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.compose.ui.res.stringResource
+import iad1tya.echo.music.R
 import iad1tya.echo.music.utils.makeTimeString
 import kotlinx.coroutines.delay
 
@@ -91,7 +93,7 @@ fun RingtoneTrimmerDialog(
         },
         title = {
             Text(
-                "Trim Ringtone",
+                stringResource(R.string.ringtone_trim_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
@@ -99,7 +101,7 @@ fun RingtoneTrimmerDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Select the part of \"${songTitle ?: "Unknown"}\" to use as ringtone. (Max 30s recommended)",
+                    text = stringResource(R.string.ringtone_trim_instructions, songTitle ?: stringResource(R.string.unknown)),
                     style = MaterialTheme.typography.bodyMedium,
                 )
 
@@ -128,7 +130,7 @@ fun RingtoneTrimmerDialog(
                         ) {
                             Icon(
                                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlaying) "Pause Preview" else "Play Preview",
+                                contentDescription = stringResource(if (isPlaying) R.string.ringtone_preview_pause else R.string.ringtone_preview_play),
                                 modifier = Modifier.size(48.dp)
                             )
                         }
@@ -171,7 +173,7 @@ fun RingtoneTrimmerDialog(
 
                 val selectedDurationSec = (rangeSec.endInclusive - rangeSec.start).toLong()
                 Text(
-                    text = "Selected duration: ${makeTimeString(selectedDurationSec * 1000)}",
+                    text = stringResource(R.string.ringtone_selected_duration, makeTimeString(selectedDurationSec * 1000)),
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                     color = if (selectedDurationSec > 40) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
@@ -185,7 +187,7 @@ fun RingtoneTrimmerDialog(
                     onConfirm((rangeSec.start * 1000).toLong(), (rangeSec.endInclusive * 1000).toLong())
                 },
             ) {
-                Text("Establecer como tono")
+                Text(stringResource(R.string.set_as_ringtone))
             }
         },
         dismissButton = {
@@ -193,7 +195,7 @@ fun RingtoneTrimmerDialog(
                 exoPlayer.stop()
                 onDismiss()
             }) {
-                Text("Cancelar")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

@@ -35,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.NavController
+import androidx.compose.ui.res.stringResource
 import coil3.compose.AsyncImage
+import iad1tya.echo.music.R
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.extensions.togglePlayPause
 import iad1tya.echo.music.ui.player.InlineLyricsView
@@ -135,7 +137,7 @@ fun AmbientModeScreen(navController: NavController) {
             ) {
                 AsyncImage(
                     model = mediaMetadata?.thumbnailUrl,
-                    contentDescription = "Album Art",
+                    contentDescription = stringResource(R.string.album_art),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxHeight(0.85f)

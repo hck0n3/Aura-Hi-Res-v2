@@ -51,7 +51,7 @@
     <string name="similar_to">Similar to</string>
     <string name="autoplay_chip_related">Related</string>
     <string name="new_release_albums">New release albums</string>
-    <string name="home_syncing_library">Sincronizando tu biblioteca…</string>
+    <string name="home_syncing_library">Syncing your library…</string>
 
     <!-- History -->
     <string name="today">Today</string>
