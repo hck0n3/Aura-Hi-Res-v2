@@ -11,9 +11,10 @@ import iad1tya.echo.music.R
 // resources the fork's settings screens actually reference, so every entry compiles and routes to a
 // real, registered screen.
 //
-// NOTE: the upstream "scroll-to-highlight the exact row" refinement is intentionally NOT ported here
-// -- it would require editing every destination settings screen (out of scope), so a result navigates
-// to its parent screen instead of the individual row.
+// JUMP KEY (P22D): a result opens its screen scrolled to the row and flashes it. The key that finds the
+// row is the entry's TITLE -- the same string the destination renders -- so the GHOST-ENTRY RULE below is
+// also what makes the jump land. See ui/utils/SettingsSearchJump.kt; a title not on screen degrades to
+// opening the screen at the top.
 // GHOST-ENTRY RULE (0.6.14x anti-placebo pass): a row here is a PROMISE that the text is visible on
 // the destination screen. If a control is deleted, its row MUST go too, or the user searches it, finds
 // it, navigates -- and it is not there. Removed on that basis: last_fm_send_likes (the switch is
@@ -592,6 +593,17 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.device_sync_name), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.listen_together_aura_rooms), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_aura_rooms_desc), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
+            // --- Letras (P22D): the four places lyrics settings live. LyricsSettingsLinks shows all four
+            // labels on each of the four screens, so each label is on screen at the route it is indexed
+            // under, and searching "letras" returns the four places; each jumps to that block. ---
+            Triple(stringResource(R.string.lyrics_link_appearance), "Más ajustes de letras", "settings/appearance"),
+            Triple(stringResource(R.string.lyrics_link_sources), "Más ajustes de letras", "settings/content"),
+            Triple(stringResource(R.string.lyrics_link_romanization), "Más ajustes de letras", "settings/content/romanization"),
+            Triple(stringResource(R.string.lyrics_link_ai), "Más ajustes de letras", "settings/ai"),
+            Triple(stringResource(R.string.lyrics_more_settings), "Apariencia", "settings/appearance"),
+            Triple(stringResource(R.string.lyrics_more_settings), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.lyrics_more_settings), "Romanización", "settings/content/romanization"),
+            Triple(stringResource(R.string.lyrics_more_settings), "Traducción de letras IA", "settings/ai"),
     )
 
     // Flag OFF: the exact list above, same content, same order. Nothing below runs.

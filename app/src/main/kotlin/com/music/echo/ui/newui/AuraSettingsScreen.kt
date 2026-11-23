@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
@@ -63,6 +64,7 @@ import iad1tya.echo.music.license.LicenseManager
 import iad1tya.echo.music.license.SubscriptionEntryScreen
 import iad1tya.echo.music.ui.screens.Screens
 import iad1tya.echo.music.ui.screens.settings.getAllSearchableSettings
+import iad1tya.echo.music.ui.utils.SettingsSearchJump
 import iad1tya.echo.music.utils.rememberPreference
 
 /**
@@ -162,6 +164,7 @@ fun AuraSettingsScreen(
     val groupBackupMigration = "Copias y migración"
 
     val noResultsText = stringResource(R.string.settings_search_no_results, searchQuery)
+    val view = LocalView.current
 
     // Wording taken verbatim from the reference render — do not paraphrase.
     val newUiText = "Interfaz nueva"
@@ -447,7 +450,8 @@ fun AuraSettingsScreen(
                             icon = AuraIcons.Search,
                             title = title,
                             description = parentTitle,
-                            onClick = { navController.navigate(route) },
+                            // P22D: open the screen scrolled to this exact row, and flash it.
+                            onClick = { SettingsSearchJump.navigate(navController, view, route, title) },
                         )
                     }
                 }

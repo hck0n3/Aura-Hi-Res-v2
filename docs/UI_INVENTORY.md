@@ -2415,7 +2415,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SettingsScreen.
 | Estadísticas | Ajustes | SettingsScreen.kt:289 | navegación | ocasional | siempre |
 | Registros — desc. «Consulta, copia y comparte los registros de la app y el último informe de fallos» | Ajustes | SettingsScreen.kt:298 | navegación | rara | siempre |
 | Acerca de | Ajustes | SettingsScreen.kt:308 | navegación | rara | siempre |
-| Resultados de sub-ajustes indexados (una fila por coincidencia, ~400 entradas) | Ajustes (búsqueda) | SettingsScreen.kt:326 | navegación | ocasional | solo si `searchQuery.isNotEmpty()` |
+| Resultados de sub-ajustes indexados (una fila por coincidencia, ~400 entradas) — abre la pantalla desplazada hasta esa fila y la ilumina ~1,5 s (fila 735, `ui/utils/SettingsSearchJump.kt`) | Ajustes (búsqueda) | SettingsScreen.kt:355 | navegación | ocasional | solo si `searchQuery.isNotEmpty()` |
 | «No se encontraron ajustes para "%1$s"» | Ajustes (búsqueda) | SettingsScreen.kt:340 | informativo | rara | solo si lista vacía y hay consulta |
 | Atrás (flecha barra superior) | Ajustes | SettingsScreen.kt:369 | navegación | constante | siempre |
 
@@ -2489,6 +2489,17 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/AppearanceSetti
 | Desliza para cambiar de canción — desc. «Desliza a la izquierda o a la derecha en la sección del artista y el nombre de la canción en las letras a pantalla completa…» | Ajustes > Apariencia | AppearanceSettings.kt:1674 | conmutador | rara | siempre |
 | Mostrar reproducir/pausar en la miniatura — desc. «Muestra un botón de reproducir/pausar superpuesto en la miniatura…» | Ajustes > Apariencia | AppearanceSettings.kt:1695 | conmutador | rara | siempre |
 | Ocultar la barra de estado en pantalla completa — desc. «Oculta la barra de estado cuando el modo de letras a pantalla completa está activo» | Ajustes > Apariencia | AppearanceSettings.kt:1716 | conmutador | rara | siempre |
+
+### Grupo «Más ajustes de letras» (2026-11-23, fila 735)
+
+Las cuatro pantallas donde viven los ajustes de letras se enlazan entre sí; **no se movió ni se quitó nada**. Las cuatro filas aparecen en las cuatro pantallas (`LyricsSettingsLinks.kt`); la de la pantalla actual dice «Estás aquí» y no hace nada. El buscador de Ajustes devuelve las cuatro con «letras».
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Letras: aspecto | Ajustes > Apariencia | AppearanceSettings.kt:1931 | informativo («Estás aquí») | rara | siempre |
+| Letras: fuentes | Ajustes > Apariencia | AppearanceSettings.kt:1931 | navegación → `settings/content` | rara | siempre |
+| Letras: romanización | Ajustes > Apariencia | AppearanceSettings.kt:1931 | navegación → `settings/content/romanization` | rara | siempre |
+| Letras: traducción con IA | Ajustes > Apariencia | AppearanceSettings.kt:1931 | navegación → `settings/ai` | rara | siempre |
 
 ### Grupo «Otros»
 
@@ -2773,6 +2784,17 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/ContentSettings
 | Prioridad de proveedores de letras — desc. «Arrastra para reordenar qué proveedor se intenta primero» | Ajustes > Contenido | ContentSettings.kt:1071 | navegación (diálogo con lista arrastrable) | rara | siempre |
 | Romanización de letras | Ajustes > Contenido | ContentSettings.kt:1077 | navegación | rara | siempre |
 
+### Grupo «Más ajustes de letras» (2026-11-23, fila 735)
+
+Las cuatro pantallas donde viven los ajustes de letras se enlazan entre sí; **no se movió ni se quitó nada**. Las cuatro filas aparecen en las cuatro pantallas (`LyricsSettingsLinks.kt`); la de la pantalla actual dice «Estás aquí» y no hace nada. El buscador de Ajustes devuelve las cuatro con «letras».
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Letras: aspecto | Ajustes > Contenido | ContentSettings.kt:1136 | navegación → `settings/appearance` | rara | siempre |
+| Letras: fuentes | Ajustes > Contenido | ContentSettings.kt:1136 | informativo («Estás aquí») | rara | siempre |
+| Letras: romanización | Ajustes > Contenido | ContentSettings.kt:1136 | navegación → `settings/content/romanization` | rara | siempre |
+| Letras: traducción con IA | Ajustes > Contenido | ContentSettings.kt:1136 | navegación → `settings/ai` | rara | siempre |
+
 ### Grupo «Inicio y descubrimiento» (hardcoded)
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
@@ -2834,6 +2856,17 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/AiSettings.kt`
 | Preguntar traducir la letra al abrir (hardcoded) | Ajustes > IA | AiSettings.kt:625 | conmutador | rara | siempre |
 | Atrás (barra superior) | Ajustes > IA | AiSettings.kt:649 | navegación | constante | siempre |
 
+### Grupo «Más ajustes de letras» (2026-11-23, fila 735)
+
+Las cuatro pantallas donde viven los ajustes de letras se enlazan entre sí; **no se movió ni se quitó nada**. Las cuatro filas aparecen en las cuatro pantallas (`LyricsSettingsLinks.kt`); la de la pantalla actual dice «Estás aquí» y no hace nada. El buscador de Ajustes devuelve las cuatro con «letras».
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Letras: aspecto | Ajustes > IA | AiSettings.kt:675 | navegación → `settings/appearance` | rara | siempre |
+| Letras: fuentes | Ajustes > IA | AiSettings.kt:675 | navegación → `settings/content` | rara | siempre |
+| Letras: romanización | Ajustes > IA | AiSettings.kt:675 | navegación → `settings/content/romanization` | rara | siempre |
+| Letras: traducción con IA | Ajustes > IA | AiSettings.kt:675 | informativo («Estás aquí») | rara | siempre |
+
 Texto de ayuda mostrado en la pantalla: «Opcional: usa tu propia clave/modelo; sin clave, Aura usa su IA integrada.» (`ai_key_optional_hint`).
 
 ---
@@ -2866,6 +2899,17 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/RomanizationSet
 | Romanizar letras en macedonio | Ajustes > Contenido > Romanización | RomanizationSettings.kt:333 | conmutador | rara | siempre |
 | EXPERIMENTAL: Detectar el lenguaje línea por línea — desc. «El idioma cirílico se detectará línea por línea en lugar de toda la canción.» | Ajustes > Contenido > Romanización | RomanizationSettings.kt:353 | conmutador | rara | siempre; al activarlo abre el diálogo «¿Está seguro?» |
 | Atrás (tap) / Ir al inicio (mantener) | Ajustes > Contenido > Romanización | RomanizationSettings.kt:407 | navegación | constante | siempre |
+
+### Grupo «Más ajustes de letras» (2026-11-23, fila 735)
+
+Las cuatro pantallas donde viven los ajustes de letras se enlazan entre sí; **no se movió ni se quitó nada**. Las cuatro filas aparecen en las cuatro pantallas (`LyricsSettingsLinks.kt`); la de la pantalla actual dice «Estás aquí» y no hace nada. El buscador de Ajustes devuelve las cuatro con «letras».
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Letras: aspecto | Ajustes > Contenido > Romanización | RomanizationSettings.kt:388 | navegación → `settings/appearance` | rara | siempre |
+| Letras: fuentes | Ajustes > Contenido > Romanización | RomanizationSettings.kt:388 | navegación → `settings/content` | rara | siempre |
+| Letras: romanización | Ajustes > Contenido > Romanización | RomanizationSettings.kt:388 | informativo («Estás aquí») | rara | siempre |
+| Letras: traducción con IA | Ajustes > Contenido > Romanización | RomanizationSettings.kt:388 | navegación → `settings/ai` | rara | siempre |
 
 ---
 
@@ -3368,7 +3412,13 @@ Reparto por ruta de destino (todas existen en `NavigationBuilder.kt`, ninguna ro
 | `settings/appearance/liquidglass` | 1 |
 | `settings/about` | 1 |
 
-Nota: el resultado navega a la **pantalla padre**, no a la fila concreta (el «scroll-to-highlight» de upstream no se portó — comentado en `SearchableSettings.kt:14-16`). 31 entradas apuntan a `settings/integrations/listen_together`, pantalla que **no tiene acceso desde el menú de Ajustes** (ver MUERTO).
+Nota (actualizada 2026-11-23, fila 735): el resultado abre la pantalla **desplazada hasta la fila concreta**
+y la ilumina ~1,5 s (`ui/utils/SettingsSearchJump.kt`; la clave es el título de la entrada, el mismo texto que
+pinta la pantalla). Vale igual en la interfaz nueva (`AuraSettingsScreen`) y en la clásica (`SettingsScreen`). El
+destello solo lo llevan las filas y cabeceras de `Material3SettingsGroup`; en pantallas hechas con otros
+componentes (Tema, Ajustes de Escuchar juntos, Sincronizar dispositivos, Servicios Aura) solo se desplaza. Si el
+texto no está en pantalla (cuerpo de un diálogo, fila oculta por un ajuste o fuera de una lista perezosa) la
+pantalla se abre arriba, como antes. 31 entradas apuntan a `settings/integrations/listen_together`, pantalla que **no tiene acceso desde el menú de Ajustes** (ver MUERTO).
 
 ---
 

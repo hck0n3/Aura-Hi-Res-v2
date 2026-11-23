@@ -1928,6 +1928,11 @@ fun AppearanceSettings(
 
         Spacer(modifier = Modifier.height(27.dp))
 
+        // P22D: links to the other three places lyrics settings live (nothing moved).
+        LyricsSettingsLinks(navController, LyricsSettingsPlace.APPEARANCE)
+
+        Spacer(modifier = Modifier.height(27.dp))
+
         Material3SettingsGroup(
             title = stringResource(R.string.misc),
             items = listOf(

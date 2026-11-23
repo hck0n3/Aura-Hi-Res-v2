@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyrics_more_settings">More lyrics settings</string>
+    <string name="lyrics_link_appearance">Lyrics: appearance</string>
+    <string name="lyrics_link_sources">Lyrics: sources</string>
+    <string name="lyrics_link_romanization">Lyrics: romanization</string>
+    <string name="lyrics_link_ai">Lyrics: AI translation</string>
+    <string name="lyrics_link_here">You are here</string>
+</resources>
