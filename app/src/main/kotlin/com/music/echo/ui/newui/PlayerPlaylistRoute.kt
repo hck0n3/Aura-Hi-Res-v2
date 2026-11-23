@@ -14,11 +14,20 @@ internal object PlayerPlaylistRoute {
         data class Choose(val playlists: List<PlaylistEntity>) : Door
     }
 
+    /** The special and generated lists, excluded like the library sync does (`DatabaseDao.syncPlaylistRows`). */
+    private val generatedIds = setOf(
+        PlaylistEntity.LIKED_PLAYLIST_ID,
+        PlaylistEntity.DOWNLOADED_PLAYLIST_ID,
+        iad1tya.echo.music.reco.AutoRecoPlaylistWorker.PLAYLIST_ID,
+    )
+
     /**
-     * Yours: a list made in Aura (no `browseId`; deleting it deletes the row) or a YouTube list still saved in your library. A
-     * YouTube list you removed stays as a tombstone with `bookmarkedAt = null`, and a list only browsed is never bookmarked.
+     * Yours = exactly what the Library lists (every Library playlist query requires `bookmarkedAt IS NOT NULL`), minus the
+     * generated ones. A YouTube list you removed stays as a tombstone with `bookmarkedAt = null`, a list only browsed is never
+     * bookmarked, and an unbookmarked local row cannot be found in the Library — the chip must not lead to any of them.
      */
-    fun isUsersPlaylist(playlist: PlaylistEntity): Boolean = playlist.browseId == null || playlist.bookmarkedAt != null
+    fun isUsersPlaylist(playlist: PlaylistEntity): Boolean =
+        playlist.bookmarkedAt != null && playlist.id !in generatedIds
 
     fun usersPlaylists(containing: List<PlaylistEntity>): List<PlaylistEntity> =
         containing.filter(::isUsersPlaylist).distinctBy { it.id }

@@ -23,11 +23,15 @@ class PlayerPlaylistRouteTest {
     private fun removedYouTube(id: String) = PlaylistEntity(id = id, name = id, browseId = "PL$id", bookmarkedAt = null)
 
     @Test
-    fun `your lists are the ones made in Aura and the YouTube ones still saved`() {
+    fun `your lists are exactly the ones the Library shows`() {
         assertTrue(PlayerPlaylistRoute.isUsersPlaylist(own("a")))
-        assertTrue("a list made in Aura is yours even without a bookmark", PlayerPlaylistRoute.isUsersPlaylist(ownUnbookmarked("a")))
+        assertFalse("an unbookmarked local row is not in the Library", PlayerPlaylistRoute.isUsersPlaylist(ownUnbookmarked("a")))
         assertTrue(PlayerPlaylistRoute.isUsersPlaylist(savedYouTube("b")))
         assertFalse("a removed YouTube list is a tombstone, not yours", PlayerPlaylistRoute.isUsersPlaylist(removedYouTube("c")))
+        for (generated in listOf("AURA_AI_RECS", "LP_LIKED", "LP_DOWNLOADED")) {
+            assertFalse("$generated is generated, not yours", PlayerPlaylistRoute.isUsersPlaylist(own(generated)))
+        }
+        assertEquals(Door.None, PlayerPlaylistRoute.door(listOf(own("AURA_AI_RECS"), ownUnbookmarked("x"))))
     }
 
     @Test

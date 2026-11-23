@@ -175,6 +175,7 @@ import iad1tya.echo.music.ui.component.BottomSheetState
 import iad1tya.echo.music.ui.component.CAST_TOUCH_TARGET
 import iad1tya.echo.music.devicesync.RemotePlayback
 import iad1tya.echo.music.ui.component.CastButton
+import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.ui.component.ListDialog
 import iad1tya.echo.music.ui.component.LocalBottomSheetPageState
 import iad1tya.echo.music.ui.component.LocalMenuState
@@ -873,22 +874,51 @@ private fun AuraPlayerShape(
     // Owner 2026-11-22: the same chooser, opened from «Suscribirme» with several artists, subscribes instead of navigating.
     var selectArtistToFollow by rememberSaveable { mutableStateOf(false) }
     var showSongPlaylistChooser by rememberSaveable { mutableStateOf(false) }
+    // A chooser belongs to the song it was opened for. Its rows come from the live song, so when the song changes under it a tap
+    // meant for one artist (or list) would land on the next song's: it closes instead.
+    var chooserSongId by rememberSaveable { mutableStateOf<String?>(null) }
+    val chooserIsCurrent = chooserSongId != null && chooserSongId == mediaMetadata?.id
+    LaunchedEffect(chooserIsCurrent) {
+        if (!chooserIsCurrent) {
+            showSelectArtistDialog = false
+            selectArtistToFollow = false
+            showSongPlaylistChooser = false
+        }
+    }
     // The channel each artist of THIS song resolved to on a tap, so its chip then reads that channel's state.
     val followChannelIds = remember(mediaMetadata?.id) { mutableStateMapOf<String, String>() }
     val followInFlight = remember { mutableSetOf<String>() }
+    // Row 646: a channel found by NAME is confirmed before subscribing — the name match is coarse (M.I.A. → «mia»).
+    var pendingFollow by remember { mutableStateOf<PendingPlayerFollow?>(null) }
+    LaunchedEffect(mediaMetadata?.id) { pendingFollow = null }
     val followArtistFromPlayer: (MediaMetadata.Artist, Boolean) -> Unit = { artist, shownFollowed ->
         val key = PlayerArtistFollow.key(artist)
-        if (followInFlight.add(key)) {
+        val songId = mediaMetadata?.id
+        if (songId != null && followInFlight.add(key)) {
             val notFound = context.getString(R.string.external_link_not_found)
+            val searchFailed = context.getString(R.string.couldnt_load_artist)
             val appContext = context.applicationContext
+            val channelIds = followChannelIds
             // Application scope: the player can fold away right after the tap, and the tap must still land.
             context.applicationScope.launch(Dispatchers.Main) {
                 try {
-                    val channelId = database.toggleFollowFromPlayer(artist, followChannelIds[key], shownFollowed)
-                    if (channelId != null) {
-                        followChannelIds[key] = channelId
-                    } else {
-                        Toast.makeText(appContext, notFound, Toast.LENGTH_SHORT).show()
+                    when (val found = resolvePlayerArtistChannel(artist, channelIds[key])) {
+                        is PlayerArtistFollow.Resolution.Known -> {
+                            channelIds[key] = found.channelId
+                            database.toggleFollowIfStillShown(found.channelId, artist.name, shownFollowed)
+                        }
+                        // Already followed: just show it. Otherwise nothing is subscribed until the user confirms.
+                        is PlayerArtistFollow.Resolution.ByName ->
+                            if (database.isPlayerArtistFollowed(found.channel.id)) {
+                                channelIds[key] = found.channel.id
+                            } else {
+                                pendingFollow = PendingPlayerFollow(songId, key, found.channel)
+                            }
+                        PlayerArtistFollow.Resolution.NotFound ->
+                            Toast.makeText(appContext, notFound, Toast.LENGTH_SHORT).show()
+                        // Offline or a failed request: «no se pudo cargar… revisa tu conexión», not «no existe».
+                        PlayerArtistFollow.Resolution.SearchFailed ->
+                            Toast.makeText(appContext, searchFailed, Toast.LENGTH_SHORT).show()
                     }
                 } finally {
                     followInFlight.remove(key)
@@ -927,7 +957,7 @@ private fun AuraPlayerShape(
             deferOfflineWhileLiveVideo = videoMode,
         )
     }
-    if (showSelectArtistDialog && selectArtistToFollow) {
+    if (showSelectArtistDialog && chooserIsCurrent && selectArtistToFollow) {
         val artists = mediaMetadata?.artists.orEmpty().filter { it.name.isNotBlank() }.distinctBy { it.id to it.name }
         // Stays open: each row shows its own «Suscrito» and flips in place, so several can be followed in one visit.
         ListDialog(onDismiss = { showSelectArtistDialog = false; selectArtistToFollow = false }) {
@@ -960,7 +990,7 @@ private fun AuraPlayerShape(
                 }
             }
         }
-    } else if (showSelectArtistDialog) {
+    } else if (showSelectArtistDialog && chooserIsCurrent) {
         val artists = mediaMetadata?.artists.orEmpty().filter { it.name.isNotBlank() }.distinctBy { it.id to it.name }
         ListDialog(onDismiss = { showSelectArtistDialog = false }) {
             items(items = artists, key = { "${it.id}_${it.name}" }) { artist ->
@@ -997,9 +1027,9 @@ private fun AuraPlayerShape(
     }
     // Owner 2026-11-22: «Ir a la lista» with the song in several of your playlists asks which. Live, so a list the song
     // leaves while this is open drops out of it.
-    if (showSongPlaylistChooser) {
-        val chooserSongId = mediaMetadata?.id.orEmpty()
-        val songPlaylists by remember(chooserSongId) { database.playlistsContainingSong(chooserSongId) }
+    if (showSongPlaylistChooser && chooserIsCurrent) {
+        val playlistsSongId = chooserSongId.orEmpty()
+        val songPlaylists by remember(playlistsSongId) { database.playlistsContainingSong(playlistsSongId) }
             .collectAsState(initial = emptyList())
         ListDialog(onDismiss = { showSongPlaylistChooser = false }) {
             items(items = PlayerPlaylistRoute.usersPlaylists(songPlaylists), key = { it.id }) { playlist ->
@@ -1017,6 +1047,38 @@ private fun AuraPlayerShape(
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                 )
             }
+        }
+    }
+    // Row 646: «¿Suscribirte a <canal>?» with the channel's own name and picture, for a channel found by name only.
+    pendingFollow?.takeIf { it.songId == mediaMetadata?.id }?.let { pending ->
+        DefaultDialog(
+            onDismiss = { pendingFollow = null },
+            title = { Text(text = stringResource(R.string.player_subscribe_confirm, pending.channel.title)) },
+            buttons = {
+                TextButton(onClick = { pendingFollow = null }) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+                TextButton(
+                    onClick = {
+                        pendingFollow = null
+                        followChannelIds[pending.key] = pending.channel.id
+                        context.applicationScope.launch(Dispatchers.Main) {
+                            database.toggleFollowIfStillShown(pending.channel.id, pending.channel.title, shownFollowed = false)
+                        }
+                    },
+                ) {
+                    Text(text = stringResource(R.string.subscribe))
+                }
+            },
+        ) {
+            AsyncImage(
+                model = pending.channel.thumbnailUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape),
+            )
         }
     }
     AddToPlaylistDialog(
@@ -1539,6 +1601,7 @@ private fun AuraPlayerShape(
                     val goToArtist: () -> Unit = {
                         val named = meta.artists.filter { it.name.isNotBlank() }
                         if (named.size > 1) {
+                            chooserSongId = meta.id
                             showSelectArtistDialog = true
                         } else if (named.isNotEmpty()) {
                             val artist = named.first()
@@ -1741,11 +1804,31 @@ private fun AuraPlayerShape(
                                         firstTap = true,
                                     )
                                 } else if (followable.isNotEmpty()) {
+                                    // The chip says what the chooser will show: «Suscrito» when all are followed, «Suscrito a N
+                                    // de M» when some, «Suscribirme» when none.
+                                    val followedEach = followable.map { artist ->
+                                        androidx.compose.runtime.key(PlayerArtistFollow.key(artist)) {
+                                            rememberPlayerArtistFollowed(
+                                                database,
+                                                followChannelIds[PlayerArtistFollow.key(artist)] ?: artist.id?.takeIf { PlayerArtistFollow.isChannelId(it) },
+                                            ).value
+                                        }
+                                    }
+                                    val several = PlayerArtistFollow.several(followedEach)
                                     AuraChip(
-                                        text = stringResource(R.string.subscribe),
-                                        selected = false,
+                                        text = when (several) {
+                                            PlayerArtistFollow.Several.ALL -> stringResource(R.string.subscribed)
+                                            PlayerArtistFollow.Several.SOME -> stringResource(
+                                                R.string.player_artists_some_subscribed,
+                                                followedEach.count { it },
+                                                followedEach.size,
+                                            )
+                                            PlayerArtistFollow.Several.NONE -> stringResource(R.string.subscribe)
+                                        },
+                                        selected = several == PlayerArtistFollow.Several.ALL,
                                         onClick = {
                                             showArtistActions = false
+                                            chooserSongId = meta.id
                                             selectArtistToFollow = true
                                             showSelectArtistDialog = true
                                         },
@@ -1773,6 +1856,7 @@ private fun AuraPlayerShape(
                                         selected = false,
                                         onClick = {
                                             showArtistActions = false
+                                            chooserSongId = meta.id
                                             showSongPlaylistChooser = true
                                         },
                                         firstTap = true,
