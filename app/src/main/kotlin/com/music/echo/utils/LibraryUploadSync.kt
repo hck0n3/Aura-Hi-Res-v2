@@ -518,10 +518,15 @@ class LibraryUploadSync @Inject constructor(
                     continue
                 }
                 if (artist.channelId.isNullOrBlank()) {
-                    // Remember the resolved channel id so the next pass doesn't pay for it again.
-                    runCatching { database.update(artist.copy(channelId = channelId)) }
+                    // Remember the resolved channel id so the next pass doesn't pay for it again. Row 716: that
+                    // column only — writing the copy read before the lookup would overwrite a tap made meanwhile.
+                    runCatching { database.setArtistChannelIdIfMissing(artist.id, channelId) }
                 }
                 if (!spend()) break
+                // Row 716: re-read right before the call. An unfollow tapped during the lookup or the delay above
+                // wins: the stale copy is not subscribed.
+                val current = database.getArtistEntitiesByIds(listOf(artist.id)).firstOrNull()
+                if (current == null || !ArtistSyncPolicy.maySubscribe(current)) continue
                 // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a song
                 // appears to also subscribe its artist. This is the bulk background sync path, not a
                 // direct user tap — a timestamp here (no ids/titles, regla 4) is what would show
@@ -626,8 +631,9 @@ class LibraryUploadSync @Inject constructor(
                     channelId = YouTube.getChannelId(artist.id)
                         .takeIf { it.isNotEmpty() }
                         ?.also { resolved ->
-                            // Remember it so the next pass doesn't pay for the lookup again.
-                            runCatching { database.update(artist.copy(channelId = resolved)) }
+                            // Remember it so the next pass doesn't pay for the lookup again. Row 716: that column
+                            // only — the copy read before the lookup would overwrite a re-follow made meanwhile.
+                            runCatching { database.setArtistChannelIdIfMissing(artist.id, resolved) }
                         }
                 }
                 if (channelId.isNullOrBlank()) {
@@ -641,6 +647,16 @@ class LibraryUploadSync @Inject constructor(
                     continue
                 }
                 if (!spend()) break
+                // Row 716: re-read right before the call. A re-follow tapped during the lookup or the delay above
+                // wins, and a channel the user follows again under another spelling (UC… / MPLAUC…) is not
+                // unsubscribed while Aura reads «Suscrito»: that spelling's stale marker is retired instead.
+                val current = database.getArtistEntitiesByIds(listOf(artist.id)).firstOrNull()
+                if (current == null || ArtistSyncPolicy.refuseUnsubscribe(current, LocalDateTime.now()) != null) continue
+                if (database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id)).first()) {
+                    runCatching { database.retireSupersededUnfollow(artist.id) }
+                    Timber.i("UPLOAD_SYNC unfollow superseded by a follow of the same channel; marker retired")
+                    continue
+                }
                 Timber.i("ARTIST_SUBSCRIBE_SYNC subscribing=false")
                 YouTube.subscribeChannel(channelId, false)
                     .onSuccess { cleared.add(artist.id); unsubscribed++ }

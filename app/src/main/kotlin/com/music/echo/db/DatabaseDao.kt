@@ -1894,12 +1894,24 @@ interface DatabaseDao {
      *    `ytmSyncedAt` — except on rows that already carry a genuine `unfollowedByUserAt`, where the
      *    queued unfollow is preserved so an unsubscribe that never reached YouTube (offline, expired
      *    cookie) is retried instead of being silently lost.
+     *  - Row 716: nor does it follow a spelling of the channel (`UC…` / `MPLAUC…`) while ANOTHER spelling
+     *    carries the user's unfollow (marker set, not re-followed): the account still listing the channel is
+     *    that unfollow not having landed yet, and following the other spelling would resurrect «Suscrito»
+     *    over it. `ArtistSyncPolicy.afterRemoteSubscriptionSeen(…, aliasPendingUnfollow)` is the mirror.
      */
     @Query(
         """
         UPDATE artist SET
             followedByUserAt = CASE
                 WHEN unfollowedByUserAt IS NOT NULL THEN followedByUserAt
+                WHEN followedByUserAt IS NULL AND EXISTS (
+                    SELECT 1 FROM artist AS spelling
+                    WHERE spelling.unfollowedByUserAt IS NOT NULL AND spelling.followedByUserAt IS NULL
+                      AND (
+                        (spelling.id = 'MPLA' || artist.id AND substr(artist.id, 1, 2) = 'UC')
+                        OR ('MPLA' || spelling.id = artist.id AND substr(spelling.id, 1, 2) = 'UC')
+                      )
+                ) THEN NULL
                 ELSE COALESCE(followedByUserAt, :now)
             END,
             ytmSyncedAt = :now
@@ -1907,6 +1919,45 @@ interface DatabaseDao {
         """
     )
     suspend fun markArtistsSubscribedOnYtm(ids: List<String>, now: java.time.LocalDateTime)
+
+    /**
+     * Row 716: the artist down-sync's metadata refresh, written column by column against the CURRENT row. It used
+     * to write back a whole copy read before the page's channel lookups, so an unfollow tapped in that window was
+     * overwritten (the follow came back, the marker that retries the unsubscribe was lost). The follow columns are
+     * never written here, and the bookmark rule reads the stored marker at write time.
+     */
+    @Query(
+        """
+        UPDATE artist SET
+            name = :name,
+            thumbnailUrl = :thumbnailUrl,
+            channelId = COALESCE(:channelId, channelId),
+            bookmarkedAt = CASE WHEN unfollowedByUserAt IS NOT NULL THEN NULL ELSE COALESCE(bookmarkedAt, :now) END,
+            lastUpdateTime = :now
+        WHERE id = :id
+        """
+    )
+    fun refreshSyncedArtistMetadata(
+        id: String,
+        name: String,
+        thumbnailUrl: String?,
+        channelId: String?,
+        now: java.time.LocalDateTime,
+    )
+
+    /**
+     * Row 716: remember a channel id resolved for an artist row without writing the rest of the row (the upload
+     * pass used to write a copy read before its network call over any tap made meanwhile).
+     */
+    @Query("UPDATE artist SET channelId = :channelId WHERE id = :id AND (channelId IS NULL OR channelId = '')")
+    suspend fun setArtistChannelIdIfMissing(id: String, channelId: String)
+
+    /**
+     * Row 716: retire the unfollow marker of a spelling whose channel the user follows again under another spelling
+     * (a newer follow wins). Only while this row is still not followed itself.
+     */
+    @Query("UPDATE artist SET unfollowedByUserAt = NULL WHERE id = :id AND followedByUserAt IS NULL")
+    suspend fun retireSupersededUnfollow(id: String)
 
     /**
      * Playlists that live only in Aura and should be created on the account ("las que ya tenga creadas

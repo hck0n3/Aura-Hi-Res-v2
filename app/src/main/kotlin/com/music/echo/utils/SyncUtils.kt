@@ -681,10 +681,29 @@ class SyncUtils @Inject constructor(
             }
         }
         artistsToInsert.chunked(SYNC_BATCH_SIZE).forEach { block ->
-            database.withTransaction { insertArtists(block) }
+            database.withTransaction {
+                // Row 716: a new spelling of a channel the user unfollowed under another spelling is not inserted as a
+                // follow (it would resurrect «Suscrito» over an unfollow that has not reached the account yet). Read
+                // inside the transaction, so a tap made during this page's lookups is seen.
+                val spellings = artistEntitiesByIdsInTransaction(
+                    block.flatMap { ArtistSyncPolicy.aliasIds(it.id) }.distinct(),
+                ).associateBy { it.id }
+                insertArtists(
+                    block.map { row ->
+                        if (ArtistSyncPolicy.aliasHasPendingUnfollow(row.id, spellings)) {
+                            row.copy(bookmarkedAt = null, followedByUserAt = null)
+                        } else {
+                            row
+                        }
+                    },
+                )
+            }
         }
         artistsToUpdate.chunked(SYNC_BATCH_SIZE).forEach { block ->
-            database.withTransaction { updateArtists(block) }
+            // Row 716: metadata only, against the current row — never the copy read before the lookups above.
+            database.withTransaction {
+                block.forEach { refreshSyncedArtistMetadata(it.id, it.name, it.thumbnailUrl, it.channelId, now) }
+            }
         }
         Timber.d("Artist subscriptions sync: page inserted ${artistsToInsert.size} new, updated ${artistsToUpdate.size} (of ${pageArtists.size})")
     }
