@@ -114,7 +114,7 @@ class ReleaseRadarRetentionTest {
         assertTrue(worker.contains("val key = ReleaseRadarMatching.dedupeKey(hit.artistName, hit.album.name)\n                    val stored = known[key]"))
         // Review: only the newest per artist inside the cap is searched; an older one only once, and only once YouTube answered.
         assertTrue(worker.contains("val allHits = ReleaseRadarMatching.newestPerArtistRanked("))
-        assertTrue(worker.contains("if (!ReleaseRadarRetention.needsLookup(hit.date, today, key in lookups)) return@async null"))
+        assertTrue(worker.contains("if (!ReleaseRadarRetention.needsLookup(hit.date, today, lookups.containsKey(key))) return@async null"))
         assertTrue(worker.contains("matchSpotifyToYoutubeAlbum(hit.album.name, hit.artistName) { lookups[key] = today.toEpochDay() }"))
         assertTrue(worker.contains("YouTube.search(query, YouTube.SearchFilter.FILTER_ALBUM).getOrNull() ?: return null\n        onAnswered()"))
         assertTrue(worker.contains("const val AUTO_REFRESH_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000L"))
