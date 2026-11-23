@@ -774,4 +774,5 @@
     <string name="cast_video_unavailable">Este vídeo no se puede enviar al TV. Se reproduce solo el audio.</string>
     <string name="account_push_queued">No se pudo enviar el cambio a YouTube Music. Se reintentará solo.</string>
     <string name="account_push_gave_up">No se pudo enviar un cambio a YouTube Music tras varios intentos.</string>
+    <string name="added_to_playlist_toast">Añadido a «%s»</string>
 </resources>

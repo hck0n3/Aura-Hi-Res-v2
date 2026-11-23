@@ -652,6 +652,7 @@ fun SongMenu(
                             onClick = {
                                 onDismiss()
                                 playerConnection.playNext(song.toMediaItem())
+                                confirmQueueEdit(context, playerConnection, R.string.play_next)
                             }
                         )
                     } else null,
@@ -667,6 +668,7 @@ fun SongMenu(
                             onClick = {
                                 onDismiss()
                                 playerConnection.addToQueue(song.toMediaItem())
+                                confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
                             }
                         )
                     } else null

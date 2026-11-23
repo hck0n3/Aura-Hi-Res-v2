@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -90,6 +91,7 @@ fun AddToPlaylistDialog(
     viewModel: PlaylistsViewModel = hiltViewModel()
 ) {
     val database = LocalDatabase.current
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     // Defaults MUST match PlaylistsViewModel.allPlaylists (LAST_UPDATED + descending), or the header
     // shows one sort while the list uses another. Recently-added-to playlists first by default.
@@ -339,6 +341,7 @@ fun AddToPlaylistDialog(
                             } else {
                                 onDismiss()
                                 database.addSongToPlaylist(playlist, songIds!!)
+                                confirmAddedToPlaylist(context, playlist.playlist.name)
 
                                 playlist.playlist.browseId?.let { plist ->
                                     songIds?.forEach {
@@ -387,6 +390,7 @@ fun AddToPlaylistDialog(
                             database.transaction {
                                 addSongToPlaylist(playlist, addedIds)
                             }
+                            if (addedIds.isNotEmpty()) confirmAddedToPlaylist(context, playlist.playlist.name)
                             // Same remote sync as the no-duplicates path above, for the songs actually
                             // added — otherwise resolving a duplicate wrote locally only and the synced
                             // YouTube playlist never received them.
@@ -419,6 +423,7 @@ fun AddToPlaylistDialog(
                             database.transaction {
                                 addSongToPlaylist(playlist, addedIds)
                             }
+                            confirmAddedToPlaylist(context, playlist.playlist.name)
                             // Same remote sync as the no-duplicates path above.
                             playlist.playlist.browseId?.let { plist ->
                                 coroutineScope.launch(Dispatchers.IO) {

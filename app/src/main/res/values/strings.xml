@@ -840,4 +840,5 @@
     <string name="cast_video_unavailable">This video can\u2019t be sent to the TV. Playing audio only.</string>
     <string name="account_push_queued">Couldn\'t send that change to YouTube Music. It will be retried automatically.</string>
     <string name="account_push_gave_up">Couldn\'t send a change to YouTube Music after several attempts.</string>
+    <string name="added_to_playlist_toast">Added to \"%s\"</string>
 </resources>

@@ -272,6 +272,7 @@ fun SelectionSongMenu(
                                 onClick = {
                                     onDismiss()
                                     playerConnection.playNext(songSelection.map { it.toMediaItem() })
+                                    confirmQueueEdit(context, playerConnection, R.string.play_next)
                                     clearAction()
                                 }
                             )
@@ -309,6 +310,7 @@ fun SelectionSongMenu(
                                 onClick = {
                                     onDismiss()
                                     playerConnection.addToQueue(songSelection.map { it.toMediaItem() })
+                                    confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
                                     clearAction()
                                 }
                             )
@@ -727,6 +729,7 @@ fun SelectionMediaMetadataMenu(
                                     onClick = {
                                         onDismiss()
                                         playerConnection.playNext(songSelection.map { it.toMediaItem() })
+                                        confirmQueueEdit(context, playerConnection, R.string.play_next)
                                         clearAction()
                                     }
                                 )
@@ -743,6 +746,7 @@ fun SelectionMediaMetadataMenu(
                                     onClick = {
                                         onDismiss()
                                         playerConnection.addToQueue(songSelection.map { it.toMediaItem() })
+                                        confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
                                         clearAction()
                                     }
                                 )

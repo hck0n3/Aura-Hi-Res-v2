@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -87,6 +88,7 @@ fun AddToPlaylistDialogOnline(
 ) {
     val database = LocalDatabase.current
     val syncUtils = LocalSyncUtils.current
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val viewStateMap = remember { mutableStateMapOf<String, ItemsPage?>() }
     // Defaults MUST match PlaylistsViewModel.allPlaylists (LAST_UPDATED + descending), or the header
@@ -254,6 +256,7 @@ fun AddToPlaylistDialogOnline(
                             val songsToAdd = songs.reversed()
                             val songsTot = songsToAdd.size
                             val processed = AtomicInteger(0)
+                            val added = AtomicInteger(0)
                             onProgressStart(true)
                             try {
                                 songsToAdd.forEach { song ->
@@ -283,6 +286,7 @@ fun AddToPlaylistDialogOnline(
                                                                     .e(e.toString())
                                                             }
                                                             database.addSongToPlaylist(playlist, ids)
+                                                            added.incrementAndGet()
                                                         }
                                                     }
                                                     viewStateMap.clear()
@@ -304,6 +308,7 @@ fun AddToPlaylistDialogOnline(
                                 onProgressStart(false)
                                 onPercentageChange(100)
                             }
+                            if (added.get() > 0) confirmAddedToPlaylist(context, playlist.playlist.name)
                         }
                     }
                 )
