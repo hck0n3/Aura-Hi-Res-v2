@@ -132,9 +132,26 @@ class ActionLogGuardTest {
             when (fn) {
                 "tap" -> assertTrue("only an ActionId constant may be passed: $where", enumArg.matches(args))
                 "correlationSuffix" -> assertEquals("only the logger joins lines: $where", "AppLogger.kt", file.name)
-                else -> error("unexpected ActionLog call (settings go through DataStore.kt only): $where")
+                "setting" -> {
+                    assertEquals("settings are logged only by the preference setters: $where", "DataStore.kt", file.name)
+                    assertEquals(where, "key, value", args)
+                }
+                else -> error("unexpected ActionLog call: $where")
             }
         }
+    }
+
+    @Test
+    fun `a changed switch or choice logs its key and new value, and nothing else`() {
+        val store = code(main("utils/DataStore.kt"))
+        val plain = store.substringAfter("fun <T> rememberPreference(").substringBefore("fun <reified T : Enum<T>> rememberEnumPreference(")
+        assertTrue("only on a real change", plain.contains("if (value != state.value) {"))
+        assertTrue(plain.contains("is Boolean -> ActionLog.setting(key, value)"))
+        assertTrue(plain.contains("is Enum<*> -> ActionLog.setting(key, value)"))
+        assertFalse("never a String, Int or Float preference (free text, ids, sliders)", Regex("is (String|Int|Long|Float|Double)\\b").containsMatchIn(plain))
+        val enumPref = store.substringAfter("fun <reified T : Enum<T>> rememberEnumPreference(")
+        assertTrue(enumPref.contains("if (value != state.value) ActionLog.setting(key, value)"))
+        assertEquals("the two setters and nothing else", 3, Regex("ActionLog\\.setting\\(").findAll(store).count())
     }
 
     @Test

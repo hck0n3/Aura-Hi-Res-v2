@@ -212,3 +212,246 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 | Código | Acción |
 |---|---|
 | `UI.PANE.ARTIST_SUBSCRIBE` | Panel de detalle de la búsqueda ancha: Suscribirse |
+
+## Menú ⋮ del reproductor
+
+| Código | Acción |
+|---|---|
+| `UI.PMENU.VIEW_ARTIST` | Ver artista |
+| `UI.PMENU.VIEW_ALBUM` | Ver álbum |
+| `UI.PMENU.EQUALIZER` | Ecualizador |
+| `UI.PMENU.SOUND` | Sonido |
+| `UI.PMENU.DETAILS` | Detalles |
+| `UI.PMENU.SETTINGS` | Ajustes |
+| `UI.PMENU.SHUFFLE` | Aleatorio (fila del menú) |
+| `UI.PMENU.REPEAT` | Repetir (fila del menú) |
+| `UI.PMENU.START_RADIO` | Iniciar radio |
+| `UI.PMENU.ADVANCED` | Avanzado (tono/tempo) |
+| `UI.PMENU.SLEEP_TIMER` | Temporizador |
+| `UI.PMENU.REFETCH` | Volver a obtener |
+| `UI.PMENU.LIBRARY_TOGGLE` | Añadir a / quitar de la biblioteca |
+| `UI.PMENU.ADD_TO_PLAYLIST` | Añadir a una lista |
+| `UI.PMENU.EXPORT` | Exportar |
+| `UI.PMENU.SET_AS_RINGTONE` | Poner como tono |
+| `UI.PMENU.GO_TO_PODCAST` | Ir al pódcast |
+| `UI.PMENU.VIDEO` | Vídeo (cambiar a vídeo/canción) |
+| `UI.PMENU.AUDIO_DEVICES` | Dispositivos de audio |
+| `UI.PMENU.LISTEN_TOGETHER` | Escuchar juntos |
+| `UI.PMENU.RESYNC` | Resincronizar (invitado de Escuchar juntos) |
+| `UI.PMENU.AMBIENT_MODE` | Modo ambiente |
+| `UI.PMENU.SHARE` | Compartir |
+
+## Menú de canción (biblioteca)
+
+| Código | Acción |
+|---|---|
+| `UI.SONGMENU.SHARE_EXPORTED_VIDEO` | Compartir (menú de un vídeo exportado) |
+| `UI.SONGMENU.EXPORT_AS_MP3` | Exportar como MP3 (menú de un vídeo exportado) |
+| `UI.SONGMENU.DELETE_EXPORTED_VIDEO` | Borrar el vídeo exportado |
+| `UI.SONGMENU.START_RADIO` | Iniciar radio |
+| `UI.SONGMENU.ADD_TO_PLAYLIST` | Añadir a una lista |
+| `UI.SONGMENU.SHARE` | Compartir |
+| `UI.SONGMENU.REMOVE_LIKE` | Quitar de «Canciones que me gustan» |
+| `UI.SONGMENU.SUGGEST_TO_HOST` | Sugerir al anfitrión (Escuchar juntos) |
+| `UI.SONGMENU.EDIT` | Editar |
+| `UI.SONGMENU.PLAY_NEXT` | Reproducir a continuación |
+| `UI.SONGMENU.ADD_TO_QUEUE` | Añadir a la cola |
+| `UI.SONGMENU.LIBRARY_TOGGLE` | Añadir a / quitar de la biblioteca |
+| `UI.SONGMENU.REMOVE_FROM_HISTORY` | Quitar del historial |
+| `UI.SONGMENU.REMOVE_FROM_PLAYLIST` | Quitar de la lista |
+| `UI.SONGMENU.REMOVE_FROM_CACHE` | Quitar de la caché |
+| `UI.SONGMENU.REMOVE_DOWNLOAD` | Quitar la descarga |
+| `UI.SONGMENU.CANCEL_DOWNLOAD` | Cancelar la descarga en curso («Descargando») |
+| `UI.SONGMENU.DOWNLOAD` | Descargar |
+| `UI.SONGMENU.SHARE_LOCAL_FILE` | Compartir el archivo (canción local) |
+| `UI.SONGMENU.EXPORT` | Exportar |
+| `UI.SONGMENU.SET_AS_RINGTONE` | Poner como tono |
+| `UI.SONGMENU.VIEW_ARTIST` | Ver artista |
+| `UI.SONGMENU.VIEW_ALBUM` | Ver álbum |
+| `UI.SONGMENU.REFETCH` | Volver a obtener |
+| `UI.SONGMENU.DETAILS` | Detalles |
+
+## Menú de canción (YouTube)
+
+| Código | Acción |
+|---|---|
+| `UI.YTSONGMENU.START_RADIO` | Iniciar radio |
+| `UI.YTSONGMENU.ADD_TO_PLAYLIST` | Añadir a una lista |
+| `UI.YTSONGMENU.SHARE` | Compartir |
+| `UI.YTSONGMENU.SUGGEST_TO_HOST` | Sugerir al anfitrión (Escuchar juntos) |
+| `UI.YTSONGMENU.PLAY_NEXT` | Reproducir a continuación |
+| `UI.YTSONGMENU.ADD_TO_QUEUE` | Añadir a la cola |
+| `UI.YTSONGMENU.LESS_LIKE_THIS` | Menos parecido a esto |
+| `UI.YTSONGMENU.REMOVE_FROM_HISTORY` | Quitar del historial |
+| `UI.YTSONGMENU.LIBRARY_TOGGLE` | Añadir a / quitar de la biblioteca |
+| `UI.YTSONGMENU.REMOVE_DOWNLOAD` | Quitar la descarga |
+| `UI.YTSONGMENU.CANCEL_DOWNLOAD` | Cancelar la descarga en curso |
+| `UI.YTSONGMENU.DOWNLOAD` | Descargar |
+| `UI.YTSONGMENU.EXPORT` | Exportar |
+| `UI.YTSONGMENU.SET_AS_RINGTONE` | Poner como tono |
+| `UI.YTSONGMENU.VIEW_ARTIST` | Ver artista |
+| `UI.YTSONGMENU.VIEW_ALBUM` | Ver álbum |
+| `UI.YTSONGMENU.DETAILS` | Detalles |
+
+## Menú de álbum (biblioteca)
+
+| Código | Acción |
+|---|---|
+| `UI.ALBUMMENU.PLAY` | Reproducir |
+| `UI.ALBUMMENU.SHUFFLE` | Aleatorio |
+| `UI.ALBUMMENU.SHARE` | Compartir |
+| `UI.ALBUMMENU.PLAY_NEXT` | Reproducir a continuación |
+| `UI.ALBUMMENU.ADD_TO_QUEUE` | Añadir a la cola |
+| `UI.ALBUMMENU.ADD_TO_PLAYLIST` | Añadir a una lista |
+| `UI.ALBUMMENU.REMOVE_DOWNLOAD` | Quitar la descarga |
+| `UI.ALBUMMENU.CANCEL_DOWNLOAD` | Cancelar la descarga en curso |
+| `UI.ALBUMMENU.DOWNLOAD` | Descargar |
+| `UI.ALBUMMENU.EXPORT_ALL_MP3` | Exportar todo a MP3 |
+| `UI.ALBUMMENU.VIEW_ARTIST` | Ver artista |
+| `UI.ALBUMMENU.REFETCH` | Volver a obtener |
+
+## Menú de álbum (YouTube)
+
+| Código | Acción |
+|---|---|
+| `UI.YTALBUMMENU.PLAY` | Reproducir |
+| `UI.YTALBUMMENU.SHUFFLE` | Aleatorio |
+| `UI.YTALBUMMENU.SHARE` | Compartir |
+| `UI.YTALBUMMENU.PLAY_NEXT` | Reproducir a continuación |
+| `UI.YTALBUMMENU.ADD_TO_QUEUE` | Añadir a la cola |
+| `UI.YTALBUMMENU.DO_NOT_RECOMMEND` | No recomendar |
+| `UI.YTALBUMMENU.ADD_TO_PLAYLIST` | Añadir a una lista |
+| `UI.YTALBUMMENU.REMOVE_DOWNLOAD` | Quitar la descarga |
+| `UI.YTALBUMMENU.CANCEL_DOWNLOAD` | Cancelar la descarga en curso |
+| `UI.YTALBUMMENU.DOWNLOAD` | Descargar |
+| `UI.YTALBUMMENU.EXPORT_ALL_MP3` | Exportar todo a MP3 |
+| `UI.YTALBUMMENU.VIEW_ALBUM` | Ver álbum |
+| `UI.YTALBUMMENU.VIEW_ARTIST` | Ver artista |
+
+## Menú de artista (reproducir y compartir)
+
+| Código | Acción |
+|---|---|
+| `UI.ARTMENU.PLAY` | Biblioteca: reproducir |
+| `UI.ARTMENU.SHUFFLE` | Biblioteca: aleatorio |
+| `UI.ARTMENU.SHARE` | Biblioteca: compartir |
+| `UI.YTARTMENU.START_RADIO` | YouTube: iniciar radio |
+| `UI.YTARTMENU.SHARE` | YouTube: compartir |
+| `UI.YTARTMENU.DO_NOT_RECOMMEND` | YouTube: no recomendar |
+
+## Menú de lista (biblioteca)
+
+| Código | Acción |
+|---|---|
+| `UI.PLMENU.PLAY` | Reproducir |
+| `UI.PLMENU.SHUFFLE` | Aleatorio |
+| `UI.PLMENU.SHARE` | Compartir |
+| `UI.PLMENU.EXPORT_JSON` | Exportar (JSON) |
+| `UI.PLMENU.EXPORT_CSV` | Exportar (CSV) |
+| `UI.PLMENU.EXPORT_MP3` | Exportar a MP3 |
+| `UI.PLMENU.START_RADIO` | Iniciar radio |
+| `UI.PLMENU.SYNC_NOW` | Sincronizar ahora |
+| `UI.PLMENU.PLAY_NEXT` | Reproducir a continuación |
+| `UI.PLMENU.ADD_TO_QUEUE` | Añadir a la cola |
+| `UI.PLMENU.EDIT` | Editar |
+| `UI.PLMENU.SPEED_DIAL_TOGGLE` | Fijar en / quitar de Acceso rápido |
+| `UI.PLMENU.REMOVE_DOWNLOAD` | Quitar la descarga |
+| `UI.PLMENU.CANCEL_DOWNLOAD` | Cancelar la descarga en curso |
+| `UI.PLMENU.DOWNLOAD` | Descargar |
+| `UI.PLMENU.AUTO_DOWNLOAD` | Descarga automática de la lista (interruptor) |
+| `UI.PLMENU.DELETE` | Borrar la lista |
+
+## Menú de lista (YouTube)
+
+| Código | Acción |
+|---|---|
+| `UI.YTPLMENU.PLAY` | Reproducir |
+| `UI.YTPLMENU.SHUFFLE` | Aleatorio |
+| `UI.YTPLMENU.START_RADIO` | Iniciar radio |
+| `UI.YTPLMENU.DO_NOT_RECOMMEND` | No recomendar |
+| `UI.YTPLMENU.PLAY_NEXT` | Reproducir a continuación |
+| `UI.YTPLMENU.ADD_TO_QUEUE` | Añadir a la cola |
+| `UI.YTPLMENU.ADD_TO_PLAYLIST` | Añadir a una lista |
+| `UI.YTPLMENU.SPEED_DIAL_TOGGLE` | Fijar en / quitar de Acceso rápido |
+| `UI.YTPLMENU.EXPORT_MP3` | Exportar a MP3 |
+| `UI.YTPLMENU.REMOVE_DOWNLOAD` | Quitar la descarga |
+| `UI.YTPLMENU.CANCEL_DOWNLOAD` | Cancelar la descarga en curso |
+| `UI.YTPLMENU.DOWNLOAD` | Descargar |
+| `UI.YTPLMENU.SHARE` | Compartir |
+| `UI.YTPLMENU.SELECT` | Seleccionar canciones |
+
+## Páginas de álbum y de lista (botones de la cabecera)
+
+| Código | Acción |
+|---|---|
+| `UI.ALBUM.SAVE` | Álbum: guardar / guardado |
+| `UI.ALBUM.DOWNLOAD` | Álbum: descargar o exportar |
+| `UI.ALBUM.PLAY` | Álbum: reproducir / pausa |
+| `UI.ALBUM.SHUFFLE` | Álbum: aleatorio |
+| `UI.OPL.SHUFFLE` | Lista de YouTube: aleatorio |
+| `UI.OPL.PLAY` | Lista de YouTube: reproducir |
+| `UI.OPL.SAVE` | Lista de YouTube: guardar / guardada |
+| `UI.OPL.DOWNLOAD` | Lista de YouTube: descargar o exportar |
+| `UI.LPL.SHUFFLE` | Lista propia: aleatorio |
+| `UI.LPL.PLAY` | Lista propia: reproducir |
+| `UI.LPL.DOWNLOAD` | Lista propia: descargar o exportar |
+
+## Inicio
+
+| Código | Acción |
+|---|---|
+| `UI.HOME.SONG` | Toque en una canción de la biblioteca en Inicio (reproduce o pausa) |
+| `UI.HOME.ITEM` | Toque en una canción, álbum, artista o lista de YouTube en Inicio |
+
+## Biblioteca (pestañas, filtros y orden son ajustes: `UI.SET.CHOICE` / `UI.SET.TOGGLE`)
+
+| Código | Acción |
+|---|---|
+| `UI.LIB.ADD_MENU` | Botón «+» (abre el menú de añadir) |
+| `UI.LIB.CREATE_PLAYLIST` | Crear lista |
+| `UI.LIB.AI_PLAYLIST` | Lista con IA |
+| `UI.LIB.IMPORT_SPOTIFY` | Importar de Spotify |
+| `UI.LIB.IMPORT_YOUTUBE` | Importar de YouTube |
+| `UI.LIB.MIGRATE` | Migrar |
+| `UI.LIB.SORT_OPEN` | Abrir el orden |
+| `UI.LIB.SEARCH` | Buscar dentro de la pestaña |
+| `UI.LIB.SEARCH_CLEAR` | Borrar lo escrito en esa búsqueda |
+| `UI.LIB.SHUFFLE` | Aleatorio (pestaña Canciones) |
+| `UI.LIB.SONG` | Toque en una canción (vista de lista) |
+| `UI.LIB.SONG_GRID` | Toque en una canción (vista de cuadrícula) |
+| `UI.LIB.ALBUM` | Abrir un álbum |
+| `UI.LIB.ARTIST` | Abrir un artista |
+| `UI.LIB.PLAYLIST` | Abrir una lista |
+| `UI.LIB.SYNC` | Sincronizar (pestaña Artistas) |
+
+## Búsqueda
+
+| Código | Acción |
+|---|---|
+| `UI.SEARCH.TAB_EXPLORE` | Pestaña 1 de Buscar |
+| `UI.SEARCH.TAB_SUGGESTIONS` | Pestaña 2 de Buscar |
+| `UI.SEARCH.TAB_ALBUMS` | Pestaña 3 de Buscar |
+| `UI.SEARCH.LEADING` | Botón de la izquierda de la barra (buscar / cerrar) |
+| `UI.SEARCH.SUBMIT` | Buscar desde el teclado (lo escrito no se registra) |
+| `UI.SEARCH.CLEAR` | Borrar lo escrito |
+| `UI.SEARCH.VOICE` | Dictar por voz |
+| `UI.SEARCH.HISTORY` | Buscar algo del historial |
+| `UI.SEARCH.HISTORY_FILL` | Copiar al campo algo del historial (flecha) |
+| `UI.SEARCH.HISTORY_REMOVE` | Quitar una entrada del historial |
+| `UI.SEARCH.HISTORY_CLEAR_ASK` | «Borrar historial» (abre la confirmación) |
+| `UI.SEARCH.HISTORY_CLEAR` | Confirmar el borrado del historial |
+| `UI.SEARCH.SUGGESTION` | Buscar una sugerencia |
+| `UI.SEARCH.SUGGESTION_FILL` | Copiar una sugerencia al campo (flecha) |
+| `UI.SEARCH.ITEM` | Toque en un resultado de las sugerencias |
+| `UI.SEARCH.ITEM_PICK` | Elegir un resultado en el panel de detalle (pantalla ancha) |
+| `UI.SEARCH.LOCAL_FILTER` | Filtro de la búsqueda en la biblioteca |
+| `UI.SEARCH.LOCAL_SECTION` | Cabecera de sección de la búsqueda en la biblioteca |
+| `UI.SEARCH.RESULT` | Toque en un resultado de la pantalla de resultados |
+
+## Ajustes ▸ Sincronizar con YouTube Music (artistas seguidos importados)
+
+| Código | Acción |
+|---|---|
+| `UI.YTMSYNC.IMPORT_SUBSCRIBE` | Suscribirse también en YouTube |
+| `UI.YTMSYNC.IMPORT_LOCAL_ONLY` | Solo en la app |
+| `UI.YTMSYNC.IMPORT_ASK_AGAIN` | Volver a preguntar |

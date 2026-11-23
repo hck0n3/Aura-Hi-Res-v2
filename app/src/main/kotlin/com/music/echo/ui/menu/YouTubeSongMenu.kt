@@ -89,6 +89,8 @@ import iad1tya.echo.music.ui.component.NewAction
 import iad1tya.echo.music.ui.component.NewActionGrid
 import iad1tya.echo.music.ui.utils.ShowMediaInfo
 import iad1tya.echo.music.ui.utils.resize
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.joinByBullet
 import iad1tya.echo.music.utils.lookupExportedFileUri
 import iad1tya.echo.music.utils.makeTimeString
@@ -291,6 +293,7 @@ fun YouTubeSongMenu(
                             },
                             text = stringResource(R.string.start_radio),
                             onClick = {
+                                ActionLog.tap(ActionId.YTSONGMENU_START_RADIO)
                                 playerConnection.playQueue(YouTubeQueue.radio(song.toMediaMetadata()))
                                 onDismiss()
                             }
@@ -306,6 +309,7 @@ fun YouTubeSongMenu(
                         },
                         text = stringResource(R.string.add_to_playlist),
                         onClick = {
+                            ActionLog.tap(ActionId.YTSONGMENU_ADD_TO_PLAYLIST)
                             showChoosePlaylistDialog = true
                         }
                     ),
@@ -319,6 +323,7 @@ fun YouTubeSongMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            ActionLog.tap(ActionId.YTSONGMENU_SHARE)
                             // Row 520: link / MP3 / video, asked every time (the choice window saves what is missing).
                             coroutineScope.launch {
                                 iad1tya.echo.music.ui.newui.ShareChoiceState.open(
@@ -354,6 +359,7 @@ fun YouTubeSongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTSONGMENU_SUGGEST_TO_HOST)
                                 val durationMs = if (song.duration != null && song.duration!! > 0) song.duration!! * 1000L else 180000L
                                 val trackInfo = iad1tya.echo.music.listentogether.TrackInfo(
                                     id = song.id,
@@ -379,6 +385,7 @@ fun YouTubeSongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTSONGMENU_PLAY_NEXT)
                                 playerConnection.playNext(song.copy(thumbnail = song.thumbnail.resize(1200, 1200)).toMediaItem())
                                 onDismiss()
                             }
@@ -394,6 +401,7 @@ fun YouTubeSongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTSONGMENU_ADD_TO_QUEUE)
                                 playerConnection.addToQueue(song.toMediaItem())
                                 onDismiss()
                             }
@@ -412,6 +420,7 @@ fun YouTubeSongMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTSONGMENU_LESS_LIKE_THIS)
                             coroutineScope.launch {
                                 iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.id)
                             }
@@ -443,6 +452,7 @@ fun YouTubeSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTSONGMENU_REMOVE_FROM_HISTORY)
                                     coroutineScope.launch {
                                         YouTube.feedback(listOf(song.historyRemoveToken!!))
                                             .onSuccess { processed ->
@@ -473,6 +483,7 @@ fun YouTubeSongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTSONGMENU_LIBRARY_TOGGLE)
                                 val isInLibrary = librarySong?.song?.inLibrary != null
 
                                 
@@ -522,6 +533,7 @@ fun YouTubeSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTSONGMENU_REMOVE_DOWNLOAD)
                                     removeSongDownloads(context, song.id, song.isVideoSong)
                                 }
                             )
@@ -536,6 +548,7 @@ fun YouTubeSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTSONGMENU_CANCEL_DOWNLOAD)
                                     removeSongDownloads(context, song.id, song.isVideoSong)
                                 }
                             )
@@ -550,6 +563,7 @@ fun YouTubeSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTSONGMENU_DOWNLOAD)
                                     database.transaction {
                                         insert(song.toMediaMetadata())
                                     }
@@ -592,7 +606,7 @@ fun YouTubeSongMenu(
                                         contentDescription = null,
                                     )
                                 },
-                                onClick = { showExportFormatDialog = true }
+                                onClick = { ActionLog.tap(ActionId.YTSONGMENU_EXPORT); showExportFormatDialog = true }
                             )
                         }
                     )
@@ -615,6 +629,7 @@ fun YouTubeSongMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTSONGMENU_SET_AS_RINGTONE)
                             // Always open the trimmer: WRITE_SETTINGS only gates the optional
                             // direct-apply step inside RingtoneHelper.downloadAndTrimAsRingtone;
                             // the success dialog offers the grant when it wasn't held.
@@ -644,6 +659,7 @@ fun YouTubeSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTSONGMENU_VIEW_ARTIST)
                                     if (artists.size == 1) {
                                         if (artists[0].id != null) {
                                             navController.navigate("artist/${artists[0].id}")
@@ -671,6 +687,7 @@ fun YouTubeSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTSONGMENU_VIEW_ALBUM)
                                     navController.navigate("album/${album.id}")
                                     onDismiss()
                                 }
@@ -687,6 +704,7 @@ fun YouTubeSongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTSONGMENU_DETAILS)
                                 onDismiss()
                                 bottomSheetPageState.show {
                                     ShowMediaInfo(song.id)

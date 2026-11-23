@@ -93,6 +93,8 @@ import iad1tya.echo.music.db.entities.SearchHistory
 import iad1tya.echo.music.playback.PlayerConnection
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.ui.component.DefaultDialog
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
@@ -322,7 +324,14 @@ fun AuraSearchScreen(
                         AuraChip(
                             text = stringResource(labelRes),
                             selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
+                            onClick = {
+                                when (index) {
+                                    0 -> ActionLog.tap(ActionId.SEARCH_TAB_EXPLORE)
+                                    1 -> ActionLog.tap(ActionId.SEARCH_TAB_SUGGESTIONS)
+                                    else -> ActionLog.tap(ActionId.SEARCH_TAB_ALBUMS)
+                                }
+                                selectedTabIndex = index
+                            },
                         )
                     }
                 }
@@ -457,7 +466,7 @@ internal fun AuraSearchInputBar(
             } else {
                 stringResource(R.string.search)
             },
-            onClick = onLeadingClick,
+            onClick = { ActionLog.tap(ActionId.SEARCH_LEADING); onLeadingClick() },
             size = 18.dp,
             tint = AuraPalette.OnGroundMuted,
             // The chevron points BACK when the panel is open — one glyph, rotated, exactly as the
@@ -482,7 +491,7 @@ internal fun AuraSearchInputBar(
                 textStyle = AuraType.RowTitle.copy(color = AuraPalette.OnGround),
                 cursorBrush = SolidColor(AuraPalette.Teal),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
+                keyboardActions = KeyboardActions(onSearch = { ActionLog.tap(ActionId.SEARCH_SUBMIT); onSubmit() }),
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
@@ -497,7 +506,7 @@ internal fun AuraSearchInputBar(
                 // The render's own close glyph is a "+" turned 45°.
                 icon = AuraIcons.Plus,
                 contentDescription = stringResource(R.string.search_clear_query),
-                onClick = onClear,
+                onClick = { ActionLog.tap(ActionId.SEARCH_CLEAR); onClear() },
                 size = 16.dp,
                 tint = AuraPalette.OnGroundMuted,
                 modifier = Modifier.graphicsLayer { rotationZ = 45f },
@@ -520,7 +529,7 @@ internal fun AuraSearchInputBar(
         AuraIconButton(
             icon = AuraIcons.Mic,
             contentDescription = stringResource(R.string.voice_search),
-            onClick = onVoice,
+            onClick = { ActionLog.tap(ActionId.SEARCH_VOICE); onVoice() },
             size = 18.dp,
             tint = if (voiceActive) AuraPalette.Teal else AuraPalette.OnGroundMuted,
             modifier = Modifier.graphicsLayer {

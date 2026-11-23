@@ -80,6 +80,8 @@ import iad1tya.echo.music.ui.component.NewAction
 import iad1tya.echo.music.ui.component.NewActionGrid
 import iad1tya.echo.music.ui.component.SongListItem
 import iad1tya.echo.music.ui.component.YouTubeListItem
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.reportException
 import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.Dispatchers
@@ -297,6 +299,7 @@ fun YouTubeAlbumMenu(
                             },
                             text = stringResource(R.string.play),
                             onClick = {
+                                ActionLog.tap(ActionId.YTALBUMMENU_PLAY)
                                 onDismiss()
                                 album?.songs?.let { songs ->
                                     if (songs.isNotEmpty()) {
@@ -322,6 +325,7 @@ fun YouTubeAlbumMenu(
                             },
                             text = stringResource(R.string.shuffle),
                             onClick = {
+                                ActionLog.tap(ActionId.YTALBUMMENU_SHUFFLE)
                                 onDismiss()
                                 album?.songs?.let { songs ->
                                     if (songs.isNotEmpty()) {
@@ -353,6 +357,7 @@ fun YouTubeAlbumMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            ActionLog.tap(ActionId.YTALBUMMENU_SHARE)
                             onDismiss()
                             // Prefer the resolved album's playlistId (from the DB fetch) when the passed-in
                             // AlbumItem has none (e.g. the Release Radar shelf), so the share URL isn't broken.
@@ -386,6 +391,7 @@ fun YouTubeAlbumMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTALBUMMENU_PLAY_NEXT)
                                 album
                                     ?.songs
                                     ?.map { it.toMediaItem() }
@@ -404,6 +410,7 @@ fun YouTubeAlbumMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTALBUMMENU_ADD_TO_QUEUE)
                                 album
                                     ?.songs
                                     ?.map { it.toMediaItem() }
@@ -422,6 +429,7 @@ fun YouTubeAlbumMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTALBUMMENU_DO_NOT_RECOMMEND)
                             coroutineScope.launch {
                                 iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).dislikeAlbum(albumItem.id)
                             }
@@ -437,6 +445,7 @@ fun YouTubeAlbumMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTALBUMMENU_ADD_TO_PLAYLIST)
                             showChoosePlaylistDialog = true
                         }
                     ),
@@ -464,6 +473,7 @@ fun YouTubeAlbumMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTALBUMMENU_REMOVE_DOWNLOAD)
                                     album?.songs?.forEach { song ->
                                         DownloadService.sendRemoveDownload(
                                             context,
@@ -485,6 +495,7 @@ fun YouTubeAlbumMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTALBUMMENU_CANCEL_DOWNLOAD)
                                     album?.songs?.forEach { song ->
                                         DownloadService.sendRemoveDownload(
                                             context,
@@ -506,6 +517,7 @@ fun YouTubeAlbumMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTALBUMMENU_DOWNLOAD)
                                     coroutineScope.launch {
                                         val local = album?.songs.orEmpty()
                                         if (local.isNotEmpty()) {
@@ -570,7 +582,7 @@ fun YouTubeAlbumMenu(
                                     contentDescription = null,
                                 )
                             },
-                            onClick = { exportAlbumMp3((album?.songs.orEmpty()).map { it.toMp3ExportTrack() }) },
+                            onClick = { ActionLog.tap(ActionId.YTALBUMMENU_EXPORT_ALL_MP3); exportAlbumMp3((album?.songs.orEmpty()).map { it.toMp3ExportTrack() }) },
                         )
                     } else null,
                 )
@@ -592,6 +604,7 @@ fun YouTubeAlbumMenu(
                         },
                         showChevron = true,
                         onClick = {
+                            ActionLog.tap(ActionId.YTALBUMMENU_VIEW_ALBUM)
                             navController.navigate("album/${albumItem.id}")
                             onDismiss()
                         }
@@ -608,6 +621,7 @@ fun YouTubeAlbumMenu(
                             },
                             showChevron = true,
                             onClick = {
+                                ActionLog.tap(ActionId.YTALBUMMENU_VIEW_ARTIST)
                                 if (artists.size == 1) {
                                     if (artists[0].id != null) {
                                         navController.navigate("artist/${artists[0].id}")

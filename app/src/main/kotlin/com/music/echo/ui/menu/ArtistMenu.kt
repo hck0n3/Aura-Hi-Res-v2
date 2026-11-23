@@ -157,6 +157,7 @@ fun ArtistMenu(
                                     },
                                     text = stringResource(R.string.play),
                                     onClick = {
+                                        ActionLog.tap(ActionId.ARTMENU_PLAY)
                                         coroutineScope.launch {
                                             val songs = withContext(Dispatchers.IO) {
                                                 database
@@ -187,7 +188,7 @@ fun ArtistMenu(
                                         )
                                     },
                                     text = stringResource(R.string.shuffle),
-                                    onClick = { onMenuShuffleClick() }
+                                    onClick = { ActionLog.tap(ActionId.ARTMENU_SHUFFLE); onMenuShuffleClick() }
                                 )
                             )
                         }
@@ -205,6 +206,7 @@ fun ArtistMenu(
                                 },
                                 text = stringResource(R.string.share),
                                 onClick = {
+                                    ActionLog.tap(ActionId.ARTMENU_SHARE)
                                     onDismiss()
                                 val intent = Intent().apply {
                                         action = Intent.ACTION_SEND

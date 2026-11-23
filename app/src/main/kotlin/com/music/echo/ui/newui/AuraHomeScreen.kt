@@ -136,6 +136,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Inicio — "Interfaz nueva"
@@ -359,6 +361,7 @@ fun AuraHomeScreen(
     // ── Shared item actions (the SAME lambdas the classic Home installs) ──────────────────────────
 
     val playSong: (Song) -> Unit = { song ->
+        ActionLog.tap(ActionId.HOME_SONG)
         if (song.id == mediaMetadata?.id) playerConnection.togglePlayPause()
         else playerConnection.playQueue(YouTubeQueue.radio(song.toMediaMetadata()))
     }
@@ -369,6 +372,7 @@ fun AuraHomeScreen(
         }
     }
     val openYtItem: (YTItem) -> Unit = { item ->
+        ActionLog.tap(ActionId.HOME_ITEM)
         when (item) {
             is SongItem -> playerConnection.playQueue(
                 YouTubeQueue(item.endpoint ?: WatchEndpoint(videoId = item.id), item.toMediaMetadata()),

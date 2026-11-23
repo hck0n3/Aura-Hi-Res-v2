@@ -146,6 +146,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Lista propia — "Interfaz nueva"
@@ -1300,7 +1302,7 @@ private fun AuraLocalPlaylistHeader(
             AuraHeaderButton(
                 icon = AuraIcons.Shuffle,
                 label = stringResource(R.string.shuffle),
-                onClick = onShuffleClick,
+                onClick = { ActionLog.tap(ActionId.LPL_SHUFFLE); onShuffleClick() },
                 accent = false,
                 modifier = Modifier.weight(1f).tvFocusable(isTvOrCar, scaleFocused = 1f),
             )
@@ -1308,6 +1310,7 @@ private fun AuraLocalPlaylistHeader(
                 icon = AuraIcons.Play,
                 label = stringResource(R.string.play),
                 onClick = {
+                    ActionLog.tap(ActionId.LPL_PLAY)
                     playerConnection.playQueue(
                         ListQueue(
                             title = playlist.playlist.name,
@@ -1340,7 +1343,7 @@ private fun AuraLocalPlaylistHeader(
             AuraHeaderCircleButton(
                 icon = if (downloadState == Download.STATE_COMPLETED) AuraIcons.Downloaded else AuraIcons.Download,
                 contentDescription = stringResource(R.string.download_or_export_title),
-                onClick = { showDownloadSheet = true },
+                onClick = { ActionLog.tap(ActionId.LPL_DOWNLOAD); showDownloadSheet = true },
                 enabled = songs.isNotEmpty(),
                 modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
             )

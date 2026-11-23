@@ -3,6 +3,8 @@
 package iad1tya.echo.music.ui.menu
 
 import androidx.compose.ui.res.pluralStringResource
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.joinByBullet
 import iad1tya.echo.music.ui.component.MenuLikeButton
 import iad1tya.echo.music.ui.component.MenuHeaderCover
@@ -375,6 +377,7 @@ fun AlbumMenu(
                             },
                             text = stringResource(R.string.play),
                             onClick = {
+                                ActionLog.tap(ActionId.ALBUMMENU_PLAY)
                                 onDismiss()
                                 if (songs.isNotEmpty()) {
                                     playerConnection.playQueue(
@@ -396,7 +399,7 @@ fun AlbumMenu(
                                 )
                             },
                             text = stringResource(R.string.shuffle),
-                            onClick = { onMenuShuffleClick() }
+                            onClick = { ActionLog.tap(ActionId.ALBUMMENU_SHUFFLE); onMenuShuffleClick() }
                         ))
                     }
                     add(NewAction(
@@ -409,6 +412,7 @@ fun AlbumMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            ActionLog.tap(ActionId.ALBUMMENU_SHARE)
                             onDismiss()
                             val intent = Intent().apply {
                                 action = Intent.ACTION_SEND
@@ -436,6 +440,7 @@ fun AlbumMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.ALBUMMENU_PLAY_NEXT)
                                 onDismiss()
                                 playerConnection.playNext(songs.map { it.toMediaItem() })
                             }
@@ -451,6 +456,7 @@ fun AlbumMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.ALBUMMENU_ADD_TO_QUEUE)
                                 onDismiss()
                                 playerConnection.addToQueue(songs.map { it.toMediaItem() })
                             }
@@ -465,6 +471,7 @@ fun AlbumMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.ALBUMMENU_ADD_TO_PLAYLIST)
                             showChoosePlaylistDialog = true
                         }
                     ),
@@ -492,6 +499,7 @@ fun AlbumMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.ALBUMMENU_REMOVE_DOWNLOAD)
                                     songs.forEach { song ->
                                         DownloadService.sendRemoveDownload(
                                             context,
@@ -513,6 +521,7 @@ fun AlbumMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.ALBUMMENU_CANCEL_DOWNLOAD)
                                     songs.forEach { song ->
                                         DownloadService.sendRemoveDownload(
                                             context,
@@ -534,6 +543,7 @@ fun AlbumMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.ALBUMMENU_DOWNLOAD)
                                     coroutineScope.launch {
                                         var list = songs
                                         if (list.isEmpty()) {
@@ -583,7 +593,7 @@ fun AlbumMenu(
                                     contentDescription = null,
                                 )
                             },
-                            onClick = { exportAlbumMp3(songs.map { it.toMp3ExportTrack() }) },
+                            onClick = { ActionLog.tap(ActionId.ALBUMMENU_EXPORT_ALL_MP3); exportAlbumMp3(songs.map { it.toMp3ExportTrack() }) },
                         )
                     } else null,
                 )
@@ -606,6 +616,7 @@ fun AlbumMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.ALBUMMENU_VIEW_ARTIST)
                             if (album.artists.size == 1) {
                                 if (album.artists[0].id != null) {
                                     navController.navigate("artist/${album.artists[0].id}")
@@ -628,6 +639,7 @@ fun AlbumMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.ALBUMMENU_REFETCH)
                             refetchIconDegree -= 360
                             scope.launch(Dispatchers.IO) {
                                 YouTube.album(album.id).onSuccess {

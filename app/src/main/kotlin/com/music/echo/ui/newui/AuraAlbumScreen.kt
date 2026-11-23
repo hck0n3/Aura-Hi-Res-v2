@@ -130,6 +130,8 @@ import dev.chrisbanes.haze.HazeProgressive
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Álbum — "Interfaz nueva"
@@ -1091,7 +1093,7 @@ private fun AuraAlbumHeader(
                     stringResource(R.string.save)
                 },
                 tint = if (album.album.bookmarkedAt != null) AuraPalette.Teal else AuraPalette.OnGround,
-                onClick = onToggleSave,
+                onClick = { ActionLog.tap(ActionId.ALBUM_SAVE); onToggleSave() },
                 modifier = Modifier.tvFocusable(isTvOrCar, AuraShapes.Pill, scaleFocused = 1f),
             )
 
@@ -1099,7 +1101,7 @@ private fun AuraAlbumHeader(
                 icon = if (downloadState == Download.STATE_COMPLETED) AuraIcons.Downloaded else AuraIcons.Download,
                 contentDescription = stringResource(R.string.download_or_export_title),
                 tint = if (downloadState == Download.STATE_COMPLETED) AuraPalette.Teal else AuraPalette.OnGround,
-                onClick = { showDownloadSheet = true },
+                onClick = { ActionLog.tap(ActionId.ALBUM_DOWNLOAD); showDownloadSheet = true },
                 modifier = Modifier.tvFocusable(isTvOrCar, AuraShapes.Pill, scaleFocused = 1f),
             )
 
@@ -1112,6 +1114,7 @@ private fun AuraAlbumHeader(
                 },
                 accent = true,
                 onClick = {
+                    ActionLog.tap(ActionId.ALBUM_PLAY)
                     if (isPlaying && isCurrentAlbum) {
                         playerConnection.player.pause()
                     } else if (isCurrentAlbum) {
@@ -1134,7 +1137,7 @@ private fun AuraAlbumHeader(
             AuraDetailCircleButton(
                 icon = AuraIcons.Shuffle,
                 contentDescription = stringResource(R.string.shuffle_label),
-                onClick = onShuffleClick,
+                onClick = { ActionLog.tap(ActionId.ALBUM_SHUFFLE); onShuffleClick() },
                 modifier = Modifier.tvFocusable(isTvOrCar, AuraShapes.Pill, scaleFocused = 1f),
             )
         }
