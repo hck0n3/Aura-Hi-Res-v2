@@ -196,15 +196,18 @@ export class SyncRoom {
     // restored or mirrored there, row 662). It is kept for that device but neither handed out nor broadcast: it cannot hide the one that plays.
     const stale = !playing && at - playedAt > NOW_RECENT_MS && Object.values(nows).some((n) => n.deviceId !== me.id && freshPlaying(n, at));
     nows[me.id] = { ...state, deviceId: me.id, deviceName: me.name, at, playedAt, stale };
-    const keep = Object.values(nows).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, MAX_NOW_ENTRIES);
-    await this.ctx.storage.put("nows", Object.fromEntries(keep.map((n) => [n.deviceId, n])));
+    // One key per device («now:<id>», each under MAX_NOW_BYTES): one write per report, as with the single «now».
+    await this.ctx.storage.put("now:" + me.id, nows[me.id]);
+    const old = Object.values(nows).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(MAX_NOW_ENTRIES);
+    if (old.length) await this.ctx.storage.delete(old.map((n) => "now:" + n.deviceId));
     if (!stale) this.broadcast({ t: "now", from: me.id, state: nows[me.id] }, ws);
   }
 
   /** deviceId → its last «now». A room written by the previous version has only the single `now`: it becomes the first entry. */
   async loadNows() {
-    const nows = await this.ctx.storage.get("nows");
-    if (nows) return nows;
+    const nows = {};
+    for (const [key, value] of await this.ctx.storage.list({ prefix: "now:" })) nows[key.slice(4)] = value;
+    if (Object.keys(nows).length) return nows;
     const legacy = await this.ctx.storage.get("now");
     return legacy?.deviceId ? { [legacy.deviceId]: { ...legacy, playedAt: legacy.playing === true ? legacy.at || 0 : 0 } } : {};
   }

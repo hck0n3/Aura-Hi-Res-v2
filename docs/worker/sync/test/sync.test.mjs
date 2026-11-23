@@ -190,10 +190,16 @@ test("«now»: a device that was playing and pauses is still told to the others,
 test("«now»: a room written by the previous version (one shared `now`) still hands it out", async () => {
   const at = Date.now();
   const stored = new Map([["now", { items: [item("legacy")], index: 0, playing: true, deviceId: "phone-0001", deviceName: "Fold", at }]]);
-  const room = new SyncRoom({ storage: { get: async (k) => stored.get(k) }, getWebSockets: () => [] }, {});
+  const storage = {
+    get: async (k) => stored.get(k),
+    list: async ({ prefix }) => new Map([...stored].filter(([k]) => k.startsWith(prefix))),
+  };
+  const room = new SyncRoom({ storage, getWebSockets: () => [] }, {});
   const nows = await room.loadNows();
   assert.deepEqual(Object.keys(nows), ["phone-0001"]);
   assert.equal(nows["phone-0001"].playedAt, at, "it was playing: it counts as played then");
+  stored.set("now:tablet-0001", { deviceId: "tablet-0001", playing: false, at });
+  assert.deepEqual(Object.keys(await room.loadNows()), ["tablet-0001"], "once devices report one by one, the old single one is history");
   stored.clear();
   assert.deepEqual(await room.loadNows(), {}, "an empty room has none");
 });
