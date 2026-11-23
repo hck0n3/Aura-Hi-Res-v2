@@ -199,9 +199,13 @@ object ArtistSyncPolicy {
             artist.copy(followedByUserAt = artist.followedByUserAt ?: now, ytmSyncedAt = now)
         }
 
-    /** Row 716: the user unfollowed this row and has not followed it again (the marker the account calls honour). */
+    /**
+     * Row 716: the user unfollowed this row, has not followed it again, and the account was last seen holding it
+     * (`ytmSyncedAt`) — the unfollow is still owed to the account, the same shape `DatabaseDao.artistsPendingUnsubscribe`
+     * reads. A confirmed unsubscribe clears `ytmSyncedAt` but keeps the marker (row 150(d)): that is no longer pending.
+     */
     fun hasPendingUnfollow(artist: ArtistEntity): Boolean =
-        artist.unfollowedByUserAt != null && artist.followedByUserAt == null
+        artist.unfollowedByUserAt != null && artist.followedByUserAt == null && artist.ytmSyncedAt != null
 
     /** Row 716: another spelling of [id]'s channel, among the stored [rows] (by id), carries the user's pending unfollow. */
     fun aliasHasPendingUnfollow(id: String, rows: Map<String, ArtistEntity>): Boolean =

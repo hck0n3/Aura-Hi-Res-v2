@@ -1895,9 +1895,11 @@ interface DatabaseDao {
      *    queued unfollow is preserved so an unsubscribe that never reached YouTube (offline, expired
      *    cookie) is retried instead of being silently lost.
      *  - Row 716: nor does it follow a spelling of the channel (`UC…` / `MPLAUC…`) while ANOTHER spelling
-     *    carries the user's unfollow (marker set, not re-followed): the account still listing the channel is
-     *    that unfollow not having landed yet, and following the other spelling would resurrect «Suscrito»
-     *    over it. `ArtistSyncPolicy.afterRemoteSubscriptionSeen(…, aliasPendingUnfollow)` is the mirror.
+     *    carries the user's unfollow still owed to the account (marker set, not re-followed, `ytmSyncedAt` set —
+     *    the predicate of [artistsPendingUnsubscribe]; a CONFIRMED unsubscribe clears `ytmSyncedAt` but keeps
+     *    the marker, and must not block the alias forever): the account still listing the channel is that
+     *    unfollow not having landed yet, and following the other spelling would resurrect «Suscrito» over it.
+     *    `ArtistSyncPolicy.afterRemoteSubscriptionSeen(…, aliasPendingUnfollow)` is the mirror.
      */
     @Query(
         """
@@ -1907,9 +1909,10 @@ interface DatabaseDao {
                 WHEN followedByUserAt IS NULL AND EXISTS (
                     SELECT 1 FROM artist AS spelling
                     WHERE spelling.unfollowedByUserAt IS NOT NULL AND spelling.followedByUserAt IS NULL
+                      AND spelling.ytmSyncedAt IS NOT NULL
                       AND (
-                        (spelling.id = 'MPLA' || artist.id AND substr(artist.id, 1, 2) = 'UC')
-                        OR ('MPLA' || spelling.id = artist.id AND substr(spelling.id, 1, 2) = 'UC')
+                        (substr(artist.id, 1, 2) = 'UC' AND spelling.id = 'MPLA' || artist.id)
+                        OR (substr(artist.id, 1, 6) = 'MPLAUC' AND spelling.id = substr(artist.id, 5))
                       )
                 ) THEN NULL
                 ELSE COALESCE(followedByUserAt, :now)

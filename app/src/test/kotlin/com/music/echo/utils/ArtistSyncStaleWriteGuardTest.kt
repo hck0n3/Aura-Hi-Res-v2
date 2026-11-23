@@ -23,24 +23,32 @@ class ArtistSyncStaleWriteGuardTest {
 
     // ---- the read-back and the other spellings -----------------------------------------------------
 
+    /** The user's unfollow, still owed to the account (the account was last seen holding the channel). */
+    private fun owed(id: String) = row(id).copy(unfollowedByUserAt = earlier, ytmSyncedAt = earlier.minusDays(1))
+
     @Test
-    fun `a pending unfollow is an unfollow the user has not followed again`() {
-        assertTrue(ArtistSyncPolicy.hasPendingUnfollow(row("UCx").copy(unfollowedByUserAt = earlier)))
-        assertFalse(ArtistSyncPolicy.hasPendingUnfollow(row("UCx").copy(unfollowedByUserAt = earlier, followedByUserAt = now)))
+    fun `a pending unfollow is an unfollow still owed to the account`() {
+        assertTrue(ArtistSyncPolicy.hasPendingUnfollow(owed("UCx")))
+        assertFalse(ArtistSyncPolicy.hasPendingUnfollow(owed("UCx").copy(followedByUserAt = now)))
         assertFalse(ArtistSyncPolicy.hasPendingUnfollow(row("UCx")))
+        // Row 716 review: confirmArtistUnsubscribed clears ytmSyncedAt but keeps the marker (row 150(d)). A
+        // delivered unsubscribe must not block the other spelling's «Suscrito» for ever.
+        assertFalse("a confirmed unsubscribe is not pending", ArtistSyncPolicy.hasPendingUnfollow(owed("UCx").copy(ytmSyncedAt = null)))
     }
 
     @Test
     fun `another spelling's pending unfollow is seen under both spellings`() {
-        val unfollowedUc = mapOf("UCx" to row("UCx").copy(unfollowedByUserAt = earlier))
-        assertTrue(ArtistSyncPolicy.aliasHasPendingUnfollow("MPLAUCx", unfollowedUc))
-        val unfollowedLibrary = mapOf("MPLAUCx" to row("MPLAUCx").copy(unfollowedByUserAt = earlier))
-        assertTrue(ArtistSyncPolicy.aliasHasPendingUnfollow("UCx", unfollowedLibrary))
-        assertFalse("its own marker is the CASE's business, not an alias", ArtistSyncPolicy.aliasHasPendingUnfollow("UCx", mapOf("UCx" to row("UCx").copy(unfollowedByUserAt = earlier))))
-        assertFalse("not a channel: no alias", ArtistSyncPolicy.aliasHasPendingUnfollow("MPLAxyz", mapOf("xyz" to row("xyz").copy(unfollowedByUserAt = earlier))))
+        assertTrue(ArtistSyncPolicy.aliasHasPendingUnfollow("MPLAUCx", mapOf("UCx" to owed("UCx"))))
+        assertTrue(ArtistSyncPolicy.aliasHasPendingUnfollow("UCx", mapOf("MPLAUCx" to owed("MPLAUCx"))))
+        assertFalse("its own marker is the CASE's business, not an alias", ArtistSyncPolicy.aliasHasPendingUnfollow("UCx", mapOf("UCx" to owed("UCx"))))
+        assertFalse("not a channel: no alias", ArtistSyncPolicy.aliasHasPendingUnfollow("MPLAxyz", mapOf("xyz" to owed("xyz"))))
         assertFalse(
             "a re-followed spelling is no pending unfollow",
-            ArtistSyncPolicy.aliasHasPendingUnfollow("UCx", mapOf("MPLAUCx" to row("MPLAUCx").copy(unfollowedByUserAt = earlier, followedByUserAt = now))),
+            ArtistSyncPolicy.aliasHasPendingUnfollow("UCx", mapOf("MPLAUCx" to owed("MPLAUCx").copy(followedByUserAt = now))),
+        )
+        assertFalse(
+            "a delivered unsubscribe on the other spelling does not block this one",
+            ArtistSyncPolicy.aliasHasPendingUnfollow("UCx", mapOf("MPLAUCx" to owed("MPLAUCx").copy(ytmSyncedAt = null))),
         )
     }
 
@@ -78,8 +86,11 @@ class ArtistSyncStaleWriteGuardTest {
         val q = query(main("db/DatabaseDao.kt"), "markArtistsSubscribedOnYtm")
         assertTrue(q.contains("WHEN unfollowedByUserAt IS NOT NULL THEN followedByUserAt"))
         assertTrue(q.contains("spelling.unfollowedByUserAt IS NOT NULL AND spelling.followedByUserAt IS NULL"))
-        assertTrue(q.contains("(spelling.id = 'MPLA' || artist.id AND substr(artist.id, 1, 2) = 'UC')"))
-        assertTrue(q.contains("OR ('MPLA' || spelling.id = artist.id AND substr(spelling.id, 1, 2) = 'UC')"))
+        assertTrue("only an unfollow still owed to the account blocks", q.contains("AND spelling.ytmSyncedAt IS NOT NULL"))
+        // Both branches compare spelling.id to an expression of the outer row, so the primary-key index is used.
+        assertTrue(q.contains("(substr(artist.id, 1, 2) = 'UC' AND spelling.id = 'MPLA' || artist.id)"))
+        assertTrue(q.contains("OR (substr(artist.id, 1, 6) = 'MPLAUC' AND spelling.id = substr(artist.id, 5))"))
+        assertFalse("an expression on the indexed column came back", q.contains("'MPLA' || spelling.id"))
     }
 
     @Test
