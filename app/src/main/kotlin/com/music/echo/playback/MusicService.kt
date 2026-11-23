@@ -1666,6 +1666,12 @@ class MusicService :
     val sleepTimerAfterSong: kotlinx.coroutines.flow.StateFlow<Boolean> get() = _sleepTimerAfterSong
     private var sleepTimerJob: Job? = null
     private var sleepAfterSongId: String? = null
+    /**
+     * Row 734: the sleep fade's gain (1f = no fade). Every repeating volume writer multiplies it in — the crossfade
+     * loop and its `finally`, the manual fade-in, the volume/mute collector and the focus decision — so a crossfade
+     * or a skip inside the last 10 s fades with the timer instead of fighting it every 40 ms. Main thread only.
+     */
+    internal var sleepFadeGain = 1f
 
     fun startSleepTimer(minutes: Int) {
         if (minutes <= 0) {
@@ -1698,23 +1704,30 @@ class MusicService :
     }
 
     /**
-     * Row 734 (UX audit P22C: «corta la música de golpe»): ramps the volume to 0 until [deadline], then pauses.
+     * Row 734 (UX audit P22C: «corta la música de golpe»): ramps [sleepFadeGain] to 0 until [deadline], then pauses.
      * It always runs to the deadline, whatever the play state: a buffering or paused player is never stopped 10 s
-     * early. The `finally` gives the user's volume back (mute-aware) whether the timer fired or was turned off /
-     * extended mid-fade, so the next play is never left silent.
+     * early, and one that starts or resumes inside the window comes back at the faded level. While a crossfade or a
+     * manual fade-in owns the volume, those loops apply the gain themselves. The `finally` gives the user's volume
+     * back (mute-aware) whether the timer fired or was turned off / extended mid-fade, so the next play is never left
+     * silent.
      */
     private suspend fun fadeOutAndFireSleepTimer(deadline: Long) {
-        val startVolume = player.volume
+        val fallbackVolume = player.volume
         try {
             for (step in 1..SleepTimerMath.STEPS) {
                 val left = deadline - android.os.SystemClock.elapsedRealtime()
                 if (left <= 0L) break
-                player.volume = startVolume * SleepTimerMath.stepGain(step)
+                sleepFadeGain = SleepTimerMath.stepGain(step)
+                if (!isCrossfading && manualFadeInJob?.isActive != true) {
+                    val base = if (!playerVolumeInitialized) fallbackVolume else if (isMuted.value) 0f else playerVolume.value
+                    player.volume = base * sleepFadeGain
+                }
                 delay(SleepTimerMath.stepDelayMs(left, step))
             }
             fireSleepTimer()
         } finally {
-            if (playerVolumeInitialized) {
+            sleepFadeGain = 1f
+            if (playerVolumeInitialized && !isCrossfading && manualFadeInJob?.isActive != true) {
                 runCatching { player.volume = if (isMuted.value) 0f else playerVolume.value }
             }
         }
@@ -2825,7 +2838,7 @@ class MusicService :
         combine(playerVolume, isMuted) { volume, muted ->
             if (muted) 0f else volume
         }.collectLatest(scope) {
-            player.volume = it
+            player.volume = it * sleepFadeGain
         }
 
         playerVolume.debounce(1000).collect(scope) { volume ->
@@ -3623,7 +3636,7 @@ class MusicService :
             expectingOwnFocusPause = true
             player.pause()
         }
-        decision.volume?.let { player.volume = it }
+        decision.volume?.let { player.volume = it * sleepFadeGain }
 
         if (decision.scheduleResume && !reentrantFocusGain) {
             reentrantFocusGain = true

@@ -313,7 +313,7 @@ internal fun MusicService.fadeInOnManualChange() {
             val stepTime = ManualFadeIn.RAMP_MS / ManualFadeIn.STEPS
             for (i in 1..ManualFadeIn.STEPS) {
                 if (!isActive) break
-                player.volume = target * ManualFadeIn.stepGain(i)
+                player.volume = target * ManualFadeIn.stepGain(i) * sleepFadeGain
                 delay(stepTime)
             }
         } finally {
@@ -327,7 +327,7 @@ internal fun MusicService.fadeInOnManualChange() {
                         isCurrentJob = manualFadeInJob === self,
                         muted = isMuted.value,
                         userVolume = playerVolume.value,
-                    )?.let { player.volume = it }
+                    )?.let { player.volume = it * sleepFadeGain }
                 }
             }
         }
@@ -1204,8 +1204,8 @@ internal fun MusicService.performCrossfadeSwap() {
 
                 try {
                     // Both players smoothly fade without needing to dynamically duck their headroom
-                    player.volume = startVolume * fadeIn * xfHeadroom
-                    fp?.volume = startVolume * fadeOut * xfHeadroom
+                    player.volume = startVolume * fadeIn * xfHeadroom * sleepFadeGain
+                    fp?.volume = startVolume * fadeOut * xfHeadroom * sleepFadeGain
                 } catch (e: Exception) { break }
 
                 // Release the lyrics pin on AUDIBILITY, not on ramp progress. Without this the pin
@@ -1236,7 +1236,7 @@ internal fun MusicService.performCrossfadeSwap() {
             // throws from delay() and would otherwise skip the restore and leave the surviving player
             // silent for the rest of the session. Restore it to the user's real volume + tear down.
             runCatching {
-                player.volume = when {
+                player.volume = sleepFadeGain * when {
                     !playerVolumeInitialized -> startVolume
                     isMuted.value -> 0f
                     else -> playerVolume.value

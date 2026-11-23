@@ -24,11 +24,23 @@ class SleepTimerUxGuardTest {
         val timer = svc.substring(svc.indexOf("fun startSleepTimer(minutes: Int)"), svc.indexOf("fun startSleepTimerAfterSong()"))
         assertTrue(timer.contains("SleepTimerMath.waitBeforeFadeMs(deadline - android.os.SystemClock.elapsedRealtime())"))
         assertTrue(timer.contains("fadeOutAndFireSleepTimer(deadline)"))
-        assertTrue(timer.contains("player.volume = startVolume * SleepTimerMath.stepGain(step)"))
+        assertTrue(timer.contains("sleepFadeGain = SleepTimerMath.stepGain(step)"))
+        assertTrue(timer.contains("player.volume = base * sleepFadeGain"))
         assertFalse("nunca dispara 10 s antes por estar en búfer o en pausa", timer.contains("player.isPlaying"))
+        assertTrue("no pelea con el crossfade ni con el fundido de entrada",
+            timer.contains("if (!isCrossfading && manualFadeInJob?.isActive != true) {"))
         val fin = timer.substring(timer.indexOf("} finally {"))
+        assertTrue(fin.contains("sleepFadeGain = 1f"))
         assertTrue("el volumen vuelve siempre, también al apagar o alargar a mitad del fundido",
             fin.contains("player.volume = if (isMuted.value) 0f else playerVolume.value"))
+        // Every repeating volume writer composes with the sleep fade instead of overwriting it.
+        val xf = main("playback/CrossfadeEngine.kt")
+        assertTrue(xf.contains("player.volume = startVolume * fadeIn * xfHeadroom * sleepFadeGain"))
+        assertTrue(xf.contains("fp?.volume = startVolume * fadeOut * xfHeadroom * sleepFadeGain"))
+        assertTrue("el finally del crossfade respeta el fundido", xf.contains("player.volume = sleepFadeGain * when {"))
+        assertTrue(xf.contains("player.volume = target * ManualFadeIn.stepGain(i) * sleepFadeGain"))
+        assertTrue(xf.contains(")?.let { player.volume = it * sleepFadeGain }"))
+        assertTrue(svc.contains("decision.volume?.let { player.volume = it * sleepFadeGain }"))
         assertTrue(timer.contains("fun extendSleepTimer(minutes: Int)"))
         // Fire still pauses every player of a crossfade (row 370).
         assertTrue(svc.contains("secondaryPlayer?.let { runCatching { it.pause() } }"))
