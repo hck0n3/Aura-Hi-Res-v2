@@ -42,24 +42,24 @@ class GoogleSyncDefaultsTest {
     fun theOneTimeWriteRunsBeforeTheStartupSyncsAndOnlyForAFreshInstallTurnsThemOff() {
         val app = src("App.kt")
         val init = app.substringAfter("private suspend fun initializeSettings()")
-        val write = init.indexOf("applyGoogleSyncDefaultsV1(p, settings, freshInstall)")
-        assertTrue("the one-time write is gone", write > 0)
+        // On the classification launch: in the SAME edit as InstallOriginResolvedV1Key, so a process death in between
+        // cannot leave a fresh install classified UPDATED with sync ON.
+        val sameEdit = init.substringAfter("it[iad1tya.echo.music.constants.InstallOriginResolvedV1Key] = true").substringBefore("}")
+        assertTrue(sameEdit.contains("applyGoogleSyncDefaultsV1(it, origin == iad1tya.echo.music.utils.InstallOrigin.FRESH)"))
+        // Installs classified on an earlier launch: a second call (old defaults), still before the startup sync.
+        val write = init.indexOf("applyGoogleSyncDefaultsV1(p, freshInstall)")
+        assertTrue("the one-time write for older installs is gone", write > 0)
         assertTrue("it must run before the cold-start tryAutoSync", write < init.indexOf("syncUtils.tryAutoSync()"))
-        assertTrue("it must run before the HALLAZGO-061 recovery", write < init.indexOf("syncUtils.syncLibraryAfterLogin()"))
         val freshLine = init.substring(init.lastIndexOf("val freshInstall", write), write)
         assertTrue(freshLine.contains("installOrigin == iad1tya.echo.music.utils.InstallOrigin.FRESH"))
         val fn = app.substringAfter("private fun applyGoogleSyncDefaultsV1(").substringBefore("\n    }\n")
-        assertTrue(fn.contains("GoogleSyncDefaultsV1AppliedKey] == true) return"))
+        assertTrue("the flag is read from the live transaction", fn.contains("if (p[iad1tya.echo.music.constants.GoogleSyncDefaultsV1AppliedKey] == true) return"))
         assertTrue("stored values come from the live transaction", fn.contains("stored = p[YtmSyncKey]"))
         assertTrue(fn.contains("stored = p[iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey]"))
     }
 
     @Test
     fun everyAutomaticPullHonoursTheOffState() {
-        val app = src("App.kt").substringAfter("private suspend fun initializeSettings()")
-        val recovery = app.substringBefore("syncUtils.syncLibraryAfterLogin()").substringAfterLast("HALLAZGO-061: stuck-state recovery")
-        assertTrue("the cold-start recovery must read the download-sync switch", recovery.contains("dataStore.data.first()[YtmSyncKey] ?: true"))
-
         val sync = src("utils/SyncUtils.kt").substringAfter("fun tryAutoSync() {").substringBefore("fun runAllSyncs()")
         assertTrue(sync.contains("!context.isSyncEnabled()"))
         assertTrue("row 214: <= 0 means no automatic sync", sync.contains("if (freqDays <= 0) return@launch"))
@@ -69,10 +69,33 @@ class GoogleSyncDefaultsTest {
             "the scheduled worker must no-op when the cadence is off",
             worker.indexOf("DEFAULT_FREQ_DAYS) <= 0") in 1 until worker.indexOf("performFullSyncSuspend()"),
         )
+        // The pull follows the download switch, the push the upload switch.
+        assertTrue(worker.contains("val downloadOn = ctx.dataStore.get(YtmSyncKey, true)"))
+        assertTrue(worker.contains("val uploadOn = ctx.dataStore.get(YtmUploadSyncKey, false)"))
+        assertTrue(worker.contains("if (!downloadOn && !uploadOn) {"))
+        assertTrue("the full sync (the pull) only with the download on", worker.indexOf("if (downloadOn) {") in 1 until worker.indexOf("performFullSyncSuspend()"))
         assertTrue(src("utils/YtmAutoSyncWorker.kt").contains("if (freqDays <= 0) {\n                wm.cancelUniqueWork(WORK_NAME)"))
+
+        // A «library» notice from another of the user's devices pulls from YouTube: it honours the switch too.
+        val library = src("devicesync/DeviceSyncEngine.kt").substringAfter("\"library\" -> {").substringBefore("withContext(Dispatchers.Main)")
+        assertTrue(library.contains("dataStore.data.first()[iad1tya.echo.music.constants.YtmSyncKey] == false"))
 
         val tabs = src("ui/newui/AuraLibraryTabs.kt")
         assertFalse("a library tab pulls without the switch", Regex("""\n\s+syncUtils\.tryAutoSync\(\)""").containsMatchIn(tabs))
+    }
+
+    /**
+     * Row 678: the HALLAZGO-061 cold-start net is NOT gated on the switch. It only completes the one-off pull the user
+     * triggered by signing in (which runs whatever the switch says), so a fresh install whose login pull was cancelled
+     * still gets its library.
+     */
+    @Test
+    fun theColdStartNetCompletesAnInterruptedLoginPullEvenWithSyncOff() {
+        val init = src("App.kt").substringAfter("private suspend fun initializeSettings()")
+        val recovery = init.substringBefore("syncUtils.syncLibraryAfterLogin()").substringAfterLast("HALLAZGO-061: stuck-state recovery")
+        assertTrue(recovery.contains("if (shouldRecoverLibrarySyncOnStart(isLoggedCookie(settings[InnerTubeCookieKey]), syncUtils.lastLikedSyncTimeMs())) {"))
+        assertFalse(recovery.contains("[YtmSyncKey]"))
+        assertTrue(src("ui/screens/LoginScreen.kt").contains("syncUtils.syncLibraryAfterLogin()"))
     }
 
     @Test

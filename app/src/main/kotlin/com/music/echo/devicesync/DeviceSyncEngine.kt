@@ -279,6 +279,11 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             "library" -> {
                 // Row 536: with the library synced through the room there is nothing to ask YouTube for.
                 if (libraryEnabled) return
+                // Row 678: a pull from YouTube, so it honours the download-sync switch (off on a fresh install).
+                if (appContext.dataStore.data.first()[iad1tya.echo.music.constants.YtmSyncKey] == false) {
+                    Timber.tag(TAG).i("DEVICE_SYNC library ping ignored: YouTube download sync is off")
+                    return
+                }
                 Timber.tag(TAG).i("DEVICE_SYNC library ping kind=%s", msg.str("what").orEmpty())
                 val what = msg.str("what").orEmpty()
                 withContext(Dispatchers.Main) {
