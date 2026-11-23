@@ -14,11 +14,16 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.SystemClock
 import android.provider.MediaStore
 import androidx.core.content.ContextCompat
+import com.arthenica.ffmpegkit.FFmpegKitConfig
+import com.arthenica.ffmpegkit.FFprobeKit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import iad1tya.echo.music.R
 import iad1tya.echo.music.db.MusicDatabase
@@ -206,6 +211,8 @@ constructor(
         } catch (e: Exception) {
             throw LocalScanFailedException("MediaStore query failed", cause = e)
         }
+        // Row 724: ReplayGain tags, read outside the transaction and only for files new or changed since the last read.
+        val replayGain = readReplayGain(snapshot.tracks)
         var summary = LocalSongScanSummary(0, 0)
         val recordedVolumes = readSongVolumes()
         val volumePresent = volumePresence()
@@ -340,7 +347,7 @@ constructor(
                         bitrate = 0,
                         sampleRate = null,
                         contentLength = track.sizeBytes,
-                        loudnessDb = null,
+                        loudnessDb = cachedReplayGainLoudness(replayGain, track.id, track.sizeBytes, track.modifiedEpochSeconds),
                         perceptualLoudnessDb = null,
                         // Preserve a cached per-play loudness measurement across rescans (don't wipe it to null) —
                         // local files are metadata-less, so this measurement is the ONLY thing leveling them.
@@ -388,6 +395,8 @@ constructor(
                 snapshot.tracks.forEach { track -> track.volume?.let { put(track.id, it) } }
             },
         )
+        val replayGainIds = keptOnAbsentVolume.toSet() + snapshot.tracks.map(LocalTrackRecord::id)
+        writeReplayGainCache(replayGain.filterKeys(replayGainIds::contains))
 
         val videoTracks = snapshot.tracks.filter { it.isVideo }
         if (videoTracks.isNotEmpty()) {
@@ -440,6 +449,70 @@ constructor(
                 tmp.delete()
             }
         }
+    }
+
+    // Row 724: songId -> size, mtime and ReplayGain loudness when its tags were last read. noBackupFilesDir like row 694.
+    private val replayGainCacheFile: File get() = File(context.noBackupFilesDir, "local_replaygain.tsv")
+
+    private fun writeReplayGainCache(entries: Map<String, ReplayGainCacheEntry>) {
+        runCatching {
+            val tmp = File(replayGainCacheFile.path + ".tmp")
+            tmp.writeText(serializeReplayGainCache(entries))
+            if (!tmp.renameTo(replayGainCacheFile)) {
+                replayGainCacheFile.writeText(tmp.readText())
+                tmp.delete()
+            }
+        }
+    }
+
+    /**
+     * Row 724: the read cache plus this scan's reads. Reads the tags only of audio files never read or changed since (size or
+     * mtime), at most [MaxReplayGainReadsPerScan] files and [ReplayGainReadBudgetMs] per scan; the rest wait for the next scan.
+     */
+    private suspend fun readReplayGain(tracks: List<LocalTrackRecord>): Map<String, ReplayGainCacheEntry> {
+        val cache = runCatching {
+            if (replayGainCacheFile.isFile) parseReplayGainCache(replayGainCacheFile.readLines()) else emptyMap()
+        }.getOrDefault(emptyMap())
+        val audio = tracks.filterNot(LocalTrackRecord::isVideo).associateBy(LocalTrackRecord::id)
+        val toRead = replayGainReadsNeeded(
+            audio.values.map { Triple(it.id, it.sizeBytes, it.modifiedEpochSeconds) },
+            cache,
+            MaxReplayGainReadsPerScan,
+        )
+        if (toRead.isEmpty()) return cache
+        val read = HashMap<String, ReplayGainCacheEntry>()
+        val deadline = SystemClock.elapsedRealtime() + ReplayGainReadBudgetMs
+        for (id in toRead) {
+            currentCoroutineContext().ensureActive()
+            if (SystemClock.elapsedRealtime() > deadline) break
+            val track = audio[id] ?: continue
+            val tags = readTagMaps(Uri.parse(id), track.dataPath) ?: continue
+            read[id] = ReplayGainCacheEntry(
+                sizeBytes = track.sizeBytes,
+                modifiedEpochSeconds = track.modifiedEpochSeconds,
+                loudnessDb = replayGainFromTags(tags)?.let(::replayGainToLoudnessDb),
+            )
+        }
+        return cache + read
+    }
+
+    /** Container and per-stream tags of one file via ffprobe (ffmpeg-kit, already in the app). Null when it cannot be read. */
+    private fun readTagMaps(contentUri: Uri, dataPath: String?): List<Map<String, String>>? = try {
+        val input = dataPath?.takeIf { path -> File(path).let { it.isFile && it.canRead() } }
+            ?: FFmpegKitConfig.getSafParameterForRead(context, contentUri)
+        FFprobeKit.getMediaInformation(input).mediaInformation?.let { info ->
+            listOf(info.tags.toStringMap()) + info.streams.orEmpty().map { it.tags.toStringMap() }
+        }
+    } catch (_: Exception) {
+        null
+    } catch (_: LinkageError) {
+        // ffmpeg-kit's native libraries failed to load: the file keeps today's behaviour, the scan itself goes on.
+        null
+    }
+
+    private fun org.json.JSONObject?.toStringMap(): Map<String, String> {
+        val json = this ?: return emptyMap()
+        return buildMap { json.keys().forEach { key -> put(key, json.optString(key)) } }
     }
 
     /** Is a recorded volume mounted now? When the answer cannot be read, nothing counts as mounted (keep, never delete). */
@@ -621,6 +694,8 @@ constructor(
                     mimeType = mimeType,
                     thumbnailUrl = iad1tya.echo.music.utils.coil.LocalAudioArtFetcher.uriFor(contentUri.toString()),
                     volume = cursor.getStringOrNull(volumeIndex) ?: storageRootOf(dataPath),
+                    modifiedEpochSeconds = cursor.getLong(dateModifiedIndex).coerceAtLeast(0L),
+                    dataPath = dataPath,
                 )
             }
         }
@@ -915,6 +990,10 @@ constructor(
         val isVideo: Boolean = false,
         /** MediaStore volume name (Android 10+) or storage root ([storageRootOf]); null when unknown. */
         val volume: String? = null,
+        /** Raw MediaStore DATE_MODIFIED (seconds): with [sizeBytes], says whether the ReplayGain read is still valid (row 724). */
+        val modifiedEpochSeconds: Long = 0L,
+        /** Absolute path before Android 10 (DATA column); null otherwise. */
+        val dataPath: String? = null,
     )
 
     private data class LocalArtistRecord(
@@ -935,5 +1014,7 @@ constructor(
     private companion object {
         val AlbumArtUri: Uri = Uri.parse("content://media/external/audio/albumart")
         const val SqlBatchSize = 900
+        const val MaxReplayGainReadsPerScan = 200
+        const val ReplayGainReadBudgetMs = 30_000L
     }
 }
