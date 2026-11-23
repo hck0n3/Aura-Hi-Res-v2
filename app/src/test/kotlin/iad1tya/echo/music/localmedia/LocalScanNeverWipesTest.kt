@@ -86,6 +86,20 @@ class LocalScanNeverWipesTest {
         assertTrue("an unreadable volume list keeps, never deletes", scanner.contains("MediaStore.getExternalVolumeNames(context) }.getOrNull() ?: return { false }"))
     }
 
+    /**
+     * Row 755: after a refused empty scan the confirmation offers to remove the songs it kept, and the confirmed scan removes
+     * EVERY local song it does not see — local videos too. The count kept and shown is that set, not only the audio.
+     */
+    @Test
+    fun `the count a refused empty scan keeps is everything the confirmed removal would delete`() {
+        val transaction = scanner.substringAfter("database.withTransaction {").substringBefore("pruneLocalAlbums()")
+        assertTrue(transaction.contains("val removedIds = existingLocalIds.filterNot(scannedIdSet::contains)"))
+        assertTrue(transaction.contains("throw LocalScanFailedException(\"scan found no audio\", keptSongs = removedIds.size)"))
+        assertTrue("the confirmed scan removes exactly that set", transaction.contains("removedIds to emptyList<String>()"))
+        val viewModel = text("app/src/main/kotlin/com/music/echo/viewmodels/LocalSongsViewModel.kt")
+        assertTrue("and the dialog counts it", viewModel.contains("missingSongs = (error as? LocalScanFailedException)?.keptSongs ?: 0"))
+    }
+
     @Test
     fun `removing the songs that are no longer on the phone needs an explicit confirmation`() {
         val screen = text("app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt")

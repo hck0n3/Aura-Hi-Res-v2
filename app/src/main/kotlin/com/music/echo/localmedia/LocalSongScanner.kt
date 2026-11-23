@@ -136,7 +136,7 @@ data class LocalSongScanSummary(
 /**
  * A scan that could not be trusted to say what is on the device. Thrown BEFORE anything is deleted, so the library keeps
  * every local song together with its likes, playlist entries and history (a deleted song row takes them with it by
- * cascade). [keptSongs] > 0: the scan ran but found no audio at all while the library lists that many local songs.
+ * cascade). [keptSongs] > 0: the scan ran but found no audio at all, and kept that many local songs it did not see.
  */
 class LocalScanFailedException(
     message: String,
@@ -219,7 +219,7 @@ constructor(
             val videoIdPrefix = "${MediaStore.Video.Media.EXTERNAL_CONTENT_URI}/"
             val libraryLocalAudio = existingLocalIds.count { !it.startsWith(videoIdPrefix) }
             if (!removeMissing && refusesEmptyScan(snapshot.tracks.count { !it.isVideo }, libraryLocalAudio)) {
-                throw LocalScanFailedException("scan found no audio", keptSongs = libraryLocalAudio)
+                throw LocalScanFailedException("scan found no audio", keptSongs = removedIds.size)
             }
             val (removable, kept) = if (removeMissing) {
                 removedIds to emptyList<String>()

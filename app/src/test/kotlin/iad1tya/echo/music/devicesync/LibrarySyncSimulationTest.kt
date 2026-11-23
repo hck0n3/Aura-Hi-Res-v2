@@ -224,11 +224,16 @@ class LibrarySyncSimulationTest {
             clockKnown = clockKnown,
         )
 
-        fun connect() {
+        /** [holdAnswers]: the room's answers wait in the inbox until [releaseAnswers] (a slow first pull after a reconnect). */
+        fun connect(holdAnswers: Boolean = false) {
             online = true
             room.join(id, inbox)
-            consumer = scope.launch { for (m in inbox) sync.handle(m) }
+            if (!holdAnswers) releaseAnswers()
             sync.onConnected(serverLib = 2)
+        }
+
+        fun releaseAnswers() {
+            consumer = scope.launch { for (m in inbox) sync.handle(m) }
         }
 
         fun disconnect() {
@@ -424,6 +429,32 @@ class LibrarySyncSimulationTest {
         eventually("and the phone") { "Y" !in phone.backend.likes }
         settle()
         assertFalse("the tablet kept its unlike", "Y" in tablet.backend.likes)
+    }
+
+    /** Row 753: back in the room, a change made before the first pull has landed keeps its time too. */
+    @Test
+    fun `a like made while the first pull after a reconnect is on its way is not undone by an older unlike`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("known")
+        phone.connect(); tablet.connect()
+        eventually("both caught up") { "known" in tablet.backend.likes }
+        settle()
+        tablet.disconnect()
+        // Monday: the phone likes Y and then changes its mind.
+        phone.backend.like("Y"); phone.changed()
+        eventually("the like is in the room") { room.value("lk:Y") == "1" }
+        phone.backend.likes -= "Y"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:Y") == "0" }
+        settle()
+        // Tuesday: the tablet is back in the room and likes Y before the answer to its first pull has arrived.
+        tablet.connect(holdAnswers = true)
+        tablet.backend.like("Y"); tablet.changed()
+        settle()
+        tablet.releaseAnswers()
+        eventually("the tablet's newer like reaches the room") { room.value("lk:Y") == "1" }
+        eventually("and the phone") { "Y" in phone.backend.likes }
+        settle()
+        assertTrue("the tablet kept its like", "Y" in tablet.backend.likes)
     }
 
     @Test

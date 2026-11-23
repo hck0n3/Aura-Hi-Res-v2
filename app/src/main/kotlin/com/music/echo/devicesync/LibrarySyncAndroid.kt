@@ -65,7 +65,7 @@ object LibrarySyncAndroid {
             isEnabled = isEnabled,
             watchChanges = { kick ->
                 // Likes, playlists and their songs live in the database; whoever changes them, this fires.
-                val observer = object : InvalidationTracker.Observer("song", "playlist", "playlist_song_map", "speed_dial_item") {
+                val observer = object : InvalidationTracker.Observer("song", "playlist", "playlist_song_map", "speed_dial_item", "album") {
                     override fun onInvalidated(tables: Set<String>) {
                         kick(false)
                     }
