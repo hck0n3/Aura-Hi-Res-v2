@@ -19,7 +19,8 @@ object EqConstants {
     const val GAIN_MIN = -18f
     const val GAIN_MAX = 18f
     const val PREAMP_MIN = -20f
-    const val PREAMP_MAX = 6f
+    /** Row 790 (owner 2026-11-23): +9 dB, now that the shown preamp is the applied gain (no hidden -2 dB). */
+    const val PREAMP_MAX = 9f
 
     /**
      * The house preamp, and the only place it is written down.
