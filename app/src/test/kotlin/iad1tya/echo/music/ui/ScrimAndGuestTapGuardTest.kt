@@ -72,4 +72,24 @@ class ScrimAndGuestTapGuardTest {
             )
         }
     }
+
+    @Test
+    fun `the full screen lyrics transport row mutes for a guest instead of pausing or skipping`() {
+        val src = main("ui/newui/AuraLyricsScreen.kt")
+        val call = src.substringAfter("if (showTransport) {").substringBefore("Spacer(")
+        assertTrue("la fila de transporte existe", call.contains("AuraLyricsTransport("))
+        assertTrue(call.contains("isPlaying = if (isListenTogetherGuest) !isMuted else isPlaying,"))
+        assertTrue(call.contains("canSkipPrevious = canSkipPrevious && !isListenTogetherGuest,"))
+        assertTrue(call.contains("canSkipNext = canSkipNext && !isListenTogetherGuest,"))
+        assertTrue(
+            "el botón grande del invitado silencia, como en el reproductor",
+            call.contains("if (isListenTogetherGuest) playerConnection.toggleMute() else playerConnection.togglePlayPause()"),
+        )
+        assertFalse(
+            "ningún play/pausa sin mirar el rol",
+            call.contains("onTogglePlayPause = { playerConnection.togglePlayPause() }"),
+        )
+        assertTrue(src.contains("val isMuted by playerConnection.isMuted.collectAsState()"))
+        assertTrue(src.contains("contentDescription = playPauseDescription,"))
+    }
 }

@@ -155,6 +155,7 @@ fun AuraLyricsScreen(
     val currentSong by playerConnection.currentSong.collectAsState(initial = null)
     val currentLyrics by playerConnection.currentLyrics.collectAsState(initial = null)
     val isPlaying by playerConnection.isPlaying.collectAsState()
+    val isMuted by playerConnection.isMuted.collectAsState()
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
 
@@ -403,11 +404,19 @@ fun AuraLyricsScreen(
 
             if (showTransport) {
                 AuraLyricsTransport(
-                    isPlaying = isPlaying,
-                    canSkipPrevious = canSkipPrevious,
-                    canSkipNext = canSkipNext,
+                    isPlaying = if (isListenTogetherGuest) !isMuted else isPlaying,
+                    playPauseDescription = when {
+                        isListenTogetherGuest ->
+                            if (isMuted) stringResource(R.string.unmute) else stringResource(R.string.mute)
+                        isPlaying -> stringResource(R.string.pause)
+                        else -> stringResource(R.string.play)
+                    },
+                    canSkipPrevious = canSkipPrevious && !isListenTogetherGuest,
+                    canSkipNext = canSkipNext && !isListenTogetherGuest,
                     onPrevious = { playerConnection.seekToPrevious() },
-                    onTogglePlayPause = { playerConnection.togglePlayPause() },
+                    onTogglePlayPause = {
+                        if (isListenTogetherGuest) playerConnection.toggleMute() else playerConnection.togglePlayPause()
+                    },
                     onNext = { playerConnection.seekToNext() },
                 )
             }
@@ -446,6 +455,7 @@ fun AuraLyricsScreen(
 @Composable
 private fun AuraLyricsTransport(
     isPlaying: Boolean,
+    playPauseDescription: String,
     canSkipPrevious: Boolean,
     canSkipNext: Boolean,
     onPrevious: () -> Unit,
@@ -470,6 +480,7 @@ private fun AuraLyricsTransport(
             isPlaying = isPlaying,
             onClick = onTogglePlayPause,
             diameter = 56.dp,
+            contentDescription = playPauseDescription,
         )
         AuraIconButton(
             icon = AuraIcons.SkipNext,
