@@ -476,6 +476,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         iad1tya.echo.music.ui.newui.AuraVisualizerHub.setAppVisible(false)
         iad1tya.echo.music.utils.AppForeground.set(false)
+        iad1tya.echo.music.utils.AppLogger.flush()
         if (isServiceBound) {
             runCatching { unbindService(serviceConnection) }
             isServiceBound = false

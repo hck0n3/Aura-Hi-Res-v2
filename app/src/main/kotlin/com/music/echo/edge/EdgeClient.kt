@@ -130,6 +130,7 @@ object EdgeClient {
         try {
             // The log rotates: what happened a few minutes ago may already be in the backup file, so send both, oldest first
             // (owner 2026-10-30: the first upload held 9 minutes and missed the library sync that had run before).
+            AppLogger.flushBlocking()
             val files = listOf(AppLogger.backupFile(context), AppLogger.logFile(context)).filter { it.exists() && it.length() > 0L }
             if (files.isEmpty()) return@withContext Result.failure(IllegalStateException("empty"))
             val all = ByteArrayOutputStream()
