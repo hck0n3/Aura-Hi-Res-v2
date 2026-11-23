@@ -28,4 +28,17 @@ class ImportLogLeftoversGuardTest {
         assertFalse(src.contains("ARTIST_SUBSCRIBE_IMPORT"))
         assertTrue(src.contains("Timber.i(\"ARTIST_IMPORT_LOCAL_FOLLOW heldForConfirm=\${existing?.followedByUserAt == null}\")"))
     }
+
+    @Test
+    fun `the followed-artists migration does not swallow a cancellation`() {
+        val src = read("app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationViewModel.kt")
+        assertFalse(src.contains("if (runCatching { bookmarkArtist(artist) }.getOrDefault(false))"))
+        assertTrue(
+            src.contains(
+                "val bookmarked = runCatching { bookmarkArtist(artist) }\n" +
+                    "                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }\n" +
+                    "                    .getOrDefault(false)",
+            ),
+        )
+    }
 }
