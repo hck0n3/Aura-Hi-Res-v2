@@ -33,6 +33,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import iad1tya.echo.music.R
 import iad1tya.echo.music.api.AiPlaylistService
 import iad1tya.echo.music.constants.AiProviderKey
+import iad1tya.echo.music.constants.DefaultOpenRouterModel
 import iad1tya.echo.music.constants.OpenRouterApiKey
 import iad1tya.echo.music.constants.OpenRouterBaseUrlKey
 import iad1tya.echo.music.constants.OpenRouterModelKey
@@ -63,7 +64,7 @@ fun AiPlaylistDialog(
         OpenRouterBaseUrlKey,
         "https://openrouter.ai/api/v1/chat/completions",
     )
-    val model by rememberPreference(OpenRouterModelKey, "google/gemini-2.5-flash-lite")
+    val model by rememberPreference(OpenRouterModelKey, DefaultOpenRouterModel)
 
     var prompt by rememberSaveable { mutableStateOf("") }
     var count by rememberSaveable { mutableStateOf(20) }

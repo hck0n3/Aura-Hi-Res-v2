@@ -20,6 +20,7 @@ import dagger.hilt.components.SingletonComponent
 import iad1tya.echo.music.api.AiPlaylistService
 import iad1tya.echo.music.constants.AiProviderKey
 import iad1tya.echo.music.constants.AiRecommendedPlaylistKey
+import iad1tya.echo.music.constants.DefaultOpenRouterModel
 import iad1tya.echo.music.constants.OpenRouterApiKey
 import iad1tya.echo.music.constants.OpenRouterBaseUrlKey
 import iad1tya.echo.music.constants.OpenRouterModelKey
@@ -193,7 +194,7 @@ class AutoRecoPlaylistWorker(
                 provider = prefs[AiProviderKey] ?: "OpenRouter",
                 apiKey = prefs[OpenRouterApiKey] ?: "",
                 baseUrl = prefs[OpenRouterBaseUrlKey] ?: "",
-                model = prefs[OpenRouterModelKey] ?: "",
+                model = prefs[OpenRouterModelKey] ?: DefaultOpenRouterModel,
             ).getOrNull()
         }
 

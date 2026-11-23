@@ -915,6 +915,8 @@ val OpenRouterApiKey = stringPreferencesKey("openRouterApiKey")
 val AiProviderKey = stringPreferencesKey("aiProvider")
 val OpenRouterBaseUrlKey = stringPreferencesKey("openRouterBaseUrl")
 val OpenRouterModelKey = stringPreferencesKey("openRouterModel")
+/** Model used while [OpenRouterModelKey] is unset; one value for the screens and the background worker (registry 765). */
+const val DefaultOpenRouterModel = "google/gemini-2.5-flash-lite"
 val TranslateModeKey = stringPreferencesKey("translateMode")
 val TranslateLanguageKey = stringPreferencesKey("translateLanguage")
 val DeeplApiKey = stringPreferencesKey("deeplApiKey")
