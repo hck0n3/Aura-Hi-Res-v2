@@ -120,7 +120,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.palette.graphics.Palette
-import coil3.ImageLoader
+import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.toBitmap
@@ -327,6 +327,7 @@ fun Lyrics(
     // like Performance Mode, restoring once cool. Cool/capable device: deviceThrottle == false → byte-identical.
     val deviceThrottle = iad1tya.echo.music.utils.rememberDeviceThrottle()
     val lyricsGlowEffect = iad1tya.echo.music.utils.rememberPerfGatedBoolean(LyricsGlowEffectKey, false).value && !deviceThrottle
+    val glowReducedMotion = iad1tya.echo.music.utils.rememberReducedMotion()
     val lyricsAnimationStyle by rememberEnumPreference(LyricsAnimationStyleKey, LyricsAnimationStyle.APPLE_V2)
     val lyricsTextSize by rememberPreference(LyricsTextSizeKey, 24f)
     val lyricsLineSpacing by rememberPreference(LyricsLineSpacingKey, 1.3f)
@@ -2118,8 +2119,21 @@ fun Lyrics(
                             }
                             
                             
-                            LaunchedEffect(Unit) {
-                                while (true) {
+                            // Row 769: the pulse used to loop forever, recomposing this line every frame while lyrics
+                            // were visible, even paused. It runs only while this line is current (this branch), music
+                            // plays and the system allows motion (row 771); otherwise it rests at 0.
+                            val glowPlaying by playerConnection.isPlaying.collectAsState()
+                            val pulseRuns = iad1tya.echo.music.utils.ReducedMotion.musicLoopRuns(
+                                shown = isActiveLine,
+                                playing = glowPlaying,
+                                reduced = glowReducedMotion,
+                            )
+                            LaunchedEffect(pulseRuns) {
+                                if (!pulseRuns) {
+                                    pulseProgress.snapTo(0f)
+                                    return@LaunchedEffect
+                                }
+                                while (isActive) {
                                     pulseProgress.animateTo(
                                         targetValue = 1f,
                                         animationSpec = tween(
@@ -2509,7 +2523,7 @@ fun Lyrics(
             if (coverUrl != null) {
                 withContext(Dispatchers.IO) {
                     try {
-                        val loader = ImageLoader(context)
+                        val loader = SingletonImageLoader.get(context)
                         val req = ImageRequest.Builder(context).data(coverUrl).allowHardware(false).build()
                         val result = loader.execute(req)
                         val bmp = result.image?.toBitmap()

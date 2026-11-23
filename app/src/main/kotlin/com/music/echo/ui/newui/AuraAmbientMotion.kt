@@ -1,8 +1,6 @@
 package iad1tya.echo.music.ui.newui
 
 import android.content.Context
-import android.os.PowerManager
-import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,6 +14,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import iad1tya.echo.music.constants.HighPerformanceModeKey
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceTier
+import iad1tya.echo.music.utils.ReducedMotion
 import iad1tya.echo.music.utils.rememberDeviceThrottle
 import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.delay
@@ -76,13 +75,10 @@ object AuraAmbientMotion {
         systemAnimationsOff: Boolean,
     ): Boolean = !(highPerformanceMode || deviceHot || lowTier || powerSave || systemAnimationsOff)
 
-    internal fun systemAnimationsOff(context: Context): Boolean = runCatching {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }.getOrDefault(false)
+    // Row 771: the check lives in the shared ReducedMotion helper (also used by the rhythm pulse and the lyrics glow).
+    internal fun systemAnimationsOff(context: Context): Boolean = ReducedMotion.systemAnimationsOff(context)
 
-    internal fun powerSave(context: Context): Boolean = runCatching {
-        (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isPowerSaveMode == true
-    }.getOrDefault(false)
+    internal fun powerSave(context: Context): Boolean = ReducedMotion.powerSave(context)
 
     @Composable
     internal fun Ticker() {

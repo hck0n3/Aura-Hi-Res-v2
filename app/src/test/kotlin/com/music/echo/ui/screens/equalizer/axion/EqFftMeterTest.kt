@@ -43,3 +43,59 @@ class EqFftMeterTest {
         assertFalse(eqFftConvergedToZero(FloatArray(0), peak = 1f, epsilon = epsilon))
     }
 }
+
+/** Row 770: the EQ meter's per-frame loop leaves once paused and decayed, instead of ticking every vsync at zero. */
+class EqFftMeterLoopTest {
+    private val root: java.io.File by lazy {
+        generateSequence(java.io.File("").absoluteFile) { it.parentFile }
+            .firstOrNull { java.io.File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")
+    }
+
+    private val screen: String by lazy {
+        java.io.File(root, "app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqScreen.kt").readText()
+    }
+
+    @Test
+    fun `the loop settles only when paused and silent`() {
+        val epsilon = EQ_FFT_ZERO_EPSILON
+        assertTrue(eqFftMeterSettled(playing = false, bars = FloatArray(24), peak = 0f))
+        assertFalse(eqFftMeterSettled(playing = true, bars = FloatArray(24), peak = 0f))
+        assertFalse(eqFftMeterSettled(playing = false, bars = FloatArray(24) { epsilon * 4f }, peak = 0f))
+        assertFalse(eqFftMeterSettled(playing = false, bars = FloatArray(24), peak = 0.3f))
+    }
+
+    @Test
+    fun `the frame loop has an exit condition`() {
+        val loop = screen.substringAfter("LaunchedEffect(enabled, playing) {").substringBefore("return snapshot")
+        assertTrue(loop.contains("withFrameNanos"))
+        assertTrue(loop.contains("while (isActive && !settled)"))
+        assertTrue(loop.contains("settled = eqFftMeterSettled(playing, smoothed, peakOut)"))
+        assertFalse(loop.contains("while (isActive) {\n            withFrameNanos"))
+    }
+
+    /** Row 770 (F-007 pattern): the crossfade swaps the ExoPlayer; the meter's listener follows the live one. */
+    @Test
+    fun `the meter listener re-attaches when the service swaps the player`() {
+        assertTrue(screen.contains("playerConnection?.service?.playerFlow"))
+        assertTrue(screen.contains("DisposableEffect(playerConnection, livePlayer) {"))
+        assertTrue(screen.contains("val player = livePlayer ?: playerConnection?.player"))
+        assertFalse(screen.contains("DisposableEffect(playerConnection) {\n        val player = playerConnection?.player"))
+    }
+
+    /** Row 770: the FFT gain indicator subtracts the band-boost headroom only while auto headroom is on. */
+    @Test
+    fun `the expected output gain follows the auto headroom switch`() {
+        val gains = listOf(6.0, -3.0, 2.0)
+        org.junit.Assert.assertEquals(0.0, eqFftExpectedGainDb(false, true, -2.0, gains), 0.0)
+        org.junit.Assert.assertEquals(0.0, eqFftExpectedGainDb(false, false, -2.0, gains), 0.0)
+        org.junit.Assert.assertEquals(-2.0, eqFftExpectedGainDb(true, false, -2.0, gains), 0.0)
+        org.junit.Assert.assertEquals(
+            iad1tya.echo.music.eq.audio.headroomPreampDb(-2.0, gains),
+            eqFftExpectedGainDb(true, true, -2.0, gains),
+            0.0,
+        )
+        org.junit.Assert.assertEquals(-9.0, eqFftExpectedGainDb(true, true, -2.0, gains), 1e-9)
+        assertTrue(screen.contains("rememberPreference(iad1tya.echo.music.constants.AutoHeadroomEnabledKey, false)"))
+        assertTrue(screen.contains("val expectedGainDb = remember(preamp, bandGains, enabled, autoHeadroom) {"))
+    }
+}

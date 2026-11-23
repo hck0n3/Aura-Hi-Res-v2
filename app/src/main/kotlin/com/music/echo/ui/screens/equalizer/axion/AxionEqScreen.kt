@@ -420,6 +420,28 @@ fun eqFftConvergedToZero(bars: FloatArray, peak: Float, epsilon: Float): Boolean
     return true
 }
 
+/**
+ * Row 770: the meter loop may stop asking for frames — not playing AND the smoothed spectrum decayed to visual
+ * silence. Pure and JVM-testable.
+ */
+fun eqFftMeterSettled(playing: Boolean, bars: FloatArray, peak: Float): Boolean =
+    !playing && eqFftConvergedToZero(bars, peak, EQ_FFT_ZERO_EPSILON)
+
+/**
+ * Row 770: the output gain the FFT gain indicator assumes. The EQ engine subtracts the band-boost headroom only
+ * while auto headroom is on; with it off (the default) the user's preamp is applied unchanged. Pure.
+ */
+fun eqFftExpectedGainDb(
+    eqEnabled: Boolean,
+    autoHeadroom: Boolean,
+    userPreampDb: Double,
+    bandGainsDb: List<Double>,
+): Double = when {
+    !eqEnabled -> 0.0
+    autoHeadroom -> headroomPreampDb(userPreampDb = userPreampDb, enabledBandGainsDb = bandGainsDb)
+    else -> userPreampDb
+}
+
 private val EqFftGreen = Color(0xFF5AD68A)
 private val EqFftAmber = Color(0xFFFFB74D)
 
@@ -544,7 +566,10 @@ private fun rememberEqFftMeter(
         }
         val smoothed = FloatArray(EQ_FFT_BAR_COUNT)
         var smoothedPeak = 0f
-        while (isActive) {
+        // Row 770: paused and decayed to nothing, the loop leaves instead of asking for a frame every vsync with the
+        // bars at zero. The effect is keyed on [playing], so it starts again the moment playback does.
+        var settled = false
+        while (isActive && !settled) {
             withFrameNanos {
                 val frame = AuraVisualizerHub.fftFrame.value
                 val fresh = frame != null &&
@@ -573,8 +598,10 @@ private fun rememberEqFftMeter(
                             hasSignal = hasSignal,
                         )
                     }
+                settled = eqFftMeterSettled(playing, smoothed, peakOut)
             }
         }
+        if (settled) snapshot.value = EqFftSnapshot.Zero
     }
 
     return snapshot
@@ -749,8 +776,14 @@ private fun ColumnScope.EqMainContent(
         mutableIntStateOf(playerConnection?.player?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET)
     }
     var meterPlaying by remember { mutableStateOf(false) }
-    DisposableEffect(playerConnection) {
-        val player = playerConnection?.player
+    // Row 770 (same idea as F-007): the crossfade swaps the service's ExoPlayer on every song, so a listener attached
+    // once went stale after the first crossfade. Follow the service's playerFlow and move the listener to the live one.
+    val livePlayer by remember(playerConnection) {
+        playerConnection?.service?.playerFlow
+            ?: kotlinx.coroutines.flow.MutableStateFlow<androidx.media3.exoplayer.ExoPlayer?>(null)
+    }.collectAsState()
+    DisposableEffect(playerConnection, livePlayer) {
+        val player = livePlayer ?: playerConnection?.player
         if (player == null) {
             audioSessionId = C.AUDIO_SESSION_ID_UNSET
             meterPlaying = false
@@ -797,16 +830,16 @@ private fun ColumnScope.EqMainContent(
         enabled = fftMeterEnabled,
         playing = meterPlaying,
     )
-    // Model output gain the same way the EQ engine does (preamp minus band-boost headroom).
-    val expectedGainDb = remember(preamp, bandGains, enabled) {
-        if (!enabled) {
-            0.0
-        } else {
-            headroomPreampDb(
-                userPreampDb = preamp.toDouble(),
-                enabledBandGainsDb = bandGains.map { it.toDouble() },
-            )
-        }
+    // Model output gain the same way the EQ engine does: the band-boost headroom is subtracted only while
+    // «Headroom automático» is on (row 770); otherwise the engine applies the user's preamp as is.
+    val autoHeadroom by rememberPreference(iad1tya.echo.music.constants.AutoHeadroomEnabledKey, false)
+    val expectedGainDb = remember(preamp, bandGains, enabled, autoHeadroom) {
+        eqFftExpectedGainDb(
+            eqEnabled = enabled,
+            autoHeadroom = autoHeadroom,
+            userPreampDb = preamp.toDouble(),
+            bandGainsDb = bandGains.map { it.toDouble() },
+        )
     }
     val expectedGainState = rememberUpdatedState(expectedGainDb)
     val preampBadgePeak by remember(fftSnapshotState) {

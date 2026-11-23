@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalView
 import androidx.media3.common.C
+import iad1tya.echo.music.utils.rememberReducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.pow
@@ -46,9 +47,12 @@ fun rememberAuraRhythmLevel(
 ): State<Float> {
     val level = remember { mutableFloatStateOf(0f) }
     val hubLevel by AuraVisualizerHub.rhythmLevel.collectAsState()
+    // Row 771: «Quitar animaciones» or the battery saver stop the pulse AND its Visualizer capture (owner 2026-11-22:
+    // the animated ground stays on unless the battery saver is on). Changes only when the system toggles one of them.
+    val capture = auraRhythmCaptureAllowed(captureEnabled, rememberReducedMotion())
 
-    DisposableEffect(captureEnabled, audioSessionId) {
-        if (captureEnabled && audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId > 0) {
+    DisposableEffect(capture, audioSessionId) {
+        if (capture && audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId > 0) {
             AuraVisualizerHub.setConsumer(
                 AuraVisualizerHub.Consumer.RHYTHM,
                 active = true,
@@ -67,8 +71,8 @@ fun rememberAuraRhythmLevel(
     // [active] (sheet expanded) gates the loop, NOT the capture: while collapsed no state is
     // written per frame, so nothing recomposes and no frame callbacks tick behind the mini-player.
     val view = LocalView.current
-    LaunchedEffect(captureEnabled, active, playing) {
-        if (!captureEnabled || !active) {
+    LaunchedEffect(capture, active, playing) {
+        if (!capture || !active) {
             level.floatValue = 0f
             return@LaunchedEffect
         }
@@ -123,6 +127,9 @@ const val AURA_RHYTHM_MAX_GAP_NANOS = 100_000_000L
 /** Panel frames elapsed in [gapNanos], at least 1 and clamped to [AURA_RHYTHM_MAX_GAP_NANOS]. Pure and JVM-testable. */
 fun auraRhythmElapsedFrames(gapNanos: Long, panelHz: Float): Float =
     (gapNanos.coerceAtMost(AURA_RHYTHM_MAX_GAP_NANOS) * panelHz / 1_000_000_000f).coerceAtLeast(1f)
+
+/** Row 771: the caller's gate (Performance Mode, casting) AND no system reduced-motion / battery-saver request. Pure. */
+fun auraRhythmCaptureAllowed(captureEnabled: Boolean, reducedMotion: Boolean): Boolean = captureEnabled && !reducedMotion
 
 /** Paused AND decayed to nothing: the per-frame smoothing loop has nothing left to animate and must stop asking for frames. */
 fun auraRhythmSettled(playing: Boolean, smoothed: Float): Boolean = !playing && smoothed < AURA_RHYTHM_SETTLED_EPSILON
