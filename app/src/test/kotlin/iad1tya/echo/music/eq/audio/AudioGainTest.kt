@@ -161,17 +161,10 @@ class AudioGainTest {
         assertTrue("download loudness would have raised volume", wouldJumpTo > liveGain + 1e-3f)
     }
 
-    @Test fun safeVolumeAttenuatesWhenPreampPositive() {
-        // Only trims when Safe Volume is actually boosting (linear gain > 1). Unity is left alone.
-        val base = 2.0f
-        val trimmed = safeVolumeGainWithEqPreamp(base, preampDb = 6.0)
-        assertTrue(trimmed < base)
-        assertTrue(trimmed > 0f)
-    }
-
-    @Test fun safeVolumeIgnoresNonPositivePreamp() {
-        assertEquals(0.8f, safeVolumeGainWithEqPreamp(0.8f, preampDb = 0.0), 1e-6f)
-        assertEquals(0.8f, safeVolumeGainWithEqPreamp(0.8f, preampDb = -3.0), 1e-6f)
+    @Test fun aStoredMeasurementIsStillReadBeforeTheUnknownDefault() {
+        // Row 791: nothing measures loudness any more, but a value already in the column is still honoured.
+        assertEquals(-4.0, effectiveLoudnessDb(null, null, -4.0), 1e-9)
+        assertEquals(3.0, effectiveLoudnessDb(3.0, null, -4.0), 1e-9)
     }
 
     // ── dbToLinear ──

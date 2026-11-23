@@ -349,8 +349,9 @@ constructor(
                         contentLength = track.sizeBytes,
                         loudnessDb = cachedReplayGainLoudness(replayGain, track.id, track.sizeBytes, track.modifiedEpochSeconds),
                         perceptualLoudnessDb = null,
-                        // Preserve a cached per-play loudness measurement across rescans (don't wipe it to null) —
-                        // local files are metadata-less, so this measurement is the ONLY thing leveling them.
+                        // Keep whatever the column already holds across rescans (don't wipe it to null). Nothing
+                        // measures loudness any more (row 791): local files are levelled by loudnessDb above,
+                        // their ReplayGain tag (rows 724-725), or by the unknown-loudness default.
                         measuredLoudnessDb = measuredLoudnessDbForId(track.id),
                         playbackUrl = null,
                     ),

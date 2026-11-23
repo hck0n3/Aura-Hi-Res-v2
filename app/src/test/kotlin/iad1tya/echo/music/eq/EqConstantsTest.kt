@@ -23,6 +23,15 @@ class EqConstantsTest {
     }
 
     @Test
+    fun preampRangeIsMinus20ToPlus9WithTheHouseValueInside() {
+        // Row 790 (owner 2026-11-23): max +9 dB; the house +2.5 dB stays the single default (rows 238/296).
+        assertEquals(-20f, EqConstants.PREAMP_MIN, 0f)
+        assertEquals(9f, EqConstants.PREAMP_MAX, 0f)
+        assertEquals(2.5f, EqConstants.DEFAULT_PREAMP_DB, 0f)
+        org.junit.Assert.assertTrue(EqConstants.DEFAULT_PREAMP_DB in EqConstants.PREAMP_MIN..EqConstants.PREAMP_MAX)
+    }
+
+    @Test
     fun everyPresetHasTenGains() {
         FactoryPreset.entries.forEach { preset ->
             assertEquals(

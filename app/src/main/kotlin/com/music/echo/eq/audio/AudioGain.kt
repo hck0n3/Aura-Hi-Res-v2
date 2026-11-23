@@ -7,10 +7,11 @@ import kotlin.math.tanh
 /**
  * Pure audio-gain helpers (no Android/media3) so they can be unit-tested on the JVM.
  *
- * The signal path stays clean and clip-free (the "HiFi" goal): the EQ never boosts past 0 dBFS,
- * loud masters are attenuated to a reference, and quiet tracks are brought UP toward that reference
- * (loudness target, TIDAL-style) by a bounded makeup gain whose peaks are caught by the true-peak
- * limiter — so the output is loud and full without ever hard-clipping.
+ * The signal path never hard-clips: loud masters are attenuated to a reference, and quiet tracks are
+ * brought UP toward that reference (loudness target, TIDAL-style) by a bounded makeup gain. The EQ
+ * preamp, the bands and that makeup can push peaks past full scale; the native chain in
+ * SuperpoweredBridge.cpp catches them with its limiter (threshold -3 dB, ceiling -0.3 dBFS) and a 0.97
+ * soft clip that never exceeds 1.0.
  */
 
 /**
@@ -48,20 +49,22 @@ fun normalizationMultiplier(
  * over-drives the downstream true-peak limiter — too much makeup makes the limiter reduce gain heavily,
  * which sounds like harmonic saturation / a harsh, "boxy" voice, especially at max volume.
  *
- * Capped at [maxBoostDb] = **+12 dB**.
+ * Capped at [maxBoostDb] = **+12 dB** (row 152; the native side clamps Safe Volume's gain to x4 = +12 dB
+ * as well).
  *
  * +12 was validated in the v0.0.9 setup against `TruePeakLimiterAudioProcessor`, whose `softLimit` is a
  * STATIC tanh knee — it saturates but has no time constant, so it physically cannot pump. That processor
  * is now a dead stub, and the makeup is applied ahead of Superpowered's Limiter instead, which is a
- * GAIN-RIDING limiter (threshold -3 dB, ceiling -1 dBFS, release 0.1 s). Feeding +12 dB into that on a
+ * GAIN-RIDING limiter (threshold -3 dB, ceiling -0.3 dBFS, release 0.05 s). Feeding +12 dB into that on a
  * dynamic master (YouTube loudnessDb ~ -9, i.e. quiet-but-peaky classical / jazz / hi-res — exactly the
  * material this player exists for) demands 9-12 dB of gain reduction on every transient, with the
  * envelope recovering between them: audible pumping, plus flattened macro-dynamics. Loud masters are
  * unaffected (they get attenuation, makeup = 0), so the artifact would appear ONLY on the best recordings.
  *
- * At +3 dB a -1 dBFS master needs ~3 dB of reduction on its rarest peaks only. Raising this safely needs
- * PEAK data (`makeupDb = min(cap, -1 - truePeakDbFS)`), which requires a peak column on FormatEntity and a
- * measurement pass — until that exists, we restore +12 dB to fix tracks sounding quieter than others.
+ * The cap was briefly +3 dB for that reason and went back to +12 dB because quiet tracks played quieter
+ * than the rest (row 152). Raising or lowering it safely needs PEAK data
+ * (`makeupDb = min(cap, -0.3 - truePeakDbFS)`), which needs a peak column on FormatEntity and a way to
+ * fill it; neither exists.
  */
 fun loudnessMakeupDb(
     loudnessDb: Double?,
@@ -81,10 +84,14 @@ fun loudnessMakeupDb(
 const val DEFAULT_UNKNOWN_LOUDNESS_DB: Double = 7.0
 
 /**
- * The loudness value (dB vs reference) to normalize a track by: the real [loudnessDb] if present, else
- * [perceptualLoudnessDb], else the once-[measuredLoudnessDb] (measured at playback for metadata-less
- * tracks and cached), else [DEFAULT_UNKNOWN_LOUDNESS_DB]. Ensures EVERY track is normalized (none plays
- * at its raw, un-leveled volume), and a track WE measured levels to the same reference as metadata ones.
+ * The loudness value (dB vs reference) to normalize a track by: the real [loudnessDb] if present (for a
+ * local file, its ReplayGain tag — rows 724-725), else [perceptualLoudnessDb], else [measuredLoudnessDb],
+ * else [DEFAULT_UNKNOWN_LOUDNESS_DB]. Ensures EVERY track is normalized (none plays at its raw, un-leveled
+ * volume).
+ *
+ * [measuredLoudnessDb] is the `format.measuredLoudnessDb` column. Nothing in the app measures loudness
+ * (the playback-time measurer, `NormalizationGainAudioProcessor`, is an inert stub, and its dead reader in
+ * MusicService was removed — row 791), so it is normally null; a value already stored there is still read.
  */
 fun effectiveLoudnessDb(
     loudnessDb: Double?,
@@ -103,20 +110,6 @@ fun isPlayingLoudnessFrozen(playingId: String?, lockedId: String?): Boolean =
 
 /** Linear amplitude multiplier for a dB gain (e.g. -6 dB → 0.501, +6 dB → 1.995). */
 fun dbToLinear(db: Double): Float = 10.0.pow(db / 20.0).toFloat()
-
-/**
- * Attenuate Safe Volume gain when the EQ preamp is positive so boosted masters do not saturate the
- * limiter (raspy voice at high preamp + Safe Volume ON).
- */
-fun safeVolumeGainWithEqPreamp(
-    baseGainLinear: Float,
-    preampDb: Double,
-    preampFactor: Double = 0.75,
-): Float {
-    if (baseGainLinear <= 1f || preampDb <= 0.0) return baseGainLinear
-    val trim = dbToLinear(kotlin.math.max(0.0, preampDb) * preampFactor)
-    return (baseGainLinear / trim).coerceIn(0f, baseGainLinear)
-}
 
 /**
  * Makeup (dB, >= 0) that cancels the EQ's *auto*-headroom attenuation downstream, so boosting bands

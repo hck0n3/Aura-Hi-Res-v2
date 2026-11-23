@@ -989,9 +989,6 @@ class MusicService :
     private val sponsorBlock = iad1tya.echo.music.playback.sponsorblock.SponsorBlockManager()
     @Volatile private var sponsorBlockEnabled: Boolean = false
     private var sponsorBlockJob: kotlinx.coroutines.Job? = null
-    // The track id whose MEASURED loudness we've already committed to the gains + DB (so the one-shot
-    // measurement-driven re-level fires at most ONCE per song, never re-levels twice). Null = none yet.
-    @Volatile private var measuredAppliedForId: String? = null
 
     private var discordRpc: DiscordRPC? = null
     private var lastPlaybackSpeed = 1.0f
@@ -2174,7 +2171,8 @@ class MusicService :
         // whatever he had set, silently, so the value he found depended on whether he had touched that
         // switch since the last time he looked.
         //
-        // The safety intent is kept — a big boost still comes down when the limiter goes away — but it
+        // The safety intent is kept — a big boost still comes down when Safe Volume's levelling goes away
+        // (the limiter itself keeps running with the EQ) — but it
         // lands on the tuning this player ships with instead of on silence-flat. Dropping to 0.0 was never
         // the safe choice anyway: it makes the app suddenly quieter than every other player on the phone,
         // which is exactly the surprise the reset existed to avoid, only pointing the other way.
@@ -6786,7 +6784,6 @@ class MusicService :
                         )
                         lastNormalizedId = currentMediaId
                         playerNormProcessors[player]?.measureThisTrack = false
-                        measuredAppliedForId = currentMediaId
                         Timber.tag(TAG).i("Normalization set (loudnessDb=$loudnessDb, real=$hasRealLoudness, known=$hasKnownLoudness, makeup=${TruePeakLimiterAudioProcessor.loudnessMakeup})")
                     }
                 } else {
@@ -6817,64 +6814,6 @@ class MusicService :
                 }
             } catch (e: Exception) {
                 reportException(e)
-            }
-        }
-    }
-
-    /**
-     * CACHE-ONLY ReplayGain-style measurement for a track that started WITHOUT loudness metadata.
-     * When a measurement commits we persist it so the NEXT play is levelled from the first second.
-     * We never change the live gain — a mid-song volume change is exactly what the owner hears
-     * after liking a song (auto-download) and refuses.
-     */
-    private suspend fun maybeApplyMeasuredLoudness() {
-        data class Snap(
-            val mediaId: String?,
-            val committed: Boolean,
-            val measureId: String?,
-            val measured: Double?,
-        )
-        val snap = withContext(Dispatchers.Main) {
-            val norm = playerNormProcessors[player]
-            Snap(
-                mediaId = player.currentMediaItem?.mediaId,
-                committed = norm?.measurementCommitted == true,
-                measureId = norm?.measureTrackId,
-                measured = norm?.measuredLoudnessDb,
-            )
-        }
-        val mediaId = snap.mediaId ?: return
-        if (!snap.committed) return
-        if (snap.measureId != mediaId) return
-        if (measuredAppliedForId == mediaId) return
-        val measured = snap.measured ?: return
-
-        measuredAppliedForId = mediaId
-        withContext(Dispatchers.Main) {
-            playerNormProcessors[player]?.measureThisTrack = false
-        }
-
-        runCatching {
-            val existing = withContext(Dispatchers.IO) { database.format(mediaId).first() }
-            if (existing != null) {
-                database.query {
-                    upsert(existing.copy(measuredLoudnessDb = measured))
-                }
-            } else {
-                database.query {
-                    upsert(iad1tya.echo.music.db.entities.FormatEntity(
-                        id = mediaId,
-                        itag = 0,
-                        mimeType = "audio/local",
-                        codecs = "",
-                        bitrate = 0,
-                        sampleRate = null,
-                        contentLength = 0L,
-                        loudnessDb = null,
-                        measuredLoudnessDb = measured,
-                        playbackUrl = null
-                    ))
-                }
             }
         }
     }
@@ -8121,9 +8060,6 @@ class MusicService :
                 if (tick % (iad1tya.echo.music.utils.PowerTimeline.TICK_MS / 5000L).toInt() == 0) {
                     iad1tya.echo.music.utils.PowerTimeline.log(this@MusicService, "tick", playing = true)
                 }
-                // ONE-SHOT measurement cache: persist a measured loudness for the NEXT play. Never
-                // moves the live gain (like + auto-download used that path to swell the volume).
-                runCatching { maybeApplyMeasuredLoudness() }
                 val podcast = withContext(Dispatchers.Main) {
                     if (!player.isPlaying) return@withContext null
                     val id = player.currentMediaItem?.mediaId

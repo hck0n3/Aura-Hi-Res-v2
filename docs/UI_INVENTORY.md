@@ -2729,7 +2729,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqS
 | Exportar perfiles (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:424 | acción secundaria | rara | siempre (abre SAF `aura-eq-perfiles.json`) |
 | Importar (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:429 | acción secundaria | rara | siempre (abre SAF `application/json`) |
 | EQ por dispositivo (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:437 | navegación (abre diálogo) | rara | siempre |
-| Preamplificación (slider, rango −20 dB … +6 dB) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:653 | acción secundaria (slider) | ocasional | siempre (inerte si EQ desactivado) |
+| Preamplificación (slider, rango −20 dB … +9 dB; fila 790) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:653 | acción secundaria (slider) | ocasional | siempre (inerte si EQ desactivado) |
 | Chips de preajustes (fila con scroll horizontal; uno por preajuste) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:719 | acción primaria (selección) | ocasional | `onClick` solo actúa `if (enabled)` |
 | 10 sliders de banda: 31 / 62 / 125 / 250 / 500 / 1k / 2k / 4k / 8k / 16k Hz | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:808 (bucle) — slider en 1366; etiquetas en `eq/data/EqConstants.kt:9-12` | acción primaria (slider ×10) | diaria | modo Gráfico; inerte si EQ desactivado |
 | Restablecer (EQ gráfico) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:821 | destructiva | ocasional | habilitado solo si EQ activo |
@@ -3789,7 +3789,7 @@ NO existen en ningún fichero asignado: doble toque; pull-to-refresh en Novedade
 | **Arrastre para reordenar** proveedores de letras | Ajustes > Contenido > Prioridad de proveedores de letras (diálogo) | ContentSettings.kt:488 (`DraggableLyricsProviderList`), lista en 398-403 | cambia el orden de intento |
 | **Arrastre de bandas sobre la curva del EQ paramétrico** | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:1088 (`pointerInput` + `detectDragGestures`/`detectTapGestures`) | mueve la banda seleccionada |
 | **Arrastre de los 10 sliders de banda del EQ gráfico** | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:1366 (`EqBandSlider`) | ganancia por banda |
-| **Arrastre del slider de preamplificación** | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:653 | −20…+6 dB |
+| **Arrastre del slider de preamplificación** | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:653 | −20…+9 dB (fila 790) |
 | **Arrastre del slider Q** (paramétrico) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:1224 | ancho de banda |
 | **Scroll horizontal** de la fila de chips de preajuste | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:~728 (`horizontalScroll(presetScrollState)`) | navegación por preajustes |
 | **Tap + arrastre** en el panel saturación/valor del selector de color | Diálogos de color (Liquid Glass) | ColorPicker.kt:335 y 343 | elige color |
