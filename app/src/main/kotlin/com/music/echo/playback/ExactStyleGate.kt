@@ -618,7 +618,7 @@ internal suspend fun MusicService.exactStyleFilter(
         if (languageOnly || requested?.let { it.styles.isNullOrEmpty() && it.language == null } == true) return@run
         val doubtful = judged.indices.filter { i ->
             val step = ContextLane.tier(lane, judged[i].candidate)
-            step != null && step >= 1
+            all[i].mediaId !in heardInBatch && step != null && step >= 1
         }.take(iad1tya.echo.music.edge.EdgeJudge.MAX_CANDIDATES)
         if (doubtful.isEmpty()) return@run
         val context = (if (collection) poolTexts.take(iad1tya.echo.music.edge.EdgeJudge.MAX_CONTEXT) else listOfNotNull(anchor?.trackText()))
