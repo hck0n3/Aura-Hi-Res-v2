@@ -49,6 +49,8 @@ class IconButtonNameGuardTest {
             "AuraShell.kt" to 2, // AuraMiniOutputButton, account avatar
             "AuraLibraryViewType.kt" to 1, // AuraViewTypeToggle
             "AuraLibraryTabs.kt" to 1, // Biblioteca shuffle button
+            "AuraLibraryScreen.kt" to 1, // AuraFab, the Biblioteca «+»
+            "AuraMusicRequest.kt" to 4, // send, remove history entry, close result, remove song from save
         )
         for ((file, count) in expected) {
             val text = src("$ui/$file")
@@ -56,6 +58,15 @@ class IconButtonNameGuardTest {
         }
         val shell = src("$ui/AuraShell.kt")
         assertTrue("celda de navegación sin texto", shell.contains("if (!showLabel) contentDescription = label"))
+    }
+
+    @Test
+    fun `the Biblioteca plus button is named only in its icon-only variant`() {
+        // AuraFab passed its description only to auraClickableInternal (onClickLabel), so TalkBack read a bare «Botón».
+        // The extended (labeled) variant reads its own text and must stay unnamed.
+        val library = src("$ui/AuraLibraryScreen.kt")
+        assertTrue(library.contains("Box(base.size(52.dp).auraButtonName(contentDescription), contentAlignment = Alignment.Center) {"))
+        assertTrue(library.contains("        Box(base, contentAlignment = Alignment.Center) {"))
     }
 
     @Test

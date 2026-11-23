@@ -615,7 +615,7 @@ private fun AuraFab(
         .auraClickableInternal(onClick = onClick, contentDescription = contentDescription)
 
     if (label == null) {
-        Box(base.size(52.dp), contentAlignment = Alignment.Center) {
+        Box(base.size(52.dp).auraButtonName(contentDescription), contentAlignment = Alignment.Center) {
             AuraIconGlyph(icon, null, size = 22.dp, tint = AuraPalette.Teal)
         }
     } else {

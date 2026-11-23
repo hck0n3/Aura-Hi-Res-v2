@@ -407,7 +407,8 @@ private fun AuraMusicRequestSheetBody(
                         onClick = { ActionLog.tap(ActionId.REQ_SEND); send(prompt) },
                         enabled = canSend,
                         contentDescription = stringResource(R.string.music_request_send),
-                    ),
+                    )
+                    .auraButtonName(stringResource(R.string.music_request_send)),
             ) {
                 if (working) {
                     CircularProgressIndicator(
@@ -509,7 +510,8 @@ private fun AuraMusicRequestSheetBody(
                                         .auraClickableInternal(
                                             onClick = { ActionLog.tap(ActionId.REQ_HISTORY_REMOVE); MusicRequestHistory.remove(text) },
                                             contentDescription = stringResource(R.string.music_request_remove_entry),
-                                        ),
+                                        )
+                                        .auraButtonName(stringResource(R.string.music_request_remove_entry)),
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.close),
@@ -830,7 +832,8 @@ private fun AuraMusicRequestOptionOne(
                         .auraClickableInternal(
                             onClick = { ActionLog.tap(ActionId.REQ_DISMISS); onDismiss() },
                             contentDescription = stringResource(R.string.close),
-                        ),
+                        )
+                        .auraButtonName(stringResource(R.string.close)),
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.close),
@@ -889,7 +892,8 @@ private fun AuraMusicRequestOptionOne(
                                     .auraClickableInternal(
                                         onClick = { ActionLog.tap(ActionId.REQ_SONG_REMOVE); onRemoveSong(song.id) },
                                         contentDescription = stringResource(R.string.music_request_remove_from_save),
-                                    ),
+                                    )
+                                    .auraButtonName(stringResource(R.string.music_request_remove_from_save)),
                             ) {
                                 Icon(
                                     painter = painterResource(R.drawable.close),
