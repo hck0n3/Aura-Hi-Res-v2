@@ -1,0 +1,212 @@
+name: Emulator smoke (debug, no release)
+
+# Pruebas automáticas en un emulador Android de GitHub (docs/QA_EMULATOR.md), para que el dueño no tenga que
+# probarlo todo en su móvil: arranque en frío, navegación, música local, sin conexión, actualización sin perder
+# datos y (opcional) una canción de YouTube.
+#
+# - SOLO se lanza a mano (workflow_dispatch): nunca en push ni en pull request.
+# - Compila la app de DEPURACIÓN sin la puerta de suscripción (-Pnosub=true → iad1tya.aura.music.dev.debug),
+#   firmada con la clave de depuración del propio runner. Nunca toca la keystore de release ni ningún secret.
+# - No crea releases, no publica nada y no avisa a nadie: solo sube artefactos (registros, capturas, resultados).
+
+on:
+  workflow_dispatch:
+    inputs:
+      previous_ref:
+        description: 'Versión ANTERIOR para la prueba de actualización (tag, rama o commit). Vacío = el último tag v* anterior a este commit o, si no hay, el merge-base con main.'
+        type: string
+        default: ''
+      api_level:
+        description: 'Android del emulador (API)'
+        type: choice
+        options: ['35', '36']
+        default: '35'
+      run_update:
+        description: 'Probar la actualización sobre la versión anterior (compila también la anterior)'
+        type: boolean
+        default: true
+      run_streaming:
+        description: 'Intentar una canción de YouTube (puede fallar: YouTube bloquea IPs de centros de datos)'
+        type: boolean
+        default: true
+      stream_video_id:
+        description: 'Id de YouTube para la prueba de streaming (11 caracteres)'
+        type: string
+        default: '_KZEkEb_dvA'
+
+# Leer el repositorio y nada más: este job compila, prueba y sube artefactos.
+permissions:
+  contents: read
+
+concurrency:
+  group: emulator-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  emulator-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          # The update scenario builds an OLDER commit (a tag or the merge-base) next to this one.
+          fetch-depth: 0
+
+      - name: Free disk space (two app builds + an emulator image)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost /usr/share/swift || true
+          df -h /
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-emulator-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-emulator-
+            ${{ runner.os }}-gradle-
+
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Ensure Android debug keystore (CI runner has none)
+        # The new build, the previous build and the smoke APK are all signed with THIS key, so `adb install -r`
+        # of the new build over the previous one is a real update.
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v -keystore ~/.android/debug.keystore \
+              -storepass android -keypass android -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Host tool tests
+        run: cd scripts/emulator_smoke && python3 -m unittest test_smoke_tools -v
+
+      - name: Build the new app (x86_64 FOSS debug, no subscription gate)
+        # x86_64 only: the emulator is x86_64 and one ABI is a quarter of the native build of the universal APK.
+        # Same dependency locks as every other build (validated, not rewritten).
+        run: ./gradlew :app:assembleX86_64FossDebug -Pnosub=true --console=plain
+
+      - name: Build the smoke APK
+        # :smoketest only exists with -PauraEmulatorSmoke=true (settings.gradle.kts). It has no committed
+        # gradle.lockfile yet: --write-locks records one in this throw-away checkout (uploaded below so it can be
+        # committed). The app itself was already built and lock-validated by the previous step.
+        run: ./gradlew :smoketest:assembleDebug -Pnosub=true -PauraEmulatorSmoke=true --write-locks --console=plain
+
+      - name: Locate the APKs
+        id: apks
+        run: |
+          set -euo pipefail
+          APP=$(find app/build/outputs/apk/x86_64Foss/debug -name '*.apk' | head -n 1)
+          SMOKE=$(find smoketest/build/outputs/apk -name '*.apk' | head -n 1)
+          test -f "$APP" && test -f "$SMOKE"
+          echo "app=$GITHUB_WORKSPACE/$APP" >> "$GITHUB_OUTPUT"
+          echo "smoke=$GITHUB_WORKSPACE/$SMOKE" >> "$GITHUB_OUTPUT"
+          ls -l "$APP" "$SMOKE"
+
+      - name: Pick the previous version
+        id: previous
+        if: inputs.run_update
+        # A bad ref must not cancel the other scenarios: the update scenario reports it instead.
+        continue-on-error: true
+        env:
+          INPUT_REF: ${{ inputs.previous_ref }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INPUT_REF" ]; then
+            REF="$INPUT_REF"
+          elif REF=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null); then
+            :
+          else
+            REF=$(git merge-base HEAD origin/main)
+          fi
+          case "$REF" in -*) echo "::error::invalid ref"; exit 1;; esac
+          SHA=$(git rev-parse --verify --quiet "$REF^{commit}")
+          echo "Previous version: $REF ($SHA)"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Build the previous app
+        id: previous_build
+        if: inputs.run_update
+        # A failure here does not stop the other scenarios; the update scenario then reports FAIL with the reason.
+        continue-on-error: true
+        env:
+          PREV_SHA: ${{ steps.previous.outputs.sha }}
+        run: |
+          set -euo pipefail
+          ./gradlew --stop
+          git worktree add --detach "$RUNNER_TEMP/aura-previous" "$PREV_SHA"
+          cd "$RUNNER_TEMP/aura-previous"
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          ./gradlew :app:assembleX86_64FossDebug -Pnosub=true --console=plain
+          APK=$(find app/build/outputs/apk/x86_64Foss/debug -name '*.apk' | head -n 1)
+          cp "$APK" "$RUNNER_TEMP/previous.apk"
+          ./gradlew --stop
+
+      - name: Write the test tone
+        run: python3 scripts/emulator_smoke/smoke_tools.py tone "$RUNNER_TEMP/aura_smoke_tone.wav"
+
+      - name: Free the Gradle daemons' memory for the emulator
+        run: ./gradlew --stop
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the smoke scenarios on the emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          APP_APK: ${{ steps.apks.outputs.app }}
+          TEST_APK: ${{ steps.apks.outputs.smoke }}
+          PREV_APK: ${{ runner.temp }}/previous.apk
+          RUN_UPDATE: ${{ inputs.run_update }}
+          RUN_STREAMING: ${{ inputs.run_streaming }}
+          STREAM_VIDEO_ID: ${{ inputs.stream_video_id }}
+          TONE_WAV: ${{ runner.temp }}/aura_smoke_tone.wav
+          OUT_DIR: ${{ runner.temp }}/emulator-smoke
+        with:
+          api-level: ${{ inputs.api_level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          cores: 3
+          # 4 GB = the app's MID tier (utils/DeviceCapabilities.kt): the normal experience. 3 GB or less would be
+          # LOW (performance mode forced on) and 8 GB HIGH (interactive glass hides the bottom bar's labels).
+          ram-size: 4096M
+          disk-size: 8G
+          emulator-boot-timeout: 900
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-back none
+          # ONE line: the action runs every line of `script` as a separate `sh -c`.
+          script: bash scripts/emulator_smoke/run_smoke.sh
+
+      - name: Keep the smoke module's lock state with the results
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/emulator-smoke"
+          cp smoketest/gradle.lockfile "$RUNNER_TEMP/emulator-smoke/smoketest-gradle.lockfile" 2>/dev/null || true
+
+      - name: Upload results, logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: emulator-smoke-results
+          path: ${{ runner.temp }}/emulator-smoke/
+          if-no-files-found: warn
+          retention-days: 14
