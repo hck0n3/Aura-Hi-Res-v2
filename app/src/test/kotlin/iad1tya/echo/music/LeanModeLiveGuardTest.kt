@@ -24,4 +24,18 @@ class LeanModeLiveGuardTest {
         assertTrue("the check must read the freshly published value", reset > publish)
         assertFalse("the check must not be limited to the first emission", collector.contains("firstEmission"))
     }
+
+    @Test
+    fun `onTrimMemory treats lean mode like a LOW-tier device`() {
+        val constrained = app.substringAfter("override fun onTrimMemory(level: Int) {")
+            .substringAfter("val constrained =")
+            .substringBefore("runCatching {")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        assertTrue(
+            constrained,
+            constrained == "iad1tya.echo.music.utils.DeviceCapabilities.tier(this) == iad1tya.echo.music.utils.DeviceTier.LOW || " +
+                "iad1tya.echo.music.utils.LeanMode.isOn()",
+        )
+    }
 }

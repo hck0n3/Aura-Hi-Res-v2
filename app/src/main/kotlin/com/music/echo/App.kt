@@ -461,7 +461,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             // WHILE the system is already critical — which invites the very kill we are avoiding. So a
             // capable device HALVES the cache; only a LOW-tier one clears it outright.
             val constrained =
-                iad1tya.echo.music.utils.DeviceCapabilities.tier(this) == iad1tya.echo.music.utils.DeviceTier.LOW
+                iad1tya.echo.music.utils.DeviceCapabilities.tier(this) == iad1tya.echo.music.utils.DeviceTier.LOW ||
+                    iad1tya.echo.music.utils.LeanMode.isOn()
             runCatching {
                 val cache = SingletonImageLoader.get(this).memoryCache
                 when {
