@@ -3916,15 +3916,15 @@ Kotlin, que no pasa por el sistema de traducción.
 |---|---|
 | Pantalla de actualizaciones ENTERA | `app/src/main/res/values/updater_strings.xml` (77 cadenas) **no tiene versión en español**: «Check for update», «Later», «Update», «Install», «Current version», «Released on», «Size», «Can't check for updates», «Download Failed» |
 | Reproductor | «Cast» / «Stop casting» (`gms/.../CastButton.kt:138`, `:206`), «Casting» (`MiniPlayer.kt:429`), «Hosting Listen Together» / «Listening Together» (`Thumbnail.kt:610`). ~~Mensajes de error de edad y de servidor (`PlaybackError.kt:61`, `:63`)~~ — resuelto en P22A (fila 732): la tarjeta de error lee sus textos de `playback_error_strings.xml` (es/en) |
-| Letras | «Lyrics from <proveedor>» (`Lyrics.kt:1061`) |
-| Información de la canción | «<etiqueta> copied» (`ShowMediaInfo.kt:363`) |
-| Desfase de la letra | «Reset», «Decrease», «Increase» (`ShowOffsetDialog.kt:180`, `:200`, `:225`) |
-| Tono de llamada | «Trim Ringtone», «Select the part of…», «Selected duration…», «Play Preview», «Setting Ringtone…», «Success!», «Failed», «Open Settings», «Close» (`RingtoneTrimmerDialog.kt:94-178`, `RingtoneProgressDialog.kt:36-83`) |
+| Letras | ~~«Lyrics from <proveedor>» (`Lyrics.kt:1061`)~~ — resuelto en P22C (fila 734): `lyrics_from_provider` |
+| Información de la canción | ~~«<etiqueta> copied» (`ShowMediaInfo.kt:363`)~~ — resuelto en P22C (fila 734): `label_copied` |
+| Desfase de la letra | ~~«Reset», «Decrease», «Increase» (`ShowOffsetDialog.kt:180`, `:200`, `:225`)~~ — resuelto en P22C (fila 734) |
+| Tono de llamada | ~~«Trim Ringtone», «Select the part of…», «Selected duration…», «Play Preview», «Setting Ringtone…», «Success!», «Failed», «Open Settings», «Close» (`RingtoneTrimmerDialog.kt:94-178`, `RingtoneProgressDialog.kt:36-83`)~~ y los mensajes de progreso/error de `RingtoneHelper` — resuelto en P22C (fila 734) |
 | Escuchar juntos | «How it Works» + 3 pasos (`ListenTogetherScreen.kt:444-464`), «Listen Together Link», «Room Code» (`PlayerMenu.kt:1498`, `:1517`), motivos «Removed by host» / «Rejected by host» que viajan al servidor (`:222`, `:326`, `:337`) |
 | Chat de la sala | «Room: {código}», «No messages yet», «Start the conversation!» (`CommentTogether.kt:81`, `:401`, `:407`) |
 | Comentarios | «Replies», «Back», «N Replies» (`CommentSheet.kt:317`, `:374`, `:378`) |
-| Historial de reconocimiento | «No recognition history», «No results for …» (`RecognitionHistoryScreen.kt:281`, `:305`) |
-| Modo Ambiente | «Album Art» (`AmbientModeScreen.kt:138`) |
+| Historial de reconocimiento | ~~«No recognition history», «No results for …» (`RecognitionHistoryScreen.kt:281`, `:305`)~~ y los grupos «Today / Yesterday / This Week» — resuelto en P22C (fila 734) |
+| Modo Ambiente | ~~«Album Art» (`AmbientModeScreen.kt:138`)~~ — resuelto en P22C (fila 734): `album_art` |
 | Región de sugerencias | «Choose Suggestions Region», «System», «Countries & Regions», «Search», «Selected» (`SuggestionRegionSheet.kt:52`, `:90`, `:119`, `:69`, `:198`) |
 | Sugerencias | «Apple Music Top 100», «Trending Artists», «Trending Music Videos», «More», «Previous», «Next», «No suggestions available at the moment.», «Data from Apple Music» (`TabNewsSuggestion.kt`) |
 | Selector de dispositivo de audio | «Connected» / «Available», «Volume level», «Bluetooth Device», «USB Audio», «Wired Headphones», «External Speaker», «Phone Speaker», «Failed to load devices: …» (`AudioDeviceBottomSheet.kt:1180`, `:1210`, `:969`, `:989`, `:1075-1084`, `:1040`) |
@@ -4269,3 +4269,14 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Ajustes ▸ Sincronizar dispositivos: «Sincronizar me gusta, no me gusta y listas» | Interruptor (activo por defecto); mientras los dispositivos están conectados, YouTube no sincroniza me gusta ni listas | 536 |
 | Reproductor ▸ «SONANDO EN <dispositivo> · CONTINUAR AQUÍ» (cabecera, arriba de la portada) y barra de tiempo / play / anterior / siguiente | Cuando otro de tus dispositivos suena y este no, el reproductor (y el mini) muestra y controla ESA reproducción con sus propios botones; tocar el aviso trae la reproducción aquí. Sustituye a la tarjeta flotante | 537 |
 | Ajustes ▸ Sincronizar dispositivos: fila «Biblioteca» | Estado real de la sincronización (al día / esperando / servidor desactualizado / fallo); tocarla sincroniza ahora | 539 |
+
+## Anexo 2026-11-23: auditoría de UX P22C — temporizador en un toque, nombres para TalkBack y textos en inglés (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Reproductor ▸ menú ⋯ (arriba, siempre visible, sin desplegar «Reproducción») | Losa «Temporizador de apagado» con 15 · 30 · 45 · 60 min · «Al finalizar la canción» y, si hay uno activo, «Apagar el temporizador»; un toque lo pone y cierra el menú (`ui/newui/AuraSleepTimer.kt`, `AuraSleepTimerPresets`). La fila «Temporizador de apagado» de «Reproducción» SIGUE ahí y abre el diálogo completo (5–120 min) | 734 |
+| Reproductor ▸ cabecera (bajo «Reproduciendo desde» / «Sonando en …») | Chip «APAGADO · 23:41» (o «· FIN DE LA CANCIÓN») solo mientras hay un temporizador; tocarlo abre el diálogo (apagar, **«+15 min»**, otra duración). Cuenta una vez por segundo y solo con el reproductor desplegado | 734 |
+| Diálogo del temporizador | Nueva pastilla «+15 min» mientras corre uno por minutos (alarga sin empezar de cero) | 734 |
+| Temporizador al llegar a cero | La música baja de volumen durante los últimos 10 s y luego se pausa (antes cortaba de golpe); el volumen del usuario vuelve solo | 734 |
+| Botones de solo icono de la interfaz nueva (reproductor, mini, cola, biblioteca, buscar, artista/álbum/lista, ajustes, estadísticas, barra de navegación sin texto) | TalkBack los nombra («Minimizar el reproductor», «Atrás», «Salida de audio»…) en vez de decir solo «Botón»; las descripciones escritas a mano en español pasan a recursos (EN + ES) | 734 |
+| Textos que salían en inglés con la app en español | «Añadida a Me gusta», «Canción quitada de la lista», «Letra de …», «…: copiado», desfase de la letra, historial de reconocimiento, portada del modo Ambiente, recortador de tono y sus mensajes | 734 |
