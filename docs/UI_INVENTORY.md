@@ -280,8 +280,8 @@ Se muestra en la primera ejecución **y en cada actualización** (`MainActivity.
 | «Todo lo que puedes hacer» + **15 filas de características** (Música ilimitada, Audio de alta calidad, Transiciones suaves, Ecualizador a tu medida, Letras sincronizadas, Aleatorio que no repite, Descubrimiento con IA, Tu biblioteca de siempre, Migra desde otros servicios, Sin conexión y ahorro de datos, Reconocer canción y buscar por voz, Escuchar juntos, Video/fondos animados y temas, En el coche/la tele/pantalla de inicio, Podcasts y música local) | Bienvenida > cuerpo | `ui/screens/WelcomeDialog.kt:75-165` | informativo | rara | siempre |
 | **«Cerrar»** | Bienvenida | `ui/screens/WelcomeDialog.kt:167-177` · efecto `MainActivity.kt:1756-1769` | acción primaria | rara | siempre; en la PRIMERA ejecución encadena con `onboarding_artists` |
 
-### `BackgroundReliabilityDialog` — batería y arranque automático
-Aparece **una sola vez en la vida de la instalación**, 1,5 s tras arrancar, solo en fabricantes agresivos sin exención de batería (`MainActivity.kt:1078-1090`). **Todo hardcoded en español.**
+### `BackgroundReliabilityDialog` — batería y arranque automático — **RETIRADO 2026-11-23 (fila 677)**
+**Ya no existe:** el dueño pidió quitar el aviso automático al arrancar (el de una vez y el semanal tras una matanza del fabricante). Las dos acciones siguen en Ajustes ▸ Contenido («Evitar que el sistema cierre la app» y «Ajustes del sistema de la app») y en Ajustes ▸ Sincronizar dispositivos. Tabla conservada como histórico.
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
@@ -3190,7 +3190,9 @@ Se abre desde el icono de la barra superior en `MainActivity.kt:1309` (no desde 
 
 ---
 
-## 18.28 Diálogo «Que Aura no se corte en segundo plano» (`BackgroundReliabilityDialog`)
+## 18.28 Diálogo «Que Aura no se corte en segundo plano» (`BackgroundReliabilityDialog`) — **RETIRADO 2026-11-23 (fila 677)**
+
+Archivo borrado; las acciones siguen en Ajustes ▸ Contenido y Ajustes ▸ Sincronizar dispositivos. Tabla conservada como histórico.
 
 Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/BackgroundReliabilityDialog.kt`
 Se muestra desde `MainActivity.kt:1772` cuando `showBatteryReliabilityDialog` es true (fabricantes con matanza de apps en segundo plano).
@@ -3518,7 +3520,7 @@ desde dónde se abra (`isQueueTrigger`).
 | **Picture-in-Picture** | Vista limpia con solo título y artista, y 3 controles remotos |
 | **Android 12+ y gama media/alta** | Es el único caso en que el efecto Liquid Glass es elegible |
 | **Android 13+** | Petición de permiso de notificaciones al arrancar |
-| **Fabricante «agresivo» sin exención de batería** | El diálogo de fiabilidad en segundo plano (una sola vez en la vida de la instalación) |
+| **Fabricante «agresivo» sin exención de batería** | Nada automático desde 2026-11-23 (fila 677): la exención se pide solo desde Ajustes ▸ Contenido / Sincronizar dispositivos |
 | **Dispositivo caliente (throttling térmico)** | Se apagan solos el canvas animado, el visualizador, el vídeo de fondo del artista y el modo vídeo en gama baja — **sin avisar al usuario** |
 | **Sin conexión / modo sin conexión** | El Inicio se sustituye entero por la versión sin conexión; la búsqueda pierde la fuente online; aparece la superposición «Parece que no tienes conexión» |
 
@@ -3526,7 +3528,7 @@ desde dónde se abra (`isQueueTrigger`).
 
 Aparecen una sola vez y son invisibles para siempre después: la puerta de Términos, la puerta de
 licencia (6 pantallas), el diálogo de Bienvenida (que además **vuelve en cada actualización**), los
-4 pasos de onboarding, el diálogo de fiabilidad en segundo plano y la petición de notificaciones.
+4 pasos de onboarding y la petición de notificaciones (el diálogo de fiabilidad en segundo plano se retiró el 2026-11-23, fila 677).
 
 ---
 
@@ -4040,7 +4042,7 @@ Sin interfaz asociada, así que no son controles placebo, pero son basura que co
 | `AutoEqScreen` | `settings/sound/autoeq` | Solo desde `SoundSettings.kt:79`. |
 | `UptimeScreen` | `uptime` | Solo desde `ContentSettings.kt:1361`. |
 | `SettingDialoge` | (diálogo) | Solo desde `MainActivity.kt:1309`. |
-| `BackgroundReliabilityDialog` | (diálogo) | Solo desde `MainActivity.kt:1772`. |
+| `BackgroundReliabilityDialog` | (diálogo) | Retirado 2026-11-23 (fila 677). |
 
 ## E. Otros detalles que el rediseño debe conocer
 

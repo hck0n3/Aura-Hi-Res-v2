@@ -974,15 +974,6 @@ val AccountChannelHandleKey = stringPreferencesKey("accountChannelHandle")
 val UseLoginForBrowse = booleanPreferencesKey("useLoginForBrowse")
 val LastOpenedVersionCodeKey = intPreferencesKey("lastOpenedVersionCode")
 
-// One-time: whether the proactive background-reliability prompt (battery exemption + autostart) was already
-// offered on an aggressive OEM (MIUI/HyperOS/ColorOS/etc.), so we don't nag. See BackgroundReliability.
-val BatteryReliabilityPromptShownKey = booleanPreferencesKey("batteryReliabilityPromptShown")
-
-// Epoch ms of the newest OEM playback-kill (ScreenOffCPU / OneKeyClean / …) we already surfaced in the
-// reliability dialog. Re-prompt when ExitReasonReporter finds a NEWER kill — exemption alone does not
-// stop HyperOS ScreenOffCPUCheckKill.
-val BatteryReliabilityOemKillPromptTsKey = longPreferencesKey("batteryReliabilityOemKillPromptTs")
-
 val LanguageCodeToName =
     mapOf(
         "af" to "Afrikaans",

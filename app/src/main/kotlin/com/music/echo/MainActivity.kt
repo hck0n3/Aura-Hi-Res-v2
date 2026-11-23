@@ -1484,12 +1484,6 @@ class MainActivity : ComponentActivity() {
                 var pendingWelcomeTour by remember { mutableStateOf(false) }
                 val onboardingArtistsDone by rememberPreference(iad1tya.echo.music.constants.OnboardingArtistsDoneKey, false)
 
-                val (batteryReliabilityPromptShown, setBatteryReliabilityPromptShown) =
-                    rememberPreference(iad1tya.echo.music.constants.BatteryReliabilityPromptShownKey, false)
-                val (oemKillPromptTs, setOemKillPromptTs) =
-                    rememberPreference(iad1tya.echo.music.constants.BatteryReliabilityOemKillPromptTsKey, 0L)
-                var showBatteryReliabilityDialog by remember { mutableStateOf(false) }
-                var batteryReliabilityOemEvidence by remember { mutableStateOf(false) }
                 // Tutorials / Welcome only show on FIRST RUN EVER (lastOpenedVersionCode == -1), NEVER on app updates.
                 val welcomeWillShow = lastOpenedVersionCode == -1
                 // One-shot "open music links with Aura" prompt — after the first-run welcome/onboarding, and
@@ -1500,7 +1494,6 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(welcomeWillShow, showWelcomeDialog, openLinksPromptShown) {
                     if (openLinksPromptShown || welcomeWillShow || showWelcomeDialog) return@LaunchedEffect
                     delay(4000)
-                    if (showBatteryReliabilityDialog) return@LaunchedEffect
                     if (iad1tya.echo.music.ui.screens.isAuraOpeningMusicLinks(this@MainActivity)) {
                         setOpenLinksPromptShown(true)
                     } else {
@@ -1538,38 +1531,6 @@ class MainActivity : ComponentActivity() {
                     if (pendingWelcomeTour && currentRouteForTour?.destination?.route == "home") {
                         pendingWelcomeTour = false
                         showWelcomeDialog = true
-                    }
-                }
-
-                LaunchedEffect(Unit) {
-                    // Generic prompt is one-shot (BatteryReliabilityPromptShownKey). NEW OEM kills
-                    // (ScreenOffCPU / OneKeyClean) must re-prompt — HyperOS China keeps killing
-                    // despite exemption alone — but rate-limited to once a week so it never
-                    // becomes the nag the owner reported.
-                    kotlinx.coroutines.delay(1500)
-                    if (welcomeWillShow || showWelcomeDialog) return@LaunchedEffect
-                    val threatTs = withContext(Dispatchers.IO) {
-                        iad1tya.echo.music.utils.ExitReasonReporter
-                            .latestOemPlaybackThreatTimestamp(this@MainActivity)
-                    }
-                    val notExempt = !iad1tya.echo.music.utils.BackgroundReliability
-                        .isIgnoringBatteryOptimizations(this@MainActivity)
-                    val oemPromptDue = threatTs > oemKillPromptTs &&
-                        System.currentTimeMillis() - oemKillPromptTs > 7 * 24 * 60 * 60 * 1000L
-                    when {
-                        // OWNER DIRECTIVE (2026-09-04): "el aviso de optimización de batería solo
-                        // aparezca UNA VEZ después del primer inicio y luego no vuelva a molestar".
-                        // System power-save is no longer a modal trigger (the advice already lives
-                        // in the welcome tour copy and Ajustes ▸ Contenido); the OEM-kill re-prompt
-                        // keeps its safety function but never more than once a week.
-                        oemPromptDue -> {
-                            batteryReliabilityOemEvidence = true
-                            showBatteryReliabilityDialog = true
-                        }
-                        !batteryReliabilityPromptShown && notExempt -> {
-                            batteryReliabilityOemEvidence = false
-                            showBatteryReliabilityDialog = true
-                        }
                     }
                 }
 
@@ -2805,42 +2766,6 @@ class MainActivity : ComponentActivity() {
                             showOpenLinksPrompt = false
                             setOpenLinksPromptShown(true)
                         })
-                    }
-
-                    if (showBatteryReliabilityDialog) {
-                        iad1tya.echo.music.ui.screens.BackgroundReliabilityDialog(
-                            oemKillEvidence = batteryReliabilityOemEvidence,
-                            onAllowBattery = {
-                                setBatteryReliabilityPromptShown(true)
-                                if (batteryReliabilityOemEvidence) {
-                                    val ts = iad1tya.echo.music.utils.ExitReasonReporter
-                                        .latestOemPlaybackThreatTimestamp(this@MainActivity)
-                                    if (ts > 0L) setOemKillPromptTs(ts)
-                                }
-                                showBatteryReliabilityDialog = false
-                                iad1tya.echo.music.utils.BackgroundReliability
-                                    .requestIgnoreBatteryOptimizations(this@MainActivity)
-                            },
-                            onOpenAutostart = {
-                                setBatteryReliabilityPromptShown(true)
-                                if (batteryReliabilityOemEvidence) {
-                                    val ts = iad1tya.echo.music.utils.ExitReasonReporter
-                                        .latestOemPlaybackThreatTimestamp(this@MainActivity)
-                                    if (ts > 0L) setOemKillPromptTs(ts)
-                                }
-                                showBatteryReliabilityDialog = false
-                                iad1tya.echo.music.utils.BackgroundReliability.openAppDetails(this@MainActivity)
-                            },
-                            onDismiss = {
-                                setBatteryReliabilityPromptShown(true)
-                                if (batteryReliabilityOemEvidence) {
-                                    val ts = iad1tya.echo.music.utils.ExitReasonReporter
-                                        .latestOemPlaybackThreatTimestamp(this@MainActivity)
-                                    if (ts > 0L) setOemKillPromptTs(ts)
-                                }
-                                showBatteryReliabilityDialog = false
-                            },
-                        )
                     }
                     } // SHELL GLASS (A1): close of the CompositionLocalProvider(LocalShellHazeState)
                 }
