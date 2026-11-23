@@ -91,6 +91,18 @@ En la ejecución, el resumen (*Summary*) trae la tabla de escenarios. El artefac
   `AuraDevice.settleOnHome` no la conocía. Ahora la acepta con el mismo recurso que la pinta (`terms_accept`), y el
   escenario 6 pasa antes por la primera vez. Lo que hay DETRÁS de los Términos (onboarding, tour, aviso de enlaces,
   Inicio) todavía no se ha visto en el emulador: lo dirá la siguiente ejecución.
+- **Segunda ejecución (run 45201346815, commit `1dfebc7`, 2026-11-23): otra vez rojo por la prueba, no por la app.**
+  Cero cierres/ANR en las tres fases. Los Términos ya se pasan y **se llega a Inicio** (escenarios 2-5 superan
+  `settleOnHome`). Dos fallos de la prueba: (1) el arranque en frío murió con `StaleObjectException` al tocar un paso de
+  la primera vez (la pantalla se recompuso entre buscar el botón y tocarlo); ahora se vuelve a buscar. (2) 2, 3, 4 y 5a
+  fallaron con «tab 'Biblioteca / Library' never became selected»: Compose entrega a UI Automator su árbol **sin
+  fusionar**, así que `selected` está en la celda (`AuraShell.kt` `AuraNavItem`, `Role.Tab`) y el texto en su hijo
+  `Text`; `By.text(…).selected(true)` no podía coincidir nunca. Ahora se busca la celda seleccionada que TIENE el texto
+  debajo (`By.selected(true).hasDescendant(…)`). El 5b no llegó a correr (depende del 5a). El 6 (streaming, permitido
+  fallar) llegó a cargar la canción por el enlace (`mediaId=_KZEkEb_dvA`) pero el reproductor se quedó en `STATE_IDLE`
+  90 s; la causa (¿YouTube rechazando la IP del runner?) **no se pudo leer**: el artefacto estaba en un host de
+  descarga no permitido para el agente. `[NO VERIFICADO]`. Desde ahora el fallo trae el **código** de error del
+  reproductor (`error=ERROR_CODE_…`, nunca su mensaje, que puede llevar la URL con `sig`/`pot`) en el propio log del job.
 - **`[NO VERIFICADO]` hasta la primera ejecución en GitHub.** El agente que lo escribió no tiene KVM ni puede llegar a
   YouTube, y por norma no corre Gradle en el contenedor compartido. Lo comprobado aquí: las pruebas Java compilan
   contra `android.jar` 36 y las librerías exactas que declara `smoketest/build.gradle.kts`; las herramientas del

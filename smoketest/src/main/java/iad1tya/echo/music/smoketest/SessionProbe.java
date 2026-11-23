@@ -5,6 +5,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.session.MediaController;
 import androidx.media3.session.SessionToken;
@@ -25,10 +26,13 @@ final class SessionProbe implements AutoCloseable {
         boolean playing;
         long positionMs;
         String mediaId;
+        /** The player's error CODE only (never its message: it can carry a stream URL with `sig`/`pot`). */
+        String error;
 
         @Override
         public String toString() {
-            return "state=" + state + " playing=" + playing + " positionMs=" + positionMs + " mediaId=" + mediaId;
+            return "state=" + state + " playing=" + playing + " positionMs=" + positionMs + " mediaId=" + mediaId
+                    + " error=" + error;
         }
     }
 
@@ -69,6 +73,8 @@ final class SessionProbe implements AutoCloseable {
             s.positionMs = controller.getCurrentPosition();
             MediaItem item = controller.getCurrentMediaItem();
             s.mediaId = item == null ? null : item.mediaId;
+            PlaybackException error = controller.getPlayerError();
+            s.error = error == null ? null : error.getErrorCodeName();
         });
         return s;
     }

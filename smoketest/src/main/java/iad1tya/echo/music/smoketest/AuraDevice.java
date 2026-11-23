@@ -17,6 +17,7 @@ import android.util.Log;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.By;
 import androidx.test.uiautomator.Configurator;
+import androidx.test.uiautomator.StaleObjectException;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
@@ -267,7 +268,12 @@ final class AuraDevice {
             UiObject2 step = device.findObject(By.text(steps));
             if (step != null) {
                 log("first run: tapping '" + safeText(step) + "'");
-                step.click();
+                try {
+                    step.click();
+                } catch (StaleObjectException e) {
+                    // Recomposed between the lookup and the tap (second emulator run): look again.
+                    log("first run: the step went stale before the tap");
+                }
                 quietSince = SystemClock.uptimeMillis();
                 SystemClock.sleep(1_000);
                 continue;
@@ -297,13 +303,19 @@ final class AuraDevice {
     /**
      * Taps a bottom-bar cell and waits until the bar reports it selected. The selected cell is looked for anywhere on
      * screen: a screen that opens the keyboard (Search) pushes the bar up out of the bottom quarter.
+     * Compose exposes its UNMERGED tree: `selected` sits on the cell (AuraShell.kt AuraNavItem, Role.Tab), the label
+     * on its Text child, so the selected node is the one that HAS the label below it (second emulator run).
      */
     void openTab(UiLabel label) {
         UiObject2 cell = waitFor(() -> navCell(label), 15_000, "bottom bar cell '" + label + "'");
-        cell.click();
+        try {
+            cell.click();
+        } catch (StaleObjectException e) {
+            waitFor(() -> navCell(label), 15_000, "bottom bar cell '" + label + "'").click();
+        }
         long deadline = SystemClock.uptimeMillis() + 10_000;
         while (SystemClock.uptimeMillis() < deadline) {
-            UiObject2 now = device.findObject(By.text(exactly(label)).selected(true));
+            UiObject2 now = device.findObject(By.selected(true).hasDescendant(By.text(exactly(label))));
             if (now != null) {
                 log("tab '" + label + "' selected");
                 return;

@@ -154,6 +154,27 @@ class AppLiteralsTest(unittest.TestCase):
         device = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest", "AuraDevice.java")
         self.assertIn('appString("terms_accept"', device)
 
+    def test_selected_tab_is_the_cell_above_its_label(self):
+        # Second emulator run (45201346815): Compose hands UI Automator its UNMERGED tree, so `selected` sits on the
+        # Role.Tab cell and the label on its Text child. By.text(label).selected(true) never matched: every scenario
+        # that opens a tab failed with "never became selected" although the tap worked.
+        shell = _read("app", "src", "main", "kotlin", "com", "music", "echo", "ui", "newui", "AuraShell.kt")
+        item = shell[shell.index("private fun RowScope.AuraNavItem("):]
+        item = item[:item.index("\n}\n")]
+        self.assertIn("role = Role.Tab", item)
+        self.assertIn("this.selected = selected", item)
+        self.assertIn("text = label", item)
+        device = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest", "AuraDevice.java")
+        self.assertIn("By.selected(true).hasDescendant(By.text(exactly(label)))", device)
+        self.assertNotIn("By.text(exactly(label)).selected(true)", device)
+
+    def test_first_run_taps_survive_a_stale_node(self):
+        # Second emulator run: the cold start died on StaleObjectException in settleOnHome's tap (the screen recomposed
+        # between the lookup and the click). The loop must look again instead of failing the scenario.
+        device = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest", "AuraDevice.java")
+        settle = device[device.index("void settleOnHome("):device.index("UiObject2 navCell(")]
+        self.assertIn("catch (StaleObjectException e)", settle)
+
     def test_labels_are_looked_up_in_the_language_the_app_seeds(self):
         # A fresh install stores AppLanguageKey = es-419 and MainActivity applies it from the next cold start, so the
         # emulator (en-US) and the app disagree on every label: AuraDevice must look them up in that same language.
