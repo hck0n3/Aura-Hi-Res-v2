@@ -56,6 +56,11 @@ class DislikeStore @Inject constructor(
     suspend fun softDislikeArtist(id: String) = mutate { it.copy(softArtists = it.softArtists + id) }
     suspend fun undoSoftDislikeArtist(id: String) = mutate { it.copy(softArtists = it.softArtists - id) }
 
+    /** «Menos de esto»: the song and its primary artist in ONE edit, so a cancelled caller never keeps only half. */
+    suspend fun softDislikeSongAndArtist(songId: String, artistKey: String?) = mutate {
+        it.copy(softSongs = it.softSongs + songId, softArtists = if (artistKey == null) it.softArtists else it.softArtists + artistKey)
+    }
+
     private suspend fun mutate(block: (Disliked) -> Disliked) {
         context.dataStore.edit { prefs ->
             prefs[DislikedItemsKey] = toJson(block(parse(prefs[DislikedItemsKey])))

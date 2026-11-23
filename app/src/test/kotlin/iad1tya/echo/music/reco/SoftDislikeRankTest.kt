@@ -92,9 +92,17 @@ class SoftDislikeRankTest {
         val menu = main("ui/menu/YouTubeSongMenu.kt")
         val item = menu.substringAfter("title = { Text(text = \"Menos de esto\") }").substringBefore("onDismiss()")
         assertTrue(item.contains("description = { Text(text = \"Se recomendará menos parecido a esto\") }"))
-        assertTrue(item.contains("store.softDislikeSong(song.id)"))
-        assertTrue(item.contains("SoftDislikeRank.artistKey(primary?.id, primary?.name)"))
-        assertTrue(item.contains("?.let { store.softDislikeArtist(it) }"))
+        assertTrue(item.contains("val artistKey = iad1tya.echo.music.reco.SoftDislikeRank.artistKey(primary?.id, primary?.name)"))
+        assertTrue(
+            "one edit carries both marks, on the process scope (the sheet's scope dies right after the click)",
+            item.contains("context.applicationScope.launch {") && item.contains(".softDislikeSongAndArtist(song.id, artistKey)"),
+        )
+        assertFalse("never the menu's composition scope", item.contains("coroutineScope.launch"))
+        val store = main("dislike/DislikeStore.kt")
+        val both = store.substringAfter("suspend fun softDislikeSongAndArtist(").substringBefore("\n    }\n")
+        assertTrue(both.contains("= mutate {"))
+        assertTrue(both.contains("softSongs = it.softSongs + songId"))
+        assertTrue(both.contains("softArtists = if (artistKey == null) it.softArtists else it.softArtists + artistKey"))
         assertFalse(
             "two taps would reject the artist from every continuation for 30 days (row 525: only queue-added songs count)",
             item.contains("ContinuationSkipMemory"),
