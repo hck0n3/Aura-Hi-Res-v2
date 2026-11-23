@@ -331,7 +331,8 @@ class ListenTogetherSession(
      * `capturedAtServerTime` is what lets a late-arriving PLAY still land on the right position:
      * the receiver advances [position] by however long the frame spent in flight, measured on the
      * SERVER's clock rather than its own. Sending 0 (an uncalibrated clock) is safe — the receiver
-     * treats it as "unknown" and uses the raw position.
+     * treats it as "unknown" and uses the raw position. It is taken here, when the command is issued next to the position it goes
+     * with, and the command then waits its turn in [outbox].
      */
     fun sendPlaybackAction(
         action: String,
@@ -340,10 +341,8 @@ class ListenTogetherSession(
         trackInfo: TrackInfo?,
         queue: List<TrackInfo> = emptyList(),
         queueTitle: String = "",
-    ) = launch {
-        val capturedAt = client.serverNow() ?: 0L
-        val sent = client.send(
-            MessageTypes.PLAYBACK_ACTION,
+    ) {
+        outbox.offer(
             PlaybackActionPayload(
                 action = action,
                 trackId = trackId,
@@ -355,14 +354,20 @@ class ListenTogetherSession(
                 // its own next song and the room splits one track later.
                 queue = queue,
                 queueTitle = queueTitle,
-                capturedAtServerTime = capturedAt,
+                capturedAtServerTime = client.serverNow() ?: 0L,
             ),
         )
-        if (sent) sentAnchor.updateAndGet { nextSentAnchor(it, action, position, capturedAt) }
     }
 
     /** Atomic: two sends completing at once must not lose one update (each is computed from the previous anchor). */
     private val sentAnchor = java.util.concurrent.atomic.AtomicReference<SentAnchor?>(null)
+
+    /** Every playback_action, track changes, play/pause, seeks and queues alike, goes out in the order it was issued (P2-5). */
+    private val outbox =
+        OrderedOutbox<PlaybackActionPayload>(this) { payload ->
+            val sent = client.send(MessageTypes.PLAYBACK_ACTION, payload)
+            if (sent) sentAnchor.updateAndGet { nextSentAnchor(it, payload.action, payload.position, payload.capturedAtServerTime) }
+        }
 
     /**
      * Where the host last told the room it was. Aura's server does not echo a host's own commands back to it (`broadcast(out, a.id)`
@@ -378,9 +383,8 @@ class ListenTogetherSession(
     fun sendQueue(
         tracks: List<TrackInfo>,
         queueTitle: String,
-    ) = launch {
-        client.send(
-            MessageTypes.PLAYBACK_ACTION,
+    ) {
+        outbox.offer(
             PlaybackActionPayload(
                 action = PlaybackActions.SYNC_QUEUE,
                 queue = tracks,
