@@ -33,11 +33,11 @@ aleatorio, estado «sonando ahora», comandos entre dispositivos y aislamiento e
 ## Protocolo (WebSocket JSON, `wss://…/sync?g=<sha256 hex>`)
 | Cliente → sala | Respuesta / reenvío |
 |---|---|
-| `{t:"hello", device:{id,name,kind}}` | `hello_ok {devices, now, serverTime}`; a los demás `devices` |
+| `{t:"hello", device:{id,name,kind}}` | `hello_ok {devices, now, nows, serverTime}`; a los demás `devices`. `nows`: el último «now» de cada dispositivo de los últimos 10 min; `now`: el mejor de ellos (el más reciente que suena; si ninguno suena, el más reciente), para las apps que solo conocen ese campo |
 | `{t:"shuffle", ctx, epoch, add:[ids], last}` | `shuffle_ack`; a los demás `shuffle` (solo lo nuevo; `reset:true` si cambió la vuelta); `shuffle_full` si el cliente iba atrasado |
 | `{t:"shuffle_get"}` | `shuffle_full {items:[{ctx,epoch,ids,last}]}` |
-| `{t:"now", state:{queue,index,positionMs,playing,…}}` | a los demás `now` |
-| `{t:"cmd", to, cmd, args}` | al dispositivo `to`: `cmd {from, cmd, args}`; si no está: `cmd_fail` |
+| `{t:"now", state:{queue,index,positionMs,playing,…}}` | a los demás `now`. La sala guarda uno por dispositivo. Un `now` en pausa de un dispositivo que no ha sonado en 10 min, mientras otro suena, se guarda marcado `stale` y no se reenvía ni se entrega |
+| `{t:"cmd", to, cmd, args}` | al dispositivo `to`: `cmd {from, cmd, args}` y al que la mandó `cmd_ok {to, cmd}`; si no está: `cmd_fail` |
 | `{t:"library", what}` | a los demás `library` |
 | `{t:"lib_push", ops:[[key, ts, value]…]}` | `lib_ack {seq, accepted}`; a los demás `lib_ops {seq}` (solo la señal). Gana el `ts` más reciente (empate: el valor mayor). Hasta 400 por mensaje |
 | `{t:"lib_pull", since}` | `lib_state {items, seq, head, more, reset}`: lo que cambió desde `since`, en páginas de 400; `reset` si el cliente va por delante de la sala |
