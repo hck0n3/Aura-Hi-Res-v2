@@ -1210,6 +1210,21 @@ interface DatabaseDao {
     fun playlistIdsContaining(songIds: List<String>): Flow<List<String>>
 
     /**
+     * Every playlist row that holds [songId], for the player's «Ir a la lista» (owner 2026-11-22). Unfiltered on purpose: which
+     * of them are the user's is decided in one tested place, `PlayerPlaylistRoute.isUsersPlaylist`. A Flow, so the chip follows
+     * an add or a removal while the player is open.
+     */
+    @Query(
+        """
+        SELECT DISTINCT playlist.* FROM playlist
+        INNER JOIN playlist_song_map ON playlist.id = playlist_song_map.playlistId
+        WHERE playlist_song_map.songId = :songId
+        ORDER BY playlist.name COLLATE NOCASE
+        """
+    )
+    fun playlistsContainingSong(songId: String): Flow<List<PlaylistEntity>>
+
+    /**
      * Row 505 (owner 2026-10-29): the NAMES of the library lists that hold [songId], for the download sheet — «esta canción ya
      * está descargada y está en estas listas». Only lists the user keeps (a removed list leaves a tombstone with a null
      * bookmark), alphabetical.
