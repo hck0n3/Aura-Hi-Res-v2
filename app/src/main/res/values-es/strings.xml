@@ -527,7 +527,7 @@
     <string name="share_song_link_title">Compartir con song.link</string>
     <string name="share_song_link_summary">La canción compartida se abre en Spotify, Apple Music, Deezer o donde la escuche quien la recibe</string>
     <string name="open_links_prompt_title">Abrir enlaces de música con Aura</string>
-    <string name="open_links_prompt_body">Aura abre enlaces de YouTube, YouTube Music y song.link. Android pide permitirlo una vez: toca «Permitir», activa «Abrir enlaces compatibles» y agrega todos los enlaces. Los de Spotify, Apple Music, Deezer, Tidal, SoundCloud y Amazon Music se activan uno a uno en Ajustes ▸ Contenido ▸ Abrir enlaces.</string>
+    <string name="open_links_prompt_body">Aura abre enlaces de YouTube, YouTube Music y song.link. Android pide permitirlo una vez: toca «Permitir», activa «Abrir enlaces compatibles» y agrega los de YouTube, YouTube Music y song.link. Los de Spotify, Apple Music, Deezer, Tidal, SoundCloud y Amazon Music se activan uno a uno en Ajustes ▸ Contenido ▸ Abrir enlaces; agrega sus enlaces solo después de activar ahí ese servicio.</string>
     <string name="open_links_prompt_allow">Permitir</string>
     <string name="open_links_prompt_later">Más tarde</string>
     <string name="external_link_searching">Buscándolo en YouTube Music…</string>
