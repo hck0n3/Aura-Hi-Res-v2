@@ -230,6 +230,25 @@ class ArtistViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    // «Tu biblioteca» on a YouTube artist's page (owner 2026-11-23): only liked songs and songs in the user's own
+    // playlists (DatabaseDao.artistPageLibrarySongs). [allLibrarySongs] stays the broad local catalogue on purpose:
+    // it is what a local-files artist and the offline fallback (`showLocal`) list and play, where downloads and
+    // device files must not disappear. Same explicit / video filters and order as [allLibrarySongs].
+    val artistPageLibrarySongs = context.dataStore.data
+        .map { (it[HideExplicitKey] ?: false) to ((it[HideVideoSongsKey] ?: false) || (it[DataSaverEnabledKey] ?: false)) }
+        .distinctUntilChanged()
+        .combine(libraryMatchName) { prefs, name -> prefs to name }
+        .flatMapLatest { (prefs, name) ->
+            val (hideExplicit, hideVideoSongs) = prefs
+            database.artistPageLibrarySongs(artistId, name)
+                .map { songs ->
+                    songs.filterExplicit(hideExplicit)
+                        .filterVideoSongsLocal(hideVideoSongs)
+                        .sortedByDescending { it.song.totalPlayTime }
+                }
+        }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     val librarySongs = allLibrarySongs
         .map { it.take(3) }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())

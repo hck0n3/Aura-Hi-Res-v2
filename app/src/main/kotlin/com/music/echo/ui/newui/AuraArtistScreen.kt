@@ -183,6 +183,8 @@ fun AuraArtistScreen(
     val artistPage = viewModel.artistPage
     val libraryArtist by viewModel.libraryArtist.collectAsState()
     val allLibrarySongs by viewModel.allLibrarySongs.collectAsState()
+    // Owner 2026-11-23: the online page's «Tu biblioteca» = liked songs + songs in his own playlists only.
+    val artistPageLibrarySongs by viewModel.artistPageLibrarySongs.collectAsState()
     val libraryAlbums by viewModel.libraryAlbums.collectAsState()
     val artistVideoUrl by viewModel.artistVideoUrl.collectAsState()
     val artistVideoSong by viewModel.artistVideoSong.collectAsState()
@@ -239,8 +241,8 @@ fun AuraArtistScreen(
     val fromYourLibraryTitle = stringResource(R.string.from_your_library)
     val yourLibraryTitle = stringResource(R.string.your_library)
     val latestReleaseTitle = stringResource(R.string.latest_release)
-    val filteredLibrarySongsYt = remember(allLibrarySongs, hideExplicit) {
-        if (hideExplicit) allLibrarySongs.filter { !it.song.explicit } else allLibrarySongs
+    val filteredLibrarySongsYt = remember(artistPageLibrarySongs, hideExplicit) {
+        if (hideExplicit) artistPageLibrarySongs.filter { !it.song.explicit } else artistPageLibrarySongs
     }
     // YouTube artist view: local "Tu biblioteca" preview is drawn when there is anything local.
     val showedLocalLibraryPreview = !showLocal && filteredLibrarySongsYt.isNotEmpty()

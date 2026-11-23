@@ -247,6 +247,38 @@ interface DatabaseDao {
     )
     fun artistLibraryOrLikedSongs(artistId: String, artistName: String): Flow<List<Song>>
 
+    /**
+     * «Tu biblioteca» on a YouTube artist's page (owner 2026-11-23): only what the user chose himself — songs he
+     * liked and songs in HIS playlists (created here, or saved to the library). Unlike [artistLibraryOrLikedSongs]
+     * it ignores the YouTube-library / Spotify-import `inLibrary` stamp, downloads, device files, the rows of a
+     * playlist only opened (auto-saved without `bookmarkedAt`) and the app's own recommendations playlist
+     * (`AutoRecoPlaylistWorker.PLAYLIST_ID`). Same name bridging as [artistLibraryOrLikedSongs].
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT DISTINCT song.* FROM song_artist_map
+        JOIN song ON song_artist_map.songId = song.id
+        JOIN artist ON artist.id = song_artist_map.artistId
+        WHERE (
+            song.liked = 1
+            OR EXISTS (
+                SELECT 1 FROM playlist_song_map
+                JOIN playlist ON playlist.id = playlist_song_map.playlistId
+                WHERE playlist_song_map.songId = song.id
+                  AND (playlist.bookmarkedAt IS NOT NULL OR playlist.browseId IS NULL OR playlist.isLocal = 1)
+                  AND playlist.id != 'AURA_AI_RECS'
+            )
+          )
+          AND (
+            song_artist_map.artistId = :artistId
+            OR (:artistName != '' AND LOWER(artist.name) = LOWER(:artistName))
+          )
+        ORDER BY COALESCE(song.inLibrary, song.likedDate)
+        """,
+    )
+    fun artistPageLibrarySongs(artistId: String, artistName: String): Flow<List<Song>>
+
     fun artistSongs(
         artistId: String,
         sortType: ArtistSongSortType,
