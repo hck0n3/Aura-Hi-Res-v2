@@ -655,7 +655,8 @@ fun AuraDownloadTick(
     modifier: Modifier = Modifier,
 ) {
     val downloadUtil = LocalDownloadUtil.current
-    val download by downloadUtil.getDownload(songId).collectAsState(initial = null)
+    val downloadFlow = remember(downloadUtil, songId) { downloadUtil.getDownload(songId) }
+    val download by downloadFlow.collectAsState(initial = null)
     val liveMap by downloadUtil.liveProgress.collectAsState()
     val progressFraction = liveMap[songId]?.takeIf { it >= 0f }?.let { (it / 100f).coerceIn(0f, 1f) }
     when (download?.state) {
