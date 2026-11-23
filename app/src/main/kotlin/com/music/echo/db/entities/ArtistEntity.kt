@@ -107,8 +107,8 @@ data class ArtistEntity(
     } else {
         // Re-following cancels any queued unsubscribe: the newest deliberate action wins.
         //
-        // `ytmSyncedAt` is dropped along with it, which is what makes a lost race REPAIRABLE. Each
-        // toggle fires its own unscoped coroutine below, so a fast unfollow/re-follow double-tap can
+        // `ytmSyncedAt` is dropped along with it, which is what makes a lost race REPAIRABLE. Calls now
+        // go out in tap order ([toggleLike], row 711), but before that a fast unfollow/re-follow could
         // land `subscribeChannel(false)` AFTER `subscribeChannel(true)`: YouTube ends up unsubscribed
         // while the row says followed. Keeping `ytmSyncedAt` would leave that row reading "in sync" —
         // `maySubscribe` false, `mayUnsubscribe` false — so nothing would ever notice, let alone fix
@@ -158,23 +158,63 @@ data class ArtistEntity(
     ) = localToggleLike().also { toggled ->
         CoroutineScope(Dispatchers.IO).launch {
             if (followedByUserAt == null) iad1tya.echo.music.utils.AccountPush.onUserFollowedArtist(id)
-            // Single source of truth for "does this tap reach the account?" — see the doc there. A
-            // local-only artist has no YouTube channel behind it; everything else does.
-            if (!iad1tya.echo.music.utils.ArtistSyncPolicy.mustCallAccountLive(this@ArtistEntity)) {
-                return@launch
-            }
-            // `followedByUserAt` here is still the value BEFORE the toggle: null means the user just
-            // followed (subscribe = true), non-null means they just unfollowed (subscribe = false).
-            // It is the ONLY valid discriminator — `bookmarkedAt` used to be stamped wholesale by a
-            // removed bulk statement, which made this call fire in the wrong direction for artists the
-            // user had never deliberately followed.
-            val subscribing = followedByUserAt == null
-            val targetChannelId = channelId ?: YouTube.getChannelId(id)
+        }
+        // Single source of truth for "does this tap reach the account?" — see the doc there. A
+        // local-only artist has no YouTube channel behind it; everything else does.
+        if (!iad1tya.echo.music.utils.ArtistSyncPolicy.mustCallAccountLive(this)) return@also
+        // `followedByUserAt` here is still the value BEFORE the toggle: null means the user just
+        // followed (subscribe = true), non-null means they just unfollowed (subscribe = false).
+        // It is the ONLY valid discriminator — `bookmarkedAt` used to be stamped wholesale by a
+        // removed bulk statement, which made this call fire in the wrong direction for artists the
+        // user had never deliberately followed.
+        val subscribing = followedByUserAt == null
+        // Row 711: submitted HERE, synchronously, so two opposite taps reach the queue in tap order and
+        // the account ends with the last one (an unordered pair could leave it subscribed after an
+        // unfollow). `toggled` is the row we are about to persist, so its `unfollowedByUserAt` is the
+        // exact timestamp the write-back must not overshoot.
+        accountCalls.submit(
+            iad1tya.echo.music.utils.ArtistSyncPolicy.channelKey(channelId ?: id),
+            AccountCall(this, subscribing, toggled.unfollowedByUserAt, onLiveUnsubscribeConfirmed),
+        )
+    }
+
+    /** One follow/unfollow tap on its way to the account ([toggleLike], row 711). */
+    private class AccountCall(
+        val artist: ArtistEntity,
+        val subscribing: Boolean,
+        val queuedAt: LocalDateTime?,
+        val onLiveUnsubscribeConfirmed: suspend (artistId: String, unfollowedAt: LocalDateTime) -> Unit,
+    )
+
+    /** Mark this artist as a deliberate follow without toggling anything (used by importers). */
+    fun markFollowedByUser(now: LocalDateTime = LocalDateTime.now()) = copy(
+        bookmarkedAt = bookmarkedAt ?: now,
+        followedByUserAt = followedByUserAt ?: now,
+        // A follow supersedes a queued unsubscribe; leaving the marker would make the reconciler
+        // undo the follow that just happened.
+        unfollowedByUserAt = null,
+    )
+
+    companion object {
+        fun generateArtistId() = "LA" + RandomStringUtils.insecure().next(8, true, false)
+
+        /** Row 711: one account call per channel at a time; the last tap wins ([LatestIntentQueue]). */
+        private val accountCalls = iad1tya.echo.music.utils.LatestIntentQueue<AccountCall>(
+            scope = CoroutineScope(Dispatchers.IO),
+            effectOf = { it.subscribing },
+            send = ::sendToAccount,
+            settle = ::retireHonouredUnfollow,
+        )
+
+        /** The live call for one tap. True only when YouTube accepted it. */
+        private suspend fun sendToAccount(call: AccountCall): Boolean {
+            val subscribing = call.subscribing
+            val targetChannelId = call.artist.channelId ?: YouTube.getChannelId(call.artist.id)
             if (targetChannelId.isEmpty()) {
                 // The channel could not be resolved (typically offline): the unfollow is still queued on the
                 // row, but nothing would carry it out soon. Arm the network-constrained retry.
                 if (!subscribing) iad1tya.echo.music.utils.AccountPush.onLiveArtistUnsubscribe(confirmed = false)
-                return@launch
+                return false
             }
             // Owner report 2026-09-22 (unconfirmed by static reading): liking/disliking a SONG
             // appears to also subscribe its artist. This call site is the explicit follow button and
@@ -188,36 +228,23 @@ data class ArtistEntity(
             } else {
                 iad1tya.echo.music.utils.AccountPush.onLiveArtistUnsubscribe(confirmedByAccount)
             }
-
-            // The instruction has been carried out, so it stops being an instruction. `toggled` is the
-            // row we are about to persist, so its `unfollowedByUserAt` is the exact timestamp the
-            // write-back must not overshoot: if the user has already unfollowed AGAIN while this call
-            // was in flight, that newer marker is undelivered and must survive.
-            val queuedAt = toggled.unfollowedByUserAt
-            if (queuedAt != null &&
-                iad1tya.echo.music.utils.ArtistSyncPolicy
-                    .liveCallHonouredTheUnfollow(subscribing, confirmedByAccount)
-            ) {
-                // Never let a database problem escape into this unsupervised coroutine: there is no
-                // CoroutineExceptionHandler here, so a throw would reach the thread's uncaught handler.
-                runCatching { onLiveUnsubscribeConfirmed(id, queuedAt) }
-            }
-            // Otherwise best-effort only. If this never reached YouTube (offline, expired cookie,
-            // unknown channelId) the row still carries the pending state, and LibraryUploadSync
-            // retries it once the subscription read-back confirms the account holds it.
+            return confirmedByAccount
         }
-    }
 
-    /** Mark this artist as a deliberate follow without toggling anything (used by importers). */
-    fun markFollowedByUser(now: LocalDateTime = LocalDateTime.now()) = copy(
-        bookmarkedAt = bookmarkedAt ?: now,
-        followedByUserAt = followedByUserAt ?: now,
-        // A follow supersedes a queued unsubscribe; leaving the marker would make the reconciler
-        // undo the follow that just happened.
-        unfollowedByUserAt = null,
-    )
-
-    companion object {
-        fun generateArtistId() = "LA" + RandomStringUtils.insecure().next(8, true, false)
+        /**
+         * The account is confirmed to hold this tap's effect, so the instruction stops being an instruction
+         * (row 107). Called by the queue ONLY after a confirmed call: a failure must leave the marker in place,
+         * because it is the retry: a call that never reached YouTube (offline, expired cookie, unknown
+         * channelId) leaves the row with its pending state, which LibraryUploadSync retries.
+         */
+        private suspend fun retireHonouredUnfollow(call: AccountCall) {
+            val queuedAt = call.queuedAt ?: return
+            if (iad1tya.echo.music.utils.ArtistSyncPolicy
+                    .liveCallHonouredTheUnfollow(call.subscribing, confirmedByAccount = true)
+            ) {
+                // Never let a database problem escape into this unsupervised coroutine.
+                runCatching { call.onLiveUnsubscribeConfirmed(call.artist.id, queuedAt) }
+            }
+        }
     }
 }
