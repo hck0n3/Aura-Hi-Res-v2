@@ -527,6 +527,13 @@ val ExportedVideoIdsKey = stringPreferencesKey("exportedVideoIds")
  * Used to share / reopen the file the user exported (not the YouTube stream).
  */
 val ExportedFileUrisKey = stringPreferencesKey("exportedFileUris")
+/**
+ * Row 694: how many entries [ExportedSongIdsKey], [ExportedVideoIdsKey] and [ExportedFileUrisKey] keep. Past it the
+ * OLDEST export silently leaves «Exportadas» and stops playing offline (its uri is gone), so it was raised from 1000.
+ * Cost, all in the settings DataStore that every edit rewrites: ~12 B per id and ~175 B per SAF uri entry, i.e. about
+ * 1 MB only for someone who really has 5000 exported files (tens of GB of MP3s); nothing for everybody else.
+ */
+const val ExportedEntriesCap = 5_000
 /** Set of deleted playlist browseIds so remote sync does not re-import them */
 val SuppressedPlaylistIdsKey = stringPreferencesKey("suppressedPlaylistIds")
 val EnableExportAsMp3Key = booleanPreferencesKey("enableExportAsMp3")

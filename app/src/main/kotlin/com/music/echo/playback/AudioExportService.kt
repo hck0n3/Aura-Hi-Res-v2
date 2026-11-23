@@ -32,6 +32,7 @@ import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.AudioQuality
 import iad1tya.echo.music.constants.ExportingSongIdsKey
 import iad1tya.echo.music.constants.ExportedFileUrisKey
+import iad1tya.echo.music.constants.ExportedEntriesCap
 import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.db.MusicDatabase
@@ -1061,7 +1062,7 @@ class AudioExportService : Service() {
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
             val updated = listOf(songId) + current.filterNot { it == songId }
-            preferences[ExportedSongIdsKey] = updated.take(1000).joinToString(",")
+            preferences[ExportedSongIdsKey] = updated.take(ExportedEntriesCap).joinToString(",")
         }
     }
 
@@ -1072,7 +1073,7 @@ class AudioExportService : Service() {
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
             val updated = listOf(songId) + current.filterNot { it == songId }
-            preferences[ExportedVideoIdsKey] = updated.take(1000).joinToString(",")
+            preferences[ExportedVideoIdsKey] = updated.take(ExportedEntriesCap).joinToString(",")
         }
         // So Biblioteca ▸ Vídeos exportados / tap-to-watch arms video mode + expands the player.
         runCatching {
@@ -1104,7 +1105,7 @@ class AudioExportService : Service() {
             map.remove(songId)
             // Newest first; cap entries.
             val ordered = linkedMapOf(songId to uri)
-            map.entries.take(999).forEach { (k, v) -> ordered[k] = v }
+            map.entries.take(ExportedEntriesCap - 1).forEach { (k, v) -> ordered[k] = v }
             preferences[ExportedFileUrisKey] = ordered.entries.joinToString("\u001E") { (id, u) ->
                 "$id\u001F$u"
             }

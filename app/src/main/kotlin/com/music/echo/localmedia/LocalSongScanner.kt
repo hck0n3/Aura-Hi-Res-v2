@@ -30,6 +30,7 @@ import iad1tya.echo.music.db.entities.SongAlbumMap
 import iad1tya.echo.music.db.entities.SongArtistMap
 import iad1tya.echo.music.db.entities.SongEntity
 import androidx.datastore.preferences.core.edit
+import iad1tya.echo.music.constants.ExportedEntriesCap
 import iad1tya.echo.music.constants.ExportedFileUrisKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.utils.dataStore
@@ -344,8 +345,8 @@ constructor(
                     currentVideoIds.add(vt.id)
                     currentUrisMap[vt.id] = vt.id
                 }
-                prefs[ExportedVideoIdsKey] = currentVideoIds.take(1000).joinToString(",")
-                prefs[ExportedFileUrisKey] = currentUrisMap.entries.take(1000).joinToString("\u001E") { "${it.key}\u001F${it.value}" }
+                prefs[ExportedVideoIdsKey] = currentVideoIds.take(ExportedEntriesCap).joinToString(",")
+                prefs[ExportedFileUrisKey] = currentUrisMap.entries.take(ExportedEntriesCap).joinToString("\u001E") { "${it.key}\u001F${it.value}" }
             }
         }
 
