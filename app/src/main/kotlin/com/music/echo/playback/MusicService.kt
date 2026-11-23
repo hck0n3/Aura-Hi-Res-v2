@@ -1698,20 +1698,19 @@ class MusicService :
     }
 
     /**
-     * Row 734 (UX audit P22C: «corta la música de golpe»): ramps the volume to 0 until [deadline], then pauses. Only
-     * while something is audible; a paused player just fires. The `finally` gives the user's volume back (mute-aware)
-     * whether the timer fired or was turned off / extended mid-fade, so the next play is never left silent.
+     * Row 734 (UX audit P22C: «corta la música de golpe»): ramps the volume to 0 until [deadline], then pauses.
+     * It always runs to the deadline, whatever the play state: a buffering or paused player is never stopped 10 s
+     * early. The `finally` gives the user's volume back (mute-aware) whether the timer fired or was turned off /
+     * extended mid-fade, so the next play is never left silent.
      */
     private suspend fun fadeOutAndFireSleepTimer(deadline: Long) {
         val startVolume = player.volume
         try {
-            if (player.isPlaying && startVolume > 0f) {
-                for (step in 1..SleepTimerMath.STEPS) {
-                    val left = deadline - android.os.SystemClock.elapsedRealtime()
-                    if (left <= 0L) break
-                    player.volume = startVolume * SleepTimerMath.stepGain(step)
-                    delay(SleepTimerMath.stepDelayMs(left, step))
-                }
+            for (step in 1..SleepTimerMath.STEPS) {
+                val left = deadline - android.os.SystemClock.elapsedRealtime()
+                if (left <= 0L) break
+                player.volume = startVolume * SleepTimerMath.stepGain(step)
+                delay(SleepTimerMath.stepDelayMs(left, step))
             }
             fireSleepTimer()
         } finally {

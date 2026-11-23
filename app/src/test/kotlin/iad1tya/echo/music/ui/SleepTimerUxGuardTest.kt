@@ -25,7 +25,7 @@ class SleepTimerUxGuardTest {
         assertTrue(timer.contains("SleepTimerMath.waitBeforeFadeMs(deadline - android.os.SystemClock.elapsedRealtime())"))
         assertTrue(timer.contains("fadeOutAndFireSleepTimer(deadline)"))
         assertTrue(timer.contains("player.volume = startVolume * SleepTimerMath.stepGain(step)"))
-        assertTrue("solo se funde lo que suena", timer.contains("if (player.isPlaying && startVolume > 0f)"))
+        assertFalse("nunca dispara 10 s antes por estar en búfer o en pausa", timer.contains("player.isPlaying"))
         val fin = timer.substring(timer.indexOf("} finally {"))
         assertTrue("el volumen vuelve siempre, también al apagar o alargar a mitad del fundido",
             fin.contains("player.volume = if (isMuted.value) 0f else playerVolume.value"))
