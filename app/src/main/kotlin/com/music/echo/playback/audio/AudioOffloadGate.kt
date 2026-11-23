@@ -20,16 +20,18 @@ import iad1tya.echo.music.eq.audio.EqBypass
  * WHAT COUNTS AS "LIVE", verified against the native bridge (`SuperpoweredBridge.cpp`, `processAudio`)
  * rather than against the settings screen:
  *
- *  - The whole DSP block is skipped — pure memcpy passthrough — when
- *    `!runEq && !activeSafeVolumeEnabled && safeVolumeGainCurrent == 1.0f && !activeSpatialEnabled`.
+ *  - The whole DSP block (`runChain`) is skipped — pure memcpy passthrough — when the EQ is off,
+ *    Safe Volume is off and back at unity (`safeVolumeGainCurrent == 1.0f`), and spatial, the Tidal
+ *    signature, the glue compressor, speaker bass protection and stereo width are all inactive.
  *    That is the ONLY state in which playback is bit-identical, and it is precisely the state this
  *    gate opens on.
- *  - `runEq` is [Inputs.equalizerActive]. Note what rides inside it: the EQ bands, the preamp
- *    (`frontGain = activePreampMultiplier`, applied only inside the block), the DE-ESSER (nested
- *    inside the `runEq` branch), the -3 dBFS limiter and the 0.95 soft-clip knee. So a single "is an
- *    EQ profile applied" term already covers the preamp and the de-esser; there is no separate
- *    toggle for either, and a FLAT profile still enables the de-esser, which is why "profile present"
- *    (not "profile audibly non-flat") is the honest term.
+ *  - `runEq` is [Inputs.equalizerActive]. Note what rides on it: the EQ bands, the preamp
+ *    (`frontGain = activePreampMultiplier`, applied whenever the block runs; `disable()` sets it to
+ *    0 dB with the EQ off) and the DE-ESSER (nested inside the `runEq` branch). The limiter
+ *    (threshold -3 dB, ceiling -0.3 dBFS) and the 0.97 soft-clip knee run whenever the block runs. So
+ *    a single "is an EQ profile applied" term already covers the preamp and the de-esser; there is no
+ *    separate toggle for either, and a FLAT profile still enables the de-esser, which is why "profile
+ *    present" (not "profile audibly non-flat") is the honest term.
  *  - Safe Volume is its own native stage plus the limiter, so it vetoes on its own.
  *  - Crossfade needs two live ExoPlayers, per-buffer gain ramps AND the sink-level PCM tap that the
  *    level-based segue reads — none of which exist on a stream that reaches the sink still encoded.

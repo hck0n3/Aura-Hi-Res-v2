@@ -2171,7 +2171,8 @@ class MusicService :
         // whatever he had set, silently, so the value he found depended on whether he had touched that
         // switch since the last time he looked.
         //
-        // The safety intent is kept — a big boost still comes down when the limiter goes away — but it
+        // The safety intent is kept — a big boost still comes down when Safe Volume's levelling goes away
+        // (the limiter itself keeps running with the EQ) — but it
         // lands on the tuning this player ships with instead of on silence-flat. Dropping to 0.0 was never
         // the safe choice anyway: it makes the app suddenly quieter than every other player on the phone,
         // which is exactly the surprise the reset existed to avoid, only pointing the other way.

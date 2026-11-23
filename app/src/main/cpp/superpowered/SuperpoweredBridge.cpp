@@ -878,7 +878,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setSafeVolume(JNI
     // stayed quiet forever. (The Kotlin side computed the makeup correctly but handed it to a dead stub
     // processor, so nothing applied it either; both halves are fixed together.)
     //
-    // Boosting is safe here because the limiter below runs for Safe Volume too (ceiling -1 dBFS,
+    // Boosting is safe here because the limiter below runs for Safe Volume too (ceiling -0.3 dBFS,
     // threshold -3 dB) and catches the resulting peaks — that is the documented design. The ceiling
     // matches loudnessMakeupDb's +12 dB cap; anything beyond that is a bug upstream, not a louder track.
     // CLAMP, never fall back to unity: an out-of-range value must become a bounded gain, not a sudden jump
@@ -1173,8 +1173,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         //
         // Safe Volume is deliberately NOT folded in here — it runs as its own stage AFTER the EQ bands
         // (see below). Putting it at the front compounds with the band gains, and the preamp
-        // auto-headroom in CustomEqualizerAudioProcessor (which trims the preamp by the positive EQ boost
-        // on the premise that the limiter absorbs ~1.5 dB transparently) has no knowledge of it — so a
+        // auto-headroom in CustomEqualizerAudioProcessor (opt-in, off by default: it trims the preamp by the
+        // cascade's peak boost, EqResponse.peakBoostDb) has no knowledge of it — so a
         // quiet track's makeup, a preamp and a boost preset would stack straight into the limiter. That
         // is worst exactly on DYNAMIC masters (classical/jazz/hi-res): low integrated loudness means a
         // large makeup while peaks already sit near full scale, so the limiter would ride ~10 dB of gain
@@ -1230,20 +1230,21 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // about is added upstream of the bands).
         //
         // Levels in BOTH directions: attenuates loud masters and brings quiet ones up toward the reference,
-        // which is what makes a library play at one consistent volume. The makeup side is capped at +3 dB
-        // upstream (loudnessMakeupDb) — deliberately NOT the historical +12, which was validated against a
-        // STATIC tanh knee that cannot pump, whereas the limiter below rides gain with a 0.1 s release.
+        // which is what makes a library play at one consistent volume. The makeup side is capped at +12 dB
+        // upstream (loudnessMakeupDb maxBoostDb, row 152) and again here by kMaxSafeVolumeGain (x4); the
+        // limiter below rides the resulting peaks with a 0.05 s release.
         //
         // Applied through a RAMP, never as a step: the target can change mid-song (the sanctioned
         // real-loudness-arrived upgrade, or the user toggling Safe Volume), and an instantaneous multiplier
         // change is exactly the audible level jump this feature exists to avoid.
         if (processor->activeSafeVolumeEnabled || processor->safeVolumeGainCurrent != 1.0f) {
             float target = processor->activeSafeVolumeEnabled ? processor->activeSafeVolumeGain : 1.0f;
-            // MONO: never amplify. The limiter below is stereo-only, so a boost here would have nothing but
-            // the 0.95 tanh knee between it and audible distortion — and that knee is a hard clipper above
-            // ~1.5x, not a limiter. ATTENUATION stays allowed (it cannot clip), so a loud mono master is
-            // still tamed; only the makeup is withheld. Stereo — what this player is actually used for —
-            // gets the full two-way levelling.
+            // NOT STEREO: never amplify. Written when the limiter was stereo-only; mono now goes through it
+            // as dual-mono (below), but more than two channels still skip it and would have only the 0.97
+            // soft clip (bounded, but it saturates) after a boost. The conservative clamp is kept for both.
+            // ATTENUATION stays allowed (it cannot clip), so a loud mono master is still tamed; only the
+            // makeup is withheld. Stereo — what this player is actually used for — gets the full two-way
+            // levelling.
             //
             // NOTE this clamps ONLY the Safe Volume gain. An earlier version clamped the combined FRONT gain,
             // which silently swallowed the user's EQ preamp on mono (a +3 dB preamp became 0 dB) — a change
