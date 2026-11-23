@@ -1472,8 +1472,9 @@ interface DatabaseDao {
     }.map { it.reversed(descending) }
 
     @Transaction
+    @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
     @Query(
-        "SELECT * FROM song WHERE (title LIKE '%' || :query || '%' OR EXISTS(SELECT 1 FROM song_artist_map JOIN artist ON artist.id = song_artist_map.artistId WHERE song_artist_map.songId = song.id AND artist.name LIKE '%' || :query || '%')) AND (inLibrary IS NOT NULL OR liked = 1 OR isLocal = 1) ORDER BY (title LIKE '%' || :query || '%') DESC, song.rowid LIMIT :previewSize",
+        "SELECT * FROM (SELECT * FROM (SELECT *, 0 AS searchRank, song.rowid AS searchRowId FROM song WHERE (inLibrary IS NOT NULL OR liked = 1 OR isLocal = 1) AND title LIKE '%' || :query || '%' ORDER BY song.rowid LIMIT :previewSize) UNION ALL SELECT * FROM (SELECT *, 1 AS searchRank, song.rowid AS searchRowId FROM song WHERE (inLibrary IS NOT NULL OR liked = 1 OR isLocal = 1) AND NOT (title LIKE '%' || :query || '%') AND EXISTS(SELECT 1 FROM song_artist_map JOIN artist ON artist.id = song_artist_map.artistId WHERE song_artist_map.songId = song.id AND artist.name LIKE '%' || :query || '%') ORDER BY song.rowid LIMIT :previewSize)) ORDER BY searchRank, searchRowId LIMIT :previewSize",
     )
     fun searchSongs(
         query: String,
