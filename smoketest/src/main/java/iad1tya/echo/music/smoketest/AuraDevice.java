@@ -251,13 +251,15 @@ final class AuraDevice {
     }
 
     /**
-     * Walks whatever first-run surface is in the way (the onboarding's hard-coded Spanish buttons, the welcome tour,
-     * the one-shot "open links" prompt) until Home is on screen with its bar and nothing new has popped up for 7 s
-     * (the links prompt waits 4 s after the tour closes).
+     * Walks whatever first-run surface is in the way (the blocking Terms & Conditions screen's «Aceptar y continuar»,
+     * the onboarding's hard-coded Spanish buttons, the welcome tour, the one-shot "open links" prompt) until Home is on
+     * screen with its bar and nothing new has popped up for 7 s (the links prompt waits 4 s after the tour closes).
      */
     void settleOnHome(long timeoutMs) {
+        UiLabel acceptTerms = appString("terms_accept", "Accept and continue");
         UiLabel later = appString("open_links_prompt_later", "Later");
-        Pattern steps = Pattern.compile("\\s*(Omitir|Siguiente: YouTube Music|Comenzar|" + later.regex() + ")\\s*");
+        Pattern steps = Pattern.compile("\\s*(" + acceptTerms.regex()
+                + "|Omitir|Siguiente: YouTube Music|Comenzar|" + later.regex() + ")\\s*");
         long deadline = SystemClock.uptimeMillis() + timeoutMs;
         long quietSince = SystemClock.uptimeMillis();
         while (SystemClock.uptimeMillis() < deadline) {

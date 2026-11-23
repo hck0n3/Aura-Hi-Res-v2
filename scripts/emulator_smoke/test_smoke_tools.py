@@ -141,8 +141,18 @@ class AppLiteralsTest(unittest.TestCase):
         text = "".join(_read("app", "src", "main", "res", "values", n) for n in sorted(os.listdir(values)) if n.endswith(".xml"))
         for name in ["home", "filter_library", "search", "tab_novedades", "account", "appearance", "filter_local",
                      "local_songs_empty_scan_action", "local_songs_scan_title", "scan_device", "scanning_device",
-                     "open_links_prompt_later", "create_playlist", "filter_playlists"]:
+                     "open_links_prompt_later", "create_playlist", "filter_playlists", "terms_accept"]:
             self.assertIn('<string name="%s">' % name, text, name)
+
+    def test_terms_gate_is_walked_by_its_accept_label(self):
+        # A fresh install renders TermsGate's acceptance screen INSTEAD of the app (first emulator run, 2026-11-23:
+        # every scenario stuck on it). settleOnHome must tap the same resource the screen shows.
+        terms = _read("app", "src", "main", "kotlin", "com", "music", "echo", "legal", "TermsScreens.kt")
+        self.assertIn("stringResource(R.string.terms_accept)", terms)
+        main = _read("app", "src", "main", "kotlin", "com", "music", "echo", "MainActivity.kt")
+        self.assertIn("iad1tya.echo.music.legal.TermsGate {", main)
+        device = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest", "AuraDevice.java")
+        self.assertIn('appString("terms_accept"', device)
 
     def test_labels_are_looked_up_in_the_language_the_app_seeds(self):
         # A fresh install stores AppLanguageKey = es-419 and MainActivity applies it from the next cold start, so the

@@ -21,6 +21,10 @@ public class StreamingSmokeTest {
         AuraDevice aura = new AuraDevice();
         String arg = InstrumentationRegistry.getArguments().getString("auraStreamVideoId");
         String videoId = arg == null || arg.isEmpty() ? DEFAULT_VIDEO_ID : arg;
+        // Phase 2 can stop half way and leave a never-opened install: the Terms gate renders INSTEAD of the app, so the
+        // link is never handled (first emulator run, 2026-11-23). Get past the first run like a user before the link.
+        aura.launchCold();
+        aura.settleOnHome(180_000);
         aura.shell("am start -W -a android.intent.action.VIEW -d https://music.youtube.com/watch?v=" + videoId
                 + " -n " + aura.target + "/" + AuraDevice.MAIN_ACTIVITY);
         try (SessionProbe probe = SessionProbe.connect(aura)) {

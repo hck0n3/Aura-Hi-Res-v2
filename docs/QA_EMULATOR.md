@@ -42,12 +42,12 @@ defecto de la app cambia, `test_smoke_tools.py` falla antes de gastar un emulado
 
 | # | Escenario | Clase | Pasa si… |
 |---|---|---|---|
-| 1 | **Arranque en frío** (primera vez tras instalar) | `ColdStartTest` | `am start` termina bien, se atraviesa la bienvenida (los «Omitir» / «Siguiente: YouTube Music» / «Comenzar» del onboarding, el tour y el aviso de enlaces) y se llega a Inicio con su barra, sin cierre ni ANR. |
+| 1 | **Arranque en frío** (primera vez tras instalar) | `ColdStartTest` | `am start` termina bien, se atraviesa la primera vez como un usuario (la pantalla de **Términos y condiciones** con «Aceptar y continuar», los «Omitir» / «Siguiente: YouTube Music» / «Comenzar» del onboarding, el tour y el aviso de enlaces) y se llega a Inicio con su barra, sin cierre ni ANR. |
 | 2 | **Navegación** | `NavigationTest` | Biblioteca (con su tarjeta «Local»), Buscar (con su campo de texto), Novedades y Ajustes (cog de arriba ▸ «Ajustes» ▸ lista con «Apariencia») abren, se ven y se vuelve atrás con la app viva. |
 | 3 | **Música local** | `LocalPlaybackTest` | Un tono de 90 s que el workflow deja en `/sdcard/Music` lo importa el **escaneo de la propia app** (Biblioteca ▸ Local ▸ «Escanear dispositivo»), suena al tocarlo, la sesión dice `STATE_READY` + `isPlaying` y la posición avanza (≥ 4,5 s en 7 s). |
 | 4 | **Sin conexión** | `OfflinePlaybackTest` | Con el tono sonando se cortan modo avión + Wi-Fi + datos (y se **comprueba** que el emulador se quedó sin red; si no, la prueba falla en vez de aprobar en falso); la misma canción sigue sonando y avanza ≥ 7 s en 10 s, sin cierres. La red vuelve siempre al terminar. |
 | 5 | **Actualizar sin perder datos** | `UpdateSurvivalTest` | Se instala la versión ANTERIOR, se crea la lista «Aura smoke playlist» desde la Biblioteca, se instala la nueva encima (`adb install -r`, misma firma) y la lista sigue en Biblioteca ▸ Listas. Además se copia la base de datos (`song.db`) antes y después: la lista tiene que estar en las dos y la versión de la base tiene que ser la nueva (la migración corrió). |
-| 6 | **Streaming** (puede fallar) | `StreamingSmokeTest` | La canción `stream_video_id`, abierta por el enlace `music.youtube.com/watch?v=…` de la propia app, llega a sonar y avanza. **Permitido fallar**: YouTube suele rechazar las IP de centros de datos; un fallo sale como `WARN`, no pone el job en rojo. |
+| 6 | **Streaming** (puede fallar) | `StreamingSmokeTest` | Tras abrir la app y pasar su primera vez (si la fase 5 se quedó a medias, la instalación aún tiene los Términos delante), la canción `stream_video_id`, abierta por el enlace `music.youtube.com/watch?v=…` de la propia app, llega a sonar y avanza. **Permitido fallar**: YouTube suele rechazar las IP de centros de datos; un fallo sale como `WARN`, no pone el job en rojo. |
 
 Además, en cada fase se lee el logcat: **cualquier cierre (`FATAL EXCEPTION`, también de sus subprocesos) o ANR del
 paquete de la app** cuenta como fallo de la versión nueva (en la fase de la versión anterior solo avisa).
@@ -84,6 +84,13 @@ En la ejecución, el resumen (*Summary*) trae la tabla de escenarios. El artefac
 
 ## Limitaciones conocidas (honestas)
 
+- **Primera ejecución (run 45180915915, 2026-11-23): todo rojo por la prueba, no por la app.** Ningún cierre ni ANR
+  en el logcat de ninguna fase; las capturas de cada fallo (`captures/FAIL-*.png`, `screen-6-streaming.png`) muestran
+  la pantalla bloqueante de **Términos y condiciones** (`legal/TermsScreens.kt`, `TermsGate` envuelve toda la app),
+  primero en inglés («Accept and continue») y desde el segundo arranque en es-419 («Aceptar y continuar»), sin tocar.
+  `AuraDevice.settleOnHome` no la conocía. Ahora la acepta con el mismo recurso que la pinta (`terms_accept`), y el
+  escenario 6 pasa antes por la primera vez. Lo que hay DETRÁS de los Términos (onboarding, tour, aviso de enlaces,
+  Inicio) todavía no se ha visto en el emulador: lo dirá la siguiente ejecución.
 - **`[NO VERIFICADO]` hasta la primera ejecución en GitHub.** El agente que lo escribió no tiene KVM ni puede llegar a
   YouTube, y por norma no corre Gradle en el contenedor compartido. Lo comprobado aquí: las pruebas Java compilan
   contra `android.jar` 36 y las librerías exactas que declara `smoketest/build.gradle.kts`; las herramientas del
@@ -97,7 +104,8 @@ En la ejecución, el resumen (*Summary*) trae la tabla de escenarios. El artefac
 - El escenario 5 depende de que la versión anterior compile en el runner (tag antiguo con dependencias que ya no
   existan, por ejemplo). Si no compila, el escenario sale en rojo con ese motivo y los demás siguen.
 - El onboarding usa textos en español escritos en el código («Omitir», «Comenzar»…): si cambian, hay que cambiar
-  `AuraDevice.settleOnHome` a la vez.
+  `AuraDevice.settleOnHome` a la vez. Si se añade otra pantalla de primera vez delante de Inicio (como la de
+  Términos), también: `test_smoke_tools.py` vigila las que ya conoce.
 
 ## Pendiente (decisión del dueño)
 
