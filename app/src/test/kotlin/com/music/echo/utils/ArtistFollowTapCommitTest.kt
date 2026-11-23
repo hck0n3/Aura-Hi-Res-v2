@@ -112,4 +112,26 @@ class ArtistFollowTapCommitTest {
         val dao = main("db/DatabaseDao.kt")
         assertTrue(dao.contains("fun artistEntitiesByIdsInTransaction(ids: List<String>): List<ArtistEntity>"))
     }
+
+    @Test
+    fun `the library artist menu is the shared alias-aware tap, one at a time`() {
+        val menu = main("ui/menu/ArtistMenu.kt")
+        assertTrue(menu.contains("database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id))"))
+        assertTrue(menu.contains("if (followInFlight.compareAndSet(false, true)) {"))
+        assertTrue(menu.contains("database.toggleArtistFollow(artist.id, artist.artist, shownFollowed = shownFollowed)"))
+        assertTrue(menu.contains("context.applicationScope.launch(Dispatchers.IO) {"))
+        assertFalse("its own alias-blind toggle came back", menu.contains(".toggleLike("))
+        assertFalse(menu.contains("artist.artist.followedByUserAt != null) stringResource"))
+    }
+
+    @Test
+    fun `every artist follow tap in the app goes through the shared toggle`() {
+        val offenders = File(root, "app/src/main/kotlin").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { it.name != "ArtistFollowToggle.kt" && it.name != "ArtistEntity.kt" }
+            .filter { "toggleLike(database::confirmArtistUnsubscribed)" in it.readText() || "toggleLike(env.database::confirmArtistUnsubscribed)" in it.readText() || "toggleLike(db::confirmArtistUnsubscribed)" in it.readText() }
+            .map { it.name }
+            .toList()
+        assertTrue("artist toggles outside toggleArtistFollow: $offenders", offenders.isEmpty())
+    }
 }
