@@ -894,6 +894,7 @@ private fun AuraPlayerShape(
     var pendingFollow by remember { mutableStateOf<PendingPlayerFollow?>(null) }
     LaunchedEffect(mediaMetadata?.id) { pendingFollow = null }
     val followArtistFromPlayer: (MediaMetadata.Artist, Boolean) -> Unit = { artist, shownFollowed ->
+        ActionLog.tap(ActionId.PLR_SUBSCRIBE)
         val key = PlayerArtistFollow.key(artist)
         val songId = mediaMetadata?.id
         if (songId != null && followInFlight.add(key)) {
@@ -986,7 +987,7 @@ private fun AuraPlayerShape(
                     AuraChip(
                         text = stringResource(if (followed) R.string.subscribed else R.string.subscribe),
                         selected = followed,
-                        onClick = { ActionLog.tap(ActionId.PLR_SUBSCRIBE_ROW); followArtistFromPlayer(artist, followed) },
+                        onClick = { followArtistFromPlayer(artist, followed) },
                         firstTap = true,
                     )
                 }
@@ -1821,7 +1822,7 @@ private fun AuraPlayerShape(
                                     AuraChip(
                                         text = stringResource(if (followed) R.string.subscribed else R.string.subscribe),
                                         selected = followed,
-                                        onClick = { ActionLog.tap(ActionId.PLR_SUBSCRIBE); followArtistFromPlayer(artist, followed) },
+                                        onClick = { followArtistFromPlayer(artist, followed) },
                                         firstTap = true,
                                     )
                                 } else if (followable.isNotEmpty()) {

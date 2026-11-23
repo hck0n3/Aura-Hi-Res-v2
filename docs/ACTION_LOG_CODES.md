@@ -33,9 +33,8 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 | `UI.PLR.LIKE` | Corazón junto al título |
 | `UI.PLR.VIEW_ALBUM` | Chip «Ver álbum» |
 | `UI.PLR.VIEW_ARTIST` | Chip «Ver artista» |
-| `UI.PLR.SUBSCRIBE` | Chip «Suscribirme» (un artista) |
+| `UI.PLR.SUBSCRIBE` | «Suscribirme» de un artista: el chip (un artista) o su fila en el diálogo (si justo antes hay un `UI.PLR.SUBSCRIBE_PICK`) |
 | `UI.PLR.SUBSCRIBE_PICK` | Chip «Suscribirme» con varios artistas (abre el diálogo) |
-| `UI.PLR.SUBSCRIBE_ROW` | «Suscribirme» de un artista dentro de ese diálogo |
 | `UI.PLR.SUBSCRIBE_CONFIRM` | «Suscribirse» en «¿Suscribirte a <canal>?» |
 | `UI.PLR.GO_PLAYLIST` | Chip «Ir a la lista» |
 | `UI.PLR.PLAYLIST_PICK` | Elegir una de mis listas en el diálogo de «Ir a la lista» |
