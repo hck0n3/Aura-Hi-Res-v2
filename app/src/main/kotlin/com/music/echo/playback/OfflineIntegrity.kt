@@ -60,9 +60,13 @@ internal object OfflineIntegrity {
         anyBytes: Set<String>,
     ): OfflinePlan {
         val mark = bytesComplete.filterTo(linkedSetOf()) { it !in roomDownloaded && indexState[it] !in PENDING }
+        // The COMPLETED-without-bytes rule needs proof the cache itself is readable: a download cache that failed to open
+        // reads as "no keys, no spans" for EVERY song while Media3's index still says COMPLETED — un-listing on that would
+        // empty "Descargadas" for a fault that the next start may not have. Some bytes on disk = the cache works.
+        val cacheReadable = anyBytes.isNotEmpty()
         val unmark = roomDownloaded.filterTo(linkedSetOf()) { id ->
             id !in bytesComplete && id !in anyBytes &&
-                (indexState[id] == null || indexState[id] == Download.STATE_COMPLETED)
+                (indexState[id] == null || (cacheReadable && indexState[id] == Download.STATE_COMPLETED))
         }
         return OfflinePlan(markDownloaded = mark, unmarkDownloaded = unmark)
     }

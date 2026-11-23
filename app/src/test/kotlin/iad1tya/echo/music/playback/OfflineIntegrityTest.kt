@@ -84,6 +84,21 @@ class OfflineIntegrityTest {
         assertEquals(setOf("phantom"), later.markDownloaded)
     }
 
+    /**
+     * Review 2026-11-23: a download cache that failed to open reads as "no keys, no spans" for every song while Media3's
+     * index still says COMPLETED. Without proof the cache works, the COMPLETED rule must not empty "Descargadas".
+     */
+    @Test
+    fun `completed records are never un-listed when the cache shows no bytes at all`() {
+        val plan = OfflineIntegrity.plan(
+            roomDownloaded = setOf("a", "b"),
+            indexState = mapOf("a" to Download.STATE_COMPLETED, "b" to Download.STATE_COMPLETED),
+            bytesComplete = emptySet(),
+            anyBytes = emptySet(),
+        )
+        assertTrue(plan.unmarkDownloaded.isEmpty())
+    }
+
     @Test
     fun `a failed or stopped record without bytes keeps its flag, as before`() {
         val plan = OfflineIntegrity.plan(
