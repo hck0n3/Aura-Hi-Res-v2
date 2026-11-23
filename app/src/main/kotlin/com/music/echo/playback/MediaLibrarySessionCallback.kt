@@ -340,8 +340,12 @@ constructor(
 
                     MusicService.PLAYLIST -> {
                         val likedSongCount = database.likedSongsCount().first()
-                        val downloadedSongCount = downloadUtil.downloads.value.size
-                        val youtubePlaylists = try {
+                        // Registry 786: the count matches the list it opens (only finished downloads), and offline (manual switch or
+                        // the playback offline session) browsing the root makes no network call.
+                        val downloadedSongCount = downloadUtil.downloads.value.values.count { it.state == Download.STATE_COMPLETED }
+                        val offline = PlaybackOfflineSession.isActive ||
+                            (context.dataStore.data.first()[iad1tya.echo.music.constants.OfflineModeKey] ?: false)
+                        val youtubePlaylists = if (offline) emptyList<PlaylistItem>() else try {
                             YouTube.home().getOrNull()?.sections
                                 ?.flatMap { it.items }
                                 ?.filterIsInstance<PlaylistItem>()
