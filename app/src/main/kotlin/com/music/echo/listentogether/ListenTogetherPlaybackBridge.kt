@@ -1207,9 +1207,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     private suspend fun holdAtStart(
         service: MusicService,
         hold: SyncStart,
-    ) = onMain {
-        val player = runCatching { service.player }.getOrNull() ?: return@onMain
-        if (player.currentMediaItem?.mediaId != hold.trackId) return@onMain
+    ) = remoteOnMain {
+        val player = runCatching { service.player }.getOrNull() ?: return@remoteOnMain
+        if (player.currentMediaItem?.mediaId != hold.trackId) return@remoteOnMain
         remoteDepth.incrementAndGet()
         try {
             if (session.state.value.isHost) hostHoldingForStart = true
@@ -1229,16 +1229,16 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         service: MusicService,
         hold: SyncStart,
         fromPosition: Long?,
-    ): Boolean = onMain {
+    ): Boolean = remoteOnMain {
         val hosting = session.state.value.isHost
         val player = runCatching { service.player }.getOrNull()
         if (fromPosition == null || player == null || player.currentMediaItem?.mediaId != hold.trackId) {
-            return@onMain false
+            return@remoteOnMain false
         }
         hostHoldingForStart = false
         // Started from here on, on this thread: whatever applies the room after this line no longer holds the player.
         session.markSyncStartStarted(hold)
-        if (!hosting && pausedLocally) return@onMain true
+        if (!hosting && pausedLocally) return@remoteOnMain true
         remoteDepth.incrementAndGet()
         try {
             if (kotlin.math.abs(player.currentPosition - fromPosition) > SyncCorrection.IN_SYNC_MS) player.seekTo(fromPosition)
