@@ -11627,6 +11627,9 @@ class MusicService :
             MusicWidgetReceiver.ACTION_PLAY_PAUSE -> {
                 if (player.isPlaying) {
                     player.pause()
+                } else if (iad1tya.echo.music.devicesync.RemotePlayback.playing.value && iad1tya.echo.music.devicesync.RemotePlayback.pause()) {
+                    // Registry 786: the controlled device is playing, so the widget's tap pauses IT (this player is only its mirror).
+                    Timber.tag(TAG).i("START_CAUSE=widget_remote_pause")
                 } else if (iad1tya.echo.music.devicesync.RemotePlayback.play()) {
                     // Another device is controlled from here: its play button is the widget's.
                     Timber.tag(TAG).i("START_CAUSE=widget_remote")
@@ -11646,11 +11649,11 @@ class MusicService :
                 toggleLike()
             }
             MusicWidgetReceiver.ACTION_NEXT -> {
-                player.seekToNext()
+                if (!routeWidgetTransport(ExternalTransportPolicy.Kind.NEXT)) player.seekToNext()
                 updateWidgetUI(player.isPlaying)
             }
             MusicWidgetReceiver.ACTION_PREVIOUS -> {
-                player.seekToPrevious()
+                if (!routeWidgetTransport(ExternalTransportPolicy.Kind.PREVIOUS)) player.seekToPrevious()
                 updateWidgetUI(player.isPlaying)
             }
             MusicWidgetReceiver.ACTION_UPDATE_WIDGET -> {
@@ -11675,6 +11678,24 @@ class MusicService :
         }
 
         return super.onStartCommand(intent, flags, startId)
+    }
+
+    /**
+     * Registry 786: the widget's next/previous obey remote mode (the order goes to the controlled device, row 603) and the Listen
+     * Together guest lock, like the in-app buttons. True = handled here, so the local player must not move.
+     */
+    private fun routeWidgetTransport(kind: ExternalTransportPolicy.Kind): Boolean {
+        val guest = ::listenTogetherManager.isInitialized && listenTogetherManager.shouldBlockPlaybackChanges()
+        val route = ExternalTransportPolicy.route(kind, guest, iad1tya.echo.music.devicesync.RemotePlayback.active)
+        val handled = when (route) {
+            ExternalTransportPolicy.Route.LOCAL -> false
+            ExternalTransportPolicy.Route.REFUSE_GUEST, ExternalTransportPolicy.Route.REFUSE_REMOTE -> true
+            ExternalTransportPolicy.Route.REMOTE ->
+                if (kind == ExternalTransportPolicy.Kind.NEXT) iad1tya.echo.music.devicesync.RemotePlayback.next()
+                else iad1tya.echo.music.devicesync.RemotePlayback.previous()
+        }
+        if (handled) Timber.tag(TAG).i("START_CAUSE=widget_%s_%s", kind.name.lowercase(), route.name.lowercase())
+        return handled
     }
 
     /**
