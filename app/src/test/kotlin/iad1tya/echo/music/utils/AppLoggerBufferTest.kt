@@ -67,6 +67,19 @@ class AppLoggerBufferTest {
         val onStop = main("MainActivity.kt").substringAfter("override fun onStop()").substringBefore("override fun onDestroy()")
         assertTrue("going to the background writes the waiting lines", onStop.contains("AppLogger.flush()"))
 
+        val service = main("playback/MusicService.kt")
+        val serviceTrim = service.substringAfter("override fun onTrimMemory(level: Int)").substringBefore("private fun isAndroidAutoControllerConnected()")
+        assertTrue("memory pressure while playing in the background writes the waiting lines",
+            serviceTrim.indexOf("AppLogger.flush()") > serviceTrim.indexOf("if (!pressure) return"))
+        val serviceDestroy = service.substringAfter("override fun onDestroy()").substringBefore("override fun onBind(")
+        assertTrue("the service writes the waiting lines before it dies",
+            serviceDestroy.indexOf("AppLogger.flushBlocking()") in 0 until serviceDestroy.indexOf("super.onDestroy()"))
+        val appTrim = main("App.kt").substringAfter("override fun onTrimMemory(level: Int)").substringBefore("private suspend fun initializeSettings()")
+        assertTrue("the app's memory-pressure callback writes the waiting lines", appTrim.contains("AppLogger.flush()"))
+        listOf("TRIM_MEMORY_RUNNING_CRITICAL", "TRIM_MEMORY_BACKGROUND", "TRIM_MEMORY_MODERATE", "TRIM_MEMORY_COMPLETE").forEach {
+            assertTrue("App.onTrimMemory flushes on $it", appTrim.substringBefore("AppLogger.flush()").contains(it))
+        }
+
         val upload = main("edge/EdgeClient.kt").substringAfter("suspend fun sendDiagnostics(")
         assertTrue("the uploaded log is complete",
             upload.indexOf("AppLogger.flushBlocking()") in 0 until upload.indexOf("AppLogger.logFile(context)"))

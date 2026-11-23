@@ -11398,6 +11398,8 @@ class MusicService :
                 Timber.tag(TAG).i("Dropping the resume offer under memory pressure (level=%d)", level)
                 dismissPreviousQueueOffer()
             }
+            // The Low-Memory-Killer may be next: get the buffered log lines to disk now (registry row 731).
+            iad1tya.echo.music.utils.AppLogger.flush()
         }
     }
 
@@ -11511,6 +11513,8 @@ class MusicService :
         // persist/widget while-loops) stop instead of leaking after the service is destroyed. playQueue
         // re-creates the scope if it's no longer active, so this is safe.
         runCatching { scope.coroutineContext[kotlinx.coroutines.Job]?.cancel() }
+        // Some OEMs kill the process right after the service dies: write the buffered log lines first (registry row 731).
+        iad1tya.echo.music.utils.AppLogger.flushBlocking()
         super.onDestroy()
     }
 

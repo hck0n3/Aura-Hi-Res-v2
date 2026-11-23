@@ -452,6 +452,14 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
      */
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        // The process may be killed next: get the buffered log lines to disk now (registry row 731).
+        if (level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
+            level == android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND ||
+            level == android.content.ComponentCallbacks2.TRIM_MEMORY_MODERATE ||
+            level == android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE
+        ) {
+            iad1tya.echo.music.utils.AppLogger.flush()
+        }
         if (level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
             level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
             level == android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND
