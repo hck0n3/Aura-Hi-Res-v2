@@ -124,6 +124,23 @@ class ReleaseRadarRetentionTest {
         assertTrue(worker.contains("val scanArtists = followedSpotify.map { it to true }"))
     }
 
+    /** Row 756: a token refresh that keeps failing must not freeze Novedades until every Spotify row ages out. */
+    @Test
+    fun `a Spotify token failure skips the fallback only once in a row`() {
+        assertTrue("first failure: transient, nothing written", ReleaseRadarRetention.skipFallbackOnTokenFailure(failedLastPass = false))
+        assertFalse("second failure in a row: the YouTube fallback runs", ReleaseRadarRetention.skipFallbackOnTokenFailure(failedLastPass = true))
+
+        val doWork = kt("releaseradar/ReleaseRadarWorker.kt").substringAfter("override suspend fun doWork()").substringBefore("// ── Spotify path")
+        val tokenOk = doWork.substringAfter("if (ensureSpotifyToken()) {").substringBefore("} else if (spotifySessionStored()")
+        assertTrue("a working token clears the streak", tokenOk.contains("prefs.edit().remove(SPOTIFY_TOKEN_FAILED_KEY).apply()"))
+        val failed = doWork.substringAfter("} else if (spotifySessionStored() && known.values.any { it.source != ReleaseRadarRetention.SOURCE_YT }) {")
+            .substringBefore("// FALLBACK: Spotify not connected")
+        assertTrue(failed.contains("val failedLastPass = prefs.getBoolean(SPOTIFY_TOKEN_FAILED_KEY, false)"))
+        assertTrue(failed.contains("prefs.edit().putBoolean(SPOTIFY_TOKEN_FAILED_KEY, true).apply()"))
+        assertTrue(failed.contains("if (ReleaseRadarRetention.skipFallbackOnTokenFailure(failedLastPass)) {"))
+        assertTrue("the repeat failure runs the fallback", failed.contains("items = gatherYouTubeFallback(database, today)"))
+    }
+
     @Test
     fun `nothing marks every release seen on entry, each card marks its own`() {
         for (vm in listOf("viewmodels/NovedadesViewModel.kt", "viewmodels/ReleaseRadarViewModel.kt")) {
