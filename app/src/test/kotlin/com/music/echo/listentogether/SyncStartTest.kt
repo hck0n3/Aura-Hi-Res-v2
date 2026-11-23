@@ -140,6 +140,15 @@ class SyncStartTest {
         assertTrue("otherwise every later play/pause of the host is swallowed", over.contains("hostHoldingForStart = false"))
     }
 
+    @Test
+    fun theHostsOwnStartEdgeIsConsumedBeforeTheApplyingRemoteGuard() {
+        val bridge = java.io.File("src/main/kotlin/com/music/echo/listentogether/ListenTogetherPlaybackBridge.kt").readText()
+        val publisher = bridge.substringAfter("private suspend fun publishPlayPauseAsHost()")
+        val consumed = publisher.indexOf("ownSyncStartEdge.getAndSet(false)")
+        val guard = publisher.indexOf("|| applyingRemote) return@collect")
+        assertTrue(consumed in 0 until guard)
+    }
+
     // ── the wire: optional both ways ───────────────────────────────────────────────────────────────────────────────────────────
 
     private val json = MessageCodec(compressionEnabled = false, json = true)

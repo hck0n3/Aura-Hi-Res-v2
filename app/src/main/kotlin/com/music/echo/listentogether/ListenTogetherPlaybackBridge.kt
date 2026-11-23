@@ -968,6 +968,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // again is a compile error in this project (the operator is deprecated on StateFlow).
         isPlayingNow
             .collect { isPlaying ->
+                // A synchronized start (W2): this host's own start is already the room's. Consumed before any other check: the edge
+                // can be collected while startTogether is still applying it, and a flag left set would swallow a later real PLAY.
+                if (isPlaying && playIntent.value && ownSyncStartEdge.getAndSet(false)) return@collect
                 val service = serviceFlow.value ?: return@collect
                 val state = session.state.value
                 if (!state.inRoom || !state.isHost || applyingRemote) return@collect
@@ -976,9 +979,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 // playWhenReady carries the intent, so a dip where the two disagree is not news.
                 val intent = playIntent.value
                 if (isPlaying != intent) return@collect
-                // A synchronized start (W2): this host's own start is already the room's, and its pause at the barrier is the room's.
-                if (intent && ownSyncStartEdge.getAndSet(false)) return@collect
                 if (!intent) ownSyncStartEdge.set(false)
+                // Its pause at a synchronized start's barrier is the room's, not the host pausing it.
                 if (hostHoldingForStart) return@collect
                 val position = onMain { safePosition(service) }
                 Timber.tag(TAG).i("Host publishing %s", if (intent) "PLAY" else "PAUSE")
