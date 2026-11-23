@@ -398,6 +398,7 @@
     <string name="novedades_new_label">New</string>
     <string name="novedades_more_releases">More new releases</string>
     <string name="novedades_empty_hint">Releases from your artists will show up here.</string>
+    <string name="novedades_caught_up">You\'re all caught up</string>
     <string name="library_recently_added">Recently added</string>
     <string name="search_top_results">Top results</string>
     <string name="action_presave">Presave</string>

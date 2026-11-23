@@ -24,6 +24,8 @@ import iad1tya.echo.music.extensions.filterExplicit
 import iad1tya.echo.music.playlistimport.MusicRequestRanking
 import iad1tya.echo.music.reco.AffinityEngine
 import iad1tya.echo.music.reco.TasteProfile
+import iad1tya.echo.music.releaseradar.RadarView
+import iad1tya.echo.music.releaseradar.ReleaseRadarFeed
 import iad1tya.echo.music.releaseradar.ReleaseRadarWorker
 import iad1tya.echo.music.spotify.Spotify
 import iad1tya.echo.music.utils.dataStore
@@ -68,9 +70,23 @@ constructor(
 
     // Owner (2026-10-13): Novedades showed artists he does not follow. The radar table is now seeded by
     // ReleaseRadarWorker from FOLLOWED artists only (and wiped once on this update), so the rows are read as is.
+    // Owner (2026-11-23, row 674): the radar is cumulative — a release stays until it was seen here AND played, for
+    // at most 60 days (ReleaseRadarFeed / ReleaseRadarRetention).
+    private val radarFeed = ReleaseRadarFeed(context, database, viewModelScope)
+    private val radarView: StateFlow<RadarView> =
+        radarFeed.view.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RadarView.EMPTY)
     val radarReleases: StateFlow<List<ReleaseRadarItem>> =
-        database.releasesByDateDesc()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        radarView.map { it.releases }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Nothing left to show although the radar has had releases: «Estás al día». */
+    val radarCaughtUp: StateFlow<Boolean> =
+        radarView.map { it.caughtUp }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** A release's card is on screen (by its playId): this, not opening the tab, marks it seen. */
+    fun markReleaseShown(playId: String) = radarFeed.markShown(playId)
+
+    /** Novedades left the screen: a release seen and played meanwhile goes on the next visit, not under the finger. */
+    fun endRadarVisit() = radarFeed.endVisit()
 
     val upcoming: StateFlow<List<UpcomingReleaseEntity>> =
         database.upcomingReleases()
@@ -82,9 +98,8 @@ constructor(
     init {
         refresh()
         ReleaseRadarWorker.refreshIfStale(context)
-        // Row 571: what the classic radar screen did on entry that this tab did not — opening the radar marks its rows as seen. (Nothing else
-        // reads the flag yet; it keeps the table's meaning the same whichever screen is the radar's door.)
-        viewModelScope.launch { runCatching { database.markAllReleasesSeen() } }
+        // Row 571 marked EVERY row seen on entry. Owner 2026-11-23 (row 675): `seen` now decides when a release leaves
+        // the cumulative radar, so a release is marked seen only when its own card is shown (markReleaseShown).
     }
 
     /**

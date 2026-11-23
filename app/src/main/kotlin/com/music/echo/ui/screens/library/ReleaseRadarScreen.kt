@@ -25,6 +25,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,7 +66,10 @@ fun ReleaseRadarScreen(
     val playerConnection = LocalPlayerConnection.current
     val coroutineScope = rememberCoroutineScope()
     val releases by viewModel.releases.collectAsState()
+    val caughtUp by viewModel.caughtUp.collectAsState()
     val lazyListState = rememberLazyListState()
+    // Rows 674/675: seen per release shown; a release seen and played meanwhile leaves on the next visit.
+    DisposableEffect(Unit) { onDispose { viewModel.endRadarVisit() } }
 
     // Auto-refresh on open is staleness-gated: ReleaseRadarViewModel.init calls
     // ReleaseRadarWorker.refreshIfStale, which only fires a fetch when the last successful run is older than
@@ -119,7 +124,7 @@ fun ReleaseRadarScreen(
                 item {
                     EmptyPlaceholder(
                         icon = R.drawable.new_release,
-                        text = stringResource(R.string.release_radar_empty),
+                        text = stringResource(if (caughtUp) R.string.novedades_caught_up else R.string.release_radar_empty),
                     )
                 }
             }
@@ -128,6 +133,7 @@ fun ReleaseRadarScreen(
                 items = releases,
                 key = { it.id },
             ) { item ->
+                LaunchedEffect(item.playId) { viewModel.markReleaseShown(item.playId) }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier

@@ -17,7 +17,10 @@ data class ReleaseCandidate(
 object ReleaseRadarMatching {
     private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
 
-    fun dedupeKey(c: ReleaseCandidate): String = norm(c.artist) + "|" + norm(c.title)
+    fun dedupeKey(c: ReleaseCandidate): String = dedupeKey(c.artist, c.title)
+
+    /** The same key before a candidate exists (the worker looks a release up in the table by it). */
+    fun dedupeKey(artist: String, title: String): String = norm(artist) + "|" + norm(title)
 
     /** Keep one per key; prefer source "yt" (directly playable). */
     fun dedupe(items: List<ReleaseCandidate>): List<ReleaseCandidate> =
