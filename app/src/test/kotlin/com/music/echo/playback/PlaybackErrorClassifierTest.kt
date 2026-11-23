@@ -255,8 +255,28 @@ class PlaybackErrorClassifierTest {
             ),
         )
         assertTrue(PlaybackErrorClassifier.isConnectivityFailure(deep))
-        assertTrue(PlaybackErrorClassifier.isConnectivityFailure(playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT)))
         assertTrue(PlaybackErrorClassifier.isConnectivityFailure(playbackError(0, cause = java.net.NoRouteToHostException())))
+        assertTrue(PlaybackErrorClassifier.isConnectivityFailure(playbackError(0, cause = java.net.ConnectException("refused"))))
+        assertTrue(
+            "ENETUNREACH",
+            PlaybackErrorClassifier.isConnectivityFailure(
+                playbackError(0, cause = java.io.IOException("wrap", java.net.SocketException("connect failed: ENETUNREACH (Network is unreachable)"))),
+            ),
+        )
+
+        // Review 2026-11-23 (C3): the top-level codes go on almost any HTTP IOException, and one server's timeout happens
+        // with working internet — neither is proof the DEVICE is offline (they still take the bounded retry).
+        val bareCode = playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, cause = java.io.IOException("unexpected end of stream"))
+        assertTrue(PlaybackErrorClassifier.isNetworkRelatedError(bareCode))
+        assertFalse(PlaybackErrorClassifier.isConnectivityFailure(bareCode))
+        assertFalse(PlaybackErrorClassifier.isConnectivityFailure(playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT)))
+        val socketTimeout = playbackError(
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            cause = java.io.IOException("wrap", java.net.SocketTimeoutException("timeout")),
+        )
+        assertTrue(PlaybackErrorClassifier.isNetworkRelatedError(socketTimeout))
+        assertFalse(PlaybackErrorClassifier.isConnectivityFailure(socketTimeout))
+        assertFalse("SSL", PlaybackErrorClassifier.isConnectivityFailure(playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, cause = javax.net.ssl.SSLHandshakeException("x"))))
 
         val contentType = playbackError(PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE)
         assertTrue("still the bounded retry", PlaybackErrorClassifier.isNetworkRelatedError(contentType))

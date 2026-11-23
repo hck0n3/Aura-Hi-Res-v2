@@ -89,23 +89,10 @@ object PlaybackErrorClassifier {
             return false
         }
         if (isOfflineRejection(error)) return false
-        return error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
-            isConnectivityFailure(error)
-    }
-
-    /**
-     * The narrower question the playback offline session asks: did the CONNECTION itself fail (could not connect, no DNS,
-     * no route, timed out)? Unlike [isNetworkRelatedError] it leaves out a bad content type (googlevideo answering HTML on
-     * a dead URL) and the generic player TIMEOUT: those say the URL or the player is wrong, not that there is no internet.
-     */
-    fun isConnectivityFailure(error: PlaybackException): Boolean {
-        if (isExpiredUrlError(error) || isRangeNotSatisfiableError(error) || isPageReloadError(error)) {
-            return false
-        }
-        if (isOfflineRejection(error)) return false
         if (error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+            error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT ||
+            error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE
         ) {
             return true
         }
@@ -125,6 +112,38 @@ object PlaybackErrorClassifier {
             if (cause is PlaybackException &&
                 (cause.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
                     cause.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT)
+            ) {
+                return true
+            }
+            cause = cause.cause
+        }
+        return false
+    }
+
+    /**
+     * The narrower question the playback offline session asks: is there proof that the DEVICE cannot reach the internet?
+     * Only causes found in the chain count — no DNS ([java.net.UnknownHostException]), could not connect
+     * ([java.net.ConnectException]), no route ([java.net.NoRouteToHostException]) or "network is unreachable"
+     * (ENETUNREACH). NOT the top-level IO_NETWORK_CONNECTION_FAILED / TIMEOUT codes, which media3 puts on almost any HTTP
+     * IOException (a server reset, an SSL error, an unexpected end of stream), and NOT a socket timeout of one server:
+     * those happen with working internet, and blocking online music on them is worse than the stall they explain.
+     */
+    fun isConnectivityFailure(error: PlaybackException): Boolean {
+        if (isExpiredUrlError(error) || isRangeNotSatisfiableError(error) || isPageReloadError(error)) {
+            return false
+        }
+        if (isOfflineRejection(error)) return false
+        var cause: Throwable? = error.cause
+        while (cause != null) {
+            if (cause is java.net.UnknownHostException ||
+                cause is java.net.ConnectException ||
+                cause is java.net.NoRouteToHostException
+            ) {
+                return true
+            }
+            val message = cause.message
+            if (message != null &&
+                (message.contains("ENETUNREACH") || message.contains("Network is unreachable", ignoreCase = true))
             ) {
                 return true
             }
