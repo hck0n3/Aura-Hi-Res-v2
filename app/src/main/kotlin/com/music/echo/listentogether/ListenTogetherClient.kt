@@ -172,6 +172,13 @@ class ListenTogetherClient(
      */
     @Volatile
     private var tokenConfirmed = false
+
+    /**
+     * False on a new socket until its `reconnect` (if any) is on the wire. A room message sent earlier would reach the server from a
+     * socket that is not in the room yet, and the error it earns would read as the refusal of the resume (row 744).
+     */
+    @Volatile
+    private var roomMessagesOpen = false
     private var pingSequence = 0L
 
     /** [elapsedRealtime] of the last frame the current socket received, whatever it was: the liveness watch reads it. */
@@ -246,6 +253,7 @@ class ListenTogetherClient(
     ): Boolean {
         val live = session ?: return false
         if (!live.isActive) return false
+        if (!roomMessagesOpen && msgType != MessageTypes.CLIENT_CAPABILITIES && msgType != MessageTypes.RECONNECT) return false
         return runCatching {
             val bytes = codec.encode(msgType, payload)
             live.send(if (usingText) Frame.Text(bytes.decodeToString()) else Frame.Binary(true, bytes))
@@ -368,6 +376,7 @@ class ListenTogetherClient(
         // The URL is never logged: a custom server URL is user data (regla 4 del registro — nada
         // de lo que el usuario tecleó va al app.log que comparte desde Ajustes).
         val live = client.webSocketSession(url)
+        roomMessagesOpen = false
         session = live
         lastInboundAt = elapsedRealtime()
         serverClock.reset()
@@ -405,6 +414,7 @@ class ListenTogetherClient(
                     Timber.tag(TAG).i("Resuming with stored session token")
                     send(MessageTypes.RECONNECT, ReconnectPayload(sessionToken = token))
                 }
+                roomMessagesOpen = true
 
                 // A completed handshake is what "connected" means, so the budget refills here and
                 // not merely when the socket opens — a server that accepts TCP but never answers

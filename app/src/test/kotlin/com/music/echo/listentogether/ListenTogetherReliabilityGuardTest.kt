@@ -57,6 +57,17 @@ class ListenTogetherReliabilityGuardTest {
     }
 
     @Test
+    fun noRoomMessageOvertakesTheResumeOnANewSocket() {
+        assertTrue(client.contains("if (!roomMessagesOpen && msgType != MessageTypes.CLIENT_CAPABILITIES && msgType != MessageTypes.RECONNECT) return false"))
+        val open = client.substringAfter("val live = client.webSocketSession(url)").substringBefore("_events.emit(")
+        assertTrue("closed before the socket is published", open.indexOf("roomMessagesOpen = false") in 0 until open.indexOf("session = live"))
+        assertTrue(
+            "opened only after the reconnect is sent, before Connected flushes queued actions",
+            open.indexOf("roomMessagesOpen = true") > open.indexOf("send(MessageTypes.RECONNECT, ReconnectPayload(sessionToken = token))"),
+        )
+    }
+
+    @Test
     fun theHostRepublishesAfterEveryReconnect() {
         assertTrue(bridge.contains(".map { (it.inRoom && it.isHost) to it.reconnectRevision }"))
         val session = text("app/src/main/kotlin/com/music/echo/listentogether/ListenTogetherSession.kt")
