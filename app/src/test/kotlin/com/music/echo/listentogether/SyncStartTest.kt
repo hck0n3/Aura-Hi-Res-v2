@@ -133,6 +133,13 @@ class SyncStartTest {
         assertTrue(bridge.contains("hostPlaying = playStartsTogether(changeHostPlaying, roomWasPlaying, isPlayingNow.value),"))
     }
 
+    @Test
+    fun aHoldThatEndsWithoutAServiceStillReleasesTheHost() {
+        val bridge = java.io.File("src/main/kotlin/com/music/echo/listentogether/ListenTogetherPlaybackBridge.kt").readText()
+        val over = bridge.substringAfter("if (hold == null || hold.started) {").substringBefore("pending = hold\n")
+        assertTrue("otherwise every later play/pause of the host is swallowed", over.contains("hostHoldingForStart = false"))
+    }
+
     // ── the wire: optional both ways ───────────────────────────────────────────────────────────────────────────────────────────
 
     private val json = MessageCodec(compressionEnabled = false, json = true)

@@ -1080,7 +1080,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     val dropped = hold == null && pending != null
                     pending = null
                     // Let go without having started (the start time never came, the room paused, or we left): follow the room as before.
-                    if (dropped && service != null) followRoomAfterHold(service)
+                    if (dropped && service != null) {
+                        followRoomAfterHold(service)
+                    } else {
+                        // Over either way: with no player to resume, a host left «holding» would never publish a play or pause again.
+                        hostHoldingForStart = false
+                    }
                     return@collectLatest
                 }
                 pending = hold
