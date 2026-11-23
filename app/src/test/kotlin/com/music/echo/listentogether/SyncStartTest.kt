@@ -96,6 +96,43 @@ class SyncStartTest {
         assertEquals(hold, syncStartAfterCommand(hold, PlaybackActionPayload(action = PlaybackActions.SYNC_QUEUE), 9))
     }
 
+    // ── the host: when a track change starts everyone together (review of A3) ──────────────────────────────────────────────────
+
+    @Test
+    fun aTrackChangeTheHostAlreadyHearsOpensNoSynchronizedStart() {
+        // the song ended (gapless, crossfade, repeat) or a pre-buffered next: guests advance in place with it (row 616)
+        assertNull(changeTrackHostPlaying(hostHearing = true, intent = true, holding = false))
+        assertNull(changeTrackHostPlaying(hostHearing = true, intent = false, holding = true))
+        // a track the host is still loading
+        assertEquals(true, changeTrackHostPlaying(hostHearing = false, intent = true, holding = false))
+        assertEquals(true, changeTrackHostPlaying(hostHearing = false, intent = false, holding = true))
+        assertEquals(false, changeTrackHostPlaying(hostHearing = false, intent = false, holding = false))
+    }
+
+    @Test
+    fun theFollowingPlayNeverPullsBackGuestsThatAlreadyPlayTheTrack() {
+        // the change_track opened the synchronized start: the server absorbs this PLAY
+        assertEquals(true, playStartsTogether(changeHostPlaying = true, roomWasPlaying = true, hostHearing = false))
+        // picked from a list while the room played: guests carried «playing» over and already play it
+        assertNull(playStartsTogether(changeHostPlaying = false, roomWasPlaying = true, hostHearing = false))
+        // picked while the room was paused: guests loaded it paused, everyone starts together
+        assertEquals(true, playStartsTogether(changeHostPlaying = false, roomWasPlaying = false, hostHearing = false))
+        // the host already hears it: a hold now would rewind it
+        assertNull(playStartsTogether(changeHostPlaying = false, roomWasPlaying = false, hostHearing = true))
+        // an in-step change: nothing to start together
+        assertNull(playStartsTogether(changeHostPlaying = null, roomWasPlaying = true, hostHearing = true))
+        assertNull(playStartsTogether(changeHostPlaying = null, roomWasPlaying = false, hostHearing = false))
+    }
+
+    @Test
+    fun aHostSeekCarriesNoHostPlaying() {
+        val bridge = java.io.File("src/main/kotlin/com/music/echo/listentogether/ListenTogetherPlaybackBridge.kt").readText()
+        val seek = bridge.substringAfter("Host publishing SEEK to").substringBefore("// ─────")
+        assertFalse("a seek or a repeat-one loop must not open a synchronized start", seek.contains("hostPlaying"))
+        assertTrue(bridge.contains("hostPlaying = changeHostPlaying,"))
+        assertTrue(bridge.contains("hostPlaying = playStartsTogether(changeHostPlaying, roomWasPlaying, isPlayingNow.value),"))
+    }
+
     // ── the wire: optional both ways ───────────────────────────────────────────────────────────────────────────────────────────
 
     private val json = MessageCodec(compressionEnabled = false, json = true)

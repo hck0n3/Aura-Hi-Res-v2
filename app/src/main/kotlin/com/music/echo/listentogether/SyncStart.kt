@@ -63,6 +63,34 @@ internal fun syncStartAfterCommand(previous: SyncStart?, p: PlaybackActionPayloa
         else -> previous
     }
 
+/**
+ * `hostPlaying` for the host's change_track. Null — no synchronized start: the room keeps the old barrier, with its clock running — when
+ * the host already HEARS the new track (the song ended, gapless or crossfade; repeat; a pre-buffered next): guests advance in place in
+ * step with it (row 616), and a hold arriving one round trip later would pause and rewind everyone. Otherwise, whether it means to play.
+ */
+internal fun changeTrackHostPlaying(
+    hostHearing: Boolean,
+    intent: Boolean,
+    holding: Boolean,
+): Boolean? = if (hostHearing) null else intent || holding
+
+/**
+ * `hostPlaying` for the PLAY that follows the host's change_track. True when that change_track opened a synchronized start (the server
+ * absorbs this PLAY), or left the room paused while guests loaded the track paused too (the server starts everyone together on it).
+ * Null when guests already play it — they carry «playing» across a track change (lastRoomPlaying), so a barrier now would pull them
+ * back to the start — or when the host already hears it.
+ */
+internal fun playStartsTogether(
+    changeHostPlaying: Boolean?,
+    roomWasPlaying: Boolean,
+    hostHearing: Boolean,
+): Boolean? =
+    when {
+        changeHostPlaying == true -> true
+        changeHostPlaying == false && !roomWasPlaying && !hostHearing -> true
+        else -> null
+    }
+
 /** When to call play() for a synchronized start, and with the decoder at which position. */
 internal data class SyncStartTiming(
     val waitMs: Long,

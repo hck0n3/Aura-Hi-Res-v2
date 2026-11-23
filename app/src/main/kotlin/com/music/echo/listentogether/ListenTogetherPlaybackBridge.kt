@@ -358,8 +358,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 trackId = "",
                 position = progress,
                 trackInfo = null,
-                // A host waiting at a synchronized start is playing as far as the room is concerned.
-                hostPlaying = playIntent.value || hostHoldingForStart,
+                // No host-playing flag: a seek or a repeat-one loop is heard at once on the host, so a synchronized start would pause and
+                // rewind it (and every guest) one round trip later. The room keeps the old barrier for it, with its clock running.
             )
         }
     }
@@ -915,6 +915,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     Triple(item.toTrackInfo(service), hostQueueTracks(service), service.queueTitle.orEmpty())
                 }
                 lastPublishedQueueIds = queue.map { it.id }
+                // Read before this change_track replaces it: whether guests carry «playing» over to the new track (lastRoomPlaying).
+                val roomWasPlaying = session.lastSentAnchor?.playing != false
+                val changeHostPlaying = changeTrackHostPlaying(isPlayingNow.value, playIntent.value, hostHoldingForStart)
                 session.sendPlaybackAction(
                     action = PlaybackActions.CHANGE_TRACK,
                     trackId = item.id,
@@ -924,7 +927,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     queueTitle = queueTitle,
                     // P2-5: whether the host plays it NOW (Aura's server used to force "playing"). When the intent is still settling
                     // this says no, and the PLAY below, which says yes, is what starts the room.
-                    hostPlaying = playIntent.value || isPlayingNow.value || hostHoldingForStart,
+                    hostPlaying = changeHostPlaying,
                 )
                 // change_track alone leaves the room paused: the server sets IsPlaying=false on
                 // every track change. The host's own play state does NOT change when one playing
@@ -954,7 +957,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         position = onMain { safePosition(service) },
                         trackInfo = null,
                         // The PLAY that starts this track: Aura's server starts everyone together on it if the room was paused.
-                        hostPlaying = true,
+                        hostPlaying = playStartsTogether(changeHostPlaying, roomWasPlaying, isPlayingNow.value),
                     )
                 }
             }
