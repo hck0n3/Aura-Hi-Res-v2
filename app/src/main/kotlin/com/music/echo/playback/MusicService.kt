@@ -800,6 +800,8 @@ class MusicService :
     private val instantSilenceSkipEnabled = MutableStateFlow(false)
 
     private var isAudioEffectSessionOpened = false
+    /** Sessions announced to external equalizers (OPEN sent, CLOSE not yet) — row 723. Main thread only. */
+    private val announcedEffectSessions = mutableSetOf<Int>()
 
     // Which mediaId we've already applied loudness for THIS play. Frozen until the track changes:
     // liking + auto-download used to re-store FormatEntity mid-song and the volume jumped. Volatile
@@ -6777,27 +6779,63 @@ class MusicService :
     }
 
     private fun openAudioEffectSession() {
-        if (isAudioEffectSessionOpened) return
-        isAudioEffectSessionOpened = true
-        setupLoudnessEnhancer()
-        sendBroadcast(
-            Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION).apply {
-                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, player.audioSessionId)
-                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, packageName)
-                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
-            },
-        )
+        if (!isAudioEffectSessionOpened) {
+            isAudioEffectSessionOpened = true
+            setupLoudnessEnhancer()
+        }
+        syncAudioEffectSessions()
     }
 
     private fun closeAudioEffectSession() {
         if (!isAudioEffectSessionOpened) return
         isAudioEffectSessionOpened = false
+        syncAudioEffectSessions()
+    }
+
+    /**
+     * Row 723: keeps external equalizers on the LIVE player's audio session (`AudioEffectSessionPlan`). Called on
+     * open/close, wherever the live player changes — the crossfade swap and its cleanup (CrossfadeEngine.kt), the
+     * instant video swap — and when media3 delivers a player's session id, which 1.11 generates in the background.
+     */
+    internal fun syncAudioEffectSessions() {
+        val step = iad1tya.echo.music.playback.audio.AudioEffectSessionPlan.next(
+            announced = announcedEffectSessions,
+            liveSessionId = if (isAudioEffectSessionOpened) player.audioSessionId else C.AUDIO_SESSION_ID_UNSET,
+            fadingSessionId = fadingPlayer?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET,
+        )
+        step.close.forEach { sessionId ->
+            announcedEffectSessions.remove(sessionId)
+            sendAudioEffectSessionBroadcast(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION, sessionId)
+        }
+        step.open?.let { sessionId ->
+            announcedEffectSessions.add(sessionId)
+            sendAudioEffectSessionBroadcast(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION, sessionId)
+        }
+    }
+
+    /** Service teardown: CLOSE every session still announced, the outgoing crossfade player's included. */
+    private fun closeAllAudioEffectSessions() {
+        isAudioEffectSessionOpened = false
+        announcedEffectSessions.toList().forEach { sessionId ->
+            sendAudioEffectSessionBroadcast(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION, sessionId)
+        }
+        announcedEffectSessions.clear()
+    }
+
+    private fun sendAudioEffectSessionBroadcast(action: String, sessionId: Int) {
         sendBroadcast(
-            Intent(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION).apply {
-                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, player.audioSessionId)
+            Intent(action).apply {
+                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
                 putExtra(AudioEffect.EXTRA_PACKAGE_NAME, packageName)
+                if (action == AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION) {
+                    putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+                }
             },
         )
+    }
+
+    override fun onAudioSessionIdChanged(audioSessionId: Int) {
+        syncAudioEffectSessions()
     }
 
     private var previousMediaItemIndex = C.INDEX_UNSET
@@ -10070,6 +10108,7 @@ class MusicService :
             playerLimiterProcessors.remove(old)
             playerEqProcessors.remove(old)?.let { eq -> equalizerService.removeAudioProcessor(eq) }
             runCatching { old.release() }
+            syncAudioEffectSessions() // row 723: external equalizers move from the released player's session to pre's
             videoSwapMark("INSTANT swap published (pre-prepared dual player)")
             swapLogPath("instant")
             true
@@ -11424,6 +11463,7 @@ class MusicService :
         discordRpc = null
         connectivityObserver.unregister()
         abandonAudioFocus()
+        closeAllAudioEffectSessions()
         mediaSession.release()
         player.removeListener(this)
         playerSilenceProcessors.remove(player)
