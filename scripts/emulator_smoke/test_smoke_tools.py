@@ -193,6 +193,20 @@ class AppLiteralsTest(unittest.TestCase):
         self.assertIn("By.clickable(true)", finder)
         self.assertIn("catch (StaleObjectException e)", finder)
 
+    def test_update_check_does_not_toggle_the_playlists_chip_off(self):
+        # Fourth emulator run (45249314558): 5b timed out on the playlist although 5c found it in the database. The
+        # filter is a persisted preference that 5a left on Playlists, and tapping the active chip returns to the hub
+        # (pinned playlists only). 5b must look before tapping the chip.
+        library = _read("app", "src", "main", "kotlin", "com", "music", "echo", "ui", "newui", "AuraLibraryScreen.kt")
+        self.assertIn("rememberEnumPreference(ChipSortTypeKey, LibraryFilter.LIBRARY)", library)
+        self.assertIn("filterType = if (filterType == chip) LibraryFilter.LIBRARY else chip", library)
+        survival = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest",
+                         "UpdateSurvivalTest.java")
+        check = survival[survival.index("public void playlistSurvivesUpdate("):]
+        look = check.index("aura.device.wait(Until.findObject(created), 10_000) == null")
+        self.assertLess(look, check.index("playlists.click()"))
+        self.assertNotIn("if (playlists != null) playlists.click();\n        aura.waitFor(", check)
+
     def test_labels_are_looked_up_in_the_language_the_app_seeds(self):
         # A fresh install stores AppLanguageKey = es-419 and MainActivity applies it from the next cold start, so the
         # emulator (en-US) and the app disagree on every label: AuraDevice must look them up in that same language.

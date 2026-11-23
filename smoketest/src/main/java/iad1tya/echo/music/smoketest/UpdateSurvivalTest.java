@@ -5,8 +5,10 @@ import android.os.SystemClock;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.uiautomator.By;
+import androidx.test.uiautomator.BySelector;
 import androidx.test.uiautomator.StaleObjectException;
 import androidx.test.uiautomator.UiObject2;
+import androidx.test.uiautomator.Until;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -102,11 +104,14 @@ public class UpdateSurvivalTest {
         aura.settleOnHome(180_000);
         aura.openTab(aura.libraryLabel());
         AuraDevice.UiLabel chip = aura.appString("filter_playlists", "Playlists");
-        UiObject2 playlists = aura.device.findObject(By.text(AuraDevice.exactly(chip)));
-        if (playlists != null) playlists.click();
-        aura.waitFor(
-                () -> aura.device.findObject(By.text(AuraDevice.containing(PLAYLIST))), 20_000,
-                "the playlist created on the previous build");
+        // The chip is a persisted toggle (ChipSortTypeKey): 5a left Biblioteca on Playlists, and tapping the active chip
+        // returns to the hub, which lists only PINNED playlists (fourth run 45249314558). Look first, tap only while absent.
+        BySelector created = By.text(AuraDevice.containing(PLAYLIST));
+        for (int tap = 0; tap < 2 && aura.device.wait(Until.findObject(created), 10_000) == null; tap++) {
+            UiObject2 playlists = aura.device.findObject(By.text(AuraDevice.exactly(chip)));
+            if (playlists != null) playlists.click();
+        }
+        aura.waitFor(() -> aura.device.findObject(created), 20_000, "the playlist created on the previous build");
         aura.assertHealthy("after update");
         aura.capture("05-playlist-after-update");
     }
