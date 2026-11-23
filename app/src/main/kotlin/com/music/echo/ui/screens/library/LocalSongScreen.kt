@@ -52,6 +52,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularWavyProgressIndicator
@@ -70,6 +71,7 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -315,6 +317,7 @@ fun LocalSongScreen(
                     permissionLauncher.launch(storagePermission)
                 }
             },
+            onRemoveMissing = { viewModel.scanDevice(scanConfig, removeMissing = true) },
         )
     }
 
@@ -784,6 +787,7 @@ private fun LocalSongScanSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onPrimaryAction: () -> Unit,
+    onRemoveMissing: () -> Unit,
 ) {
     val lastSummary = scanState.lastSummary
     val hasError = scanState.errorMessage != null
@@ -1197,6 +1201,50 @@ private fun LocalSongScanSheet(
                         )
                     }
                 }
+            }
+
+            // Row 694: songs the scan no longer sees are kept unless the user says otherwise, here, explicitly.
+            var confirmRemoveMissing by remember { mutableStateOf(false) }
+            if (scanState.missingSongs > 0 && !scanState.isScanning) {
+                if (!hasError) {
+                    Text(
+                        text = stringResource(R.string.local_songs_missing_kept, scanState.missingSongs),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+                TextButton(
+                    onClick = { confirmRemoveMissing = true },
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.local_songs_remove_missing_action),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+            if (confirmRemoveMissing) {
+                AlertDialog(
+                    onDismissRequest = { confirmRemoveMissing = false },
+                    text = { Text(stringResource(R.string.local_songs_remove_missing_confirm, scanState.missingSongs)) },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                confirmRemoveMissing = false
+                                onRemoveMissing()
+                            },
+                        ) {
+                            Text(stringResource(R.string.local_songs_remove_missing_confirm_button))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { confirmRemoveMissing = false }) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    },
+                )
             }
         }
         }

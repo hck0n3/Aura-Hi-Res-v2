@@ -13,6 +13,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -35,6 +36,7 @@ import iad1tya.echo.music.constants.ExportedFileUrisKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.parseExportedFileUriMap
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.LocalDateTime
@@ -127,6 +129,8 @@ private fun trimDanglingBracket(part: String): String {
 data class LocalSongScanSummary(
     val scannedSongs: Int,
     val removedSongs: Int,
+    /** Songs the scan no longer sees but kept because their storage volume is not mounted right now (row 694). */
+    val keptMissing: Int = 0,
 )
 
 /**
@@ -138,6 +142,8 @@ class LocalScanFailedException(
     message: String,
     val keptSongs: Int = 0,
     cause: Throwable? = null,
+    /** True when the scan stopped because Aura may not read the device's audio. */
+    val missingPermission: Boolean = false,
 ) : IllegalStateException(message, cause)
 
 /**
@@ -148,15 +154,49 @@ class LocalScanFailedException(
 internal fun refusesEmptyScan(scannedAudio: Int, libraryLocalAudio: Int): Boolean =
     scannedAudio == 0 && libraryLocalAudio > 0
 
+/**
+ * Row 694: the storage root of an absolute path (`/storage/emulated/0`, `/storage/1A2B-3C4D`), the volume key used before
+ * Android 10, where MediaStore has no volume-name column. Null when the path does not say.
+ */
+internal fun storageRootOf(absolutePath: String?): String? {
+    val parts = absolutePath?.split('/')?.filter { it.isNotEmpty() } ?: return null
+    if (parts.size < 3 || parts[0] != "storage") return null
+    return if (parts[1] == "emulated") {
+        if (parts.size >= 4) "/storage/emulated/${parts[2]}" else null
+    } else {
+        "/storage/${parts[1]}"
+    }
+}
+
+/**
+ * Row 694: which local songs the scan no longer sees it may delete (first) and which it keeps (second). A song recorded
+ * on a storage volume that is not mounted right now (an SD card taken out, a USB drive) is kept: the volume is missing,
+ * not its files. A song with no recorded volume (scanned before this rule) is removed as before.
+ */
+internal fun splitMissingByVolume(
+    missingIds: List<String>,
+    volumeOf: Map<String, String>,
+    isVolumePresent: (String) -> Boolean,
+): Pair<List<String>, List<String>> = missingIds.partition { id -> volumeOf[id]?.let(isVolumePresent) ?: true }
+
 class LocalSongScanner
 @Inject
 constructor(
     @ApplicationContext private val context: Context,
     private val database: MusicDatabase,
 ) {
-    suspend fun scanDevice(scanConfig: LocalSongScanConfig = LocalSongScanConfig()): LocalSongScanSummary = withContext(Dispatchers.IO) {
+    /**
+     * [removeMissing] = the user confirmed «remove from Aura the local songs that are no longer on the phone»: the two
+     * row-694 guards (empty scan, absent volume) step aside and every song the scan does not see is removed.
+     */
+    suspend fun scanDevice(
+        scanConfig: LocalSongScanConfig = LocalSongScanConfig(),
+        removeMissing: Boolean = false,
+    ): LocalSongScanSummary = withContext(Dispatchers.IO) {
         // Row 694: no permission, a null cursor or a failing query is a FAILED scan, never "zero tracks".
-        if (!hasAudioReadPermission()) throw LocalScanFailedException("audio read permission not granted")
+        if (!hasAudioReadPermission()) {
+            throw LocalScanFailedException("audio read permission not granted", missingPermission = true)
+        }
         val snapshot = try {
             queryTracks(scanConfig)
         } catch (e: CancellationException) {
@@ -167,6 +207,9 @@ constructor(
             throw LocalScanFailedException("MediaStore query failed", cause = e)
         }
         var summary = LocalSongScanSummary(0, 0)
+        val recordedVolumes = readSongVolumes()
+        val volumePresent = volumePresence()
+        var keptOnAbsentVolume = emptyList<String>()
         database.withTransaction {
             val existingLocalIds = localSongIds()
             val scannedIds = snapshot.tracks.map(LocalTrackRecord::id)
@@ -175,10 +218,16 @@ constructor(
 
             val videoIdPrefix = "${MediaStore.Video.Media.EXTERNAL_CONTENT_URI}/"
             val libraryLocalAudio = existingLocalIds.count { !it.startsWith(videoIdPrefix) }
-            if (refusesEmptyScan(snapshot.tracks.count { !it.isVideo }, libraryLocalAudio)) {
+            if (!removeMissing && refusesEmptyScan(snapshot.tracks.count { !it.isVideo }, libraryLocalAudio)) {
                 throw LocalScanFailedException("scan found no audio", keptSongs = libraryLocalAudio)
             }
-            removedIds.chunked(SqlBatchSize).forEach(::deleteSongsByIds)
+            val (removable, kept) = if (removeMissing) {
+                removedIds to emptyList<String>()
+            } else {
+                splitMissingByVolume(removedIds, recordedVolumes, volumePresent)
+            }
+            keptOnAbsentVolume = kept
+            removable.chunked(SqlBatchSize).forEach(::deleteSongsByIds)
 
             val existingSongs = loadSongs(scannedIds)
             val existingArtists = loadArtists(snapshot.artists.map(LocalArtistRecord::id))
@@ -328,9 +377,17 @@ constructor(
 
             summary = LocalSongScanSummary(
                 scannedSongs = snapshot.tracks.size,
-                removedSongs = removedIds.size,
+                removedSongs = removable.size,
+                keptMissing = kept.size,
             )
         }
+        // The kept songs keep their recorded volume, or the next scan would no longer know to keep them.
+        writeSongVolumes(
+            buildMap {
+                keptOnAbsentVolume.forEach { id -> recordedVolumes[id]?.let { put(id, it) } }
+                snapshot.tracks.forEach { track -> track.volume?.let { put(track.id, it) } }
+            },
+        )
 
         val videoTracks = snapshot.tracks.filter { it.isVideo }
         if (videoTracks.isNotEmpty()) {
@@ -362,6 +419,43 @@ constructor(
             Manifest.permission.READ_EXTERNAL_STORAGE
         },
     ) == PackageManager.PERMISSION_GRANTED
+
+    // Row 694: songId -> storage volume of the last successful scan. noBackupFilesDir: volume ids belong to this phone.
+    private val songVolumesFile: File get() = File(context.noBackupFilesDir, "local_song_volumes.tsv")
+
+    private fun readSongVolumes(): Map<String, String> = runCatching {
+        if (!songVolumesFile.isFile) return@runCatching emptyMap()
+        songVolumesFile.readLines().mapNotNull { line ->
+            val tab = line.indexOf('\t')
+            if (tab > 0 && tab < line.length - 1) line.substring(tab + 1) to line.substring(0, tab) else null
+        }.toMap()
+    }.getOrDefault(emptyMap())
+
+    private fun writeSongVolumes(volumeOf: Map<String, String>) {
+        runCatching {
+            val tmp = File(songVolumesFile.path + ".tmp")
+            tmp.writeText(volumeOf.entries.joinToString("\n") { (id, volume) -> "$volume\t$id" })
+            if (!tmp.renameTo(songVolumesFile)) {
+                songVolumesFile.writeText(tmp.readText())
+                tmp.delete()
+            }
+        }
+    }
+
+    /** Is a recorded volume mounted now? When the answer cannot be read, nothing counts as mounted (keep, never delete). */
+    @Suppress("DEPRECATION")
+    private fun volumePresence(): (String) -> Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val attached = runCatching { MediaStore.getExternalVolumeNames(context) }.getOrNull() ?: return { false }
+            return { volume -> volume in attached }
+        }
+        return { root ->
+            runCatching {
+                Environment.getExternalStorageState(File(root)) in
+                    setOf(Environment.MEDIA_MOUNTED, Environment.MEDIA_MOUNTED_READ_ONLY)
+            }.getOrDefault(false)
+        }
+    }
 
         private suspend fun loadSongs(ids: List<String>): Map<String, Song> =
         ids.chunked(SqlBatchSize)
@@ -401,6 +495,7 @@ constructor(
             add(MediaStore.Audio.Media.MIME_TYPE)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 add(MediaStore.MediaColumns.RELATIVE_PATH)
+                add(MediaStore.MediaColumns.VOLUME_NAME)
             } else {
                 add(MediaStore.MediaColumns.DATA)
             }
@@ -443,6 +538,7 @@ constructor(
             val mimeTypeIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
             val relativePathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
             val dataPathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+            val volumeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
 
             while (cursor.moveToNext()) {
                 val mediaId = cursor.getLong(idIndex)
@@ -524,6 +620,7 @@ constructor(
                     sizeBytes = cursor.getLong(sizeIndex).coerceAtLeast(0L),
                     mimeType = mimeType,
                     thumbnailUrl = iad1tya.echo.music.utils.coil.LocalAudioArtFetcher.uriFor(contentUri.toString()),
+                    volume = cursor.getStringOrNull(volumeIndex) ?: storageRootOf(dataPath),
                 )
             }
         }
@@ -540,6 +637,7 @@ constructor(
             add(MediaStore.Video.Media.MIME_TYPE)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 add(MediaStore.MediaColumns.RELATIVE_PATH)
+                add(MediaStore.MediaColumns.VOLUME_NAME)
             } else {
                 add(MediaStore.MediaColumns.DATA)
             }
@@ -563,6 +661,7 @@ constructor(
             val mimeTypeIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
             val relativePathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
             val dataPathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+            val volumeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
 
             while (cursor.moveToNext()) {
                 val mediaId = cursor.getLong(idIndex)
@@ -616,6 +715,7 @@ constructor(
                     mimeType = mimeType,
                     thumbnailUrl = null,
                     isVideo = true,
+                    volume = cursor.getStringOrNull(volumeIndex) ?: storageRootOf(cursor.getStringOrNull(dataPathIndex)),
                 )
             }
         }
@@ -813,6 +913,8 @@ constructor(
         val mimeType: String,
         val thumbnailUrl: String?,
         val isVideo: Boolean = false,
+        /** MediaStore volume name (Android 10+) or storage root ([storageRootOf]); null when unknown. */
+        val volume: String? = null,
     )
 
     private data class LocalArtistRecord(

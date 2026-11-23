@@ -87,16 +87,18 @@ constructor(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun scanDevice(scanConfig: LocalSongScanConfig = LocalSongScanConfig()) {
+    /** [removeMissing]: only after the user confirmed removing the local songs no longer on the phone (row 694). */
+    fun scanDevice(scanConfig: LocalSongScanConfig = LocalSongScanConfig(), removeMissing: Boolean = false) {
         if (_scanState.value.isScanning) return
         viewModelScope.launch(Dispatchers.IO) {
             _scanState.value = _scanState.value.copy(isScanning = true, errorMessage = null)
-            runCatching { localSongScanner.scanDevice(scanConfig) }
+            runCatching { localSongScanner.scanDevice(scanConfig, removeMissing) }
                 .onSuccess { summary ->
                     _scanState.value = LocalSongsScanState(
                         isScanning = false,
                         lastSummary = summary,
                         errorMessage = null,
+                        missingSongs = summary.keptMissing,
                     )
                 }
                 .onFailure { error ->
@@ -105,13 +107,14 @@ constructor(
                         isScanning = false,
                         // Row 694: a refused scan deleted nothing; say so instead of an untranslated exception message.
                         errorMessage = when (error) {
-                            is LocalScanFailedException -> if (error.keptSongs > 0) {
-                                context.getString(R.string.local_songs_scan_empty_kept, error.keptSongs)
-                            } else {
-                                context.getString(R.string.local_songs_scan_nothing_removed)
+                            is LocalScanFailedException -> when {
+                                error.missingPermission -> context.getString(R.string.local_songs_scan_no_permission)
+                                error.keptSongs > 0 -> context.getString(R.string.local_songs_scan_empty_kept, error.keptSongs)
+                                else -> context.getString(R.string.local_songs_scan_nothing_removed)
                             }
                             else -> error.message
                         },
+                        missingSongs = (error as? LocalScanFailedException)?.keptSongs ?: 0,
                     )
                 }
         }
@@ -122,4 +125,6 @@ data class LocalSongsScanState(
     val isScanning: Boolean = false,
     val lastSummary: LocalSongScanSummary? = null,
     val errorMessage: String? = null,
+    /** Local songs the last scan did not see but kept (row 694); > 0 offers the confirmed removal. */
+    val missingSongs: Int = 0,
 )

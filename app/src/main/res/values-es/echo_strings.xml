@@ -1020,6 +1020,11 @@
     <string name="local_songs_ready_desc">Reproduce canciones locales de este dispositivo.</string>
     <string name="local_songs_scan_nothing_removed">No se ha quitado nada de tu biblioteca.</string>
     <string name="local_songs_scan_empty_kept">No se encontró ninguna canción en este dispositivo, así que se conservan tus %1$d canciones locales. Revisa el permiso de almacenamiento y las carpetas elegidas.</string>
+    <string name="local_songs_scan_no_permission">Aura no tiene permiso para leer tu música: no se ha escaneado ni quitado nada de tu biblioteca.</string>
+    <string name="local_songs_missing_kept">%1$d canciones locales ya no están en el teléfono (por ejemplo, en una tarjeta SD que no está puesta) y se conservan.</string>
+    <string name="local_songs_remove_missing_action">Quitar de Aura las canciones locales que ya no están en el teléfono</string>
+    <string name="local_songs_remove_missing_confirm">¿Quitar de Aura %1$d canciones locales? Se pierden también sus me gusta, su lugar en tus listas y su historial. Los archivos del teléfono no se tocan.</string>
+    <string name="local_songs_remove_missing_confirm_button">Quitar</string>
     <string name="scan_device">Escanear dispositivo</string>
     <string name="local_songs_scan_title">Escanear canciones locales</string>
     <string name="local_songs_scan_subtitle">Actualiza las canciones de este dispositivo y los metadatos de la biblioteca local.</string>

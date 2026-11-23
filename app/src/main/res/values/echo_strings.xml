@@ -1125,6 +1125,11 @@
     <string name="local_songs_ready_desc">Play local songs on this device.</string>
     <string name="local_songs_scan_nothing_removed">Nothing was removed from your library.</string>
     <string name="local_songs_scan_empty_kept">No songs were found on this device, so your %1$d local songs were kept. Check the storage permission and the chosen folders.</string>
+    <string name="local_songs_scan_no_permission">Aura isn’t allowed to read your music, so nothing was scanned and nothing was removed from your library.</string>
+    <string name="local_songs_missing_kept">%1$d local songs are no longer on the phone (for example, on an SD card that isn’t inserted) and were kept.</string>
+    <string name="local_songs_remove_missing_action">Remove from Aura the local songs that are no longer on the phone</string>
+    <string name="local_songs_remove_missing_confirm">Remove %1$d local songs from Aura? Their likes, their place in your playlists and their listening history go with them. The files on the phone are not touched.</string>
+    <string name="local_songs_remove_missing_confirm_button">Remove</string>
     <string name="scan_device">Scan device</string>
     <string name="local_songs_scan_title">Scan local songs</string>
     <string name="local_songs_scan_subtitle">Refresh songs stored on this device and update the local library metadata.</string>
