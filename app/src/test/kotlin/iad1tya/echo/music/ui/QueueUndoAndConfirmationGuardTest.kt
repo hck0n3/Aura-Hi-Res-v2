@@ -81,4 +81,66 @@ class QueueUndoAndConfirmationGuardTest {
         assertTrue(stringValue(res("values-es/strings.xml"), "added_to_playlist_toast") == "Añadido a «%s»")
         assertTrue(stringValue(res("values-es-rUS/strings.xml"), "added_to_playlist_toast") == "Añadido a «%s»")
     }
+
+    // ── «Cola cerrada · Deshacer» ────────────────────────────────────────────────────────────────────────────────────
+    private val rule = iad1tya.echo.music.playback.DismissedQueueUndoRule
+
+    @Test
+    fun `the undo is offered only for a real local queue`() {
+        assertTrue(rule.canOffer(itemCount = 12, controllingAnotherDevice = false, listenTogetherGuest = false))
+        assertFalse("nothing to bring back", rule.canOffer(itemCount = 0, controllingAnotherDevice = false, listenTogetherGuest = false))
+        assertFalse("remote mirror stays as it was", rule.canOffer(itemCount = 12, controllingAnotherDevice = true, listenTogetherGuest = false))
+        assertFalse("guest stays as it was", rule.canOffer(itemCount = 12, controllingAnotherDevice = false, listenTogetherGuest = true))
+    }
+
+    @Test
+    fun `the undo restores only into an empty player, inside the window, outside remote and guest mode`() {
+        val expires = 10_000L
+        assertTrue(rule.canRestore(nowElapsed = 9_000L, expiresAtElapsed = expires, playerItemCount = 0, controllingAnotherDevice = false, listenTogetherGuest = false))
+        // A tap landing right at the close still counts…
+        assertTrue(rule.canRestore(nowElapsed = expires + rule.TAP_GRACE_MS, expiresAtElapsed = expires, playerItemCount = 0, controllingAnotherDevice = false, listenTogetherGuest = false))
+        // …but not one after it.
+        assertFalse(rule.canRestore(nowElapsed = expires + rule.TAP_GRACE_MS + 1, expiresAtElapsed = expires, playerItemCount = 0, controllingAnotherDevice = false, listenTogetherGuest = false))
+        assertFalse("he already started something else: never overwrite it", rule.canRestore(nowElapsed = 9_000L, expiresAtElapsed = expires, playerItemCount = 3, controllingAnotherDevice = false, listenTogetherGuest = false))
+        assertFalse(rule.canRestore(nowElapsed = 9_000L, expiresAtElapsed = expires, playerItemCount = 0, controllingAnotherDevice = true, listenTogetherGuest = false))
+        assertFalse(rule.canRestore(nowElapsed = 9_000L, expiresAtElapsed = expires, playerItemCount = 0, controllingAnotherDevice = false, listenTogetherGuest = true))
+    }
+
+    @Test
+    fun `the snackbar shows what is left of the window and never a negative time`() {
+        assertTrue(rule.remainingMs(nowElapsed = 1_000L, expiresAtElapsed = 7_000L) == 6_000L)
+        assertTrue(rule.remainingMs(nowElapsed = 8_000L, expiresAtElapsed = 7_000L) == 0L)
+        assertTrue(rule.UNDO_WINDOW_MS == 6_000L)
+    }
+
+    @Test
+    fun `swiping the player away snapshots the queue first and the undo restores it paused through the boot-restore call`() {
+        val dismiss = main("ui/newui/AuraPlayer.kt").substringAfter("DESTRUCTIVE GESTURE, PRESERVED VERBATIM")
+            .substringAfter("onDismiss = {").substringBefore("\n        },")
+        val capture = dismiss.indexOf("iad1tya.echo.music.playback.DismissedQueueUndo.capture(playerConnection.service)")
+        assertTrue(capture >= 0 && capture < dismiss.indexOf("playerConnection.player.stop()"))
+        assertTrue(capture < dismiss.indexOf("playerConnection.player.clearMediaItems()"))
+        // The gesture itself is unchanged (row 718 included).
+        assertTrue(dismiss.contains("playerConnection.service.queueGeneration++"))
+        assertTrue(dismiss.contains("playerConnection.service.clearAutomix()"))
+
+        val undo = main("playback/DismissedQueueUndo.kt")
+        assertTrue(undo.contains("playWhenReady = false,\n            isRestore = true,"))
+        assertTrue(undo.contains("startIndex = snap.index,") && undo.contains("position = snap.positionMs,"))
+        assertTrue(undo.contains("contextId = snap.contextId,") && undo.contains("title = snap.title,"))
+        assertTrue(undo.contains("player.repeatMode = snap.repeatMode") && undo.contains("player.shuffleModeEnabled = snap.shuffleModeEnabled"))
+        assertTrue(undo.contains("RemotePlayback.active") && undo.contains("shouldBlockPlaybackChanges()"))
+        // Rule 7: one delayed message frees the snapshot — no polling.
+        assertTrue(undo.contains("mainHandler.postDelayed({ drop(token) }"))
+        assertFalse(undo.contains("while (") || undo.contains("repeat("))
+
+        val shell = main("MainActivity.kt")
+        assertTrue(shell.contains("iad1tya.echo.music.playback.DismissedQueueUndo.offer.collectLatest { offer ->"))
+        assertTrue(shell.contains("iad1tya.echo.music.playback.DismissedQueueUndo.restore(connection.service, offer.token)"))
+        assertTrue(shell.contains("iad1tya.echo.music.playback.DismissedQueueUndo.drop(offer.token)"))
+        assertTrue(shell.contains("actionLabel = queueClosedUndoLabel,"))
+        assertTrue(stringValue(res("values/strings.xml"), "queue_closed_undo") == "Queue closed")
+        assertTrue(stringValue(res("values-es/strings.xml"), "queue_closed_undo") == "Cola cerrada")
+        assertTrue(stringValue(res("values-es-rUS/strings.xml"), "queue_closed_undo") == "Cola cerrada")
+    }
 }

@@ -1475,6 +1475,37 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // Row 733 (audit P22B): «Cola cerrada · Deshacer» after the player sheet was swiped away. Shown for what is
+                // left of the window (a rotation re-shows it, never extends it); «Deshacer» puts the queue back paused.
+                val queueClosedMessage = stringResource(R.string.queue_closed_undo)
+                val queueClosedUndoLabel = stringResource(R.string.undo)
+                LaunchedEffect(playerConnection) {
+                    val connection = playerConnection ?: return@LaunchedEffect
+                    iad1tya.echo.music.playback.DismissedQueueUndo.offer.collectLatest { offer ->
+                        if (offer == null) return@collectLatest
+                        val remaining = iad1tya.echo.music.playback.DismissedQueueUndoRule.remainingMs(
+                            android.os.SystemClock.elapsedRealtime(),
+                            offer.expiresAtElapsed,
+                        )
+                        if (remaining == 0L) {
+                            iad1tya.echo.music.playback.DismissedQueueUndo.drop(offer.token)
+                            return@collectLatest
+                        }
+                        val result = kotlinx.coroutines.withTimeoutOrNull(remaining) {
+                            snackbarHostState.showSnackbar(
+                                message = queueClosedMessage,
+                                actionLabel = queueClosedUndoLabel,
+                                duration = SnackbarDuration.Indefinite,
+                            )
+                        }
+                        if (result == SnackbarResult.ActionPerformed) {
+                            iad1tya.echo.music.playback.DismissedQueueUndo.restore(connection.service, offer.token)
+                        } else {
+                            iad1tya.echo.music.playback.DismissedQueueUndo.drop(offer.token)
+                        }
+                    }
+                }
+
                 var showSettingDialoge by remember { mutableStateOf(false) }
                 val (offlineMode, onOfflineModeChange) = rememberPreference(OfflineModeKey, defaultValue = false)
 
