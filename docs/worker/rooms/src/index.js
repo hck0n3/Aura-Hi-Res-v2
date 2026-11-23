@@ -10,6 +10,10 @@ const MAX_USERS = 12;
 const MAX_QUEUE = 200;
 const MAX_FRAME = 64 * 1024;
 const BUFFER_TIMEOUT_MS = 10_000;
+/** How old a host's capturedAtServerTime may be and still anchor the room (W1); older, or in the future, is clamped. */
+const CAPTURE_MAX_AGE_MS = 5_000;
+/** How far ahead of the barrier's close everyone is told to start (W2): time for the `play` to reach every device. */
+const SYNC_START_LEAD_MS = 400;
 const HOST_GRACE_MS = 60_000;
 const EMPTY_ROOM_MS = 5 * 60_000;
 
@@ -34,14 +38,14 @@ export function fromWire(type, p) {
     case "approve_join": return { t: type, userId: p.userId };
     case "reject_join": case "kick_user": return { t: type, userId: p.userId, reason: p.reason };
     case "transfer_host": return { t: type, userId: p.newHostId };
-    case "playback_action": return { t: type, action: p.action, trackId: p.trackId, positionMs: p.position, track: p.trackInfo, queue: p.queue, insertNext: !!p.insertNext, volume: p.volume };
+    case "playback_action": return { t: type, action: p.action, trackId: p.trackId, positionMs: p.position, track: p.trackInfo, queue: p.queue, insertNext: !!p.insertNext, volume: p.volume, capturedAt: p.capturedAtServerTime, hostPlaying: p.hostPlaying };
     case "buffer_ready": return { t: type, trackId: p.trackId };
     case "ping": return { t: type, clientTime: p.clientTime, sequence: p.sequence };
     case "suggest_track": return { t: type, track: p.trackInfo };
     case "approve_suggestion": return { t: type, suggestionId: p.suggestionId };
     case "reject_suggestion": return { t: type, suggestionId: p.suggestionId, reason: p.reason };
     case "reconnect": { const [userId, ...rest] = String(p.sessionToken || "").split("."); return { t: type, userId, token: rest.join(".") }; }
-    case "client_capabilities": return { t: "noop" };
+    case "client_capabilities": return { t: type, syncStart: p.syncStart === true };
     default: return { ...p, t: type };
   }
 }
@@ -58,7 +62,7 @@ export function toWire(m) {
     case "join_rejected": return { type: m.t, payload: { reason: m.reason } };
     case "host_changed": return { type: m.t, payload: { newHostId: m.hostId, newHostName: m.username || "" } };
     case "kicked": return { type: m.t, payload: { reason: m.reason } };
-    case "buffer_wait": return { type: m.t, payload: { trackId: m.trackId || "", waitingFor: m.waitingFor || [] } };
+    case "buffer_wait": return { type: m.t, payload: { trackId: m.trackId || "", waitingFor: m.waitingFor || [], ...(m.syncStart ? { syncStart: true, startPosition: m.startPosition || 0 } : {}) } };
     case "buffer_complete": return { type: m.t, payload: { trackId: m.trackId || "" } };
     case "error": return { type: m.t, payload: { code: m.code, message: ERROR_TEXT[m.code] || m.code } };
     case "pong": return { type: m.t, payload: { clientTime: m.clientTime, serverReceiveTime: m.receivedAt, serverSendTime: now, sequence: m.sequence } };
@@ -67,13 +71,24 @@ export function toWire(m) {
     case "sync_playback": return { type: m.t, payload: {
       action: m.action, trackId: m.trackId || (m.track && m.track.id) || "", position: m.positionMs || 0, trackInfo: m.track || null,
       insertNext: !!m.insertNext, queue: m.queue || [], queueTitle: "", volume: m.volume ?? 0, serverTime: m.serverTime || now, revision: m.revision || 0,
-      capturedAtServerTime: m.serverTime || now,
+      capturedAtServerTime: m.capturedAt || m.serverTime || now,
+      ...(m.startAt ? { startAtServerTime: m.startAt } : {}),
     } };
     case "suggestion_received": return { type: m.t, payload: { suggestionId: m.suggestionId, fromUserId: m.userId, fromUsername: m.username, trackInfo: m.track } };
     case "suggestion_approved": return { type: m.t, payload: { suggestionId: m.suggestionId, trackInfo: m.track } };
     case "suggestion_rejected": return { type: m.t, payload: { suggestionId: m.suggestionId, reason: m.reason || "" } };
     default: return { type: m.t, payload: m };
   }
+}
+
+/**
+ * W1: the server time the room's position is anchored to — when the host CAPTURED the command (its capturedAtServerTime, on this
+ * server's clock through the app's ServerClock), not when it arrived here; anchoring at arrival left every guest behind by the host's
+ * upload latency. Clamped to the last CAPTURE_MAX_AGE_MS and never later than now; 0 or absent (uncalibrated clock) = now.
+ */
+export function anchorTime(capturedAt, now) {
+  const c = Number(capturedAt) || 0;
+  return c > 0 ? Math.min(now, Math.max(now - CAPTURE_MAX_AGE_MS, c)) : now;
 }
 
 export function cleanTrack(t) {
@@ -137,14 +152,17 @@ export class Room {
   publicUsers() {
     return Object.entries(this.room.users).map(([id, u]) => ({ userId: id, username: u.name, isHost: id === this.room.hostId, isConnected: !!u.connected }));
   }
+  /** Frozen while everyone waits at a synchronized start; before that start's time it has not moved yet. */
   position(now = Date.now()) {
     const r = this.room;
-    return r.playing ? r.positionMs + (now - r.anchorAt) : r.positionMs;
+    if (!r.playing || (r.buffering && r.buffering.sync)) return r.positionMs;
+    return r.positionMs + Math.max(0, now - r.anchorAt);
   }
   publicState(now = Date.now()) {
     const r = this.room;
     return {
-      roomCode: r.code, hostId: r.hostId, users: this.publicUsers(), currentTrack: r.track, isPlaying: r.playing,
+      // Someone arriving during a synchronized start loads paused and starts with everyone on the play that closes it.
+      roomCode: r.code, hostId: r.hostId, users: this.publicUsers(), currentTrack: r.track, isPlaying: r.playing && !(r.buffering && r.buffering.sync),
       position: Math.max(0, Math.round(this.position(now))), lastUpdate: now, volume: r.volume, queue: r.queue, revision: r.revision || 0,
     };
   }
@@ -180,7 +198,8 @@ export class Room {
     return true;
   }
 
-  async on_noop() { /* client_capabilities: nothing to negotiate */ }
+  /** Nothing to negotiate but one thing to note, per socket: whether this app holds at a synchronized start (W2). */
+  async on_client_capabilities(ws, a, m) { ws.serializeAttachment({ ...a, syncStart: !!m.syncStart }); }
 
   async on_ping(ws, a, m) { send(ws, { t: "pong", clientTime: Number(m.clientTime) || 0, receivedAt: m.receivedAt, sequence: Number(m.sequence) || 0 }); }
 
@@ -289,16 +308,27 @@ export class Room {
     const r = this.room;
     const now = Date.now();
     const action = String(m.action || "");
+    // A position the host gave is anchored where it captured it (W1); one the room computes itself is anchored now.
+    const at = m.positionMs != null ? anchorTime(m.capturedAt, now) : now;
+    // An app that says whether its host plays (hostPlaying) also waits at a synchronized-start barrier (W2); an older app says nothing
+    // and keeps the room exactly as before.
+    const syncHost = typeof m.hostPlaying === "boolean";
+    const holding = !!(r.buffering && r.buffering.sync);
+    // The host's own PLAY while everyone waits at the start: the room starts when the barrier closes, not now.
+    if (action === "play" && holding) { r.playing = true; await this.save(); return; }
+    const wasPlaying = r.playing;
+    const previousTrackId = r.track ? r.track.id : "";
     r.revision = (r.revision || 0) + 1;
     const out = { t: "sync_playback", action, serverTime: now, revision: r.revision };
     switch (action) {
-      case "play": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = true; r.anchorAt = now; break;
-      case "pause": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = false; r.anchorAt = now; break;
-      case "seek": r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = now; break;
+      case "play": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = true; r.anchorAt = at; break;
+      case "pause": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = false; r.anchorAt = at; break;
+      case "seek": r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = anchorTime(m.capturedAt, now); if (syncHost) r.playing = m.hostPlaying; break;
       case "change_track": {
         const tr = cleanTrack(m.track);
         if (!tr) return send(ws, { t: "error", code: "bad_track" });
-        r.track = tr; r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = now; r.playing = true;
+        // P2-5: playing only if the host is (an older app sends no flag: playing, as before).
+        r.track = tr; r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = anchorTime(m.capturedAt, now); r.playing = syncHost ? m.hostPlaying : true;
         // The queue travels on the SAME message as the track (the app relies on it): keep it and echo it.
         if (Array.isArray(m.queue) && m.queue.length) r.queue = m.queue.map(cleanTrack).filter(Boolean).slice(0, MAX_QUEUE);
         out.track = tr; out.queue = r.queue;
@@ -312,10 +342,27 @@ export class Room {
       case "set_volume": r.volume = Math.min(1, Math.max(0, Number(m.volume) || 0)); out.volume = r.volume; break;
       default: return send(ws, { t: "error", code: "unknown_action" });
     }
+    // W2: a new track, a jump, or the PLAY that starts a track the room had paused on, from an app that waits at the barrier, with
+    // someone else to wait for. The room's clock stays frozen at the start position until everyone (the host too) is ready.
+    const others = Object.entries(r.users).filter(([id, u]) => id !== a.id && u.connected).map(([id]) => id);
+    // Only when every other device holds too: an older app plays at once and the frozen clock would then pull it back.
+    const everyoneHolds = others.every((id) => (this.socketOf(id)?.deserializeAttachment() || {}).syncStart === true);
+    const startsTogether = syncHost && others.length > 0 && everyoneHolds && r.playing && (
+      (action === "change_track" && r.track.id !== previousTrackId) || action === "seek" || (action === "play" && !wasPlaying && m.hostPlaying === true));
+    let cancelled = null;
+    if (startsTogether) {
+      const waiting = Object.entries(r.users).filter(([, u]) => u.connected).map(([id]) => id);
+      r.buffering = { waiting, until: now + BUFFER_TIMEOUT_MS, trackId: r.track ? r.track.id : "", all: waiting.slice(), sync: true };
+      await this.ctx.storage.setAlarm(now + BUFFER_TIMEOUT_MS);
+    } else if (holding && (action === "change_track" || action === "seek" || action === "pause")) {
+      // The host moved on without a new synchronized start: that barrier is over.
+      cancelled = r.buffering.trackId;
+      r.buffering = null;
+    }
     out.positionMs = Math.max(0, Math.round(this.position(now)));
     out.volume = r.volume;
     // A new track or a jump makes everyone fetch audio: wait for the slowest (or 10 s) before playing together.
-    if ((action === "change_track" || action === "seek") && r.playing) {
+    if (!startsTogether && (action === "change_track" || action === "seek") && r.playing) {
       const waiting = Object.entries(r.users).filter(([id, u]) => id !== a.id && u.connected).map(([id]) => id);
       if (waiting.length) {
         r.buffering = { waiting, until: now + BUFFER_TIMEOUT_MS, trackId: r.track ? r.track.id : "", all: waiting.slice() };
@@ -324,25 +371,47 @@ export class Room {
       }
     }
     await this.save();
-    this.broadcast(out, a.id);
+    // The barrier goes out BEFORE the command, so that a device that holds already knows it when the new track arrives.
+    if (startsTogether) {
+      this.broadcast({ t: "buffer_wait", trackId: r.buffering.trackId, waitingFor: r.buffering.waiting.slice(), syncStart: true, startPosition: Math.round(r.positionMs) });
+    }
+    // The PLAY that opened a barrier is not sent on: everyone plays when it closes.
+    if (!(startsTogether && action === "play")) this.broadcast(out, a.id);
     if (out.bufferWait) this.broadcast({ t: "buffer_wait", trackId: r.buffering.trackId, waitingFor: r.buffering.waiting.slice() });
+    // An old-style barrier that took its place already ended it (and a buffer_complete now would end that one too).
+    if (cancelled !== null && !out.bufferWait) this.broadcast({ t: "buffer_complete", trackId: cancelled });
   }
 
   async maybeCompleteBuffer() {
     const r = this.room;
     if (!r || !r.buffering || r.buffering.waiting.length) return;
     const trackId = r.buffering.trackId;
+    const sync = !!r.buffering.sync;
     r.buffering = null;
     r.revision = (r.revision || 0) + 1;
-    await this.save();
     const now = Date.now();
+    if (sync) {
+      // W2: the room's clock starts at the start position at one common moment, a little ahead so the play reaches everyone first.
+      // The play goes out before buffer_complete: a device that holds learns the start time before it hears the barrier is over.
+      const startAt = now + SYNC_START_LEAD_MS;
+      r.anchorAt = startAt;
+      await this.save();
+      if (r.playing) {
+        this.broadcast({ t: "sync_playback", action: "play", serverTime: now, capturedAt: startAt, startAt, revision: r.revision, positionMs: Math.round(r.positionMs), track: r.track });
+      }
+      this.broadcast({ t: "buffer_complete", trackId });
+      return;
+    }
+    await this.save();
     this.broadcast({ t: "buffer_complete", trackId });
     // Everybody (the host too) starts from the same spot on the server's clock.
     if (r.playing) this.broadcast({ t: "sync_playback", action: "play", serverTime: now, revision: r.revision, positionMs: Math.round(this.position(now)), track: r.track });
   }
 
-  async on_buffer_ready(ws, a) {
+  async on_buffer_ready(ws, a, m) {
     if (!this.requireMember(ws, a) || !this.room.buffering) return;
+    // A synchronized start waits for THIS track: a late answer about the previous one does not count.
+    if (this.room.buffering.sync && m.trackId && String(m.trackId) !== this.room.buffering.trackId) return;
     this.room.buffering.waiting = this.room.buffering.waiting.filter((id) => id !== a.id);
     await this.maybeCompleteBuffer();
     await this.save();

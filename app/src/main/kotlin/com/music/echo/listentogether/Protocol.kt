@@ -203,6 +203,14 @@ data class PlaybackActionPayload(
     @ProtoNumber(9) val serverTime: Long = 0L,
     @ProtoNumber(10) val revision: Long = 0L,
     @ProtoNumber(11) val capturedAtServerTime: Long = 0L,
+    /**
+     * NOT in metroproto: an Aura-rooms extension (numbered from 101 so it can never collide with Metrolist's fields, and never set
+     * towards a Metrolist server). Host → room: whether the host is playing, on change_track, seek and the PLAY that starts a track;
+     * its presence tells Aura's server that this app waits at a synchronized start (docs/worker/rooms, W2). Null = not said.
+     */
+    @ProtoNumber(101) val hostPlaying: Boolean? = null,
+    /** Aura-rooms extension, room → devices: on the `play` that closes a synchronized start, the server time everyone starts at. 0 = none. */
+    @ProtoNumber(102) val startAtServerTime: Long = 0L,
 )
 
 @Serializable
@@ -298,6 +306,13 @@ data class UserLeftPayload(
 data class BufferWaitPayload(
     @ProtoNumber(1) val trackId: String = "",
     @ProtoNumber(2) val waitingFor: List<String> = emptyList(),
+    /**
+     * Aura-rooms extensions (see [PlaybackActionPayload.hostPlaying]): true when this barrier is a synchronized start — the room's
+     * clock is frozen at [startPosition] and every device, the host too, waits paused there for the `play` that names the start time.
+     * False from Metrolist's server and from an older Aura server: the barrier is the old one and nobody pauses.
+     */
+    @ProtoNumber(101) val syncStart: Boolean = false,
+    @ProtoNumber(102) val startPosition: Long = 0L,
 )
 
 @Serializable
@@ -394,6 +409,11 @@ data class ClientCapabilities(
     @ProtoNumber(1) val supportsProtobuf: Boolean = false,
     @ProtoNumber(2) val supportsCompression: Boolean = false,
     @ProtoNumber(3) val clientVersion: String = "",
+    /**
+     * Aura-rooms extension (see [PlaybackActionPayload.hostPlaying]; never true towards Metrolist's server): this app holds paused at
+     * a synchronized start. Aura's server opens one only when every connected device says so (docs/worker/rooms, W2).
+     */
+    @ProtoNumber(101) val syncStart: Boolean = false,
 )
 
 @Serializable

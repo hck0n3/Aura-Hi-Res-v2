@@ -319,6 +319,7 @@ class ListenTogetherClient(
                         supportsProtobuf = true,
                         supportsCompression = true,
                         clientVersion = clientVersion,
+                        syncStart = aura,
                     ),
                 )
                 val caps =

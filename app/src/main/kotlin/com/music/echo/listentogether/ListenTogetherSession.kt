@@ -88,11 +88,14 @@ data class ListenTogetherState(
     /** The track the last `buffer_wait` named, or "" when it named none: what this device answers about. */
     val bufferWaitTrackId: String = "",
     /**
-     * True once the current barrier has been on screen for [BUFFER_WAIT_INDICATOR_MAX_MS]. No device pauses during the barrier and the
-     * server does not hold the room's clock in it (that needs the server change W2), so a long «Esperando a X» would announce a wait
-     * nobody hears; the indicator stays as long as it did when every device answered within 2 s.
+     * True once the current barrier has been on screen for [BUFFER_WAIT_INDICATOR_MAX_MS]. In an old-style barrier (Metrolist, an older
+     * Aura server, an older host) no device pauses and the server does not hold the room's clock, so a long «Esperando a X» would
+     * announce a wait nobody hears; the indicator stays as long as it did when every device answered within 2 s. A synchronized start
+     * ([syncStart]) is a wait everyone hears, and its indicator never expires.
      */
     val bufferWaitIndicatorExpired: Boolean = false,
+    /** The synchronized start this device holds for (Aura's rooms, W2), or null: none announced — always null with older servers. */
+    val syncStart: SyncStart? = null,
     /** Server time the last transport command was captured at; 0 when unknown. */
     val lastActionServerTime: Long = 0L,
     /**
@@ -287,6 +290,7 @@ class ListenTogetherSession(
                     position = 0L,
                     lastActionServerTime = 0L,
                     waitingFor = emptyList(),
+                    syncStart = null,
                     connection = if (client.isAuraRooms) ConnectionState.Connected(AURA_ROOMS_VERSION) else it.connection,
                 )
             }
@@ -331,7 +335,8 @@ class ListenTogetherSession(
      * `capturedAtServerTime` is what lets a late-arriving PLAY still land on the right position:
      * the receiver advances [position] by however long the frame spent in flight, measured on the
      * SERVER's clock rather than its own. Sending 0 (an uncalibrated clock) is safe — the receiver
-     * treats it as "unknown" and uses the raw position.
+     * treats it as "unknown" and uses the raw position. It is taken here, when the command is issued next to the position it goes
+     * with, and the command then waits its turn in [outbox].
      */
     fun sendPlaybackAction(
         action: String,
@@ -340,29 +345,36 @@ class ListenTogetherSession(
         trackInfo: TrackInfo?,
         queue: List<TrackInfo> = emptyList(),
         queueTitle: String = "",
-    ) = launch {
-        val capturedAt = client.serverNow() ?: 0L
-        val sent = client.send(
-            MessageTypes.PLAYBACK_ACTION,
+        /** Whether the host plays, for the commands that may start a synchronized start; sent to Aura's rooms only. */
+        hostPlaying: Boolean? = null,
+    ) {
+        outbox.offer(
             PlaybackActionPayload(
                 action = action,
                 trackId = trackId,
                 position = position,
                 trackInfo = trackInfo,
+                hostPlaying = hostPlaying?.takeIf { client.isAuraRooms },
                 // Carried on the SAME message as the track deliberately. Sent separately they are
                 // two independent sends with no ordering guarantee, and a queue arriving after the
                 // track means the guest has already committed to a one-track queue — it then plays
                 // its own next song and the room splits one track later.
                 queue = queue,
                 queueTitle = queueTitle,
-                capturedAtServerTime = capturedAt,
+                capturedAtServerTime = client.serverNow() ?: 0L,
             ),
         )
-        if (sent) sentAnchor.updateAndGet { nextSentAnchor(it, action, position, capturedAt) }
     }
 
     /** Atomic: two sends completing at once must not lose one update (each is computed from the previous anchor). */
     private val sentAnchor = java.util.concurrent.atomic.AtomicReference<SentAnchor?>(null)
+
+    /** Every playback_action, track changes, play/pause, seeks and queues alike, goes out in the order it was issued (P2-5). */
+    private val outbox =
+        OrderedOutbox<PlaybackActionPayload>(this) { payload ->
+            val sent = client.send(MessageTypes.PLAYBACK_ACTION, payload)
+            if (sent) sentAnchor.updateAndGet { nextSentAnchor(it, payload.action, payload.position, payload.capturedAtServerTime) }
+        }
 
     /**
      * Where the host last told the room it was. Aura's server does not echo a host's own commands back to it (`broadcast(out, a.id)`
@@ -378,9 +390,8 @@ class ListenTogetherSession(
     fun sendQueue(
         tracks: List<TrackInfo>,
         queueTitle: String,
-    ) = launch {
-        client.send(
-            MessageTypes.PLAYBACK_ACTION,
+    ) {
+        outbox.offer(
             PlaybackActionPayload(
                 action = PlaybackActions.SYNC_QUEUE,
                 queue = tracks,
@@ -412,6 +423,10 @@ class ListenTogetherSession(
     /** Answers the buffer barrier for [trackId]; until every member does, nobody hears anything. */
     fun reportBufferReady(trackId: String) =
         launch { client.send(MessageTypes.BUFFER_READY, BufferReadyPayload(trackId = trackId)) }
+
+    /** The bridge started (or let go of) [hold]: it no longer holds anyone. A newer hold that replaced it is left alone. */
+    fun markSyncStartStarted(hold: SyncStart) =
+        _state.update { s -> if (s.syncStart == hold) s.copy(syncStart = hold.copy(started = true)) else s }
 
     fun clearError() = _state.update { it.copy(error = null) }
 
@@ -567,16 +582,37 @@ class ListenTogetherSession(
                             bufferWaitTrackId = p.trackId,
                             bufferWaitIndicatorExpired = false,
                             members = s.members.map { it.copy(isBuffering = it.userId in p.waitingFor) },
+                            syncStart = syncStartAfterBufferWait(p, s.bufferWaitRevision + 1),
                         )
                     }
                 launch {
-                    delay(BUFFER_WAIT_INDICATOR_MAX_MS)
-                    _state.update { it.expireBufferWaitIndicator(next.bufferWaitRevision) }
+                    if (p.syncStart) {
+                        // Everyone really waits at this barrier, so «Esperando a X» stays until it ends; only a hold whose start time
+                        // never arrived is let go, and the device follows the room as before.
+                        delay(SYNC_START_HOLD_MAX_MS)
+                        _state.update { s ->
+                            val hold = s.syncStart
+                            val released =
+                                if (hold != null && hold.revision == next.bufferWaitRevision && hold.startAtServerTime == 0L) s.copy(syncStart = null) else s
+                            // The server ends every barrier within 10 s; still showing it now means its end never reached this device
+                            // (it was cut off and came back), so «Esperando a X» goes too.
+                            released.expireBufferWaitIndicator(next.bufferWaitRevision)
+                        }
+                    } else {
+                        delay(BUFFER_WAIT_INDICATOR_MAX_MS)
+                        _state.update { it.expireBufferWaitIndicator(next.bufferWaitRevision) }
+                    }
                 }
             }
 
             MessageTypes.BUFFER_COMPLETE ->
-                _state.update { s -> s.copy(waitingFor = emptyList(), members = s.members.map { it.copy(isBuffering = false) }) }
+                _state.update { s ->
+                    s.copy(
+                        waitingFor = emptyList(),
+                        members = s.members.map { it.copy(isBuffering = false) },
+                        syncStart = syncStartAfterBufferComplete(s.syncStart),
+                    )
+                }
 
             MessageTypes.SYNC_STATE -> {
                 val p = payload as? SyncStatePayload ?: return
@@ -607,7 +643,13 @@ class ListenTogetherSession(
                         position = if (p.action == PlaybackActions.SYNC_QUEUE) it.position else p.position,
                         queue = p.queue.ifEmpty { it.queue },
                         lastActionServerTime = if (p.action == PlaybackActions.SYNC_QUEUE) it.lastActionServerTime else p.capturedAtServerTime,
+                        syncStart = syncStartAfterCommand(it.syncStart, p, it.bufferWaitRevision),
                     )
+                }
+                // The host's own commands are not echoed back to it, but this one is the room's: from now on the room's timeline is the
+                // start position at the start time, and that is what the host's drift is measured against.
+                if (p.action == PlaybackActions.PLAY && p.startAtServerTime > 0L && _state.value.isHost) {
+                    sentAnchor.set(SentAnchor(position = p.position, serverTime = p.startAtServerTime, playing = true))
                 }
             }
 
