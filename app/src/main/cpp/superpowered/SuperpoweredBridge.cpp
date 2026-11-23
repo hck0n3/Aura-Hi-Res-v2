@@ -1054,7 +1054,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(J
     limiter->releaseSec = 0.05f;
     limiter->enabled = true;
 
-    const float frontGain = (float) std::pow(10.0, preampDb / 20.0) * 0.7943f;
+    const float frontGain = (float) std::pow(10.0, preampDb / 20.0); // same as processAudio: no hidden trim
     const int block = 512;
     const int skip = (int) (sr * 0.5f); // let filters/limiter settle before measuring
     float peakIn = 0.0f, peakEq = 0.0f, peakOut = 0.0f;
@@ -1179,7 +1179,9 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // is worst exactly on DYNAMIC masters (classical/jazz/hi-res): low integrated loudness means a
         // large makeup while peaks already sit near full scale, so the limiter would ride ~10 dB of gain
         // reduction on every transient — the "saturation / boxy / pumping" complaint on record.
-        float frontGain = processor->activePreampMultiplier * 0.7943f; // -2.0 dB headroom
+        // No hidden trim (row 790): the preamp the user sees is the gain applied. It used to be multiplied by
+        // 0.7943 (-2 dB), so the house +2.5 dB was really +0.5 dB.
+        float frontGain = processor->activePreampMultiplier;
         if (frontGain != 1.0f) {
             for (int i = 0; i < num_frames * channels; ++i) {
                 workBuffer[i] *= frontGain;
