@@ -2769,7 +2769,9 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/ContentSettings
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Abrir enlaces — desc. «Establece Aura como predeterminada para abrir enlaces de YouTube Music» | Ajustes > Contenido | ContentSettings.kt:1311 | navegación (ajustes del sistema) | rara | siempre |
+| Abrir enlaces — desc. «Abre «Abrir de forma predeterminada» de Android: Android no deja que una app active sus propios enlaces» | Ajustes > Contenido | ContentSettings.kt:1400 | navegación (ajustes del sistema) | rara | siempre |
+| **2026-11-23 (fila 676):** «YouTube y YouTube Music» y «song.link y album.link» — siempre activos, sin interruptor; la descripción dice lo que Android tiene elegido en «Abrir de forma predeterminada» (todos / algunos / aún sin permitir / Android pregunta) | Ajustes > Contenido | `ui/screens/settings/OpenLinkServicesSettings.kt` | informativo | rara | siempre |
+| **2026-11-23 (fila 676):** «Enlaces de Spotify / Apple Music / Deezer / Tidal / SoundCloud / Amazon Music» — un interruptor por servicio, **apagados por defecto** (activan su `activity-alias`); encendido, la descripción dice el estado en «Abrir de forma predeterminada» | Ajustes > Contenido | `ui/screens/settings/OpenLinkServicesSettings.kt` | conmutador | rara | siempre |
 
 ### Grupo «Diagnóstico» (hardcoded)
 

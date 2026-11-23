@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="open_links_youtube_title">YouTube y YouTube Music</string>
+    <string name="open_links_songlink_title">song.link y album.link</string>
+    <string name="open_links_service_title">Enlaces de %1$s</string>
+    <string name="open_links_service_off">Desactivado: estos enlaces se abren en su propia app o en el navegador</string>
+    <string name="open_links_state_all">Aura abre estos enlaces</string>
+    <string name="open_links_state_some">Aura abre solo algunos de estos enlaces: añade el resto en «Abrir de forma predeterminada»</string>
+    <string name="open_links_state_none">Aún sin permitir: añádelos en «Abrir de forma predeterminada»</string>
+    <string name="open_links_state_unknown">Android pregunta con qué app abrir cada enlace</string>
+</resources>
