@@ -70,7 +70,8 @@ class OfflineFallbackGuardTest {
             .substringBefore("\n    }\n")
         assertTrue(helper.contains("findNextOfflinePlayableIndex()"))
         assertTrue(helper.contains("skipToOfflinePlayableSong(offlineTargetIndex)"))
-        assertTrue(helper.contains("if (stopIfNothing) stopOnError() else waitOnNetworkError()"))
+        // Row 717 (owner): the manual switch goes on with the offline library and stops only when there is none.
+        assertTrue(helper.contains("if (!stopIfNothing) waitOnNetworkError() else if (!extendOfflineQueue(resume = true, force = true)) stopOnError()"))
         assertFalse(helper.contains("performAggressiveCacheClear"))
     }
 
@@ -175,7 +176,8 @@ class OfflineFallbackGuardTest {
     /** C6 + «Reintentar en línea»: the switch turned off and the user end it at once. */
     @Test
     fun `the switch and the user end the session`() {
-        assertTrue(service.contains(".collect { auto -> if (!auto && PlaybackOfflineSession.forceExit()) onOfflineSessionExited(\"auto_off\") }"))
+        assertTrue(service.contains("if (!auto && PlaybackOfflineSession.forceExit()) onOfflineSessionExited(\"auto_off\")"))
+        assertTrue(service.contains("else if (!auto) leaveParkedOfflineQueue(\"auto_off\")"))
         assertTrue(service.contains("PlaybackOfflineSession.userRetries.collect { onOfflineSessionExited(\"user_retry\") }"))
         val home = main("ui/screens/OfflineHome.kt")
         assertTrue(home.contains("if (automatic && playbackOffline && online) {"))
@@ -222,7 +224,7 @@ class OfflineFallbackGuardTest {
     @Test
     fun `radio, pagination and the URL preload stay off the network during the session`() {
         val radio = main("playback/RadioContinuationEngine.kt")
-        assertTrue(radio.contains("if (dataStore.get(OfflineModeKey, false) || PlaybackOfflineSession.isActive) {"))
+        assertTrue(radio.contains("if (dataStore.get(OfflineModeKey, false) || PlaybackOfflineSession.isActive || offlineQueueParkedNow()) {"))
         assertTrue(service.contains("!isRepeatTransition &&\n            !PlaybackOfflineSession.isActive &&"))
         assertTrue(service.contains("if (PlaybackOfflineSession.isActive) return@launch"))
     }
@@ -299,18 +301,26 @@ class OfflineFallbackGuardTest {
     }
 
     /**
-     * Row 705 (owner, beta2: «el modo sin conexión no reemplaza la cola por la cola que está disponible sin conexión»): the
-     * session REPLACES what comes after the current song with what plays offline, tops it up at the end, and gives it back.
+     * Rows 705/717 (owner, beta2: «el modo sin conexión no reemplaza la cola por la cola que está disponible sin conexión»):
+     * the session REPLACES what comes after the current song and needs the network with what plays offline, tops it up at the
+     * end, and gives it back only on real proof the network works.
      */
     @Test
     fun `the session switches the queue to the offline one and gives it back`() {
         val entered = service.substring(service.indexOf("private fun onOfflineSessionEntered(reason: OfflineSessionReason?) {"))
             .substringBefore("\n    }\n")
         assertTrue(entered.contains("if (startOfflineQueueSwap(notify)) return"))
+        // C4: the hard cap parks the queue (no notice); every other exit gives it back, before the waiting song is retried.
         val exited = service.substring(service.indexOf("private fun onOfflineSessionExited(how: String) {")).substringBefore("\n    }\n")
-        val restore = exited.indexOf("val restored = restoreQueueAfterOffline()")
-        assertTrue(restore > 0 && restore < exited.indexOf("triggerRetry()"))
-        assertTrue(exited.contains("if (restored) R.string.offline_queue_restored else R.string.offline_session_ended"))
+        val park = exited.indexOf("if (!parkOfflineQueue()) offlineSessionNoticeShown = false")
+        val finish = exited.indexOf("finishOfflineQueue(networkProven = how != \"user_retry\" && how != \"auto_off\")")
+        assertTrue(park > 0 && exited.substring(0, park).contains("if (how == \"expired\") {"))
+        assertTrue(finish > park && finish < exited.indexOf("triggerRetry()"))
+        val finished = service.substring(service.indexOf("private fun finishOfflineQueue(networkProven: Boolean) {")).substringBefore("\n    }\n")
+        assertTrue(finished.contains("if (networkProven) {"))
+        assertTrue(finished.contains("if (restored) R.string.offline_queue_restored else R.string.offline_session_ended"))
+        // With the manual switch on, the network songs would only be refused: the queue stays offline.
+        assertTrue(finished.contains("val restored = if (dataStore.get(OfflineModeKey, false)) {"))
         // Never another device's mirror, a Listen Together room or a Cast session (rows 617, 657-664, 681-686).
         val editable = service.substring(service.indexOf("private fun offlineQueueEditable(): Boolean =")).substringBefore("\n\n")
         for (guard in listOf("!inListenRoom", "!onlyShowingMirror", "RemotePlayback.target.value == null", "isCasting?.value != true")) {
@@ -319,18 +329,59 @@ class OfflineFallbackGuardTest {
         // One predicate (rows 666/690) for the kept songs and for the library.
         val memo = service.substring(service.indexOf("private suspend fun offlinePlayableMemo()")).substringBefore("\n    }\n")
         assertTrue(memo.contains("offlinePlayableSource(id, exportedUris) != null"))
-        // Applied only to the queue that was read; one read on IO, no timer, no loop (rule 7).
+        // Applied only to the queue that was read (P1: one more try), one read on IO, no timer, no loop (rule 7).
         val switch = service.substring(service.indexOf("private suspend fun switchQueueToOffline(")).substringBefore("\n    }\n")
+        assertTrue(switch.contains("repeat(2) { attempt ->"))
         assertTrue(switch.contains("queueGeneration == generation"))
         assertTrue(switch.contains("withContext(Dispatchers.IO)"))
         assertFalse(switch.contains("delay("))
-        // The end of the queue: more offline songs from the engine that stays off the network; the manual switch as before.
-        val radio = main("playback/RadioContinuationEngine.kt")
-        assertTrue(radio.contains("if (!dataStore.get(OfflineModeKey, false)) extendOfflineQueue(resume = resumeAfterSeed || advanceIntoRadioRequested)"))
-        val extend = service.substring(service.indexOf("internal fun extendOfflineQueue(resume: Boolean) {")).substringBefore("\n    }\n")
+        // P3: only what needs the network leaves; P6: a seed in flight for this queue is made stale, never a loading queue.
+        val apply = service.substring(service.indexOf("private fun applyOfflineSwap(")).substringBefore("\n    }\n")
+        assertTrue(apply.contains("val drop = upcomingIndices.filterIndexed { i, _ -> !build.keptFlags[i] }"))
+        assertTrue(apply.contains("removeMediaItemsAt(drop)"))
+        assertTrue(apply.contains("initialLoadPendingGeneration != queueGeneration"))
+        // P2: a queue started during the session switches too.
+        val seeded = service.substring(service.indexOf("internal fun seedAfterInitialLoad(generation: Int) {")).substringBefore("\n    }\n")
+        assertTrue(seeded.contains("if (PlaybackOfflineSession.isActive) startOfflineQueueSwap(notify = false)"))
+        // C3: the same filters as every automatic fill.
+        val fill = service.substring(service.indexOf("private suspend fun offlineLibraryFill(")).substringBefore("\n    }\n")
+        for (filter in listOf("dislikeStore.snapshot()", "HideExplicitKey", "HideVideoSongsKey", "disliked.artists")) {
+            assertTrue(filter, fill.contains(filter))
+        }
+        // C1: the heard history follows every new current song; the offline skip marks the song it leaves as not heard.
+        assertTrue(service.contains("private fun rememberRecentRadioId(id: String?, dedupKey: String? = null) {\n        noteOfflineQueueTransition(id)"))
+        val skip = service.substring(service.indexOf("private fun skipToOfflinePlayableSong(index: Int) {")).substringBefore("\n    }\n")
+        val mark = skip.indexOf("offlineSkipTargetId = runCatching { player.getMediaItemAt(index).mediaId }.getOrNull()")
+        assertTrue(mark > 0 && mark < skip.indexOf("player.seekTo(index, C.TIME_UNSET)"))
+        // C5: the top-up counts the songs ahead not heard yet, and runs on each new song while the queue is offline.
+        val transition = service.substring(service.indexOf("private fun noteOfflineQueueTransition(newId: String?) {")).substringBefore("\n    }\n")
+        assertTrue(transition.contains("if (offlineQueueModeNow()) extendOfflineQueue(resume = false)"))
+        val extend = service.substring(service.indexOf("internal fun extendOfflineQueue(resume: Boolean, force: Boolean = false): Boolean {"))
+            .substringBefore("\n    }\n")
+        assertTrue(extend.contains("!(shuffle && id in shufflePlayedIds)"))
+        assertTrue(extend.contains("if (!force && unheardAhead > 1) return false"))
         assertTrue(extend.contains("lastResort = true"))
         assertTrue("never resumes a user pause", extend.contains("player.playWhenReady && player.hasNextMediaItem()"))
         assertFalse(extend.contains("delay("))
+        // The end of the queue: more offline songs from the engine that stays off the network (manual switch included).
+        val radio = main("playback/RadioContinuationEngine.kt")
+        val gate = radio.substringAfter("if (dataStore.get(OfflineModeKey, false) || PlaybackOfflineSession.isActive || offlineQueueParkedNow()) {")
+            .substringBefore("return\n")
+        assertTrue(gate.contains("extendOfflineQueue(resume = resumeAfterSeed || advanceIntoRadioRequested)"))
+        // C4: the probe is a background resolve — never played, so a failure cuts nothing — and real proof leaves the parked
+        // queue even with no session to end.
+        val probe = service.substring(service.indexOf("private fun probeNetworkForParkedQueue(swap: OfflineQueueSwap) {")).substringBefore("\n    }\n")
+        assertTrue(probe.contains("YTPlayerUtils.playerResponseForPlayback("))
+        assertTrue(probe.contains("noteOfflineConnectivityFailure(probeId)"))
+        assertFalse(probe.contains("seekTo") || probe.contains("addMediaItem") || probe.contains("prepare()"))
+        for (proof in listOf(
+            "else if (validated) leaveParkedOfflineQueue(\"validated\")",
+            "else leaveParkedOfflineQueue(\"network_back\")",
+            "else if (offlineQueueParked) scope.launch { leaveParkedOfflineQueue(\"resolved\") }",
+            "else leaveParkedOfflineQueue(\"network_item_ready\")",
+        )) {
+            assertTrue(proof, service.contains(proof))
+        }
         for (values in listOf("values", "values-es")) {
             val strings = File(root, "app/src/main/res/$values/strings.xml").readText()
             assertTrue(values, strings.contains("name=\"offline_queue_switched\"") && strings.contains("name=\"offline_queue_restored\""))

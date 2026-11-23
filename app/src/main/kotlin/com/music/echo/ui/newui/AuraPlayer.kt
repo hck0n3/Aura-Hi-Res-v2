@@ -1174,6 +1174,8 @@ private fun AuraPlayerShape(
         // DESTRUCTIVE GESTURE, PRESERVED VERBATIM: dragging the sheet below the dismiss threshold stops
         // playback and wipes the queue + automix. Identical to the classic player (Player.kt:1550).
         onDismiss = {
+            // Audit R1: the queue ends here — a radio seed still in flight must not land in whatever is played next.
+            playerConnection.service.queueGeneration++
             playerConnection.service.clearAutomix()
             playerConnection.player.stop()
             playerConnection.player.clearMediaItems()

@@ -34,10 +34,19 @@ internal enum class OfflineSessionReason(val log: String) {
     NO_NETWORK("no_network"),
     REPEATED_FAILURE("repeated_failure"),
     STALL("stall"),
+    AFTER_EXPIRY("after_expiry"),
 }
 
-/** The pure decisions. Every time and network fact comes in as an argument, so the rules are testable on the JVM. */
-internal class OfflineSessionMachine(private val probeAfterMs: Long, private val maxAgeMs: Long) {
+/**
+ * The pure decisions. Every time and network fact comes in as an argument, so the rules are testable on the JVM.
+ * [reentryAfterExpiryMs] (row 717): the hard cap ending a session is no proof the network works, so for this long after it,
+ * on the same network, ONE connectivity failure is enough to come back (0 turns the rule off).
+ */
+internal class OfflineSessionMachine(
+    private val probeAfterMs: Long,
+    private val maxAgeMs: Long,
+    private val reentryAfterExpiryMs: Long = 0L,
+) {
     var active = false
         private set
     var reason: OfflineSessionReason? = null
@@ -48,9 +57,14 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
     private var lastFailureItemId: String? = null
     private var lastEvidenceAtMs: Long? = null
     private var epochAtEvidence = Long.MIN_VALUE
+    private var expiredAtMs: Long? = null
+    private var epochAtExpiry = Long.MIN_VALUE
 
     private fun recentFailure(nowMs: Long): Boolean =
         lastFailureAtMs?.let { nowMs - it < probeAfterMs } == true
+
+    private fun justExpired(epoch: Long, nowMs: Long): Boolean =
+        epoch == epochAtExpiry && expiredAtMs?.let { nowMs - it < reentryAfterExpiryMs } == true
 
     private fun recordEvidence(epoch: Long, nowMs: Long) {
         lastEvidenceAtMs = nowMs
@@ -60,6 +74,7 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
     private fun enter(reason: OfflineSessionReason): OfflineSessionReason {
         active = true
         this.reason = reason
+        expiredAtMs = null
         return reason
     }
 
@@ -67,10 +82,11 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
         consecutiveFailures = 0
         lastFailureAtMs = null
         lastFailureItemId = null
+        expiredAtMs = null
     }
 
-    /** Something worth clearing: a session, or failures still counting toward one. */
-    fun hasEvidence(): Boolean = active || consecutiveFailures > 0
+    /** Something worth clearing: a session, failures still counting toward one, or a session that only timed out. */
+    fun hasEvidence(): Boolean = active || consecutiveFailures > 0 || (reentryAfterExpiryMs > 0 && expiredAtMs != null)
 
     /**
      * A playback error with a real connectivity cause in its chain, for [itemId]. Returns the reason when this call started
@@ -90,6 +106,7 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
         val reason = when {
             !systemHasNetwork -> OfflineSessionReason.NO_NETWORK
             consecutiveFailures >= 2 -> OfflineSessionReason.REPEATED_FAILURE
+            justExpired(epoch, nowMs) -> OfflineSessionReason.AFTER_EXPIRY
             else -> null
         } ?: return null
         return enter(reason)
@@ -156,7 +173,11 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
         if (!active || !systemHasNetwork) return false
         val last = lastEvidenceAtMs
         if (last != null && nowMs - last < maxAgeMs) return false
-        return exit()
+        val epoch = epochAtEvidence
+        if (!exit()) return false
+        expiredAtMs = nowMs
+        epochAtExpiry = epoch
+        return true
     }
 
     private fun exit(): Boolean {
@@ -181,7 +202,10 @@ internal object PlaybackOfflineSession {
     /** Hard cap: the session never outlives its last real evidence by more than this while a network exists. */
     const val MAX_AGE_MS = 120_000L
 
-    private val machine = OfflineSessionMachine(PROBE_AFTER_MS, MAX_AGE_MS)
+    /** Row 717: after the hard cap, one connectivity failure on the same network brings the session back. Chosen, not measured. */
+    const val REENTRY_AFTER_EXPIRY_MS = 10 * 60_000L
+
+    private val machine = OfflineSessionMachine(PROBE_AFTER_MS, MAX_AGE_MS, REENTRY_AFTER_EXPIRY_MS)
     private val _active = MutableStateFlow(false)
 
     /** For the UI (Inicio/Biblioteca/Buscar switch to their offline body while this is true). */
