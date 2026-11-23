@@ -855,7 +855,7 @@ Se abre con el botón `more_horiz` del reproductor **solo cuando las letras est�
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Buscar letra *(título)* | Letras > menú ⋯ > Buscar | `ui/menu/LyricsMenu.kt:177` | informativo | ocasional | siempre en el diálogo |
+| Buscar letra *(título)* | Letras > menú ⋯ > Buscar (y, desde P22A, el botón «Buscar letra» de «Letras no encontradas») | `ui/menu/LyricsMenu.kt:177` | informativo | ocasional | siempre en el diálogo |
 | Cancelar | Letras > menú ⋯ > Buscar | `ui/menu/LyricsMenu.kt:182` | navegación | ocasional | igual |
 | **Buscar en línea** *(abre el navegador con `ACTION_WEB_SEARCH`)* | Letras > menú ⋯ > Buscar | `ui/menu/LyricsMenu.kt:204` | navegación externa | rara | igual |
 | Aceptar | Letras > menú ⋯ > Buscar | `ui/menu/LyricsMenu.kt:228` | acción primaria | ocasional | igual; toast «No hay conexión a internet» si no hay red |
@@ -881,6 +881,7 @@ Alcanzable desde el Reproductor, desde Cola > pestaña LETRA y desde el Modo Amb
 | *(mensaje de error de traducción)* | Letras > banner | `ui/component/Lyrics.kt:954` | informativo | rara | si falla |
 | Letras traducidas | Letras > banner | `ui/component/Lyrics.kt:981` | informativo | ocasional | si tuvo éxito |
 | Letras no encontradas | Letras > cuerpo | `ui/component/Lyrics.kt:1000` | informativo | ocasional | si no hay letra |
+| Letras no encontradas + **«Buscar letra»** (P22A, fila 732) — abre el menú de la letra directamente en su diálogo «Buscar letra»; cancelar ese diálogo cierra también el menú | Letras > cuerpo (Reproductor, pantalla de Letra, Cola > Letra, Modo Ambiente) | `ui/player/InlineLyricsView.kt` (rama `LYRICS_NOT_FOUND`) → `ui/menu/LyricsMenu.kt` (`startWithSearch`) | acción primaria | ocasional | si no hay letra y hay canción sonando |
 | **«Lyrics from <proveedor>»** *(hardcoded, en inglés)* | Letras > primera fila | `ui/component/Lyrics.kt:1061` | informativo | constante | si hay proveedor y no estás en selección |
 | **«¿Traducir la letra?»** *(hardcoded)* | Letras > diálogo | `ui/component/Lyrics.kt:650-651` | informativo | rara | solo si `AskTranslateLyricsOnOpen` (por defecto OFF), la letra parece inglés, el idioma destino no es inglés y no se ha respondido antes esta sesión |
 | **Traducir** *(hardcoded)* | Letras > diálogo | `ui/component/Lyrics.kt:657` | acción primaria | rara | igual |

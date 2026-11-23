@@ -1,6 +1,7 @@
 package iad1tya.echo.music.ui.player
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,6 +10,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,7 +31,11 @@ import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.db.entities.LyricsEntity
 import iad1tya.echo.music.models.MediaMetadata
+import iad1tya.echo.music.ui.component.LocalBottomSheetPageState
+import iad1tya.echo.music.ui.component.LocalMenuState
 import iad1tya.echo.music.ui.component.Lyrics
+import iad1tya.echo.music.ui.menu.LyricsMenu
+import iad1tya.echo.music.ui.utils.ShowOffsetDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -55,6 +61,8 @@ fun InlineLyricsView(
     val context = LocalContext.current
     val database = LocalDatabase.current
     val coroutineScope = rememberCoroutineScope()
+    val menuState = LocalMenuState.current
+    val bottomSheetPageState = LocalBottomSheetPageState.current
 
     LaunchedEffect(lyricsMeta?.id, currentLyrics) {
         val meta = lyricsMeta
@@ -89,12 +97,40 @@ fun InlineLyricsView(
                 ContainedLoadingIndicator()
             }
             lyrics == LyricsEntity.LYRICS_NOT_FOUND -> {
-                Text(
-                    text = stringResource(R.string.lyrics_not_found),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = stringResource(R.string.lyrics_not_found),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center
+                    )
+                    // P22A: the empty state offers its next step — the lyrics menu's own «Buscar letra» dialog,
+                    // opened directly. The song is read only while that menu is open (no extra observer here).
+                    val searchMeta = lyricsMeta
+                    if (searchMeta != null) {
+                        TextButton(
+                            onClick = {
+                                menuState.show {
+                                    val song by playerConnection.currentSong.collectAsState(initial = null)
+                                    LyricsMenu(
+                                        lyricsProvider = { currentLyrics },
+                                        songProvider = { song?.song },
+                                        mediaMetadataProvider = { searchMeta },
+                                        onDismiss = menuState::dismiss,
+                                        onShowOffsetDialog = {
+                                            bottomSheetPageState.show {
+                                                ShowOffsetDialog(songProvider = { song?.song })
+                                            }
+                                        },
+                                        startWithSearch = true,
+                                    )
+                                }
+                            },
+                        ) {
+                            Text(text = stringResource(R.string.search_lyrics))
+                        }
+                    }
+                }
             }
             else -> {
                 val lyricsContent: @Composable () -> Unit = {
