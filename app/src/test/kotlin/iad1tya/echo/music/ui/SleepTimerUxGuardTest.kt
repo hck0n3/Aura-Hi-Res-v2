@@ -51,7 +51,7 @@ class SleepTimerUxGuardTest {
     fun `one tap from the player menu, and the full dialog row is kept`() {
         val menu = main("ui/newui/AuraPlayerMenu.kt")
         assertTrue(menu.contains("AuraSleepTimerPresets(onPicked = onDismiss"))
-        assertTrue("UI_INVENTORY regla 5: la fila del diálogo no se quita", menu.contains("onClick = { showSleepTimerDialog = true },"))
+        assertTrue("UI_INVENTORY regla 5: la fila del diálogo no se quita", menu.contains("onClick = { ActionLog.tap(ActionId.PMENU_SLEEP_TIMER); showSleepTimerDialog = true },"))
         val presets = main("ui/newui/AuraSleepTimer.kt")
         assertTrue(presets.contains("SleepTimerMath.PRESET_MINUTES.forEach"))
         assertTrue(presets.contains("service.startSleepTimerAfterSong()"))
