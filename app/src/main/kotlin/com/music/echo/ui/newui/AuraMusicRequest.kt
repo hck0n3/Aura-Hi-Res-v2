@@ -66,6 +66,8 @@ import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.playback.queues.ListQueue
 import iad1tya.echo.music.playlistimport.MusicRequestFocus
 import iad1tya.echo.music.playlistimport.MusicRequestHistory
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AlternateOption
 import iad1tya.echo.music.viewmodels.LastMusicRequest
@@ -369,7 +371,7 @@ private fun AuraMusicRequestSheetBody(
                     )
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { send(prompt) }),
+                keyboardActions = KeyboardActions(onGo = { ActionLog.tap(ActionId.REQ_SEND_KEY); send(prompt) }),
                 shape = AuraShapes.Card,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -388,7 +390,7 @@ private fun AuraMusicRequestSheetBody(
             AuraIconButton(
                 icon = AuraIcons.Mic,
                 contentDescription = stringResource(R.string.voice_search),
-                onClick = voice.launch,
+                onClick = { ActionLog.tap(ActionId.REQ_VOICE); voice.launch() },
                 size = 20.dp,
                 tint = if (voice.active) AuraPalette.Teal else AuraPalette.OnGroundFaint,
             )
@@ -402,7 +404,7 @@ private fun AuraMusicRequestSheetBody(
                     .clip(RoundedCornerShape(50))
                     .background(if (canSend) AuraPalette.Teal else AuraPalette.SurfaceFill)
                     .auraClickableInternal(
-                        onClick = { send(prompt) },
+                        onClick = { ActionLog.tap(ActionId.REQ_SEND); send(prompt) },
                         enabled = canSend,
                         contentDescription = stringResource(R.string.music_request_send),
                     ),
@@ -478,7 +480,7 @@ private fun AuraMusicRequestSheetBody(
                         modifier = Modifier
                             .clip(AuraShapes.Pill)
                             .auraClickableInternal(
-                                onClick = { MusicRequestHistory.clear() },
+                                onClick = { ActionLog.tap(ActionId.REQ_HISTORY_CLEAR); MusicRequestHistory.clear() },
                                 contentDescription = stringResource(R.string.music_request_clear_history),
                             )
                             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -493,6 +495,7 @@ private fun AuraMusicRequestSheetBody(
                             icon = R.drawable.history,
                             iconTint = AuraPalette.OnGroundMuted,
                             onClick = {
+                                ActionLog.tap(ActionId.REQ_HISTORY)
                                 prompt = text
                                 send(text)
                             },
@@ -504,7 +507,7 @@ private fun AuraMusicRequestSheetBody(
                                         .size(32.dp)
                                         .clip(RoundedCornerShape(50))
                                         .auraClickableInternal(
-                                            onClick = { MusicRequestHistory.remove(text) },
+                                            onClick = { ActionLog.tap(ActionId.REQ_HISTORY_REMOVE); MusicRequestHistory.remove(text) },
                                             contentDescription = stringResource(R.string.music_request_remove_entry),
                                         ),
                                 ) {
@@ -553,6 +556,7 @@ private fun AuraMusicRequestSheetBody(
                         text = text,
                         selected = false,
                         onClick = {
+                            ActionLog.tap(ActionId.REQ_SUGGESTION)
                             prompt = text
                             send(text)
                         },
@@ -647,7 +651,7 @@ private fun AuraMusicRequestResultCard(
                 stringResource(R.string.music_request_size_big),
             ),
             selected = if (big) 1 else 0,
-            onSelect = { big = it == 1 },
+            onSelect = { ActionLog.tap(ActionId.REQ_SIZE); big = it == 1 },
         )
         androidx.compose.foundation.pager.HorizontalPager(
             state = pagerState,
@@ -824,7 +828,7 @@ private fun AuraMusicRequestOptionOne(
                         .size(32.dp)
                         .clip(RoundedCornerShape(50))
                         .auraClickableInternal(
-                            onClick = onDismiss,
+                            onClick = { ActionLog.tap(ActionId.REQ_DISMISS); onDismiss() },
                             contentDescription = stringResource(R.string.close),
                         ),
                 ) {
@@ -864,6 +868,7 @@ private fun AuraMusicRequestOptionOne(
                     song = song,
                     big = big,
                     onClick = {
+                        ActionLog.tap(ActionId.REQ_SONG)
                         // Desde esta canción, con la misma cola y el mismo contexto de la petición.
                         playerConnection?.playQueue(
                             ListQueue(
@@ -882,7 +887,7 @@ private fun AuraMusicRequestOptionOne(
                                     .size(32.dp)
                                     .clip(RoundedCornerShape(50))
                                     .auraClickableInternal(
-                                        onClick = { onRemoveSong(song.id) },
+                                        onClick = { ActionLog.tap(ActionId.REQ_SONG_REMOVE); onRemoveSong(song.id) },
                                         contentDescription = stringResource(R.string.music_request_remove_from_save),
                                     ),
                             ) {
@@ -911,7 +916,7 @@ private fun AuraMusicRequestOptionOne(
                 color = AuraPalette.Teal,
                 modifier = Modifier
                     .clip(AuraShapes.Pill)
-                    .auraClickableInternal(onClick = { expanded = !expanded })
+                    .auraClickableInternal(onClick = { ActionLog.tap(ActionId.REQ_EDIT); expanded = !expanded })
                     .padding(horizontal = 4.dp, vertical = 6.dp),
             )
         }
@@ -946,7 +951,7 @@ private fun AuraMusicRequestOptionOne(
             else -> AuraChip(
                 text = stringResource(R.string.music_request_save),
                 selected = false,
-                onClick = onSave,
+                onClick = { ActionLog.tap(ActionId.REQ_SAVE); onSave() },
             )
         }
     }
@@ -978,6 +983,7 @@ private fun AuraMusicRequestOptionTwo(
                         song = song,
                         big = big,
                         onClick = {
+                            ActionLog.tap(ActionId.REQ_ALT_SONG)
                             val contextId = contextForAlternate() ?: return@AuraRequestSongRow
                             playerConnection?.playQueue(
                                 ListQueue(
@@ -1002,6 +1008,7 @@ private fun AuraMusicRequestOptionTwo(
                         text = stringResource(R.string.music_request_play_option),
                         selected = true,
                         onClick = {
+                            ActionLog.tap(ActionId.REQ_ALT_PLAY)
                             val contextId = contextForAlternate() ?: return@AuraChip
                             playerConnection?.playQueue(
                                 ListQueue(
@@ -1019,7 +1026,7 @@ private fun AuraMusicRequestOptionTwo(
                             color = AuraPalette.Teal,
                         )
                     } else {
-                        AuraChip(text = stringResource(R.string.music_request_save), selected = false, onClick = onSave)
+                        AuraChip(text = stringResource(R.string.music_request_save), selected = false, onClick = { ActionLog.tap(ActionId.REQ_ALT_SAVE); onSave() })
                     }
                 }
             }

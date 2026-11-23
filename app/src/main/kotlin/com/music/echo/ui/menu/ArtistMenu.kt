@@ -6,6 +6,8 @@ import androidx.compose.ui.res.pluralStringResource
 import iad1tya.echo.music.ui.component.MenuLikeButton
 import iad1tya.echo.music.ui.component.MenuHeaderCover
 import iad1tya.echo.music.ui.component.MenuHeader
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.Intent
@@ -155,6 +157,7 @@ fun ArtistMenu(
                                     },
                                     text = stringResource(R.string.play),
                                     onClick = {
+                                        ActionLog.tap(ActionId.ARTMENU_PLAY)
                                         coroutineScope.launch {
                                             val songs = withContext(Dispatchers.IO) {
                                                 database
@@ -185,7 +188,7 @@ fun ArtistMenu(
                                         )
                                     },
                                     text = stringResource(R.string.shuffle),
-                                    onClick = { onMenuShuffleClick() }
+                                    onClick = { ActionLog.tap(ActionId.ARTMENU_SHUFFLE); onMenuShuffleClick() }
                                 )
                             )
                         }
@@ -203,6 +206,7 @@ fun ArtistMenu(
                                 },
                                 text = stringResource(R.string.share),
                                 onClick = {
+                                    ActionLog.tap(ActionId.ARTMENU_SHARE)
                                     onDismiss()
                                 val intent = Intent().apply {
                                         action = Intent.ACTION_SEND
@@ -237,6 +241,7 @@ fun ArtistMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.ARTMENU_SUBSCRIBE)
                             // Row 716: the shared alias-aware tap (toggleArtistFollow), one at a time and only against the
                             // state shown, on the application scope so it lands even if the menu closes.
                             val shownFollowed = isSubscribed

@@ -16,6 +16,8 @@ import iad1tya.echo.music.constants.LibraryPinSortKey
 import iad1tya.echo.music.constants.LibraryPinsViewTypeKey
 import iad1tya.echo.music.ui.menu.YouTubeAlbumMenu
 import iad1tya.echo.music.ui.menu.YouTubeArtistMenu
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.LibraryPin
 import iad1tya.echo.music.utils.LibraryPinKind
 import iad1tya.echo.music.utils.LibraryPinSort
@@ -211,7 +213,7 @@ private fun <T : Enum<T>> AuraSortControl(
                     // Row 567: the same hairline as the other Biblioteca buttons (the sort pill was the one without it).
                     .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
                     .auraClickableInternal(
-                        onClick = { expanded = true },
+                        onClick = { ActionLog.tap(ActionId.LIB_SORT_OPEN); expanded = true },
                         contentDescription = "Cambiar el criterio de orden",
                     )
                     .padding(horizontal = 14.dp, vertical = 9.dp),
@@ -272,7 +274,7 @@ private fun <T : Enum<T>> AuraSortControl(
             AuraIconButton(
                 icon = AuraIcons.Search,
                 contentDescription = searchLabel,
-                onClick = onToggleSearch,
+                onClick = { ActionLog.tap(ActionId.LIB_SEARCH); onToggleSearch() },
                 size = 16.dp,
                 tint = if (searchOpen) AuraPalette.Teal else AuraPalette.OnGroundFaint,
             )
@@ -343,7 +345,7 @@ private fun AuraSearchField(
                 // A "+" turned 45° is the render's own close glyph — no separate icon needed.
                 icon = AuraIcons.Plus,
                 contentDescription = "Borrar la búsqueda",
-                onClick = { onValueChange("") },
+                onClick = { ActionLog.tap(ActionId.LIB_SEARCH_CLEAR); onValueChange("") },
                 size = 16.dp,
                 tint = AuraPalette.OnGroundMuted,
                 modifier = Modifier.graphicsLayer { rotationZ = 45f },
@@ -1054,6 +1056,7 @@ fun AuraLibrarySongsTab(
 
             itemsIndexed(filteredSongs, key = { _, item -> item.song.id }) { index, song ->
                 val playSong: () -> Unit = {
+                    ActionLog.tap(ActionId.LIB_SONG_GRID)
                     if (song.id == mediaMetadata?.id) {
                         playerConnection.togglePlayPause()
                     } else {
@@ -1112,6 +1115,7 @@ fun AuraLibrarySongsTab(
                         playedInShuffle = song.id in shufflePlayedSet || song.song.totalPlayTime > 0L,
                         swipeMediaItem = song.toMediaItem(),
                         onClick = {
+                            ActionLog.tap(ActionId.LIB_SONG)
                             if (song.id == mediaMetadata?.id) {
                                 playerConnection.togglePlayPause()
                             } else {
@@ -1199,7 +1203,7 @@ fun AuraLibrarySongsTab(
                         },
                     )
                     .auraClickableInternal(
-                        onClick = onShuffleClick,
+                        onClick = { ActionLog.tap(ActionId.LIB_SHUFFLE); onShuffleClick() },
                         contentDescription = stringResource(R.string.shuffle),
                     ),
                 contentAlignment = Alignment.Center,
@@ -1340,7 +1344,7 @@ fun AuraLibraryAlbumsTab(
                     null
                 },
                 modifier = Modifier.animateItem(),
-                onClick = { navController.navigateOnce("album/${album.id}") },
+                onClick = { ActionLog.tap(ActionId.LIB_ALBUM); navController.navigateOnce("album/${album.id}") },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     menuState.show { AlbumMenu(album, navController, menuState::dismiss) }
@@ -1460,7 +1464,7 @@ fun AuraLibraryArtistsTab(
                         AuraChip(
                             text = stringResource(R.string.action_sync),
                             selected = true,
-                            onClick = { viewModel.sync() },
+                            onClick = { ActionLog.tap(ActionId.LIB_SYNC); viewModel.sync() },
                         )
                     }
                 }
@@ -1482,7 +1486,7 @@ fun AuraLibraryArtistsTab(
                     null
                 },
                 modifier = Modifier.animateItem(),
-                onClick = { navController.navigateOnce("artist/${artist.id}") },
+                onClick = { ActionLog.tap(ActionId.LIB_ARTIST); navController.navigateOnce("artist/${artist.id}") },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     menuState.show { ArtistMenu(artist, coroutineScope, menuState::dismiss) }
@@ -1699,6 +1703,7 @@ fun AuraLibraryPlaylistsTab(
                 // playlist opens ONLINE, everything else opens local. Getting this wrong sends a synced
                 // playlist to an empty local screen.
                 onClick = {
+                    ActionLog.tap(ActionId.LIB_PLAYLIST)
                     if (!playlist.playlist.isEditable &&
                         playlist.songCount == 0 &&
                         playlist.playlist.remoteSongCount != 0

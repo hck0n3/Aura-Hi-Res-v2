@@ -206,6 +206,8 @@ import iad1tya.echo.music.ui.utils.rememberIsAppInForeground
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.rememberIsWideShell
 import iad1tya.echo.music.ui.utils.tvFocusable
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceTier
 import iad1tya.echo.music.utils.isLocalMediaId
@@ -892,6 +894,7 @@ private fun AuraPlayerShape(
     var pendingFollow by remember { mutableStateOf<PendingPlayerFollow?>(null) }
     LaunchedEffect(mediaMetadata?.id) { pendingFollow = null }
     val followArtistFromPlayer: (MediaMetadata.Artist, Boolean) -> Unit = { artist, shownFollowed ->
+        ActionLog.tap(ActionId.PLR_SUBSCRIBE)
         val key = PlayerArtistFollow.key(artist)
         val songId = mediaMetadata?.id
         if (songId != null && followInFlight.add(key)) {
@@ -1001,6 +1004,7 @@ private fun AuraPlayerShape(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
+                            ActionLog.tap(ActionId.PLR_ARTIST_PICK)
                             showSelectArtistDialog = false
                             coroutineScope.launch {
                                 val browseId = if (needsOnlineBrowseResolution(artist.id)) {
@@ -1040,6 +1044,7 @@ private fun AuraPlayerShape(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
+                            ActionLog.tap(ActionId.PLR_PLAYLIST_PICK)
                             showSongPlaylistChooser = false
                             navController.navigateOnce(PlayerPlaylistRoute.route(playlist.id))
                             state.collapseAfterNavigate()
@@ -1060,6 +1065,7 @@ private fun AuraPlayerShape(
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.PLR_SUBSCRIBE_CONFIRM)
                         pendingFollow = null
                         followChannelIds[pending.key] = pending.channel.id
                         context.applicationScope.launch(Dispatchers.Main) {
@@ -1174,6 +1180,7 @@ private fun AuraPlayerShape(
         // DESTRUCTIVE GESTURE, PRESERVED VERBATIM: dragging the sheet below the dismiss threshold stops
         // playback and wipes the queue + automix. Identical to the classic player (Player.kt:1550).
         onDismiss = {
+            ActionLog.tap(ActionId.MINI_DISMISS)
             // Audit R1: the queue ends here — a radio seed still in flight must not land in whatever is played next.
             playerConnection.service.queueGeneration++
             playerConnection.service.clearAutomix()
@@ -1329,7 +1336,7 @@ private fun AuraPlayerShape(
                             color = AuraPalette.Teal,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { RemotePlayback.continueHere() }
+                                .clickable { ActionLog.tap(ActionId.PLR_CONTINUE_HERE); RemotePlayback.continueHere() }
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                     }
@@ -1339,7 +1346,7 @@ private fun AuraPlayerShape(
                     AuraIconButton(
                         icon = AuraIcons.Lyrics,
                         contentDescription = "Pantalla completa de la letra",
-                        onClick = { isFullScreen = !isFullScreen },
+                        onClick = { ActionLog.tap(ActionId.PLR_LYRICS_FULL); isFullScreen = !isFullScreen },
                         firstTap = true,
                         size = 20.dp,
                         tint = if (isFullScreen) AuraPalette.Teal else AuraPalette.OnGround.copy(alpha = 0.6f),
@@ -1354,6 +1361,7 @@ private fun AuraPlayerShape(
                         icon = AuraIcons.More,
                         contentDescription = "Menú de la letra",
                         onClick = {
+                            ActionLog.tap(ActionId.PLR_LYRICS_MENU)
                             val meta = mediaMetadata ?: return@AuraIconButton
                             menuState.show {
                                 iad1tya.echo.music.ui.menu.LyricsMenu(
@@ -1560,8 +1568,8 @@ private fun AuraPlayerShape(
                                 lyricsFullScreen = isFullScreen,
                                 isListenTogetherGuest = isListenTogetherGuest,
                             ),
-                            onPrevious = { if (canSkipPrevious) playerConnection.seekToPrevious() },
-                            onNext = { if (canSkipNext) playerConnection.seekToNext() },
+                            onPrevious = { ActionLog.tap(ActionId.PLR_SWIPE_PREV); if (canSkipPrevious) playerConnection.seekToPrevious() },
+                            onNext = { ActionLog.tap(ActionId.PLR_SWIPE_NEXT); if (canSkipNext) playerConnection.seekToNext() },
                         )
                         .padding(horizontal = AuraSpacing.Gutter, vertical = 0.dp),
                 ) {
@@ -1656,6 +1664,7 @@ private fun AuraPlayerShape(
                                 interactionSource = remember { MutableInteractionSource() },
                                 role = Role.Button,
                                 onClick = {
+                                    ActionLog.tap(ActionId.PLR_TITLE)
                                     resolvedAlbum?.let { album ->
                                         coroutineScope.launch {
                                             val browseId = if (needsOnlineBrowseResolution(album.id)) {
@@ -1684,6 +1693,7 @@ private fun AuraPlayerShape(
                                 },
                                 // GESTURE: long-press copies the title (same string, same Toast).
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.PLR_TITLE_COPY)
                                     val label = context.getString(R.string.copied_title)
                                     clipboardManager.setPrimaryClip(ClipData.newPlainText(label, meta.title))
                                     Toast.makeText(context, label, Toast.LENGTH_SHORT).show()
@@ -1726,12 +1736,14 @@ private fun AuraPlayerShape(
                                     interactionSource = remember { MutableInteractionSource() },
                                     role = Role.Button,
                                     onClick = {
+                                        ActionLog.tap(ActionId.PLR_ARTISTS)
                                         if (meta.artists.any { it.name.isNotBlank() }) {
                                             showArtistActions = !showArtistActions
                                         }
                                     },
                                     // GESTURE: long-press copies the artist.
                                     onLongClick = {
+                                        ActionLog.tap(ActionId.PLR_ARTIST_COPY)
                                         val label = context.getString(R.string.copied_artist)
                                         clipboardManager.setPrimaryClip(ClipData.newPlainText(label, artistText))
                                         Toast.makeText(context, label, Toast.LENGTH_SHORT).show()
@@ -1745,7 +1757,7 @@ private fun AuraPlayerShape(
                     AuraIconButton(
                         icon = if (titleRowLiked) AuraIcons.HeartFilled else AuraIcons.Heart,
                         contentDescription = stringResource(R.string.action_like),
-                        onClick = playerConnection::toggleLike,
+                        onClick = { ActionLog.tap(ActionId.PLR_LIKE); playerConnection.toggleLike() },
                         firstTap = true,
                         size = heartGlyph,
                         tint = if (titleRowLiked) transportAccent else AuraPalette.OnGround.copy(alpha = 0.85f),
@@ -1781,6 +1793,7 @@ private fun AuraPlayerShape(
                                         text = stringResource(R.string.view_album),
                                         selected = false,
                                         onClick = {
+                                            ActionLog.tap(ActionId.PLR_VIEW_ALBUM)
                                             showArtistActions = false
                                             goToAlbumFromArtists()
                                         },
@@ -1791,6 +1804,7 @@ private fun AuraPlayerShape(
                                     text = stringResource(R.string.view_artist),
                                     selected = false,
                                     onClick = {
+                                        ActionLog.tap(ActionId.PLR_VIEW_ARTIST)
                                         showArtistActions = false
                                         goToArtist()
                                     },
@@ -1835,6 +1849,7 @@ private fun AuraPlayerShape(
                                         },
                                         selected = several == PlayerArtistFollow.Several.ALL,
                                         onClick = {
+                                            ActionLog.tap(ActionId.PLR_SUBSCRIBE_PICK)
                                             showArtistActions = false
                                             chooserSongId = meta.id
                                             selectArtistToFollow = true
@@ -1854,6 +1869,7 @@ private fun AuraPlayerShape(
                                         text = stringResource(R.string.go_to_playlist),
                                         selected = false,
                                         onClick = {
+                                            ActionLog.tap(ActionId.PLR_GO_PLAYLIST)
                                             showArtistActions = false
                                             navigateFromPlayer(door.route)
                                         },
@@ -1863,6 +1879,7 @@ private fun AuraPlayerShape(
                                         text = stringResource(R.string.go_to_playlist),
                                         selected = false,
                                         onClick = {
+                                            ActionLog.tap(ActionId.PLR_GO_PLAYLIST)
                                             showArtistActions = false
                                             chooserSongId = meta.id
                                             showSongPlaylistChooser = true
@@ -1897,7 +1914,7 @@ private fun AuraPlayerShape(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (videoMode) AuraPalette.Teal else AuraPalette.OnGround.copy(alpha = 0.12f))
-                                        .clickable { playerConnection.toggleVideoMode() }
+                                        .clickable { ActionLog.tap(ActionId.PLR_VIDEO); playerConnection.toggleVideoMode() }
                                         .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Row(
@@ -1955,6 +1972,7 @@ private fun AuraPlayerShape(
                         valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
                         onValueChange = { sliderPosition = it.toLong() },
                         onValueChangeFinished = {
+                            ActionLog.tap(ActionId.PLR_SEEK)
                             sliderPosition?.let {
                                 if (isCasting) {
                                     lastManualSeekTime = System.currentTimeMillis()
@@ -2030,6 +2048,7 @@ private fun AuraPlayerShape(
                         icon = AuraIcons.Shuffle,
                         contentDescription = stringResource(R.string.shuffle),
                         onClick = {
+                            ActionLog.tap(ActionId.PLR_SHUFFLE)
                             if (shuffleModeEnabled) {
                                 // OFF (toggle). Reshuffle = turn on again → beginShuffleSession.
                                 playerConnection.player.shuffleModeEnabled = false
@@ -2049,7 +2068,7 @@ private fun AuraPlayerShape(
                     AuraIconButton(
                         icon = AuraIcons.SkipPrevious,
                         contentDescription = stringResource(R.string.previous),
-                        onClick = playerConnection::seekToPrevious,
+                        onClick = { ActionLog.tap(ActionId.PLR_PREV); playerConnection.seekToPrevious() },
                         enabled = canSkipPrevious && !isListenTogetherGuest,
                         firstTap = true,
                         size = if (dense) 30.dp else 34.dp,
@@ -2074,6 +2093,7 @@ private fun AuraPlayerShape(
                             else -> stringResource(R.string.play)
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.PLR_PLAY)
                             when {
                                 // Same three branches the classic transport has: guest = mute,
                                 // casting = the remote device, ENDED = restart, otherwise play/pause.
@@ -2108,7 +2128,7 @@ private fun AuraPlayerShape(
                             AuraIconButton(
                                 icon = AuraIcons.SkipNext,
                                 contentDescription = stringResource(R.string.next),
-                                onClick = playerConnection::seekToNext,
+                                onClick = { ActionLog.tap(ActionId.PLR_NEXT); playerConnection.seekToNext() },
                                 enabled = canSkipNext && !isListenTogetherGuest,
                                 firstTap = true,
                                 size = if (dense) 30.dp else 34.dp,
@@ -2121,7 +2141,7 @@ private fun AuraPlayerShape(
                         AuraIconButton(
                             icon = AuraIcons.Repeat,
                             contentDescription = stringResource(R.string.repeat),
-                            onClick = { playerConnection.player.toggleRepeatMode() },
+                            onClick = { ActionLog.tap(ActionId.PLR_REPEAT); playerConnection.player.toggleRepeatMode() },
                             enabled = !isListenTogetherGuest,
                             firstTap = true,
                             size = if (dense) 22.dp else 24.dp,
@@ -2181,7 +2201,7 @@ private fun AuraPlayerShape(
                     AuraIconButton(
                         icon = AuraIcons.ThumbDown,
                         contentDescription = stringResource(R.string.action_dislike),
-                        onClick = { playerConnection.toggleDislikeCurrentSong() },
+                        onClick = { ActionLog.tap(ActionId.PLR_DISLIKE); playerConnection.toggleDislikeCurrentSong() },
                         firstTap = true,
                         size = quickAccessGlyph,
                         tint = if (disliked) transportAccent else AuraPalette.OnGround.copy(alpha = 0.7f),
@@ -2197,7 +2217,7 @@ private fun AuraPlayerShape(
                     AuraIconButton(
                         icon = AuraIcons.PlaylistAdd,
                         contentDescription = stringResource(R.string.add_to_playlist),
-                        onClick = { showChoosePlaylistDialog = true },
+                        onClick = { ActionLog.tap(ActionId.PLR_ADD_PLAYLIST); showChoosePlaylistDialog = true },
                         firstTap = true,
                         size = quickAccessGlyph,
                         tint = AuraPalette.OnGround.copy(alpha = 0.7f),
@@ -2278,6 +2298,7 @@ private fun AuraPlayerShape(
                                 if (doneChrome) R.string.filter_downloaded else R.string.action_download,
                             ),
                             onClick = {
+                                ActionLog.tap(ActionId.PLR_DOWNLOAD)
                                 when {
                                     isLocalTrack -> Unit
                                     isExporting -> Unit
@@ -2325,6 +2346,7 @@ private fun AuraPlayerShape(
                         icon = AuraIcons.Search,
                         contentDescription = stringResource(R.string.search),
                         onClick = {
+                            ActionLog.tap(ActionId.PLR_SEARCH)
                             // Compact Spotlight-style panel (owner 2026-10-18); it grows with the results and stays above the keyboard.
                             bottomSheetPageState.show(spotlight = true) {
                                 AuraPlayerQuickSearchContent(
@@ -2347,6 +2369,7 @@ private fun AuraPlayerShape(
                         icon = AuraIcons.Share,
                         contentDescription = stringResource(R.string.share),
                         onClick = {
+                            ActionLog.tap(ActionId.PLR_SHARE)
                             coroutineScope.launch {
                                 // Mismo cuerpo que el menú “Más” (local → exportado → enlace): una sola
                                 // implementación, para que no acaben compartiendo cosas distintas.
@@ -2416,10 +2439,10 @@ private fun AuraPlayerShape(
                         ?.takeIf { it.isNotBlank() },
                     playButtonFill = playButtonFill,
                     playButtonInk = playButtonInk,
-                    onPrevious = playerConnection::seekToPrevious,
-                    onNext = playerConnection::seekToNext,
-                    onPlayPause = immersivePlayPause,
-                    onExitVideo = { playerConnection.toggleVideoMode() },
+                    onPrevious = { ActionLog.tap(ActionId.PLR_VIDEO_PREV); playerConnection.seekToPrevious() },
+                    onNext = { ActionLog.tap(ActionId.PLR_VIDEO_NEXT); playerConnection.seekToNext() },
+                    onPlayPause = { ActionLog.tap(ActionId.PLR_VIDEO_PLAY); immersivePlayPause() },
+                    onExitVideo = { ActionLog.tap(ActionId.PLR_VIDEO_EXIT); playerConnection.toggleVideoMode() },
                     onControlsVisibilityChanged = { immersiveControlsVisible = it },
                 )
             }
@@ -2441,9 +2464,9 @@ private fun AuraPlayerShape(
                     isTvOrCar = isTvOrCar,
                     playButtonFill = playButtonFill,
                     playButtonInk = playButtonInk,
-                    onPrevious = playerConnection::seekToPrevious,
-                    onNext = playerConnection::seekToNext,
-                    onPlayPause = immersivePlayPause,
+                    onPrevious = { ActionLog.tap(ActionId.PLR_CANVAS_PREV); playerConnection.seekToPrevious() },
+                    onNext = { ActionLog.tap(ActionId.PLR_CANVAS_NEXT); playerConnection.seekToNext() },
+                    onPlayPause = { ActionLog.tap(ActionId.PLR_CANVAS_PLAY); immersivePlayPause() },
                     onControlsVisibilityChanged = { immersiveControlsVisible = it },
                 )
             }

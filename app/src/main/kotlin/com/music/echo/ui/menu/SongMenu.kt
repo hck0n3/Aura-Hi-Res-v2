@@ -5,6 +5,8 @@ package iad1tya.echo.music.ui.menu
 import iad1tya.echo.music.ui.component.MenuLikeButton
 import iad1tya.echo.music.ui.component.MenuHeaderCover
 import iad1tya.echo.music.ui.component.MenuHeader
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.Intent
@@ -411,6 +413,7 @@ fun SongMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.SONGMENU_SHARE_EXPORTED_VIDEO)
                             coroutineScope.launch {
                                 val uri = lookupExportedFileUri(context, song.id)
                                 if (uri != null &&
@@ -448,6 +451,7 @@ fun SongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_EXPORT_AS_MP3)
                                 ensureMp3Folder { directoryUri ->
                                     onDismiss()
                                     AudioExportService.start(
@@ -474,6 +478,7 @@ fun SongMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.SONGMENU_DELETE_EXPORTED_VIDEO)
                             coroutineScope.launch {
                                 deleteExportedVideo(context, song.id)
                                 android.widget.Toast.makeText(
@@ -532,6 +537,7 @@ fun SongMenu(
                             },
                             text = stringResource(R.string.start_radio),
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_START_RADIO)
                                 onDismiss()
                                 playerConnection.playQueue(YouTubeQueue.radio(song.toMediaMetadata()))
                             }
@@ -546,7 +552,7 @@ fun SongMenu(
                             )
                         },
                         text = stringResource(R.string.add_to_playlist),
-                        onClick = { showChoosePlaylistDialog = true }
+                        onClick = { ActionLog.tap(ActionId.SONGMENU_ADD_TO_PLAYLIST); showChoosePlaylistDialog = true }
                     ),
                     NewAction(
                         icon = {
@@ -558,6 +564,7 @@ fun SongMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            ActionLog.tap(ActionId.SONGMENU_SHARE)
                             // Row 520: link / MP3 / video, asked every time (the choice window saves what is missing).
                             coroutineScope.launch {
                                 iad1tya.echo.music.ui.newui.ShareChoiceState.open(
@@ -594,6 +601,7 @@ fun SongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_REMOVE_LIKE)
                                 val s = song.song.toggleLike()
                                 database.query { upsert(s) }
                                 syncUtils.likeSong(s)
@@ -611,6 +619,7 @@ fun SongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_SUGGEST_TO_HOST)
                                 val durationMs = if (song.song.duration > 0) song.song.duration.toLong() * 1000 else 180000L
                                 val trackInfo = iad1tya.echo.music.listentogether.TrackInfo(
                                     id = song.id,
@@ -637,6 +646,7 @@ fun SongMenu(
                             )
                         },
                         onClick = { 
+                            ActionLog.tap(ActionId.SONGMENU_EDIT)
                             showEditDialog = true
                         }
                     ),
@@ -650,6 +660,7 @@ fun SongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_PLAY_NEXT)
                                 onDismiss()
                                 playerConnection.playNext(song.toMediaItem())
                             }
@@ -665,6 +676,7 @@ fun SongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_ADD_TO_QUEUE)
                                 onDismiss()
                                 playerConnection.addToQueue(song.toMediaItem())
                             }
@@ -699,6 +711,7 @@ fun SongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_LIBRARY_TOGGLE)
                                 val currentSong = song.song
                                 val isInLibrary = currentSong.inLibrary != null
                                 val token =
@@ -731,6 +744,7 @@ fun SongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SONGMENU_REMOVE_FROM_HISTORY)
                                     onDismiss()
                                     database.query {
                                         delete(event)
@@ -750,6 +764,7 @@ fun SongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SONGMENU_REMOVE_FROM_PLAYLIST)
                                     database.transaction {
                                         // Row 343: remove on YouTube too — the old check skipped every song added from the app
                                         // (no setVideoId stored), so the next sync put it back.
@@ -777,6 +792,7 @@ fun SongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SONGMENU_REMOVE_FROM_CACHE)
                                     onDismiss()
                                     cacheViewModel.removeSongFromCache(song.id)
                                 }
@@ -807,6 +823,7 @@ fun SongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SONGMENU_REMOVE_DOWNLOAD)
                                     removeSongDownloads(context, song.id, song.song.isVideo)
                                 }
                             )
@@ -821,6 +838,7 @@ fun SongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SONGMENU_CANCEL_DOWNLOAD)
                                     removeSongDownloads(context, song.id, song.song.isVideo)
                                 }
                             )
@@ -835,6 +853,7 @@ fun SongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SONGMENU_DOWNLOAD)
                                     enqueueSongDownloads(
                                         context,
                                         song.id,
@@ -864,6 +883,7 @@ fun SongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SONGMENU_SHARE_LOCAL_FILE)
                                     shareLocalAudio(context, song.id)
                                     onDismiss()
                                 }
@@ -887,7 +907,7 @@ fun SongMenu(
                                         contentDescription = null,
                                     )
                                 },
-                                onClick = { showExportFormatDialog = true }
+                                onClick = { ActionLog.tap(ActionId.SONGMENU_EXPORT); showExportFormatDialog = true }
                             )
                         }
                     )
@@ -910,6 +930,7 @@ fun SongMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.SONGMENU_SET_AS_RINGTONE)
                             // Always open the trimmer: WRITE_SETTINGS only gates the optional
                             // direct-apply step inside RingtoneHelper.downloadAndTrimAsRingtone;
                             // the success dialog offers the grant when it wasn't held.
@@ -938,6 +959,7 @@ fun SongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_VIEW_ARTIST)
                                 if (song.artists.size == 1) {
                                     val only = song.artists[0]
                                     scope.launch {
@@ -980,6 +1002,7 @@ fun SongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SONGMENU_VIEW_ALBUM)
                                     scope.launch {
                                         val browseId = if (needsOnlineBrowseResolution(album.id)) {
                                             val query = listOfNotNull(
@@ -1017,6 +1040,7 @@ fun SongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_REFETCH)
                                 refetchIconDegree -= 360
                                 // Metadata alone leaves the OLD audio in place — drop the cached stream too.
                                 refetchSongAudio(
@@ -1051,6 +1075,7 @@ fun SongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_DETAILS)
                                 onDismiss()
                                 bottomSheetPageState.show {
                                     ShowMediaInfo(song.id)

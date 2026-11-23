@@ -91,6 +91,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URLEncoder
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 private const val SECTION_PLAYBACK = "playback"
 private const val SECTION_LIBRARY = "library"
@@ -390,6 +392,7 @@ fun AuraPlayerMenu(
                             icon = AuraIcons.Artist,
                             label = stringResource(R.string.view_artist),
                             onClick = {
+                                ActionLog.tap(ActionId.PMENU_VIEW_ARTIST)
                                 if (artists.size == 1) {
                                     val only = artists[0]
                                     coroutineScope.launch {
@@ -421,6 +424,7 @@ fun AuraPlayerMenu(
                             icon = AuraIcons.Album,
                             label = stringResource(R.string.view_album),
                             onClick = {
+                                ActionLog.tap(ActionId.PMENU_VIEW_ALBUM)
                                 coroutineScope.launch {
                                     val browseId = if (needsOnlineBrowseResolution(album.id)) {
                                         val query = listOfNotNull(
@@ -450,6 +454,7 @@ fun AuraPlayerMenu(
                         icon = AuraIcons.Equalizer,
                         label = stringResource(R.string.equalizer),
                         onClick = {
+                            ActionLog.tap(ActionId.PMENU_EQUALIZER)
                             playerBottomSheetState.collapseAfterNavigate()
                             navController.navigate("settings/equalizer") { launchSingleTop = true }
                             onDismiss()
@@ -459,6 +464,7 @@ fun AuraPlayerMenu(
                         icon = AuraIcons.Volume,
                         label = "Sonido",
                         onClick = {
+                            ActionLog.tap(ActionId.PMENU_SOUND)
                             playerBottomSheetState.collapseAfterNavigate()
                             navController.navigate("settings/sound")
                             onDismiss()
@@ -468,6 +474,7 @@ fun AuraPlayerMenu(
                         icon = AuraIcons.Search,
                         label = stringResource(R.string.details),
                         onClick = {
+                            ActionLog.tap(ActionId.PMENU_DETAILS)
                             onShowDetailsDialog()
                             onDismiss()
                         },
@@ -476,6 +483,7 @@ fun AuraPlayerMenu(
                         icon = AuraIcons.Settings,
                         label = stringResource(R.string.settings),
                         onClick = {
+                            ActionLog.tap(ActionId.PMENU_SETTINGS)
                             playerBottomSheetState.collapseAfterNavigate()
                             navController.navigateAsTab("settings")
                             onDismiss()
@@ -501,6 +509,7 @@ fun AuraPlayerMenu(
                         iconTint = if (if (remoteActive) remoteShuffle else shuffleModeEnabled) AuraPalette.Teal
                         else AuraPalette.OnGround.copy(alpha = 0.75f),
                         onClick = {
+                            ActionLog.tap(ActionId.PMENU_SHUFFLE)
                             if (!iad1tya.echo.music.devicesync.RemotePlayback.setShuffle(!remoteShuffle)) {
                                 playerConnection.player.shuffleModeEnabled = !shuffleModeEnabled
                             }
@@ -524,7 +533,7 @@ fun AuraPlayerMenu(
                         label = stringResource(R.string.repeat),
                         iconTint = if (repeatMode != Player.REPEAT_MODE_OFF) AuraPalette.Teal
                         else AuraPalette.OnGround.copy(alpha = 0.75f),
-                        onClick = { playerConnection.player.toggleRepeatMode() },
+                        onClick = { ActionLog.tap(ActionId.PMENU_REPEAT); playerConnection.player.toggleRepeatMode() },
                         trailing = {
                             AuraTechnicalText(
                                 text = when (repeatMode) {
@@ -542,6 +551,7 @@ fun AuraPlayerMenu(
                         icon = AuraIcons.Radio,
                         label = stringResource(R.string.start_radio),
                         onClick = {
+                            ActionLog.tap(ActionId.PMENU_START_RADIO)
                             Toast.makeText(context, startingRadioText, Toast.LENGTH_SHORT).show()
                             playerConnection.startRadioSeamlessly()
                             onDismiss()
@@ -551,17 +561,17 @@ fun AuraPlayerMenu(
                 row(
                     icon = AuraIcons.Speed,
                     label = stringResource(R.string.advanced),
-                    onClick = { showPitchTempoDialog = true },
+                    onClick = { ActionLog.tap(ActionId.PMENU_ADVANCED); showPitchTempoDialog = true },
                 )
                 row(
                     icon = AuraIcons.Timer,
                     label = stringResource(R.string.sleep_timer),
-                    onClick = { showSleepTimerDialog = true },
+                    onClick = { ActionLog.tap(ActionId.PMENU_SLEEP_TIMER); showSleepTimerDialog = true },
                 )
                 row(
                     icon = AuraIcons.Radio,
                     label = stringResource(R.string.refetch),
-                    onClick = { playerConnection.refetchCurrentInOpus() },
+                    onClick = { ActionLog.tap(ActionId.PMENU_REFETCH); playerConnection.refetchCurrentInOpus() },
                 )
             }
         }
@@ -581,6 +591,7 @@ fun AuraPlayerMenu(
                         if (isInLibrary) R.string.remove_from_library else R.string.add_to_library
                     ),
                     onClick = {
+                        ActionLog.tap(ActionId.PMENU_LIBRARY_TOGGLE)
                         playerConnection.toggleLibrary()
                         onDismiss()
                     },
@@ -588,7 +599,7 @@ fun AuraPlayerMenu(
                 row(
                     icon = AuraIcons.PlaylistAdd,
                     label = stringResource(R.string.add_to_playlist),
-                    onClick = { showChoosePlaylistDialog = true },
+                    onClick = { ActionLog.tap(ActionId.PMENU_ADD_TO_PLAYLIST); showChoosePlaylistDialog = true },
                 )
                 // Row 348 (C2 audit, UI_INVENTORY §3/§5): export a song that is ALREADY downloaded (or not) as
                 // MP3/video. The dialog was wired here but no row opened it, and the player's download
@@ -604,7 +615,7 @@ fun AuraPlayerMenu(
                         row(
                             icon = AuraIcons.Export,
                             label = stringResource(R.string.action_export),
-                            onClick = { showExportFormatDialog = true },
+                            onClick = { ActionLog.tap(ActionId.PMENU_EXPORT); showExportFormatDialog = true },
                         )
                     }
                 }
@@ -612,6 +623,7 @@ fun AuraPlayerMenu(
                     icon = AuraIcons.Timer,
                     label = stringResource(R.string.set_as_ringtone),
                     onClick = {
+                        ActionLog.tap(ActionId.PMENU_SET_AS_RINGTONE)
                         ringtoneViewModel.showTrimmer(
                             mediaMetadata.id,
                             mediaMetadata.title,
@@ -638,6 +650,7 @@ fun AuraPlayerMenu(
                         icon = AuraIcons.Queue,
                         label = stringResource(R.string.go_to_podcast),
                         onClick = {
+                            ActionLog.tap(ActionId.PMENU_GO_TO_PODCAST)
                             val epId = mediaMetadata.id
                             coroutineScope.launch {
                                 val feed = iad1tya.echo.music.podcast.PodcastStoreEntryPoint
@@ -660,6 +673,7 @@ fun AuraPlayerMenu(
                         iconTint = if (videoMode) AuraPalette.Teal
                         else AuraPalette.OnGround.copy(alpha = 0.75f),
                         onClick = {
+                            ActionLog.tap(ActionId.PMENU_VIDEO)
                             playerConnection.toggleVideoMode()
                             onDismiss()
                         },
@@ -671,12 +685,12 @@ fun AuraPlayerMenu(
                 row(
                     icon = AuraIcons.Volume,
                     label = stringResource(R.string.audio_devices),
-                    onClick = { showAudioDeviceSheet = true },
+                    onClick = { ActionLog.tap(ActionId.PMENU_AUDIO_DEVICES); showAudioDeviceSheet = true },
                 )
                 row(
                     icon = AuraIcons.People,
                     label = stringResource(R.string.listen_together),
-                    onClick = { showListenTogetherDialog = true },
+                    onClick = { ActionLog.tap(ActionId.PMENU_LISTEN_TOGETHER); showListenTogetherDialog = true },
                     trailing = if (pendingSuggestions.isEmpty()) null else {
                         {
                             Box(
@@ -699,6 +713,7 @@ fun AuraPlayerMenu(
                         icon = AuraIcons.Radio,
                         label = stringResource(R.string.resync),
                         onClick = {
+                            ActionLog.tap(ActionId.PMENU_RESYNC)
                             listenTogetherManager?.requestSync()
                             onDismiss()
                         },
@@ -708,6 +723,7 @@ fun AuraPlayerMenu(
                     icon = AuraIcons.Album,
                     label = stringResource(R.string.ambient_mode),
                     onClick = {
+                        ActionLog.tap(ActionId.PMENU_AMBIENT_MODE)
                         playerBottomSheetState.collapseSoft()
                         navController.navigate("ambient_mode") { launchSingleTop = true }
                         onDismiss()
@@ -717,6 +733,7 @@ fun AuraPlayerMenu(
                     icon = AuraIcons.Share,
                     label = stringResource(R.string.share),
                     onClick = {
+                        ActionLog.tap(ActionId.PMENU_SHARE)
                         coroutineScope.launch {
                             // Cuerpo compartido con el botón de compartir del reproductor a pantalla
                             // completa (local → exportado → enlace). Ver [shareSong].

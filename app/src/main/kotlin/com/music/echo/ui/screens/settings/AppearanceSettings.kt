@@ -729,6 +729,7 @@ fun AppearanceSettings(
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                         }
                         context.startActivity(intent)
+                        iad1tya.echo.music.utils.AppLogger.flushBlocking()
                         Runtime.getRuntime().exit(0)
                     }
                 ) {

@@ -80,6 +80,8 @@ class CrashHandler private constructor(
             CrashReporter.setKey("crash_thread", thread.name)
             CrashReporter.record(throwable)
             AppLogger.writeCrash(applicationContext, crashLog)
+            // app.log is buffered (row 731): the «App crashed» line and the seconds before it are written now, before the kill.
+            AppLogger.flushBlocking()
             
             
             val intent = Intent(applicationContext, CrashActivity::class.java).apply {
@@ -95,6 +97,7 @@ class CrashHandler private constructor(
             // Throwable, not Exception: an OutOfMemoryError raised while BUILDING the report is exactly
             // the case that used to escape here, killing the process with no dialog and no file.
             runCatching { Timber.e(t, "Error handling crash") }
+            runCatching { AppLogger.flushBlocking() }
             defaultHandler?.uncaughtException(thread, throwable)
         }
     }

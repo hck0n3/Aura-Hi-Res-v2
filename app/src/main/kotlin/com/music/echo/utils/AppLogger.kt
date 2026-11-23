@@ -8,6 +8,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Persistent app logging for the in-app Logs screen and shareable diagnostics.
@@ -15,6 +16,12 @@ import java.util.concurrent.Executors
  * Plants a Timber [Timber.Tree] that appends INFO+ entries to `filesDir/logs/app.log`,
  * rotating to a single `app.log.1` backup once the file passes [MAX_SIZE]. The crash
  * handler additionally writes the last crash to `last_crash.txt`.
+ *
+ * Lines are BUFFERED (registry row 731): the file is opened once per [FLUSH_EVERY_LINES] lines or
+ * [FLUSH_DELAY_MS] after the first unwritten one, not once per line. Readers ([readRecentLog], the
+ * share bundle, the diagnostics upload) and the crash / restart / background paths flush first, so
+ * what they see or leave behind is complete. Only a kill the app never hears about (the system's)
+ * can lose the last [FLUSH_DELAY_MS] at most.
  */
 object AppLogger {
 
@@ -28,7 +35,25 @@ object AppLogger {
     const val SCREEN_TAIL_CHARS = 160 * 1024
     private const val MAX_EXIT_REASONS_SIZE = 128 * 1024 // 128 KB, oldest entries dropped
     private val timestampFormat = SimpleDateFormat("MM-dd HH:mm:ss.SSS", Locale.US)
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+
+    // Chosen for this change, not measured: a burst (a resolve, a failing song) costs one file open per 32 lines, and a quiet
+    // line waits at most 2 s. The timer exists only while a line is waiting — nothing wakes up while nothing is logged.
+    private const val FLUSH_EVERY_LINES = 32
+    private const val FLUSH_DELAY_MS = 2_000L
+
+    /** Longest a reader or the crash path waits for the writer; past it they go on with what is on disk. */
+    private const val FLUSH_WAIT_MS = 500L
+
+    @Volatile
+    private var ioThread: Thread? = null
+    private val ioExecutor = Executors.newSingleThreadScheduledExecutor { runnable ->
+        Thread(runnable, "AppLogger-io").also { ioThread = it }
+    }
+
+    // Touched ONLY on [ioExecutor]'s thread.
+    private val pending = LogLineBuffer(FLUSH_EVERY_LINES)
+    private var pendingContext: Context? = null
+    private var flushScheduled = false
 
     private fun logDir(context: Context): File =
         File(context.filesDir, "logs").apply { mkdirs() }
@@ -60,6 +85,7 @@ object AppLogger {
      */
     fun readRecentLog(context: Context): String = LogRedaction.redact(
         buildString {
+            flushBlocking()
             val backup = backupFile(context)
             val current = logFile(context)
             runCatching { if (backup.exists()) append(backup.readText()) }
@@ -181,6 +207,8 @@ object AppLogger {
     fun clear(context: Context) {
         ioExecutor.execute {
             runCatching {
+                // Lines logged before «Borrar» go with the files instead of reappearing on the next flush.
+                pending.drain()
                 logFile(context).delete()
                 backupFile(context).delete()
                 crashFile(context).delete()
@@ -203,14 +231,53 @@ object AppLogger {
         ioExecutor.execute {
             runCatching {
                 val redacted = LogRedaction.redact(line)
-                val file = logFile(context)
-                if (file.exists() && file.length() > MAX_SIZE) {
-                    val backup = backupFile(context)
-                    backup.delete()
-                    file.renameTo(backup)
-                }
-                file.appendText(redacted)
+                pendingContext = context
+                if (pending.add(redacted)) writePending() else scheduleFlush()
             }
+        }
+    }
+
+    /** Runs on [ioExecutor]: one timer per burst, so a quiet log never keeps a wake-up scheduled. */
+    private fun scheduleFlush() {
+        if (flushScheduled) return
+        flushScheduled = true
+        ioExecutor.schedule(Runnable {
+            flushScheduled = false
+            runCatching { writePending() }
+        }, FLUSH_DELAY_MS, TimeUnit.MILLISECONDS)
+    }
+
+    /** Runs on [ioExecutor]. One open/append/close for everything waiting, rotating first exactly as one line used to. */
+    private fun writePending() {
+        if (pending.isEmpty()) return
+        val context = pendingContext ?: return
+        val text = pending.drain()
+        val file = logFile(context)
+        if (file.exists() && file.length() > MAX_SIZE) {
+            val backup = backupFile(context)
+            backup.delete()
+            file.renameTo(backup)
+        }
+        file.appendText(text)
+    }
+
+    /** Writes the waiting lines soon, without waiting for them (the app going to the background). */
+    fun flush() {
+        runCatching { ioExecutor.execute { runCatching { writePending() } } }
+    }
+
+    /**
+     * Writes the waiting lines and waits for them, at most [FLUSH_WAIT_MS]: before the log is read, shared or uploaded, and
+     * before the process is killed on purpose (crash handler, restore restart). Everything logged before this call is queued
+     * ahead of the write on the same single thread, so it lands in the file. On the writer's own thread it writes inline.
+     */
+    fun flushBlocking() {
+        if (Thread.currentThread() === ioThread) {
+            runCatching { writePending() }
+            return
+        }
+        runCatching {
+            ioExecutor.submit(Runnable { runCatching { writePending() } }).get(FLUSH_WAIT_MS, TimeUnit.MILLISECONDS)
         }
     }
 
@@ -240,9 +307,11 @@ object AppLogger {
                 else -> "D"
             }
             val ts = timestampFormat.format(Date())
+            // Row 730: a line written within ActionLog.JOIN_WINDOW_MS of a tap names it (` a=<n>`); the ACT line already does.
+            val action = if (tag == ActionLog.TAG) "" else ActionLog.correlationSuffix()
             val builder = StringBuilder()
                 .append(ts).append(' ').append(level).append('/')
-                .append(tag ?: "App").append(": ").append(message).append('\n')
+                .append(tag ?: "App").append(": ").append(message).append(action).append('\n')
             // COLLAPSE REPEATED STACK TRACES. A full trace is 15-40 lines (~2 KB), and the stream
             // resolver logs one per failing client inside a fallback loop of 11 clients that the whole
             // resolve retries ~3 times — up to ~130 KB for ONE unplayable song, against a 256 KB cap.

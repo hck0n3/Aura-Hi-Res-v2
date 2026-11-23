@@ -127,6 +127,13 @@ fun <T> rememberPreference(
             override var value: T
                 get() = state.value
                 set(value) {
+                    // Row 730: a user-changed switch or choice names its KEY and new value in the shared log (never text).
+                    if (value != state.value) {
+                        when (value) {
+                            is Boolean -> ActionLog.setting(key, value)
+                            is Enum<*> -> ActionLog.setting(key, value)
+                        }
+                    }
                     coroutineScope.launch {
                         context.dataStore.edit {
                             it[key] = value
@@ -167,6 +174,7 @@ inline fun <reified T : Enum<T>> rememberEnumPreference(
             override var value: T
                 get() = state.value
                 set(value) {
+                    if (value != state.value) ActionLog.setting(key, value)
                     coroutineScope.launch {
                         context.dataStore.edit {
                             it[key] = value.name

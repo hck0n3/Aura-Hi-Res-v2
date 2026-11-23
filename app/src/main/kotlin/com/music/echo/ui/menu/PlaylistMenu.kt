@@ -9,6 +9,8 @@ import androidx.compose.ui.res.pluralStringResource
 import iad1tya.echo.music.ui.component.MenuLikeButton
 import iad1tya.echo.music.ui.component.MenuHeaderCover
 import iad1tya.echo.music.ui.component.MenuHeader
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.ShareLinks
 
 import android.content.ActivityNotFoundException
@@ -719,6 +721,7 @@ fun PlaylistMenu(
                             },
                             text = stringResource(R.string.play),
                             onClick = {
+                                ActionLog.tap(ActionId.PLMENU_PLAY)
                                 onDismiss()
                                 if (songs.isNotEmpty()) {
                                     playerConnection.playQueue(
@@ -739,7 +742,7 @@ fun PlaylistMenu(
                                 )
                             },
                             text = stringResource(R.string.shuffle),
-                            onClick = { onMenuShuffleClick() }
+                            onClick = { ActionLog.tap(ActionId.PLMENU_SHUFFLE); onMenuShuffleClick() }
                         ))
                     }
                     add(NewAction(
@@ -752,6 +755,7 @@ fun PlaylistMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            ActionLog.tap(ActionId.PLMENU_SHARE)
                             onDismiss()
                             val intent = Intent().apply {
                                 action = Intent.ACTION_SEND
@@ -782,6 +786,7 @@ fun PlaylistMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.PLMENU_EXPORT_JSON)
                                 exportLauncher.launch("${playlist.playlist.name}.json")
                             }
                         )
@@ -798,6 +803,7 @@ fun PlaylistMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.PLMENU_EXPORT_CSV)
                                 exportCsvLauncher.launch("${playlist.playlist.name}.csv")
                             }
                         )
@@ -815,6 +821,7 @@ fun PlaylistMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.PLMENU_EXPORT_MP3)
                                     if (songs.isEmpty()) {
                                         Toast.makeText(
                                             context,
@@ -840,6 +847,7 @@ fun PlaylistMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.PLMENU_START_RADIO)
                                         coroutineScope.launch(Dispatchers.IO) {
                                             YouTube.playlist(browseId).getOrNull()?.playlist?.let { playlistItem ->
                                                 playlistItem.radioEndpoint?.let { radioEndpoint ->
@@ -868,6 +876,7 @@ fun PlaylistMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.PLMENU_SYNC_NOW)
                                         onDismiss()
                                         if (!isLoggedIn) {
                                             // Never hit YouTube signed out — just tell the user to sign in.
@@ -911,6 +920,7 @@ fun PlaylistMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.PLMENU_PLAY_NEXT)
                                     coroutineScope.launch {
                                         playerConnection.playNext(songs.map { it.toMediaItem() })
                                     }
@@ -930,6 +940,7 @@ fun PlaylistMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.PLMENU_ADD_TO_QUEUE)
                                     onDismiss()
                                     playerConnection.addToQueue(songs.map { it.toMediaItem() })
                                 }
@@ -956,6 +967,7 @@ fun PlaylistMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.PLMENU_EDIT)
                                     showEditDialog = true
                                 }
                             )
@@ -975,6 +987,7 @@ fun PlaylistMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.PLMENU_SPEED_DIAL_TOGGLE)
                                 coroutineScope.launch(Dispatchers.IO) {
                                     if (isPinned) {
                                         database.speedDialDao.delete(playlist.id)
@@ -1024,6 +1037,7 @@ fun PlaylistMenu(
                                             )
                                         },
                                         onClick = {
+                                            ActionLog.tap(ActionId.PLMENU_REMOVE_DOWNLOAD)
                                             showRemoveDownloadDialog = true
                                         }
                                     )
@@ -1038,6 +1052,7 @@ fun PlaylistMenu(
                                             )
                                         },
                                         onClick = {
+                                            ActionLog.tap(ActionId.PLMENU_CANCEL_DOWNLOAD)
                                             showRemoveDownloadDialog = true
                                         }
                                     )
@@ -1052,6 +1067,7 @@ fun PlaylistMenu(
                                             )
                                         },
                                         onClick = {
+                                            ActionLog.tap(ActionId.PLMENU_DOWNLOAD)
                                             coroutineScope.launch {
                                                 var list = songs
                                                 if (list.isEmpty() && autoPlaylist != true) {
@@ -1126,6 +1142,7 @@ fun PlaylistMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.PLMENU_AUTO_DOWNLOAD)
                                     val turningOn = !autoDownloadOn
                                     coroutineScope.launch(Dispatchers.IO) {
                                         database.update(
@@ -1160,6 +1177,7 @@ fun PlaylistMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.PLMENU_DELETE)
                                     showDeletePlaylistDialog = true
                                 }
                             )

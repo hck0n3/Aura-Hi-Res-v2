@@ -94,6 +94,8 @@ import iad1tya.echo.music.viewmodels.OnlineSearchViewModel
 import java.net.URLDecoder
 import java.net.URLEncoder
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Resultados de búsqueda — "Interfaz nueva"
@@ -266,6 +268,7 @@ fun AuraSearchResultScreen(
     }
 
     val onItemClick: (YTItem) -> Unit = { item ->
+        ActionLog.tap(ActionId.SEARCH_RESULT)
         when (item) {
             is SongItem -> if (item.id == mediaMetadata?.id) {
                 playerConnection.togglePlayPause()

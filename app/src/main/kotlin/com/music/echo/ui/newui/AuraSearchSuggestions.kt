@@ -67,6 +67,8 @@ import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.viewmodels.LocalFilter
 import iad1tya.echo.music.viewmodels.LocalSearchViewModel
 import iad1tya.echo.music.viewmodels.OnlineSearchSuggestionViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import kotlinx.coroutines.flow.drop
 
 /**
@@ -197,9 +199,10 @@ fun AuraOnlineSearchSuggestions(
                 fromHistory = true,
                 first = index == 0,
                 last = index == viewState.history.lastIndex,
-                onClick = { onSearch(history.query) },
-                onDelete = { database.query { delete(history) } },
+                onClick = { ActionLog.tap(ActionId.SEARCH_HISTORY); onSearch(history.query) },
+                onDelete = { ActionLog.tap(ActionId.SEARCH_HISTORY_REMOVE); database.query { delete(history) } },
                 onFillTextField = {
+                    ActionLog.tap(ActionId.SEARCH_HISTORY_FILL)
                     onQueryChange(
                         TextFieldValue(history.query, TextRange(history.query.length)),
                     )
@@ -223,9 +226,10 @@ fun AuraOnlineSearchSuggestions(
                 fromHistory = false,
                 first = index == 0,
                 last = index == viewState.suggestions.lastIndex,
-                onClick = { onSearch(suggestion) },
+                onClick = { ActionLog.tap(ActionId.SEARCH_SUGGESTION); onSearch(suggestion) },
                 onDelete = null,
                 onFillTextField = {
+                    ActionLog.tap(ActionId.SEARCH_SUGGESTION_FILL)
                     onQueryChange(TextFieldValue(suggestion, TextRange(suggestion.length)))
                 },
                 modifier = Modifier,
@@ -255,7 +259,7 @@ fun AuraOnlineSearchSuggestions(
                         else -> false
                     },
                     isPlaying = isPlaying,
-                    onClick = { picked = AuraSearchPick.Yt(item) },
+                    onClick = { ActionLog.tap(ActionId.SEARCH_ITEM_PICK); picked = AuraSearchPick.Yt(item) },
                     onLongClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         picked = AuraSearchPick.Yt(item)
@@ -271,6 +275,7 @@ fun AuraOnlineSearchSuggestions(
                 },
                 isPlaying = isPlaying,
                 onClick = {
+                    ActionLog.tap(ActionId.SEARCH_ITEM)
                     when (item) {
                         is SongItem -> if (item.id == mediaMetadata?.id) {
                             playerConnection.togglePlayPause()
@@ -572,7 +577,7 @@ fun AuraLocalSearchResults(
                     AuraChip(
                         text = stringResource(labelRes),
                         selected = searchFilter == filter,
-                        onClick = { viewModel.filter.value = filter },
+                        onClick = { ActionLog.tap(ActionId.SEARCH_LOCAL_FILTER); viewModel.filter.value = filter },
                     )
                 }
             }
@@ -583,7 +588,7 @@ fun AuraLocalSearchResults(
                 item(key = "aura_local_section_${filter.name}", contentType = "aura_local_section") {
                     AuraSectionHeader(
                         title = stringResource(auraLocalFilterLabel(filter)),
-                        onClick = { viewModel.filter.value = filter },
+                        onClick = { ActionLog.tap(ActionId.SEARCH_LOCAL_SECTION); viewModel.filter.value = filter },
                         modifier = Modifier,
                     )
                 }
@@ -832,6 +837,7 @@ internal fun AuraSearchHistoryHeader(onClearAll: () -> Unit, modifier: Modifier 
                 }
                 androidx.compose.material3.TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SEARCH_HISTORY_CLEAR)
                         confirm = false
                         onClearAll()
                     },
@@ -846,7 +852,7 @@ internal fun AuraSearchHistoryHeader(onClearAll: () -> Unit, modifier: Modifier 
         modifier = modifier.fillMaxWidth(),
     ) {
         AuraSectionHeader(title = stringResource(R.string.search_history), modifier = Modifier.weight(1f))
-        androidx.compose.material3.TextButton(onClick = { confirm = true }) {
+        androidx.compose.material3.TextButton(onClick = { ActionLog.tap(ActionId.SEARCH_HISTORY_CLEAR_ASK); confirm = true }) {
             androidx.compose.material3.Text(
                 text = stringResource(R.string.search_history_clear_all),
                 style = AuraType.RowSubtitle,

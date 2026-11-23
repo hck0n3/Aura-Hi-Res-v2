@@ -50,6 +50,8 @@ import iad1tya.echo.music.constants.YtmUploadSyncKey
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.UploadCategoryProgress
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.rememberPreference
@@ -398,6 +400,7 @@ private fun LibraryUploadSection(
             confirmButton = {
                 androidx.compose.material3.TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.YTMSYNC_IMPORT_SUBSCRIBE)
                         showImportFollowsConfirm.value = false
                         val confirmed = awaitingImportCounted
                         coroutineScope.launch {
@@ -420,6 +423,7 @@ private fun LibraryUploadSection(
             dismissButton = {
                 androidx.compose.material3.TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.YTMSYNC_IMPORT_LOCAL_ONLY)
                         showImportFollowsConfirm.value = false
                         val keptLocal = awaitingImportCounted
                         coroutineScope.launch {
@@ -486,6 +490,7 @@ private fun LibraryUploadSection(
                     )
                 },
                 onClick = {
+                    ActionLog.tap(ActionId.YTMSYNC_IMPORT_ASK_AGAIN)
                     val askAgain = localOnlyImportCounted
                     coroutineScope.launch {
                         runCatching {

@@ -485,6 +485,7 @@ class BackupRestoreViewModel @Inject constructor(
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
         context.startActivity(restartIntent)
+        iad1tya.echo.music.utils.AppLogger.flushBlocking()
         exitProcess(0)
     }
 

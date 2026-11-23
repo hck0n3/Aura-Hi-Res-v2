@@ -94,6 +94,8 @@ import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.AuraSpacing
 import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.launch
 
@@ -174,15 +176,18 @@ fun ListenTogetherScreen(
             username = memberForDialog.username,
             isBlocked = blockedUsernames.any { it.equals(memberForDialog.username, ignoreCase = true) },
             onKick = {
+                ActionLog.tap(ActionId.LT_KICK)
                 listenTogetherManager.kickUser(memberForDialog.userId, "Removed by host")
                 managing = null
             },
             onBlockAndKick = {
+                ActionLog.tap(ActionId.LT_BLOCK_KICK)
                 listenTogetherManager.blockUser(memberForDialog.username)
                 listenTogetherManager.kickUser(memberForDialog.userId, "Removed by host")
                 managing = null
             },
             onTransferOwnership = {
+                ActionLog.tap(ActionId.LT_TRANSFER_HOST)
                 listenTogetherManager.transferHost(memberForDialog.userId)
                 managing = null
             },
@@ -262,6 +267,7 @@ fun ListenTogetherScreen(
                         skin = skin,
                         currentUserId = room.selfUserId,
                         onUserClick = { clickedUserId ->
+                            ActionLog.tap(ActionId.LT_MEMBER)
                             if (isHost && clickedUserId != room.selfUserId) {
                                 managing = clickedUserId
                             }
@@ -274,8 +280,8 @@ fun ListenTogetherScreen(
                         PendingJoinRequestsSection(
                             requests = pendingJoinRequests,
                             skin = skin,
-                            onApprove = { listenTogetherManager.approveJoin(it) },
-                            onReject = { listenTogetherManager.rejectJoin(it, "Rejected by host") }
+                            onApprove = { ActionLog.tap(ActionId.LT_REQUEST_APPROVE); listenTogetherManager.approveJoin(it) },
+                            onReject = { ActionLog.tap(ActionId.LT_REQUEST_REJECT); listenTogetherManager.rejectJoin(it, "Rejected by host") }
                         )
                     }
                 }
@@ -285,15 +291,15 @@ fun ListenTogetherScreen(
                         PendingSuggestionsSection(
                             suggestions = pendingSuggestions,
                             skin = skin,
-                            onApprove = { listenTogetherManager.approveSuggestion(it) },
-                            onReject = { listenTogetherManager.rejectSuggestion(it, "Rejected by host") }
+                            onApprove = { ActionLog.tap(ActionId.LT_SUGGESTION_APPROVE); listenTogetherManager.approveSuggestion(it) },
+                            onReject = { ActionLog.tap(ActionId.LT_SUGGESTION_REJECT); listenTogetherManager.rejectSuggestion(it, "Rejected by host") }
                         )
                     }
                 }
 
                 item {
                     Button(
-                        onClick = { listenTogetherManager.leaveRoom() },
+                        onClick = { ActionLog.tap(ActionId.LT_LEAVE); listenTogetherManager.leaveRoom() },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error
@@ -320,7 +326,7 @@ fun ListenTogetherScreen(
                 WaitingForApprovalCard(
                     code = roomState?.pendingJoinCode.orEmpty(),
                     skin = skin,
-                    onCancel = { listenTogetherManager.session.cancelJoin() }
+                    onCancel = { ActionLog.tap(ActionId.LT_JOIN_CANCEL); listenTogetherManager.session.cancelJoin() }
                 )
             }
         } else {
@@ -337,6 +343,7 @@ fun ListenTogetherScreen(
                     waitingForApprovalText = stringResource(R.string.waiting_for_approval),
                     bringIntoViewRequester = bringIntoViewRequester,
                     onCreateRoom = {
+                        ActionLog.tap(ActionId.LT_CREATE)
                         val username = usernameInput.takeIf { it.isNotBlank() } ?: savedUsername
                         val finalUsername = username.trim()
                         if (finalUsername.isNotBlank()) {
@@ -348,6 +355,7 @@ fun ListenTogetherScreen(
                         }
                     },
                     onJoinRoom = {
+                        ActionLog.tap(ActionId.LT_JOIN)
                         val username = usernameInput.takeIf { it.isNotBlank() } ?: savedUsername
                         val finalUsername = username.trim()
                         if (finalUsername.isNotBlank()) {
@@ -369,7 +377,7 @@ fun ListenTogetherScreen(
 
         item {
             SettingsLinkCard(
-                onClick = { navController.navigate("settings/integrations/listen_together") }
+                onClick = { ActionLog.tap(ActionId.LT_SETTINGS); navController.navigate("settings/integrations/listen_together") }
             )
         }
 
@@ -438,17 +446,17 @@ fun ListenTogetherScreen(
             actions = {
                 when (val state = connectionState) {
                     is ConnectionState.Connected -> {
-                        TextButton(onClick = { listenTogetherManager.disconnect() }) {
+                        TextButton(onClick = { ActionLog.tap(ActionId.LT_DISCONNECT); listenTogetherManager.disconnect() }) {
                             Text(stringResource(R.string.disconnect))
                         }
                     }
                     is ConnectionState.Failed -> {
-                        TextButton(onClick = { listenTogetherManager.connect() }) {
+                        TextButton(onClick = { ActionLog.tap(ActionId.LT_CONNECT); listenTogetherManager.connect() }) {
                             Text(stringResource(R.string.connect))
                         }
                     }
                     is ConnectionState.Disconnected -> {
-                        TextButton(onClick = { listenTogetherManager.connect() }) {
+                        TextButton(onClick = { ActionLog.tap(ActionId.LT_CONNECT); listenTogetherManager.connect() }) {
                             Text(stringResource(R.string.connect))
                         }
                     }
@@ -608,6 +616,7 @@ private fun RoomStatusCard(
                     FilledTonalButton(
                         shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp),
                         onClick = {
+                            ActionLog.tap(ActionId.LT_COPY_LINK)
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                             val clip = android.content.ClipData.newPlainText("Listen Together Link", inviteLink)
                             clipboard.setPrimaryClip(clip)
@@ -626,6 +635,7 @@ private fun RoomStatusCard(
                     FilledTonalButton(
                         shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp),
                         onClick = {
+                            ActionLog.tap(ActionId.LT_COPY_CODE)
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                             val clip = android.content.ClipData.newPlainText("Room Code", roomCode)
                             clipboard.setPrimaryClip(clip)
@@ -1064,7 +1074,7 @@ private fun JoinCreateRoomSection(
                 horizontalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 Button(
-                    onClick = { selectedTab = 0 },
+                    onClick = { ActionLog.tap(ActionId.LT_TAB_CREATE); selectedTab = 0 },
                     modifier = Modifier.weight(1f),
                     shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -1089,7 +1099,7 @@ private fun JoinCreateRoomSection(
                     Text(stringResource(R.string.create_room), fontWeight = FontWeight.SemiBold)
                 }
                 Button(
-                    onClick = { selectedTab = 1 },
+                    onClick = { ActionLog.tap(ActionId.LT_TAB_JOIN); selectedTab = 1 },
                     modifier = Modifier.weight(1f),
                     shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -1130,7 +1140,7 @@ private fun JoinCreateRoomSection(
                 },
                 trailingIcon = {
                     if (usernameInput.isNotBlank()) {
-                        MaterialIconButton(onClick = { onUsernameChange("") }) {
+                        MaterialIconButton(onClick = { ActionLog.tap(ActionId.LT_NAME_CLEAR); onUsernameChange("") }) {
                             Icon(painterResource(R.drawable.close), null)
                         }
                     }
@@ -1168,7 +1178,7 @@ private fun JoinCreateRoomSection(
                     },
                     trailingIcon = {
                         if (roomCodeInput.isNotBlank()) {
-                            MaterialIconButton(onClick = { onRoomCodeChange("") }) {
+                            MaterialIconButton(onClick = { ActionLog.tap(ActionId.LT_CODE_CLEAR); onRoomCodeChange("") }) {
                                 Icon(painterResource(R.drawable.close), null)
                             }
                         }

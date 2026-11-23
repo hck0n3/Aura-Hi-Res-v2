@@ -1,5 +1,7 @@
 package iad1tya.echo.music.ui.newui
 
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.rememberLeanMode
 import android.content.Intent
 import android.widget.Toast
@@ -475,6 +477,7 @@ fun AuraArtistScreen(
                                     // Same toggleLike as the classic screen (live YouTube call +
                                     // `confirmArtistUnsubscribed` write-back), now routed through the
                                     // ViewModel so the state shown and the row toggled cannot disagree.
+                                    ActionLog.tap(ActionId.ART_SUBSCRIBE)
                                     viewModel.toggleSubscription()
                                 },
                                 modifier = Modifier

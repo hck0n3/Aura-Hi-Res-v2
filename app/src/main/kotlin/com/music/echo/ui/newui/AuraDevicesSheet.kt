@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import iad1tya.echo.music.R
 import iad1tya.echo.music.devicesync.DeviceSyncHub
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * "Mis dispositivos" (row 528): the user's other paired devices, what one of them is playing, and the two hand-over moves —
@@ -50,6 +52,7 @@ fun ColumnScope.AuraDevicesSheetContent(
                 title = stringResource(R.string.device_sync_take),
                 description = stringResource(where, playingElsewhere.deviceName) + " · " + now.title,
                 onClick = {
+                    ActionLog.tap(ActionId.DEV_TAKE)
                     controller?.takeOverFrom(playingElsewhere.deviceId)
                     onDismiss()
                 },
@@ -60,6 +63,7 @@ fun ColumnScope.AuraDevicesSheetContent(
                 title = stringResource(R.string.device_sync_play_pause),
                 description = playingElsewhere.deviceName,
                 onClick = {
+                    ActionLog.tap(ActionId.DEV_PLAY_PAUSE)
                     controller?.control(playingElsewhere.deviceId, if (playingElsewhere.playing) "pause" else "play")
                 },
                 enabled = controller != null,
@@ -68,7 +72,7 @@ fun ColumnScope.AuraDevicesSheetContent(
                 icon = AuraIcons.SkipNext,
                 title = stringResource(R.string.device_sync_next),
                 description = playingElsewhere.deviceName,
-                onClick = { controller?.control(playingElsewhere.deviceId, "next") },
+                onClick = { ActionLog.tap(ActionId.DEV_NEXT); controller?.control(playingElsewhere.deviceId, "next") },
                 enabled = controller != null,
             )
             // Row 593 (owner 2026-10-31: «no veo en el menú de volumen cómo controlar el volumen remoto»): the other device's volume, here with
@@ -87,7 +91,7 @@ fun ColumnScope.AuraDevicesSheetContent(
                     remoteVolume = v.coerceIn(0f, 1f)
                     if (System.currentTimeMillis() - lastSentAt[0] >= 120L) sendVolume()
                 },
-                onValueChangeFinished = { sendVolume() },
+                onValueChangeFinished = { ActionLog.tap(ActionId.DEV_VOLUME); sendVolume() },
                 enabled = controller != null,
                 accentColor = AuraPalette.Teal,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -100,6 +104,7 @@ fun ColumnScope.AuraDevicesSheetContent(
                 title = device.name,
                 description = stringResource(R.string.device_sync_send),
                 onClick = {
+                    ActionLog.tap(ActionId.DEV_SEND)
                     controller?.sendTo(device.id)
                     onDismiss()
                 },
@@ -113,6 +118,7 @@ fun ColumnScope.AuraDevicesSheetContent(
                 title = stringResource(R.string.device_sync_sheet_open_settings),
                 description = "",
                 onClick = {
+                    ActionLog.tap(ActionId.DEV_SETTINGS)
                     onDismiss()
                     navController.navigate("settings/device_sync")
                 },

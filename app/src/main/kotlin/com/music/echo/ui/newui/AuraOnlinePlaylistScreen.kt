@@ -119,6 +119,8 @@ import dev.chrisbanes.haze.HazeProgressive
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Lista de YouTube Music — "Interfaz nueva"
@@ -875,7 +877,7 @@ private fun AuraOnlinePlaylistHeader(
                 AuraHeaderButton(
                     icon = AuraIcons.Shuffle,
                     label = stringResource(R.string.shuffle_label),
-                    onClick = onShuffleClick,
+                    onClick = { ActionLog.tap(ActionId.OPL_SHUFFLE); onShuffleClick() },
                     accent = false,
                     enabled = songs.isNotEmpty(),
                     modifier = Modifier.weight(1f).tvFocusable(isTvOrCar, scaleFocused = 1f),
@@ -884,6 +886,7 @@ private fun AuraOnlinePlaylistHeader(
                     icon = if (playingThisPlaylist) AuraIcons.Pause else AuraIcons.Play,
                     label = stringResource(if (playingThisPlaylist) R.string.pause else R.string.play),
                     onClick = {
+                        ActionLog.tap(ActionId.OPL_PLAY)
                         if (songs.isNotEmpty()) {
                             playerConnection.playQueue(
                                 YouTubePlaylistQueue(
@@ -916,6 +919,7 @@ private fun AuraOnlinePlaylistHeader(
                     icon = if (saved) AuraIcons.HeartFilled else AuraIcons.Heart,
                     contentDescription = stringResource(if (saved) R.string.saved else R.string.save),
                     onClick = {
+                        ActionLog.tap(ActionId.OPL_SAVE)
                         coroutineScope.launch(Dispatchers.IO) {
                             context.dataStore.edit { prefs ->
                                 val current = prefs[SuppressedPlaylistIdsKey].orEmpty().split(',').filter { it.isNotBlank() && it != playlist.id }
@@ -983,6 +987,7 @@ private fun AuraOnlinePlaylistHeader(
                     icon = if (downloadState == Download.STATE_COMPLETED) AuraIcons.Downloaded else AuraIcons.Download,
                     contentDescription = stringResource(R.string.download_or_export_title),
                     onClick = {
+                        ActionLog.tap(ActionId.OPL_DOWNLOAD)
                         coroutineScope.launch {
                             val all = if (continuation == null) {
                                 songs

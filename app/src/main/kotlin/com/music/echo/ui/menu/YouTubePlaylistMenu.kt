@@ -100,6 +100,8 @@ import iad1tya.echo.music.ui.component.rememberHeardSongIds
 import iad1tya.echo.music.ui.component.rememberPlayedShuffleSet
 import iad1tya.echo.music.ui.component.rememberShuffleMemoryPrompt
 import iad1tya.echo.music.ui.utils.resize
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.joinByBullet
 import iad1tya.echo.music.utils.makeTimeString
@@ -634,6 +636,7 @@ fun YouTubePlaylistMenu(
                                     },
                                     text = stringResource(R.string.play),
                                     onClick = {
+                                        ActionLog.tap(ActionId.YTPLMENU_PLAY)
                                         playerConnection.playQueue(
                                             YouTubePlaylistQueue(
                                                 playlistId = playlist.id,
@@ -658,7 +661,7 @@ fun YouTubePlaylistMenu(
                                         )
                                     },
                                     text = stringResource(R.string.shuffle),
-                                    onClick = { onMenuShuffleClick() },
+                                    onClick = { ActionLog.tap(ActionId.YTPLMENU_SHUFFLE); onMenuShuffleClick() },
                                 )
                             )
                         }
@@ -674,6 +677,7 @@ fun YouTubePlaylistMenu(
                                     },
                                     text = stringResource(R.string.start_radio),
                                     onClick = {
+                                        ActionLog.tap(ActionId.YTPLMENU_START_RADIO)
                                         playerConnection.playQueue(YouTubeQueue(radioEndpoint))
                                         onDismiss()
                                     }
@@ -699,6 +703,7 @@ fun YouTubePlaylistMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTPLMENU_DO_NOT_RECOMMEND)
                             coroutineScope.launch {
                                 iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).dislikePlaylist(playlist.id)
                             }
@@ -715,6 +720,7 @@ fun YouTubePlaylistMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTPLMENU_PLAY_NEXT)
                                 coroutineScope.launch {
                                     songs
                                         .ifEmpty {
@@ -747,6 +753,7 @@ fun YouTubePlaylistMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTPLMENU_ADD_TO_QUEUE)
                                 coroutineScope.launch {
                                     songs
                                         .ifEmpty {
@@ -775,6 +782,7 @@ fun YouTubePlaylistMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTPLMENU_ADD_TO_PLAYLIST)
                             showChoosePlaylistDialog = true
                         }
                     ),
@@ -791,6 +799,7 @@ fun YouTubePlaylistMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTPLMENU_SPEED_DIAL_TOGGLE)
                             coroutineScope.launch(Dispatchers.IO) {
                                 if (isPinned) {
                                     database.speedDialDao.delete(playlist.id)
@@ -830,7 +839,7 @@ fun YouTubePlaylistMenu(
                                         contentDescription = null,
                                     )
                                 },
-                                onClick = { beginMp3Export() }
+                                onClick = { ActionLog.tap(ActionId.YTPLMENU_EXPORT_MP3); beginMp3Export() }
                             )
                         )
                     }
@@ -853,6 +862,7 @@ fun YouTubePlaylistMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.YTPLMENU_REMOVE_DOWNLOAD)
                                         showRemoveDownloadDialog = true
                                     }
                                 )
@@ -867,6 +877,7 @@ fun YouTubePlaylistMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.YTPLMENU_CANCEL_DOWNLOAD)
                                         showRemoveDownloadDialog = true
                                     }
                                 )
@@ -881,6 +892,7 @@ fun YouTubePlaylistMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.YTPLMENU_DOWNLOAD)
                                         coroutineScope.launch {
                                             val toDownload = songs.ifEmpty {
                                                 withContext(Dispatchers.IO) {
@@ -930,6 +942,7 @@ fun YouTubePlaylistMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.YTPLMENU_SHARE)
                                 val intent = Intent().apply {
                                     action = Intent.ACTION_SEND
                                     type = "text/plain"
@@ -951,6 +964,7 @@ fun YouTubePlaylistMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTPLMENU_SELECT)
                                     onDismiss()
                                     selectAction()
                                 }

@@ -64,6 +64,8 @@ import iad1tya.echo.music.ui.component.CreatePlaylistDialog
 import iad1tya.echo.music.ui.component.TextFieldDialog
 import iad1tya.echo.music.ui.screens.DownloadedOnlyView
 import iad1tya.echo.music.ui.screens.library.LocalSongScreen
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
@@ -288,13 +290,14 @@ fun AuraLibraryScreen(navController: NavController) {
                         icon = AuraIcons.Plus,
                         label = null,
                         contentDescription = stringResource(R.string.create_playlist),
-                        onClick = { showImportMenu = true },
+                        onClick = { ActionLog.tap(ActionId.LIB_ADD_MENU); showImportMenu = true },
                     )
                     val importMenuItems: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.create_playlist), color = AuraPalette.OnGround) },
                                 leadingIcon = { AuraIconGlyph(AuraIcons.Plus, null, size = 20.dp, tint = AuraPalette.Teal) },
                                 onClick = {
+                                    ActionLog.tap(ActionId.LIB_CREATE_PLAYLIST)
                                     showImportMenu = false
                                     showCreatePlaylistDialog = true
                                 },
@@ -304,6 +307,7 @@ fun AuraLibraryScreen(navController: NavController) {
                                     text = { Text(stringResource(R.string.ai_playlist_title), color = AuraPalette.OnGround) },
                                     leadingIcon = { AuraIconGlyph(AuraIcons.Radio, null, size = 20.dp, tint = AuraPalette.Teal) },
                                     onClick = {
+                                        ActionLog.tap(ActionId.LIB_AI_PLAYLIST)
                                         showImportMenu = false
                                         showAiPlaylistDialog = true
                                     },
@@ -325,6 +329,7 @@ fun AuraLibraryScreen(navController: NavController) {
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.LIB_IMPORT_SPOTIFY)
                                     showImportMenu = false
                                     showSpotifyImportDialog = true
                                 },
@@ -338,6 +343,7 @@ fun AuraLibraryScreen(navController: NavController) {
                                 },
                                 leadingIcon = { AuraIconGlyph(AuraIcons.Video, null, size = 20.dp, tint = AuraPalette.Teal) },
                                 onClick = {
+                                    ActionLog.tap(ActionId.LIB_IMPORT_YOUTUBE)
                                     showImportMenu = false
                                     showYoutubeImportDialog = true
                                 },
@@ -351,6 +357,7 @@ fun AuraLibraryScreen(navController: NavController) {
                                 },
                                 leadingIcon = { AuraIconGlyph(AuraIcons.Export, null, size = 20.dp, tint = AuraPalette.Teal) },
                                 onClick = {
+                                    ActionLog.tap(ActionId.LIB_MIGRATE)
                                     showImportMenu = false
                                     navController.navigate("migration")
                                 },
