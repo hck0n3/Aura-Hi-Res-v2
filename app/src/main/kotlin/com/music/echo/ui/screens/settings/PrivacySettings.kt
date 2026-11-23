@@ -49,6 +49,7 @@ fun PrivacySettings(
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     val database = LocalDatabase.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val (pauseListenHistory, onPauseListenHistoryChange) = rememberPreference(
         key = PauseListenHistoryKey,
         defaultValue = false
@@ -88,6 +89,8 @@ fun PrivacySettings(
                         showClearListenHistoryDialog = false
                         database.query {
                             clearListenHistory()
+                            // Row 720: the quick skips are listening history too (Home, radio and shuffle read them).
+                            iad1tya.echo.music.reco.QuickSkipLog.clear(context)
                         }
                     },
                 ) {

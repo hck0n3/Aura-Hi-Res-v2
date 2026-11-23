@@ -127,6 +127,32 @@ class QuickSkipLogTest {
         assertFalse(File(tmp.root, QuickSkipLog.FILE_NAME + ".tmp").exists())
     }
 
+    @Test
+    fun `clearing forgets every skip, leftovers included, and marks the moment`() {
+        val file = File(tmp.root, QuickSkipLog.FILE_NAME)
+        for (i in 0 until 3) QuickSkipLog.append(file, entry(i))
+        File(tmp.root, QuickSkipLog.FILE_NAME + ".tmp").writeText("half")
+        val before = System.currentTimeMillis()
+        QuickSkipLog.clear(file)
+        assertTrue(QuickSkipLog.read(file).isEmpty())
+        assertFalse(file.exists())
+        assertFalse(File(tmp.root, QuickSkipLog.FILE_NAME + ".tmp").exists())
+        assertTrue(QuickSkipLog.clearedAtMs >= before)
+        QuickSkipLog.append(file, entry(9))
+        assertEquals(listOf("song9"), QuickSkipLog.read(file).map { it.songId })
+    }
+
+    @Test
+    fun `clearing the listen history clears the skips and a taste profile built before it`() {
+        val privacy = main("ui/screens/settings/PrivacySettings.kt")
+        val clear = privacy.substringAfter("database.query {").substringBefore("}")
+        assertTrue(clear.contains("clearListenHistory()"))
+        assertTrue(clear.contains("QuickSkipLog.clear(context)"))
+        val service = main("playback/MusicService.kt")
+        val taste = service.substringAfter("internal suspend fun tasteProfile()").substringBefore("return runCatching {")
+        assertTrue(taste.contains("cachedTasteAt > iad1tya.echo.music.reco.QuickSkipLog.clearedAtMs"))
+    }
+
     private fun main(path: String): String {
         val root = generateSequence(File("").absoluteFile) { it.parentFile }
             .firstOrNull { File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")

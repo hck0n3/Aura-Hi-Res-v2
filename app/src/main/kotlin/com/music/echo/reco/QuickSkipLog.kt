@@ -94,9 +94,25 @@ object QuickSkipLog {
         }
     }
 
+    /** When [clear] last ran (wall clock): a taste profile built before it still holds the skips he asked to forget. */
+    @Volatile
+    var clearedAtMs: Long = 0L
+        private set
+
+    /** «Borrar historial de escucha» forgets these too: they are listening history the events table never held. */
+    fun clear(file: File) {
+        synchronized(lock) {
+            file.delete()
+            File(file.parentFile, file.name + ".tmp").delete()
+            clearedAtMs = System.currentTimeMillis()
+        }
+    }
+
     fun read(context: Context): List<Entry> = read(file(context))
 
     fun record(context: Context, entry: Entry) = append(file(context), entry)
+
+    fun clear(context: Context) = clear(file(context))
 
     private fun file(context: Context) = File(context.applicationContext.filesDir, FILE_NAME)
 

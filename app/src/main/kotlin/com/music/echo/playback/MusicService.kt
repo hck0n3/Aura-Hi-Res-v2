@@ -5620,7 +5620,7 @@ class MusicService :
 
     internal suspend fun tasteProfile(): iad1tya.echo.music.reco.TasteProfile? {
         val now = System.currentTimeMillis()
-        cachedTaste?.let { if (now - cachedTasteAt < 5 * 60_000L) return it }
+        cachedTaste?.let { if (now - cachedTasteAt < 5 * 60_000L && cachedTasteAt > iad1tya.echo.music.reco.QuickSkipLog.clearedAtMs) return it }
         return runCatching {
             val events = withContext(Dispatchers.IO) { database.recentEventsWithSong(3000).first() }
             val library = withContext(Dispatchers.IO) {
