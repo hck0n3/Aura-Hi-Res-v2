@@ -323,15 +323,12 @@ object ArtistSyncPolicy {
     // aparece que no estoy suscrito». The artist screens show ONLY the local `followedByUserAt`, which
     // is stamped by the library sync (a list read by exact id) and by taps. Anything that list did not
     // stamp for the id the page was opened under — a subscription made in the YouTube app after the last
-    // sync, a truncated walk, the same artist stored under another id — read "Suscribirse". The
-    // functions below are the pure part of the fix: ids that name the same artist, and when an
-    // `account-says-subscribed` answer may be written back to the row.
+    // sync, a truncated walk, the same artist stored under another id — read "Suscribirse". What is left
+    // of that fix is the ids that name the same artist; writing the page's answer back to the row was
+    // removed (row 700: it made follows the owner never did).
 
     /** Prefix YouTube Music puts in front of a channel id for the entries of the user's LIBRARY artists. */
     const val LIBRARY_ARTIST_PREFIX = "MPLA"
-
-    /** A tap on "Dejar de seguir" this recent may still be in flight; the account can lag behind it. */
-    const val RECENT_UNFOLLOW_GRACE_MINUTES = 10L
 
     /**
      * Every id under which the SAME channel can be stored or opened: `UC…` and `MPLAUC…`. Anything that
@@ -399,39 +396,8 @@ object ArtistSyncPolicy {
             .toList()
     }
 
-    /**
-     * The row to write when the account's own artist page says "subscribed", or null when the stored row
-     * must be left exactly as it is. [existing] is the stored row (null when there is none) and [fresh]
-     * the row to create in that case.
-     *
-     * It only ever moves a row TOWARDS "followed" and never the other way, so a stale or guest answer
-     * (which reads `false`) cannot cost anyone a follow. It refuses when the row carries a live pending
-     * unsubscribe ([mayUnsubscribe]) or an unfollow tapped a moment ago: in both the account is
-     * about to change and its answer is the stale one. Everything else with a recorded unfollow is
-     * overruled — the account is the newer evidence (the user subscribed again, on YouTube itself) and
-     * the queued unfollow can no longer be retried anyway (`artistsPendingUnsubscribe` needs
-     * `ytmSyncedAt`).
-     */
-    fun healFromRemoteSubscription(
-        existing: ArtistEntity?,
-        fresh: ArtistEntity,
-        now: LocalDateTime,
-    ): ArtistEntity? {
-        val base = existing ?: fresh
-        if (base.isLocal) return null
-        if (base.followedByUserAt != null) return null
-        if (existing != null && mayUnsubscribe(existing, now)) return null
-        val unfollowedAt = base.unfollowedByUserAt
-        if (unfollowedAt != null && unfollowedAt.isAfter(now.minusMinutes(RECENT_UNFOLLOW_GRACE_MINUTES))) {
-            return null
-        }
-        return base.copy(
-            bookmarkedAt = base.bookmarkedAt ?: now,
-            followedByUserAt = now,
-            ytmSyncedAt = now,
-            unfollowedByUserAt = null,
-        )
-    }
+    // TOMBSTONE (row 700): `healFromRemoteSubscription` is gone with its only caller, the artist page's
+    // read-back (row 487). A follow is written by a tap or by the library sync's read-back, never by a page.
 
     /**
      * Cuántos rechazos SEGUIDOS de YouTube bastan para abandonar la subida de suscripciones de esta
