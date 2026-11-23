@@ -401,14 +401,14 @@ constructor(
         val videoTracks = snapshot.tracks.filter { it.isVideo }
         if (videoTracks.isNotEmpty()) {
             context.dataStore.edit { prefs ->
-                val currentVideoIds = newestFirstIds(
+                val currentVideoIds = withScannedIdsAppended(
                     existing = prefs[ExportedVideoIdsKey].orEmpty()
                         .split(',')
                         .map { it.trim() }
                         .filter { it.isNotEmpty() },
                     scanned = videoTracks.map { it.id },
                 )
-                val currentUrisMap = newestFirstUris(
+                val currentUrisMap = withScannedUrisAppended(
                     existing = parseExportedFileUriMap(prefs[ExportedFileUrisKey].orEmpty()),
                     scanned = videoTracks.associate { it.id to it.id },
                 )
