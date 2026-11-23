@@ -872,6 +872,7 @@ private fun AuraPlayerShape(
     var showSelectArtistDialog by rememberSaveable { mutableStateOf(false) }
     // Owner 2026-11-22: the same chooser, opened from «Suscribirme» with several artists, subscribes instead of navigating.
     var selectArtistToFollow by rememberSaveable { mutableStateOf(false) }
+    var showSongPlaylistChooser by rememberSaveable { mutableStateOf(false) }
     // The channel each artist of THIS song resolved to on a tap, so its chip then reads that channel's state.
     val followChannelIds = remember(mediaMetadata?.id) { mutableStateMapOf<String, String>() }
     val followInFlight = remember { mutableSetOf<String>() }
@@ -988,6 +989,30 @@ private fun AuraPlayerShape(
                                 }
                                 state.collapseAfterNavigate()
                             }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                )
+            }
+        }
+    }
+    // Owner 2026-11-22: «Ir a la lista» with the song in several of your playlists asks which. Live, so a list the song
+    // leaves while this is open drops out of it.
+    if (showSongPlaylistChooser) {
+        val chooserSongId = mediaMetadata?.id.orEmpty()
+        val songPlaylists by remember(chooserSongId) { database.playlistsContainingSong(chooserSongId) }
+            .collectAsState(initial = emptyList())
+        ListDialog(onDismiss = { showSongPlaylistChooser = false }) {
+            items(items = PlayerPlaylistRoute.usersPlaylists(songPlaylists), key = { it.id }) { playlist ->
+                Text(
+                    text = playlist.name,
+                    style = AuraType.MenuLabel,
+                    color = AuraPalette.OnGround,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showSongPlaylistChooser = false
+                            navController.navigateOnce(PlayerPlaylistRoute.route(playlist.id))
+                            state.collapseAfterNavigate()
                         }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                 )
@@ -1727,17 +1752,28 @@ private fun AuraPlayerShape(
                                         firstTap = true,
                                     )
                                 }
-                                // Owner 2026-10-18: while a song plays FROM A PLAYLIST, a third door leads back to that list.
-                                // Only for a real playlist context (`PL:` yours, `OL:` a followed one) — an album, a radio or
-                                // a request would be a chip that leads nowhere.
-                                val playlistRoute = PlayerPlaylistRoute.of(if (remoteActive) remoteTarget?.contextId else playerConnection.shuffleContextId)
-                                if (playlistRoute != null) {
-                                    AuraChip(
+                                // Owner 2026-11-22 (replaces the 2026-10-18 rule of row 445): «Ir a la lista» only while the song is
+                                // in one of YOUR playlists, wherever it plays from. One list opens it; several ask which.
+                                // Collected only while this row is open, so a closed row costs nothing.
+                                val songPlaylists by remember(meta.id) { database.playlistsContainingSong(meta.id) }
+                                    .collectAsState(initial = emptyList())
+                                when (val door = PlayerPlaylistRoute.door(songPlaylists)) {
+                                    PlayerPlaylistRoute.Door.None -> Unit
+                                    is PlayerPlaylistRoute.Door.Open -> AuraChip(
                                         text = stringResource(R.string.go_to_playlist),
                                         selected = false,
                                         onClick = {
                                             showArtistActions = false
-                                            navigateFromPlayer(playlistRoute)
+                                            navigateFromPlayer(door.route)
+                                        },
+                                        firstTap = true,
+                                    )
+                                    is PlayerPlaylistRoute.Door.Choose -> AuraChip(
+                                        text = stringResource(R.string.go_to_playlist),
+                                        selected = false,
+                                        onClick = {
+                                            showArtistActions = false
+                                            showSongPlaylistChooser = true
                                         },
                                         firstTap = true,
                                     )
