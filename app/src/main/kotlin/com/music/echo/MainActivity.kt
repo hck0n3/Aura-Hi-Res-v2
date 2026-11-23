@@ -305,6 +305,7 @@ import iad1tya.echo.music.viewmodels.HomeViewModel
 import com.valentinilk.shimmer.LocalShimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -1491,8 +1492,8 @@ class MainActivity : ComponentActivity() {
                             iad1tya.echo.music.playback.DismissedQueueUndo.drop(offer.token)
                             return@collectLatest
                         }
-                        val result = kotlinx.coroutines.withTimeoutOrNull(remaining) {
-                            kotlinx.coroutines.coroutineScope {
+                        val result = kotlinx.coroutines.coroutineScope {
+                            val answer = async {
                                 // The host shows one snackbar at a time and queues the rest, while this window is already
                                 // running: anything else up (the ~10 s previous-queue offer, an offline-mode notice) gives
                                 // way, or the undo would sit queued behind it until its 6 s ran out unseen.
@@ -1507,6 +1508,27 @@ class MainActivity : ComponentActivity() {
                                     actionLabel = queueClosedUndoLabel,
                                     duration = SnackbarDuration.Indefinite,
                                 ).also { clearWay.cancel() }
+                            }
+                            // The window is elapsedRealtime (restore checks it that way) but a coroutine timer is uptime and
+                            // stalls in deep sleep. So the snackbar also ends when the screen comes back after the window
+                            // closed while the phone slept — event-driven, no polling (rule 7), as PreviousQueueRule does.
+                            val lapsed = async {
+                                kotlinx.coroutines.withTimeoutOrNull(remaining) {
+                                    this@MainActivity.lifecycle.currentStateFlow.first { state ->
+                                        state.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) &&
+                                            iad1tya.echo.music.playback.DismissedQueueUndoRule.remainingMs(
+                                                android.os.SystemClock.elapsedRealtime(),
+                                                offer.expiresAtElapsed,
+                                            ) == 0L
+                                    }
+                                }
+                            }
+                            kotlinx.coroutines.selects.select<SnackbarResult?> {
+                                answer.onAwait { it }
+                                lapsed.onAwait { null }
+                            }.also {
+                                answer.cancel()
+                                lapsed.cancel()
                             }
                         }
                         if (result == SnackbarResult.ActionPerformed) {

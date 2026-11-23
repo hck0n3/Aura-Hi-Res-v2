@@ -143,6 +143,10 @@ class QueueUndoAndConfirmationGuardTest {
         // The shared host queues snackbars behind a mutex while the 6 s already run: whatever else is up gives way.
         assertTrue(shell.contains("androidx.compose.runtime.snapshotFlow { snackbarHostState.currentSnackbarData }.first { data ->"))
         assertTrue(shell.contains("if (data != null && data.visuals.message != queueClosedMessage) data.dismiss()"))
+        // The uptime timer stalls in deep sleep; the window is elapsedRealtime: re-checked when the screen comes back.
+        assertTrue(shell.contains("this@MainActivity.lifecycle.currentStateFlow.first { state ->"))
+        assertTrue(shell.contains("state.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) &&"))
+        assertTrue(shell.contains("lapsed.onAwait { null }"))
         assertTrue(stringValue(res("values/strings.xml"), "queue_closed_undo") == "Queue closed")
         assertTrue(stringValue(res("values-es/strings.xml"), "queue_closed_undo") == "Cola cerrada")
         assertTrue(stringValue(res("values-es-rUS/strings.xml"), "queue_closed_undo") == "Cola cerrada")
