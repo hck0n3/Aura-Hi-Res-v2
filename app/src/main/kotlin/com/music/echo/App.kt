@@ -246,14 +246,10 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         applicationScope.launch(Dispatchers.IO) {
             var attempt = 0
             while (true) {
-                var firstEmission = true
                 val failure = runCatching {
                     applicationContext.dataStore.data.collect {
                         iad1tya.echo.music.utils.PrefsBridge.publish(it)
-                        if (firstEmission) {
-                            firstEmission = false
-                            resetImageLoaderIfLeanWasStale()
-                        }
+                        resetImageLoaderIfLeanWasStale()
                     }
                 }.exceptionOrNull() ?: break
                 if (failure is kotlinx.coroutines.CancellationException) throw failure
@@ -2322,8 +2318,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
 
     /**
      * Same idea as `imageCacheMirrorWasStale` in [initializeSettings]: a loader built before PrefsBridge's first
-     * emission read LeanMode.isOn() = false. Called right after that emission is published; if the flag the loader
-     * was built with differs, reset it once so the rebuilt loader reads the real value.
+     * emission read LeanMode.isOn() = false. Called right after every emission is published (the first one, and
+     * «Modo rendimiento» toggled while the app is open); if the flag the loader was built with differs, reset it once
+     * so the rebuilt loader reads the real value.
      */
     private fun resetImageLoaderIfLeanWasStale() {
         val stale = synchronized(imageLoaderLeanLock) {
