@@ -269,10 +269,8 @@
 
                 <data android:mimeType="text/plain" />
             </intent-filter>
-
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
+            <!-- Launcher shortcuts are dynamic (utils/LauncherShortcuts.kt, registry 785): a static shortcuts.xml cannot follow
+                 the build's applicationId. -->
         </activity>
 
         <activity-alias
