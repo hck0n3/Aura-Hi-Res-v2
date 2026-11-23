@@ -1339,6 +1339,7 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 |---|---|---|---|---|---|
 | **«Modo sin conexión»** *(banner)* | Inicio sin conexión | `ui/screens/OfflineHome.kt:185` (banner completo `:162-203`, colocado `:82-86`) | informativo | constante | siempre en este modo |
 | **«Solo descargas. La reproducción no usará internet.»** + botón **«Volver online»** *(desactiva el modo desde la propia pantalla)* | Inicio sin conexión | `ui/screens/OfflineHome.kt:192`, `:197-199` | informativo / acción | constante | siempre |
+| Botón **«Reintentar en línea»** *(termina la sesión sin conexión del reproductor, registro 690)* | Inicio sin conexión > banner | `ui/screens/OfflineHome.kt` `OfflineStatusCard` | acción | rara | solo automático + sesión del reproductor activa + hay red |
 | **«Aún no tienes canciones descargadas…»** — sin botón de acción | Inicio sin conexión > vacío | `ui/screens/OfflineHome.kt:88-95` | informativo | rara | sin descargas |
 | **Renglón Apple** de canción → reproducir la cola «Descargas» | Inicio sin conexión | `ui/screens/OfflineHome.kt:104-155` (fila `AuraSongRow` dentro de `AuraAppleListRowFrame`; misma estética que Local — petición del dueño, v2.0.16) | acción primaria | constante | con descargas |
 | Fila *(pulsación larga)* → menú de canción; **⋯** | Inicio sin conexión | `ui/screens/OfflineHome.kt:135-153` | acción secundaria | diaria | igual |

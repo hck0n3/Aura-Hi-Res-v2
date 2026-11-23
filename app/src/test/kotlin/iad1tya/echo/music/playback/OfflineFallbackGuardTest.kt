@@ -42,21 +42,28 @@ class OfflineFallbackGuardTest {
         assertTrue(resolver.contains("OfflineRejectionException(offlineRejection)"))
     }
 
+    private val rejectionHandler by lazy {
+        service.substring(
+            service.indexOf("private fun handleOfflineRejection(kind: OfflineRejectionException.Kind, mediaId: String?, error: PlaybackException) {"),
+        ).substringBefore("\n    }\n")
+    }
+
     /**
-     * An offline refusal is routed BEFORE the generic I/O fallthrough (handleGenericIOError → performAggressiveCacheClear),
-     * and its branch never purges, never retries the same song.
+     * An offline refusal is routed BEFORE the retry limit and BEFORE the generic I/O fallthrough (whose handler purges the
+     * song's bytes), and its handler never purges, never counts a retry of the song.
      */
     @Test
     fun `an offline refusal goes to the offline skip and never reaches the purge`() {
-        val branchStart = onPlayerError.indexOf("PlaybackErrorClassifier.isOfflineRejection(error) -> {")
+        val branchStart = onPlayerError.indexOf("handleOfflineRejection(offlineRejection, mediaId, error)")
+        val retryLimit = onPlayerError.indexOf("if (mediaId != null && hasExceededRetryLimit(mediaId)) {")
         val generic = onPlayerError.indexOf("handleGenericIOError(mediaId)")
         assertTrue(branchStart > 0)
+        assertTrue("before the retry limit", branchStart < retryLimit)
         assertTrue("the offline branch must come before the generic I/O handler", branchStart < generic)
-        val branch = onPlayerError.substring(branchStart, onPlayerError.indexOf("!isNetworkConnected.value -> {", branchStart))
-        assertTrue(branch.contains("continueWithOfflineQueue("))
-        assertFalse(branch.contains("performAggressiveCacheClear"))
-        assertFalse(branch.contains("incrementRetryCount"))
-        assertFalse(branch.contains("handleGenericIOError"))
+        assertTrue(rejectionHandler.contains("continueWithOfflineQueue(stopIfNothing = kind == OfflineRejectionException.Kind.MANUAL)"))
+        assertFalse(rejectionHandler.contains("performAggressiveCacheClear"))
+        assertFalse(rejectionHandler.contains("incrementRetryCount"))
+        assertFalse(rejectionHandler.contains("handleGenericIOError"))
 
         val helper = service.substring(service.indexOf("private fun continueWithOfflineQueue(stopIfNothing: Boolean) {"))
             .substringBefore("\n    }\n")
@@ -77,38 +84,92 @@ class OfflineFallbackGuardTest {
         assertTrue(resolver.indexOf("noteNetworkResolveSucceeded()", success) in success until success + 300)
     }
 
-    /** Order: the evidence-backed session branches run before the bounded retry and before the "unavailable song" verdict. */
+    /** Order: only a real CONNECTIVITY failure feeds the session, before the bounded retry. */
     @Test
-    fun `network failures with evidence continue with the offline queue`() {
-        val noStreamSession = onPlayerError.indexOf("!PlaybackErrorClassifier.isContentLevelNoStream(error) &&")
-        val noStreamVerdict = onPlayerError.indexOf("PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value -> {")
-        assertTrue(noStreamSession in 1 until noStreamVerdict)
-
-        val networkSession = onPlayerError.indexOf("PlaybackErrorClassifier.isConnectivityFailure(error) && noteOfflineNetworkFailure() -> {")
+    fun `connectivity failures with evidence continue with the offline queue`() {
+        val networkSession = onPlayerError.indexOf("PlaybackErrorClassifier.isConnectivityFailure(error) && noteOfflineConnectivityFailure() -> {")
         val boundedRetry = onPlayerError.indexOf("PlaybackErrorClassifier.isNetworkRelatedError(error) -> {")
         val offline = onPlayerError.indexOf("!isNetworkConnected.value -> {")
         assertTrue(networkSession in 1 until offline)
         assertTrue(offline < boundedRetry)
         assertTrue(onPlayerError.substring(networkSession, offline).contains("continueWithOfflineQueue(stopIfNothing = false)"))
+    }
 
-        val rejection = onPlayerError.substring(onPlayerError.indexOf("PlaybackErrorClassifier.isOfflineRejection(error) -> {"), networkSession)
-        assertTrue(rejection.contains("if (kind == OfflineRejectionException.Kind.NO_NETWORK) noteOfflineNoNetwork()"))
-        assertTrue(rejection.contains("continueWithOfflineQueue(stopIfNothing = kind == OfflineRejectionException.Kind.MANUAL)"))
+    /** C5: a YouTube-side "no stream" (resolver timeout, cipher, 429) is the unavailable-song verdict as before, never evidence. */
+    @Test
+    fun `a no-stream failure never feeds the offline session`() {
+        val noStream = onPlayerError.substring(
+            onPlayerError.indexOf("PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value -> {"),
+        ).substringBefore("PlaybackErrorClassifier.isAudioRendererError(error) -> {")
+        assertFalse(noStream.contains("noteOffline"))
+        assertFalse(onPlayerError.contains("offline_no_stream"))
+        assertFalse("evidence is connectivity only", service.contains("validationLost"))
+    }
+
+    /**
+     * C2: media3 resolves the next item minutes ahead, so a refusal can surface after its reason stopped holding. The
+     * handler re-checks it LIVE and loads the item again (once) instead of skipping; "no network" is only noted when the
+     * live check confirms it.
+     */
+    @Test
+    fun `a stale refusal is re-checked live and retried instead of skipped`() {
+        assertTrue(rejectionHandler.contains("OfflineRejectionException.Kind.MANUAL -> dataStore.get(OfflineModeKey, false)"))
+        assertTrue(rejectionHandler.contains("OfflineRejectionException.Kind.NO_NETWORK -> !systemHasNetwork"))
+        assertTrue(rejectionHandler.contains("OfflineRejectionException.Kind.SESSION -> PlaybackOfflineSession.shouldRejectResolve("))
+        val stale = rejectionHandler.indexOf("if (!stillHolds && mediaId != null && staleRejectionRetryId != mediaId) {")
+        val prepare = rejectionHandler.indexOf("player.prepare()", stale)
+        val noted = rejectionHandler.indexOf("if (kind == OfflineRejectionException.Kind.NO_NETWORK) noteOfflineNoNetwork()")
+        assertTrue(stale > 0 && prepare > stale)
+        assertTrue("the session is only noted after the live check failed to clear it", noted > prepare)
+        assertFalse("never resumes a pause", rejectionHandler.contains("player.play()"))
+        assertTrue(service.contains("staleRejectionRetryId = null\n            maybeEndOfflineSessionOnReady()"))
     }
 
     @Test
     fun `entering and leaving are event-driven and say so once`() {
         assertTrue(service.contains("if (!isConnected && !hasLiveInternetConnection()) noteOfflineNoNetwork()"))
-        assertTrue(service.contains("if (validated && PlaybackOfflineSession.onValidated()) onOfflineSessionExited(\"validated\")"))
         assertTrue(service.contains("Timber.tag(TAG).i(\"OFFLINE_SESSION enter reason=%s\", reason.log)"))
         assertTrue(service.contains("Timber.tag(TAG).i(\"OFFLINE_SESSION exit reason=%s\", how)"))
         assertTrue(service.contains("R.string.offline_session_started") && service.contains("R.string.offline_session_ended"))
         // Leaving re-prepares a waiting queue with the reconnection semantics: only a NETWORK pause is resumed.
         assertTrue(service.contains("if (how != \"resolved\" && waitingForNetworkConnection.value) triggerRetry()"))
-        assertTrue(service.contains("if (PlaybackOfflineSession.onNetworkAvailable()) onOfflineSessionExited(\"network_back\")"))
         for (values in listOf("values", "values-es")) {
             val strings = File(root, "app/src/main/res/$values/strings.xml").readText()
             assertTrue("$values", strings.contains("name=\"offline_session_started\"") && strings.contains("name=\"offline_session_ended\""))
+        }
+    }
+
+    /** C4: every way back ends the session — no waiting for a false→true edge, no fresh-resolve-only exit. */
+    @Test
+    fun `every sign of a working network ends the session`() {
+        assertTrue(service.contains("if (validated && PlaybackOfflineSession.onNetworkChanged()) onOfflineSessionExited(\"validated\")"))
+        assertTrue(service.contains("NetworkState.capsEpoch.collect {"))
+        assertTrue(service.contains("if (PlaybackOfflineSession.onNetworkChanged()) onOfflineSessionExited(\"network_back\")"))
+        val state = main("utils/NetworkState.kt")
+        assertTrue("capsEpoch is bumped AFTER validated is re-read", state.contains("refresh()\n                _capsEpoch.update { it + 1 }"))
+        // A network item that plays — a cached URL included — proves the internet works.
+        val ready = service.substring(service.indexOf("private fun maybeEndOfflineSessionOnReady() {")).substringBefore("\n    }\n")
+        assertTrue(ready.contains("if (offlinePlayableSource(mediaId, exportedUris) != null) return@launch"))
+        assertTrue(ready.contains("if (PlaybackOfflineSession.onNetworkWorked()) onOfflineSessionExited(\"network_item_ready\")"))
+        // Hard cap: ONE timer, armed with the evidence, never a loop.
+        val cap = service.substring(service.indexOf("private fun armOfflineSessionExpiry() {")).substringBefore("\n    }\n")
+        assertTrue(cap.contains("offlineSessionExpiryJob?.cancel()"))
+        assertTrue(cap.contains("if (PlaybackOfflineSession.expireIfDue(hasLiveInternetConnection())) onOfflineSessionExited(\"expired\")"))
+        assertFalse(cap.contains("while"))
+        assertTrue(service.substring(service.indexOf("private fun noteOfflineConnectivityFailure(): Boolean {")).substringBefore("\n    }\n").contains("armOfflineSessionExpiry()"))
+    }
+
+    /** C6 + «Reintentar en línea»: the switch turned off and the user end it at once. */
+    @Test
+    fun `the switch and the user end the session`() {
+        assertTrue(service.contains(".collect { auto -> if (!auto && PlaybackOfflineSession.forceExit()) onOfflineSessionExited(\"auto_off\") }"))
+        assertTrue(service.contains("PlaybackOfflineSession.userRetries.collect { onOfflineSessionExited(\"user_retry\") }"))
+        val home = main("ui/screens/OfflineHome.kt")
+        assertTrue(home.contains("if (automatic && playbackOffline && online) {"))
+        assertTrue(home.contains("PlaybackOfflineSession.requestRetryOnline()"))
+        assertTrue(home.contains("R.string.offline_retry_online"))
+        for (values in listOf("values", "values-es")) {
+            assertTrue(File(root, "app/src/main/res/$values/strings.xml").readText().contains("name=\"offline_retry_online\""))
         }
     }
 
@@ -141,7 +202,7 @@ class OfflineFallbackGuardTest {
             .substringBefore("\n    }\n")
         assertTrue(watchdog.contains("if (offlineStallJob?.isActive == true) return"))
         assertTrue(watchdog.contains("delay(PlaybackOfflineSession.STALL_TIMEOUT_MS)"))
-        assertTrue(watchdog.contains("PlaybackOfflineSession.stallHasEvidence("))
+        assertTrue(watchdog.contains("val evidence = PlaybackOfflineSession.stallHasEvidence(systemHasNetwork)"))
         assertFalse("no polling loop", watchdog.contains("while (") || watchdog.contains("while(true"))
     }
 
@@ -173,14 +234,15 @@ class OfflineFallbackGuardTest {
     fun `every onPlayerError branch logs its ERR_BR line`() {
         val branches = listOf(
             "soft_video", "video_format_retry", "video_unresolvable", "video_to_audio", "retry_limit",
-            "offline_no_stream", "no_stream_video", "no_stream_skip", "renderer", "range_416", "corruption_giveup",
+            "no_stream_video", "no_stream_skip", "renderer", "range_416", "corruption_giveup",
             "corruption", "page_reload", "expired_403", "offline_network", "offline_skip", "offline_wait",
             "network_giveup", "network_retry", "generic_io", "auto_skip", "stop",
         )
         for (branch in branches) {
             assertTrue("ERR_BR $branch", onPlayerError.contains("logErrorBranch(\"$branch\", mediaId, error)"))
         }
-        assertTrue(onPlayerError.contains("logErrorBranch(\"offline_rejection_\${kind?.name?.lowercase()}\", mediaId, error)"))
+        assertTrue(rejectionHandler.contains("logErrorBranch(\"offline_rejection_\${kind.name.lowercase()}\", mediaId, error)"))
+        assertTrue(rejectionHandler.contains("logErrorBranch(\"offline_rejection_stale_\${kind.name.lowercase()}\", mediaId, error)"))
         val helper = service.substring(service.indexOf("private fun logErrorBranch(")).substringBefore("\n    }\n")
         assertTrue(helper.contains("\"ERR_BR=%s id=%s code=%d connected=%b session=%b validated=%b\""))
         assertTrue(helper.contains("LogRedaction.forLog(mediaId)"))

@@ -54,17 +54,15 @@ object NetworkState {
     /** The default network currently reports `NET_CAPABILITY_VALIDATED`. */
     val validated: StateFlow<Boolean> = _validated.asStateFlow()
 
-    private val _validationLost = MutableStateFlow(false)
-
-    /** This default network HAD validated and no longer does: Android's own probe says its internet is gone. */
-    val validationLost: StateFlow<Boolean> = _validationLost.asStateFlow()
-
     private val _epoch = MutableStateFlow(0L)
 
     /** Bumped on every `onAvailable` of a default network: lets a caller ask "did the network change since?". */
     val epoch: StateFlow<Long> = _epoch.asStateFlow()
 
-    @Volatile private var validatedOnThisNetwork = false
+    private val _capsEpoch = MutableStateFlow(0L)
+
+    /** Bumped on every `onCapabilitiesChanged`, AFTER [validated] was re-read for it. */
+    val capsEpoch: StateFlow<Long> = _capsEpoch.asStateFlow()
 
     private var connectivityManager: ConnectivityManager? = null
     private var pendingOffline: Job? = null
@@ -84,12 +82,14 @@ object NetworkState {
             // transporte útil no debe encender nada, y un `onLost` de la wifi mientras quedan datos
             // no debe apagar nada.
             override fun onAvailable(network: Network) {
-                validatedOnThisNetwork = false
                 _epoch.update { it + 1 }
                 refresh()
             }
             override fun onLost(network: Network) = refresh()
-            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = refresh()
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                refresh()
+                _capsEpoch.update { it + 1 }
+            }
         }
         runCatching { cm.registerDefaultNetworkCallback(callback) }
             .onFailure {
@@ -102,9 +102,7 @@ object NetworkState {
     private fun updateValidation(cm: ConnectivityManager) {
         val validated = runCatching { cm.getNetworkCapabilities(cm.activeNetwork) }.getOrNull()
             ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
-        if (validated) validatedOnThisNetwork = true
         _validated.value = validated
-        _validationLost.value = !validated && validatedOnThisNetwork
     }
 
     private fun refresh() {

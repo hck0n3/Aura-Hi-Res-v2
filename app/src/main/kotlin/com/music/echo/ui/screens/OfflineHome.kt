@@ -553,6 +553,19 @@ private fun OfflineStatusCard(
                 )
             }
         }
+        // The player's offline session with a network present: it can be wrong (it guards against a stall, not a fact),
+        // so the user can end it. With no network at all there is nothing to retry.
+        val playbackOffline by iad1tya.echo.music.playback.PlaybackOfflineSession.active.collectAsState()
+        val online by iad1tya.echo.music.utils.NetworkState.online.collectAsState()
+        if (automatic && playbackOffline && online) {
+            TextButton(onClick = { iad1tya.echo.music.playback.PlaybackOfflineSession.requestRetryOnline() }) {
+                Text(
+                    text = stringResource(R.string.offline_retry_online),
+                    style = AuraType.RowSubtitle,
+                    color = AuraPalette.Teal,
+                )
+            }
+        }
     }
 }
 
