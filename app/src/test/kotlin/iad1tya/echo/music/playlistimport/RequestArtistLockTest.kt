@@ -130,6 +130,16 @@ class RequestArtistLockTest {
     }
 
     @Test
+    fun `a failed channel song list is not taken for the whole catalogue`() {
+        // Row 751: with the full list failed only the channel's top-songs shelf was left, usually already in the request's own
+        // list, so the catalogue looked exhausted and the queue ended instead of asking again.
+        val catalogue = main("playback/RequestArtistCatalogue.kt")
+        assertTrue(catalogue.contains("val page = YouTube.artistItems(more).getOrNull()\n            listFailed = page == null"))
+        assertTrue(catalogue.contains("if (songs.isEmpty() || listFailed) {"))
+        assertTrue(catalogue.indexOf("var listFailed = false") in 0 until catalogue.indexOf("if (browseId != null) {"))
+    }
+
+    @Test
     fun `a chip or a mood stands the lock down in the source too, like in the ordering`() {
         val engine = main("playback/RadioContinuationEngine.kt")
         assertTrue(engine.contains("if (activeMoodParams != null || exactStyle.chipSteered) return@runCatching false"))
