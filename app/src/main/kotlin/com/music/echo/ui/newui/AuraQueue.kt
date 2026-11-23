@@ -449,6 +449,9 @@ fun AuraQueue(
         val currentPlayingUid = remember(currentWindowIndex, queueWindows) {
             if (currentWindowIndex in queueWindows.indices) queueWindows[currentWindowIndex].uid else null
         }
+        LaunchedEffect(queueWindows) {
+            iad1tya.echo.music.ui.utils.QueueWindowKeys.retainOnly(queueWindows.map { it.uid })
+        }
 
         // Key-based index mapping instead of the classic "lazy index − headerItems" arithmetic: this list
         // interleaves section labels, so a fixed header count would be wrong. Keys are stable strings, so
@@ -1639,7 +1642,8 @@ private const val AURA_QUEUE_LEADING_ITEMS = 2
  * key, the [ReorderableItem] key and the value the reorder callback maps back to a queue index — if the
  * three ever disagreed, a drag would move the wrong song.
  */
-private fun auraSongKey(window: Timeline.Window): String = "aura_queue_song_${window.uid.hashCode()}"
+private fun auraSongKey(window: Timeline.Window): String =
+    "aura_queue_song_${iad1tya.echo.music.ui.utils.QueueWindowKeys.keyOf(window.uid)}"
 
 private sealed interface AuraQueueEntry {
     /**
@@ -1909,6 +1913,9 @@ internal fun AuraWideQueuePane(modifier: Modifier = Modifier) {
     val isTvOrCar = iad1tya.echo.music.ui.utils.rememberIsTvOrCar()
 
     val queueWindows by playerConnection.queueWindows.collectAsState()
+    LaunchedEffect(queueWindows) {
+        iad1tya.echo.music.ui.utils.QueueWindowKeys.retainOnly(queueWindows.map { it.uid })
+    }
     val currentWindowIndex by playerConnection.currentWindowIndex.collectAsState()
     val listQueueSize by playerConnection.listQueueSize.collectAsState()
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()
