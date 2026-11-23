@@ -214,6 +214,7 @@ import iad1tya.echo.music.utils.exportedFileUriExists
 import iad1tya.echo.music.utils.isLocalMediaId
 import iad1tya.echo.music.utils.parseExportedFileUriMap
 import iad1tya.echo.music.constants.ExportedFileUrisKey
+import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -3883,21 +3884,315 @@ class MusicService :
         if (reason == null) return
         Timber.tag(TAG).i("OFFLINE_SESSION enter reason=%s", reason.log)
         // Said once, and only when there is music it affects (not on an idle or paused player).
-        if (player.mediaItemCount > 0 && player.playWhenReady) {
-            offlineSessionNoticeShown = true
-            runCatching { Toast.makeText(this, R.string.offline_session_started, Toast.LENGTH_LONG).show() }
-        }
+        val notify = player.mediaItemCount > 0 && player.playWhenReady
+        if (notify) offlineSessionNoticeShown = true
+        // The queue switches to what plays offline; that notice is said once the switch is known (row 705).
+        if (startOfflineQueueSwap(notify)) return
+        if (notify) runCatching { Toast.makeText(this, R.string.offline_session_started, Toast.LENGTH_LONG).show() }
     }
 
     private fun onOfflineSessionExited(how: String) {
         Timber.tag(TAG).i("OFFLINE_SESSION exit reason=%s", how)
+        offlineQueueJob?.cancel()
+        offlineQueueExtendJob?.cancel()
+        val restored = restoreQueueAfterOffline()
         if (offlineSessionNoticeShown) {
             offlineSessionNoticeShown = false
-            runCatching { Toast.makeText(this, R.string.offline_session_ended, Toast.LENGTH_SHORT).show() }
+            val notice = if (restored) R.string.offline_queue_restored else R.string.offline_session_ended
+            runCatching { Toast.makeText(this, notice, Toast.LENGTH_SHORT).show() }
         }
         // Same semantics as a reconnection: re-prepares a queue that was waiting, resumes only a NETWORK pause. Not after
         // "resolved": a resolve just worked, the player is already loading.
         if (how != "resolved" && waitingForNetworkConnection.value) triggerRetry()
+    }
+
+    // ── Offline queue (owner 2.0.69-beta2, row 705) — see OfflineQueuePlan ──────────────────────────────────────────────
+
+    /**
+     * The switch made when the session started, in memory only (main thread). The queue is [prefixCount] kept items (the current
+     * song at switch time, at [anchorIndex], among them) followed by [owned]; [original] are the upcoming songs it replaced, in
+     * play order (the current song first when it could not play offline).
+     */
+    private class OfflineQueueSwap(
+        val generation: Int,
+        val anchorId: String,
+        val anchorIndex: Int,
+        val anchorPlayed: Boolean,
+        val prefixCount: Int,
+        val owned: MutableList<String>,
+        val original: List<MediaItem>,
+    )
+
+    private class OfflineSwapBuild(
+        val kept: List<MediaItem>,
+        val fill: List<MediaItem>,
+        val enterCurrentPlayable: Boolean,
+        val currentPlayable: Boolean,
+    )
+
+    private var offlineQueueSwap: OfflineQueueSwap? = null
+    private var offlineQueueJob: Job? = null
+    private var offlineQueueExtendJob: Job? = null
+    private var offlineQueueResumePending = false
+
+    /** Only the user's own queue: never another device's mirror, a Listen Together room's, a Cast session's, or an empty one. */
+    private fun offlineQueueEditable(): Boolean =
+        player.mediaItemCount > 0 && !inListenRoom && !onlyShowingMirror &&
+            iad1tya.echo.music.devicesync.RemotePlayback.target.value == null &&
+            castConnectionHandler?.isCasting?.value != true
+
+    /** The indices after ([forward]) or before the current item in PLAY order (shuffle-aware, never wrapping). */
+    private fun indicesInPlayOrder(forward: Boolean): List<Int>? {
+        val timeline = player.currentTimeline
+        var idx = player.currentMediaItemIndex
+        if (timeline.isEmpty || idx == C.INDEX_UNSET) return null
+        val out = ArrayList<Int>()
+        while (out.size < timeline.windowCount) {
+            idx = if (forward) {
+                timeline.getNextWindowIndex(idx, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+            } else {
+                timeline.getPreviousWindowIndex(idx, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+            }
+            if (idx == C.INDEX_UNSET) break
+            out.add(idx)
+        }
+        return out
+    }
+
+    private fun removeMediaItemsAt(indices: List<Int>) {
+        val sorted = indices.sortedDescending()
+        var i = 0
+        while (i < sorted.size) {
+            val to = sorted[i] + 1
+            var from = sorted[i]
+            while (i + 1 < sorted.size && sorted[i + 1] == from - 1) {
+                from--
+                i++
+            }
+            player.removeMediaItems(from, to)
+            i++
+        }
+    }
+
+    private fun reapplyShuffleAfterOfflineEdit() {
+        if (player.shuffleModeEnabled) {
+            applyShuffleOrder(player.currentMediaItemIndex, player.mediaItemCount, dataStore.get(ShufflePlaylistFirstKey, false))
+        }
+    }
+
+    /** IO. One memoised [OfflinePlayability] answer per id for one build (a listen-cache scan is not free). */
+    private suspend fun offlinePlayableMemo(): (String) -> Boolean {
+        val exportedUris = parseExportedFileUriMap(dataStore.data.first()[ExportedFileUrisKey].orEmpty())
+        val checked = HashMap<String, Boolean>()
+        return { id -> checked.getOrPut(id) { offlinePlayableSource(id, exportedUris) != null } }
+    }
+
+    /** IO. The offline library, once each (rows 225/485: downloads, local files, listen-cache copies, exported MP3s). */
+    private suspend fun offlineLibrarySongs(): Map<String, Song> {
+        val downloadIds = downloadCache.keys.toHashSet()
+        val cacheIds = playerCache.keys.map { StreamCacheKeys.songIdOf(it) ?: it }.filterNot { it in downloadIds }
+        val exportedIds = dataStore.data.first()[ExportedSongIdsKey].orEmpty().split(",").filter { it.isNotBlank() }
+        val byId = LinkedHashMap<String, Song>()
+        (database.downloadedSongsByCreateDateAsc().first() + database.localSongs().first() +
+            (cacheIds + exportedIds).distinct().chunked(900).flatMap { database.getSongsByIds(it) })
+            .forEach { byId.putIfAbsent(it.id, it) }
+        return byId
+    }
+
+    /** IO. Up to [count] songs of the offline library that play offline, around [current]'s album and artists. */
+    private suspend fun offlineLibraryFill(
+        current: MediaItem,
+        count: Int,
+        ahead: Set<String>,
+        lastIndexInQueue: Map<String, Int>,
+        playable: (String) -> Boolean,
+        lastResort: Boolean,
+    ): List<MediaItem> {
+        if (count <= 0) return emptyList()
+        val library = offlineLibrarySongs()
+        val context = current.metadata
+        val ordered = OfflineQueuePlan.contextOrder(
+            candidates = library.values.map { song ->
+                OfflineQueuePlan.Candidate(song.id, song.song.albumId ?: song.album?.id, song.artists.mapTo(HashSet()) { it.id })
+            },
+            albumId = context?.album?.id,
+            artistIds = context?.artists.orEmpty().mapNotNullTo(HashSet()) { it.id?.takeIf(String::isNotBlank) },
+            random = kotlin.random.Random.Default,
+        )
+        return OfflineQueuePlan.fill(ordered, count, ahead, lastIndexInQueue, { it in sessionPlayedIds }, playable, lastResort)
+            .mapNotNull { library[it]?.toMediaItem() }
+    }
+
+    /**
+     * Main thread, when the session starts: what comes after the current song is replaced by what plays offline
+     * (OfflineQueuePlan); the current song is never touched. One read of the library and the caches, on IO, and the queue is
+     * changed only if it is still the one that was read. True when the switch was launched — it says its own notice.
+     */
+    private fun startOfflineQueueSwap(notify: Boolean): Boolean {
+        if (!offlineQueueEditable()) return false
+        val enterCurrent = player.currentMediaItem ?: return false
+        val enterUpcoming = indicesInPlayOrder(forward = true)?.map { player.getMediaItemAt(it) } ?: return false
+        offlineQueueJob?.cancel()
+        offlineQueueSwap = null
+        // Launched, not inline: the error path that started the session (continueWithOfflineQueue) moves first, and the queue
+        // is read where it left it.
+        offlineQueueJob = scope.launch {
+            val switched = switchQueueToOffline(enterCurrent, enterUpcoming)
+            if (notify && PlaybackOfflineSession.isActive) {
+                val notice = if (switched) R.string.offline_queue_switched else R.string.offline_session_started
+                runCatching { Toast.makeText(this@MusicService, notice, Toast.LENGTH_LONG).show() }
+            }
+        }
+        return true
+    }
+
+    private suspend fun switchQueueToOffline(enterCurrent: MediaItem, enterUpcoming: List<MediaItem>): Boolean {
+        if (!PlaybackOfflineSession.isActive || !offlineQueueEditable()) return false
+        val current = player.currentMediaItem ?: return false
+        val currentIndex = player.currentMediaItemIndex
+        val upcomingIndices = indicesInPlayOrder(forward = true) ?: return false
+        val upcoming = upcomingIndices.map { player.getMediaItemAt(it) }
+        val count = player.mediaItemCount
+        val generation = queueGeneration
+        val lastIndexInQueue = HashMap<String, Int>()
+        for (i in 0 until count) lastIndexInQueue[player.getMediaItemAt(i).mediaId] = i
+        val build = withContext(Dispatchers.IO) {
+            runCatching {
+                val playable = offlinePlayableMemo()
+                val kept = upcoming.filter { playable(it.mediaId) }
+                val fill = offlineLibraryFill(
+                    current = current,
+                    count = OfflineQueuePlan.BATCH - kept.size,
+                    ahead = kept.mapTo(HashSet()) { it.mediaId }.apply { add(current.mediaId) },
+                    lastIndexInQueue = lastIndexInQueue,
+                    playable = playable,
+                    lastResort = false,
+                )
+                OfflineSwapBuild(kept, fill, playable(enterCurrent.mediaId), playable(current.mediaId))
+            }.getOrNull()
+        } ?: return false
+        val unchanged = PlaybackOfflineSession.isActive && offlineQueueEditable() && queueGeneration == generation &&
+            player.mediaItemCount == count && player.currentMediaItemIndex == currentIndex &&
+            indicesInPlayOrder(forward = true) == upcomingIndices &&
+            upcomingIndices.indices.all { player.getMediaItemAt(upcomingIndices[it]).mediaId == upcoming[it].mediaId }
+        if (!unchanged) {
+            Timber.tag(TAG).i("OFFLINE_QUEUE switch skipped: the queue changed meanwhile")
+            return false
+        }
+        val replacement = build.kept + build.fill
+        // Nothing plays offline (the queue waits for the network as before), or all of it already does and nothing is added.
+        if (replacement.isEmpty() || (build.kept.size == upcoming.size && build.fill.isEmpty())) return false
+        removeMediaItemsAt(upcomingIndices)
+        player.addMediaItems(replacement)
+        reapplyShuffleAfterOfflineEdit()
+        offlineQueueSwap = OfflineQueueSwap(
+            generation = generation,
+            anchorId = current.mediaId,
+            anchorIndex = player.currentMediaItemIndex,
+            anchorPlayed = build.currentPlayable,
+            prefixCount = player.mediaItemCount - replacement.size,
+            owned = replacement.mapTo(ArrayList()) { it.mediaId },
+            original = (if (build.enterCurrentPlayable) emptyList() else listOf(enterCurrent)) + enterUpcoming,
+        )
+        Timber.tag(TAG).i(
+            "OFFLINE_QUEUE switch kept=%d added=%d replaced=%d", build.kept.size, build.fill.size, upcoming.size,
+        )
+        if (!build.currentPlayable &&
+            (waitingForNetworkConnection.value || (player.playbackState == Player.STATE_IDLE && player.playerError != null))
+        ) {
+            // The song that started the session cannot play and the player waits: go on with the new queue now.
+            continueWithOfflineQueue(stopIfNothing = false)
+        } else if (player.playbackState == Player.STATE_ENDED && player.playWhenReady && player.hasNextMediaItem()) {
+            Timber.tag(TAG).i("START_CAUSE=offline_queue_continue")
+            player.seekToNextMediaItem()
+            player.play()
+        }
+        return true
+    }
+
+    private fun offlineQueueSwapIntact(swap: OfflineQueueSwap): Boolean {
+        if (queueGeneration != swap.generation || player.mediaItemCount != swap.prefixCount + swap.owned.size) return false
+        if (swap.anchorIndex !in 0 until swap.prefixCount || player.getMediaItemAt(swap.anchorIndex).mediaId != swap.anchorId) {
+            return false
+        }
+        return swap.owned.indices.all { player.getMediaItemAt(swap.prefixCount + it).mediaId == swap.owned[it] }
+    }
+
+    /**
+     * Main thread, when the session ends: the original upcoming songs that did not play come back after the current one, and
+     * the offline songs not played yet go — only if the queue is still exactly the one the switch built (a new queue, an edit
+     * by the user, a mirror or a room: left as it is). True when it did.
+     */
+    private fun restoreQueueAfterOffline(): Boolean {
+        val swap = offlineQueueSwap ?: return false
+        offlineQueueSwap = null
+        if (!offlineQueueEditable() || !offlineQueueSwapIntact(swap)) {
+            Timber.tag(TAG).i("OFFLINE_QUEUE restore skipped: the queue changed during the session")
+            return false
+        }
+        val currentIndex = player.currentMediaItemIndex
+        val before = indicesInPlayOrder(forward = false)?.toHashSet() ?: return false
+        // The app's shuffle keeps the current song first and sinks what played to the end: there, its played memory says it.
+        if (player.shuffleModeEnabled) {
+            (swap.prefixCount until player.mediaItemCount).filterTo(before) { player.getMediaItemAt(it).mediaId in shufflePlayedIds }
+        }
+        val played = OfflineQueuePlan.playedDuringSession(
+            swap.owned, swap.prefixCount, swap.anchorIndex, swap.anchorId, swap.anchorPlayed, currentIndex, before,
+        ) ?: return false
+        val back = OfflineQueuePlan.toRestore(swap.original.map { it.mediaId }, played).map { swap.original[it] }
+        if (back.isEmpty()) return false
+        removeMediaItemsAt((swap.prefixCount until player.mediaItemCount).filter { it != currentIndex && it !in before })
+        player.addMediaItems(back)
+        reapplyShuffleAfterOfflineEdit()
+        Timber.tag(TAG).i("OFFLINE_QUEUE restore restored=%d", back.size)
+        return true
+    }
+
+    /**
+     * Row 705: during the session the end of the queue — startRadioSeamlessly, which stays off the network — goes on with more
+     * of the offline library instead of stopping, and with nothing new left the library loops. [resume]: the queue already
+     * ended and waits for these songs.
+     */
+    internal fun extendOfflineQueue(resume: Boolean) {
+        if (!playerInitialized.value) return
+        if (offlineQueueJob?.isActive == true || offlineQueueExtendJob?.isActive == true) {
+            if (resume) offlineQueueResumePending = true
+            return
+        }
+        if (!offlineQueueEditable()) return
+        val upcoming = indicesInPlayOrder(forward = true) ?: return
+        if (upcoming.size > 1) return
+        val current = player.currentMediaItem ?: return
+        val count = player.mediaItemCount
+        val currentIndex = player.currentMediaItemIndex
+        val generation = queueGeneration
+        val lastIndexInQueue = HashMap<String, Int>()
+        for (i in 0 until count) lastIndexInQueue[player.getMediaItemAt(i).mediaId] = i
+        val ahead = upcoming.mapTo(HashSet()) { player.getMediaItemAt(it).mediaId }.apply { add(current.mediaId) }
+        offlineQueueResumePending = resume
+        offlineQueueExtendJob = scope.launch {
+            val items = withContext(Dispatchers.IO) {
+                runCatching {
+                    offlineLibraryFill(current, OfflineQueuePlan.BATCH, ahead, lastIndexInQueue, offlinePlayableMemo(), lastResort = true)
+                }.getOrDefault(emptyList())
+            }
+            val shouldResume = offlineQueueResumePending
+            offlineQueueResumePending = false
+            if (items.isEmpty() || !PlaybackOfflineSession.isActive || !offlineQueueEditable() || queueGeneration != generation ||
+                player.mediaItemCount != count || player.currentMediaItemIndex != currentIndex
+            ) return@launch
+            val swap = offlineQueueSwap?.takeIf { offlineQueueSwapIntact(it) }
+            if (swap == null) offlineQueueSwap = null
+            player.addMediaItems(items)
+            swap?.owned?.addAll(items.map { it.mediaId })
+            reapplyShuffleAfterOfflineEdit()
+            Timber.tag(TAG).i("OFFLINE_QUEUE extend added=%d", items.size)
+            if (shouldResume && player.playbackState == Player.STATE_ENDED && player.playWhenReady && player.hasNextMediaItem()) {
+                Timber.tag(TAG).i("START_CAUSE=offline_queue_continue")
+                player.seekToNextMediaItem()
+                player.play()
+            }
+        }
     }
 
     /**

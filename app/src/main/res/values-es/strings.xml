@@ -28,6 +28,8 @@
     <string name="offline_skipped_to_cached_song">Sin conexión a internet — saltando a una canción disponible sin conexión</string>
     <string name="offline_session_started">Sin internet: sigo con lo disponible sin conexión</string>
     <string name="offline_session_ended">Conexión recuperada</string>
+    <string name="offline_queue_switched">Sin internet: la cola cambió a tu música sin conexión</string>
+    <string name="offline_queue_restored">Conexión recuperada: volviste a tu cola</string>
     <string name="offline_retry_online">Reintentar en línea</string>
     <string name="mood_and_genres">Estado de ánimo y géneros</string>
     <string name="account">Cuenta</string>

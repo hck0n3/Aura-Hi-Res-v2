@@ -271,6 +271,8 @@ fun MusicService.startRadioSeamlessly(
     // Offline mode (manual switch or the player's offline session): never seed radio / related / YouTube next — that
     // is network by definition.
     if (dataStore.get(OfflineModeKey, false) || PlaybackOfflineSession.isActive) {
+        // Row 705: in the player's offline session the queue goes on with more offline songs (the manual switch: as before).
+        if (!dataStore.get(OfflineModeKey, false)) extendOfflineQueue(resume = resumeAfterSeed || advanceIntoRadioRequested)
         resumeAfterSeed = false
         advanceIntoRadioRequested = false
         return
