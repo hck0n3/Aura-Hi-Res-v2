@@ -44,4 +44,11 @@ class PaymentScreenTextsGuardTest {
     @Test fun replacedPaymentTextsAreGone() {
         oldTexts.forEach { assertFalse("old payment text still present: $it", src.contains(it)) }
     }
+
+    @Test fun longSubscribeLabelsCanWrapWithoutClipping() {
+        val helper = src.substringAfter("private fun SecondaryOutlinedButton(").substringBefore("@Composable")
+        assertTrue("the button height must be a minimum", helper.contains("Modifier.fillMaxWidth().heightIn(min = height)"))
+        assertFalse("a fixed height clips the second line of the label", helper.contains(".height(height)"))
+        assertTrue("a wrapped label stays centred", helper.contains("textAlign = TextAlign.Center"))
+    }
 }

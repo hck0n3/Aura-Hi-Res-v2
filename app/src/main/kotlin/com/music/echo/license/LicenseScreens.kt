@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -211,7 +212,7 @@ private fun SecondaryOutlinedButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.fillMaxWidth().height(height),
+        modifier = Modifier.fillMaxWidth().heightIn(min = height),
         shape = AuraShapes.Card,
         border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
         colors = ButtonDefaults.outlinedButtonColors(
@@ -223,6 +224,7 @@ private fun SecondaryOutlinedButton(
             text,
             fontWeight = if (semiBold) FontWeight.SemiBold else FontWeight.Bold,
             fontSize = 16.sp,
+            textAlign = TextAlign.Center,
         )
     }
 }
