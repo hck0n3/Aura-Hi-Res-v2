@@ -277,6 +277,13 @@ class AxionEqViewModel @Inject constructor(
      */
     private val enabledSync = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
         if (key == null || key == "enabled") _enabled.value = p.getBoolean("enabled", false)
+        // The EQ screen and the Auto-EQ screen each own an instance (one per nav entry): the Auto-EQ state and
+        // the preamp one of them writes must reach the other, or its next edit re-sends a stale Auto-EQ stage.
+        if (key == null || key == "autoeq_active") _autoEqActive.value = p.getBoolean("autoeq_active", false)
+        if (key == null || key == "autoeq_bands") _autoEqBands.value = loadAutoEqBands()
+        if (key == null || key == "preampDb") {
+            _preamp.value = p.getFloat("preampDb", EqConstants.DEFAULT_PREAMP_DB)
+        }
     }
 
     init {
