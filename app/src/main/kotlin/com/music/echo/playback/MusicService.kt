@@ -22,7 +22,6 @@ import android.database.SQLException
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.audiofx.AudioEffect
-import android.media.audiofx.LoudnessEnhancer
 import android.net.ConnectivityManager
 import coil3.imageLoader
 import android.os.Binder
@@ -801,7 +800,6 @@ class MusicService :
     private val instantSilenceSkipEnabled = MutableStateFlow(false)
 
     private var isAudioEffectSessionOpened = false
-    private var loudnessEnhancer: LoudnessEnhancer? = null
 
     // Which mediaId we've already applied loudness for THIS play. Frozen until the track changes:
     // liking + auto-download used to re-store FormatEntity mid-song and the volume jumped. Volatile
@@ -6616,25 +6614,6 @@ class MusicService :
     }
 
     internal fun setupLoudnessEnhancer() {
-        val audioSessionId = player.audioSessionId
-
-        if (audioSessionId == C.AUDIO_SESSION_ID_UNSET || audioSessionId <= 0) {
-            Timber.tag(TAG).w("setupLoudnessEnhancer: invalid audioSessionId ($audioSessionId), cannot create effect yet")
-            return
-        }
-
-        
-        if (loudnessEnhancer == null) {
-            try {
-                loudnessEnhancer = LoudnessEnhancer(audioSessionId)
-                Timber.tag(TAG).d("LoudnessEnhancer created for sessionId=$audioSessionId")
-            } catch (e: Exception) {
-                reportException(e)
-                loudnessEnhancer = null
-                return
-            }
-        }
-
         scope.launch {
             try {
                 val currentMediaId = withContext(Dispatchers.Main) {
@@ -6668,7 +6647,6 @@ class MusicService :
                         withContext(Dispatchers.Main) {
                             NormalizationGainAudioProcessor.gain = lastAppliedGain
                             TruePeakLimiterAudioProcessor.loudnessMakeup = lastAppliedMakeup
-                            loudnessEnhancer?.enabled = false
                             playerEqProcessors[player]?.applySafeVolume(
                                 safeVol,
                                 if (safeVol) safeVolumeAppliedGain(lastAppliedGain * lastAppliedMakeup) else 1f,
@@ -6689,7 +6667,6 @@ class MusicService :
                         if (isPlayingLoudnessFrozen(currentMediaId, lastNormalizedId)) {
                             NormalizationGainAudioProcessor.gain = lastAppliedGain
                             TruePeakLimiterAudioProcessor.loudnessMakeup = lastAppliedMakeup
-                            loudnessEnhancer?.enabled = false
                             playerEqProcessors[player]?.applySafeVolume(
                                 safeVol,
                                 if (safeVol) safeVolumeAppliedGain(lastAppliedGain * lastAppliedMakeup) else 1f,
@@ -6700,7 +6677,6 @@ class MusicService :
                         lastAppliedMakeup = targetMakeup
                         NormalizationGainAudioProcessor.gain = targetGain
                         TruePeakLimiterAudioProcessor.loudnessMakeup = targetMakeup
-                        loudnessEnhancer?.enabled = false
                         playerEqProcessors[player]?.applySafeVolume(
                             safeVol,
                             if (safeVol) safeVolumeAppliedGain(targetGain * targetMakeup) else 1f,
@@ -6720,7 +6696,6 @@ class MusicService :
                         playerNormProcessors[player]?.instanceGain = null
                         playerNormProcessors[player]?.measureThisTrack = false  // don't integrate while off
                         playerLimiterProcessors[player]?.setInstanceMakeup(null, null)
-                        loudnessEnhancer?.enabled = false
                         // Safe Volume off (both normalization and safe-volume off) → unity, bit-perfect.
                         // The OTHER player too, whichever it is: while a fade is actually running,
                         // performCrossfadeSwap has already set player = incoming and secondaryPlayer = null,
@@ -6739,7 +6714,6 @@ class MusicService :
                 }
             } catch (e: Exception) {
                 reportException(e)
-                releaseLoudnessEnhancer()
             }
         }
     }
@@ -6802,18 +6776,6 @@ class MusicService :
         }
     }
 
-    private fun releaseLoudnessEnhancer() {
-        try {
-            loudnessEnhancer?.release()
-            Timber.tag(TAG).d("LoudnessEnhancer released")
-        } catch (e: Exception) {
-            reportException(e)
-            Timber.tag(TAG).e(e, "Error releasing LoudnessEnhancer: ${e.message}")
-        } finally {
-            loudnessEnhancer = null
-        }
-    }
-
     private fun openAudioEffectSession() {
         if (isAudioEffectSessionOpened) return
         isAudioEffectSessionOpened = true
@@ -6830,7 +6792,6 @@ class MusicService :
     private fun closeAudioEffectSession() {
         if (!isAudioEffectSessionOpened) return
         isAudioEffectSessionOpened = false
-        releaseLoudnessEnhancer()
         sendBroadcast(
             Intent(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION).apply {
                 putExtra(AudioEffect.EXTRA_AUDIO_SESSION, player.audioSessionId)
@@ -11463,7 +11424,6 @@ class MusicService :
         discordRpc = null
         connectivityObserver.unregister()
         abandonAudioFocus()
-        releaseLoudnessEnhancer()
         mediaSession.release()
         player.removeListener(this)
         playerSilenceProcessors.remove(player)
