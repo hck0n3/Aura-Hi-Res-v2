@@ -516,9 +516,9 @@ private fun TermsLine(raw: String) {
     }
 }
 
-/** Renders `**bold**` spans of a single line; everything else passes through verbatim. */
+/** Renders `**bold**` spans of a single line after [stripInlineMarkdown]; everything else passes through verbatim. */
 private fun parseInlineBold(text: String): AnnotatedString = buildAnnotatedString {
-    var rest = text
+    var rest = stripInlineMarkdown(text)
     while (true) {
         val start = rest.indexOf("**")
         val end = if (start >= 0) rest.indexOf("**", start + 2) else -1

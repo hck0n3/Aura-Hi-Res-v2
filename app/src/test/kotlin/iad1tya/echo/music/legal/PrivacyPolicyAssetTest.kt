@@ -72,6 +72,33 @@ class PrivacyPolicyAssetTest {
     }
 
     @Test
+    fun `the reader shows link text and no backticks, and leaves the terms untouched`() {
+        assertEquals(
+            "La traducción al inglés está en PRIVACY_POLICY.md; cláusula 11 de los Términos y Condiciones.",
+            stripInlineMarkdown(
+                "La traducción al inglés está en [PRIVACY_POLICY.md](PRIVACY_POLICY.md); cláusula 11 de los " +
+                    "[Términos y Condiciones](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md).",
+            ),
+        )
+        assertEquals(
+            "- **Proyecto:** https://github.com/hck0n3/Aura-Hi-Res-v2",
+            stripInlineMarkdown("- **Proyecto:** [https://github.com/hck0n3/Aura-Hi-Res-v2](https://github.com/hck0n3/Aura-Hi-Res-v2)"),
+        )
+        assertEquals("servidor metroserverx.meowery.eu, que", stripInlineMarkdown("servidor `metroserverx.meowery.eu`, que"))
+        for (asset in listOf(PrivacyPolicyInfo.ASSET_ES, PrivacyPolicyInfo.ASSET_EN)) {
+            for (line in file("app/src/main/assets/$asset").readLines()) {
+                val shown = stripInlineMarkdown(line)
+                assertFalse("$asset: $shown", shown.contains("](") || shown.contains('`'))
+                assertFalse("$asset: ruta interna visible: $shown", shown.contains("app/src/main/assets"))
+            }
+        }
+        for (line in file("app/src/main/assets/${TermsInfo.ASSET_PATH}").readLines()) {
+            assertEquals("los términos se leen igual que antes", line, stripInlineMarkdown(line))
+        }
+        assertTrue(kt("legal/TermsScreens.kt").contains("    var rest = stripInlineMarkdown(text)\n"))
+    }
+
+    @Test
     fun `the MP4 export description says personal use, as terms clause 7_3 does`() {
         val res = File(root, "app/src/main/res")
         val overrides = res.listFiles().orEmpty().filter { it.name == "values" || it.name.startsWith("values-") }

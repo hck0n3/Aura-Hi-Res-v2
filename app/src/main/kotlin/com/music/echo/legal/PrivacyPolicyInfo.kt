@@ -15,3 +15,12 @@ object PrivacyPolicyInfo {
     /** [language] is the ISO 639 code of the app's current locale (es-419, es-ES… all start with "es"). */
     fun assetFor(language: String): String = if (language.equals("es", ignoreCase = true)) ASSET_ES else ASSET_EN
 }
+
+private val markdownLink = Regex("""\[([^\]]+)]\([^)\s]+\)""")
+
+/**
+ * The legal reader has no links or code spans: `[text](target)` reads as its text (the policy links to repository
+ * paths that mean nothing in the app) and backticks are dropped. The terms use neither, so they read as before.
+ */
+internal fun stripInlineMarkdown(line: String): String =
+    markdownLink.replace(line) { it.groupValues[1] }.replace("`", "")
