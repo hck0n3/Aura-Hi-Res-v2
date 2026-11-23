@@ -2577,63 +2577,72 @@ Botones dentro de cada diálogo de slider (Viveza / Radio / Altura lente / Canti
 
 Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/PlayerSettings.kt`
 
+> **Revisado contra el código (2026-11-23, P19):** líneas al día. Cuatro filas ya NO están en esta pantalla y se
+> conservan tachadas como histórico: «Calidad de sonido» y «Calidad de descarga» (los selectores se quitaron y
+> la pantalla fija las preferencias antiguas en YouTube/Opus, `PlayerSettings.kt:101-105`), «Búsqueda
+> progresiva» (siempre activa por orden del dueño, `PlayerSettings.kt:722-724`) y «Cargar automáticamente más
+> canciones» (fila 294). Se añade «Ofrecer volver a la cola anterior» (fila 115), que faltaba. La transición
+> suave ya no depende de `isLosslessSelected`. Título de la pantalla: «Reproductor y sonido»
+> (`R.string.player_and_audio`, `PlayerSettings.kt:1052`).
+
 ### Grupo «Ahorro de datos» (hardcoded)
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Modo ahorro de datos (hardcoded) — desc. «Fuerza el audio en Opus y desactiva letras automáticas, videos, precarga, canvas y scrobbling para gastar el mínimo de datos» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:467 | conmutador | ocasional | siempre |
+| Modo ahorro de datos (hardcoded) — desc. «Fuerza el audio en Opus y desactiva letras automáticas, videos, precarga, canvas y scrobbling para gastar el mínimo de datos» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:415 | conmutador | ocasional | siempre |
 
 ### Grupo «Reproductor»
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Calidad de sonido | Ajustes > Reproductor | PlayerSettings.kt:493 | navegación (EnumDialog) | ocasional | siempre |
-| Mostrar notificaciones de audio de respaldo (hardcoded) — desc. «Muestra una notificación cuando se baja a una calidad de transmisión inferior» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:508 | conmutador | rara | siempre |
-| Calidad de descarga | Ajustes > Reproductor | PlayerSettings.kt:529 | navegación (EnumDialog) | ocasional | siempre |
-| Transición suave — desc. «Transición suave entre canciones» / «Desactivado porque…» | Ajustes > Reproductor | PlayerSettings.kt:546 | conmutador | ocasional | forzado a OFF si `isLosslessSelected`; al activar muestra el diálogo «Función beta» |
-| Duración de la transición suave (slider en línea, 1–15 s) | Ajustes > Reproductor | PlayerSettings.kt:592 (slider 596) | acción secundaria (slider) | ocasional | solo si `crossfadeEnabled && !isLosslessSelected` |
-| Estilo de transición (hardcoded) — desc. muestra la curva activa | Ajustes > Reproductor | PlayerSettings.kt:607 | navegación (EnumDialog de 9 curvas) | ocasional | solo si `crossfadeEnabled && !isLosslessSelected` |
-| Desactivar para álbumes sin pausas — desc. «No hacer transición suave si el álbum es sin pausas» | Ajustes > Reproductor | PlayerSettings.kt:613 | conmutador | rara | solo si `crossfadeEnabled && !isLosslessSelected` |
-| Entrada suave al cambiar de canción (hardcoded) — desc. «Al saltar o elegir otra canción a mano, la nueva entra con un fundido corto (estilo AIMP) en vez de golpe» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:638 | conmutador | ocasional | siempre |
-| Duración del historial (slider en línea, 5–120) | Ajustes > Reproductor | PlayerSettings.kt:651 (slider 663) | acción secundaria (slider) | rara | siempre |
-| Activar descarga (offload) — desc. larga + motivos de bloqueo («Desactivado porque la transición suave está activa» / «…el ecualizador está activo» / «…el Volumen seguro está activo» / «…el audio espacial está activo» / «…mientras estás en una sala de Escuchar juntos» / «…el compresor suave, la protección del altavoz del teléfono o un ancho estéreo cambiado están activos»; fila 714: el motivo sale de `AudioOffloadGate.blockReason`, la misma decisión que el servicio) | Ajustes > Reproductor | PlayerSettings.kt:684 | conmutador | rara | operable solo si `offloadBlockedReason == null` |
-| Precargar la siguiente canción (hardcoded) — desc. «Almacena en caché la siguiente canción para reproducción sin cortes» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:710 | conmutador | ocasional | siempre |
-| Saltar segmentos sin música — desc. «Salta patrocinios, autopromoción y partes sin música usando la base comunitaria SponsorBlock…» | Ajustes > Reproductor | PlayerSettings.kt:732 | conmutador | ocasional | siempre |
-| Límite de precarga (hardcoded) (slider en línea 1–10, 9 pasos) | Ajustes > Reproductor | PlayerSettings.kt:755 (slider 758) | acción secundaria (slider) | rara | solo si `preloadNextSongEnabled` |
-| Precargar letras (hardcoded) — desc. «También almacena en caché las letras de las canciones precargadas» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:771 | conmutador | rara | solo si `preloadNextSongEnabled` |
-| Transmitir con Google Cast — desc. «Habilitar la transmisión de audio a Chromecast y otros dispositivos compatibles con Cast» | Ajustes > Reproductor | PlayerSettings.kt:795 | conmutador | rara | solo si `BuildConfig.CAST_AVAILABLE` |
-| Búsqueda progresiva — desc. «Si está habilitado, agrega 5 segundos adicionales de forma incremental en cada salto de búsqueda» | Ajustes > Reproductor | PlayerSettings.kt:817 | conmutador | rara | siempre |
+| ~~Calidad de sonido~~ — **ya no está en la pantalla**: sin selector; `AudioQualityKey` se fuerza a `OPUS` al abrirla. Su entrada del buscador de Ajustes sigue apuntando aquí (`SearchableSettings.kt:378`) | Ajustes > Reproductor | PlayerSettings.kt:92-105 | — | — | — |
+| Mostrar notificaciones de audio de respaldo (hardcoded) — desc. «Muestra una notificación cuando se baja a una calidad de transmisión inferior» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:441 | conmutador | rara | siempre |
+| ~~Calidad de descarga~~ — **ya no está en la pantalla**: sin selector; `DownloadQualityKey` se fuerza a `YOUTUBE` al abrirla. Su entrada del buscador sigue apuntando aquí (`SearchableSettings.kt:379`) | Ajustes > Reproductor | PlayerSettings.kt:92-105 | — | — | — |
+| Transición suave — desc. «Transición suave entre canciones» (con insignia) | Ajustes > Reproductor | PlayerSettings.kt:462 | conmutador | ocasional | siempre; al activar muestra el diálogo «Función beta» (`PlayerSettings.kt:384`) |
+| Duración de la transición suave (slider en línea, 1–15 s) | Ajustes > Reproductor | PlayerSettings.kt:497 (slider 503) | acción secundaria (slider) | ocasional | solo si `crossfadeEnabled` |
+| Estilo de transición (hardcoded) — desc. muestra la curva activa | Ajustes > Reproductor | PlayerSettings.kt:512 (diálogo 359) | navegación (EnumDialog de 9 curvas) | ocasional | solo si `crossfadeEnabled` |
+| Desactivar para álbumes sin pausas — desc. «No hacer transición suave si el álbum es sin pausas» | Ajustes > Reproductor | PlayerSettings.kt:518 | conmutador | rara | solo si `crossfadeEnabled` |
+| Entrada suave al cambiar de canción (hardcoded) — desc. «Al saltar o elegir otra canción a mano, la nueva entra enseguida con un fundido muy corto (estilo AIMP) en vez de golpe» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:543 | conmutador | ocasional | siempre |
+| Duración del historial (slider en línea, 5–120 s) | Ajustes > Reproductor | PlayerSettings.kt:556 (slider 565) | acción secundaria (slider) | rara | siempre |
+| Activar descarga (offload) — desc. larga + motivos de bloqueo («Desactivado porque la transición suave está activa» / «…el ecualizador está activo» / «…el Volumen seguro está activo» / «…el audio espacial está activo» / «…mientras estás en una sala de Escuchar juntos» / «…el compresor suave, la protección del altavoz del teléfono o un ancho estéreo cambiado están activos»; fila 714: el motivo sale de `AudioOffloadGate.blockReason`, la misma decisión que el servicio) | Ajustes > Reproductor | PlayerSettings.kt:589 | conmutador | rara | operable solo si `offloadBlockedReason == null` |
+| Precargar la siguiente canción (hardcoded) — desc. «Almacena en caché la siguiente canción para reproducción sin cortes» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:615 | conmutador | ocasional | siempre |
+| Saltar segmentos sin música — desc. «Salta patrocinios, autopromoción y partes sin música usando la base comunitaria SponsorBlock…» | Ajustes > Reproductor | PlayerSettings.kt:637 | conmutador | ocasional | siempre |
+| Límite de precarga (hardcoded) (slider en línea 1–10, 9 pasos) | Ajustes > Reproductor | PlayerSettings.kt:660 (slider 664) | acción secundaria (slider) | rara | solo si `preloadNextSongEnabled` |
+| Precargar letras (hardcoded) — desc. «También almacena en caché las letras de las canciones precargadas» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:676 | conmutador | rara | solo si `preloadNextSongEnabled` |
+| Transmitir con Google Cast — desc. «Habilitar la transmisión de audio a Chromecast y otros dispositivos compatibles con Cast» | Ajustes > Reproductor | PlayerSettings.kt:700 | conmutador | rara | solo si `BuildConfig.CAST_AVAILABLE` |
+| ~~Búsqueda progresiva~~ — **ya no es un interruptor**: siempre activa por orden del dueño (2026-09-16); el comportamiento vive en `Thumbnail.kt` | Ajustes > Reproductor | PlayerSettings.kt:722-724 | — | — | — |
 
 ### Grupo «Cola»
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Cola persistente — desc. «Restaura tu última cola al iniciar la aplicación» | Ajustes > Reproductor | PlayerSettings.kt:846 | conmutador | rara | siempre |
-| Cargar automáticamente más canciones — desc. «Añade automáticamente más canciones cuando llegues al final de la cola, si es posible» | Ajustes > Reproductor | PlayerSettings.kt:867 | conmutador | ocasional | siempre |
-| Deshabilitar cargar más al repetir todo — desc. «No cargar automáticamente más canciones ni contenido similar cuando el modo repetir todo esté habilitado» | Ajustes > Reproductor | PlayerSettings.kt:888 | conmutador | rara | siempre |
-| Habilitar contenido similar — desc. «Añadir automáticamente más canciones similares cuando se alcance el final de la cola» | Ajustes > Reproductor | PlayerSettings.kt:909 | conmutador | ocasional | siempre |
-| Aleatorio mejorado (hardcoded) — desc. «El aleatorio recuerda qué canciones ya sonaron en cada lista (y en toda la biblioteca) y no repite ninguna hasta haberlas puesto todas…» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:930 | conmutador | ocasional | siempre |
-| Aleatorio persistente — desc. «Mantener la reproducción aleatoria habilitada al iniciar nuevas canciones o listas de reproducción» | Ajustes > Reproductor | PlayerSettings.kt:951 | conmutador | ocasional | siempre |
-| Recuerda mezclar y repetir — desc. «Recuerda el modo aleatorio y repetir al reiniciar la aplicación» | Ajustes > Reproductor | PlayerSettings.kt:972 | conmutador | rara | siempre |
-| Aleatorizar lista de reproducción/álbum primero — desc. «Al reproducir aleatoriamente, reproduce primero todas las canciones de la lista/álbum original y luego el contenido similar» | Ajustes > Reproductor | PlayerSettings.kt:993 | conmutador | rara | siempre |
-| Evitar pistas duplicadas en la cola — desc. «Al agregar una pista a la cola, elimínela de su posición anterior si ya está presente» | Ajustes > Reproductor | PlayerSettings.kt:1014 | conmutador | rara | siempre |
-| Saltar automáticamente a la siguiente canción cuando se produce un error — desc. «Asegura una experiencia de reproducción continua» | Ajustes > Reproductor | PlayerSettings.kt:1035 | conmutador | rara | siempre |
+| Cola persistente — desc. «Restaura tu última cola al iniciar la aplicación» | Ajustes > Reproductor | PlayerSettings.kt:733 | conmutador | rara | siempre |
+| ~~Cargar automáticamente más canciones~~ — **ya no es un interruptor (fila 294)**: la continuación de la cola está siempre activa (`MusicService.autoLoadMoreHint` fijo en `true`) | Ajustes > Reproductor | — | — | — | — |
+| Deshabilitar cargar más al repetir todo — desc. «No cargar automáticamente más canciones ni contenido similar cuando el modo repetir todo esté habilitado» | Ajustes > Reproductor | PlayerSettings.kt:754 | conmutador | rara | siempre |
+| Habilitar contenido similar — desc. «Añadir automáticamente más canciones similares cuando se alcance el final de la cola» | Ajustes > Reproductor | PlayerSettings.kt:775 | conmutador | ocasional | siempre |
+| Aleatorio mejorado (hardcoded) — desc. «El aleatorio recuerda qué canciones ya sonaron en cada álbum, EP, playlist tuya, playlist que sigues y en la biblioteca, y no repite ninguna hasta haberlas puesto todas…» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:796 | conmutador | ocasional | siempre |
+| Aleatorio persistente — desc. «Mantener la reproducción aleatoria habilitada al iniciar nuevas canciones o listas de reproducción» | Ajustes > Reproductor | PlayerSettings.kt:817 | conmutador | ocasional | siempre |
+| Recuerda mezclar y repetir — desc. «Recuerda el modo aleatorio y repetir al reiniciar la aplicación» | Ajustes > Reproductor | PlayerSettings.kt:838 | conmutador | rara | siempre |
+| Aleatorizar lista de reproducción/álbum primero — desc. «Al reproducir aleatoriamente, reproduce primero todas las canciones de la lista de reproducción/álbum original y luego…» | Ajustes > Reproductor | PlayerSettings.kt:859 | conmutador | rara | siempre |
+| Evitar pistas duplicadas en la cola — desc. «Al agregar una pista a la cola, elimínela de su posición anterior si ya está presente» | Ajustes > Reproductor | PlayerSettings.kt:880 | conmutador | rara | siempre |
+| Ofrecer volver a la cola anterior — desc. «Cuando dejes una lista o tu biblioteca para poner un álbum o un artista, un aviso te ofrece volver a la cola que dejaste, a la misma canción y el mismo segundo…» (fila 115) | Ajustes > Reproductor | PlayerSettings.kt:901 | conmutador | rara | siempre |
+| Saltar automáticamente a la siguiente canción cuando se produce un error — desc. «Asegura una experiencia de reproducción continua» | Ajustes > Reproductor | PlayerSettings.kt:922 | conmutador | rara | siempre |
 
 ### Grupo «Otros»
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Detener la música cuando se cierre la aplicación | Ajustes > Reproductor | PlayerSettings.kt:1064 | conmutador | rara | siempre |
-| Pausar la música cuando se silencia el medio | Ajustes > Reproductor | PlayerSettings.kt:1084 | conmutador | rara | siempre |
-| Reanudar al conectar Bluetooth | Ajustes > Reproductor | PlayerSettings.kt:1104 | conmutador | rara | siempre |
-| Mantener la pantalla encendida cuando el reproductor está expandido | Ajustes > Reproductor | PlayerSettings.kt:1124 | conmutador | rara | siempre |
+| Detener la música cuando se cierre la aplicación | Ajustes > Reproductor | PlayerSettings.kt:951 | conmutador | rara | siempre |
+| Pausar la música cuando se silencia el medio | Ajustes > Reproductor | PlayerSettings.kt:971 | conmutador | rara | siempre |
+| Reanudar al conectar Bluetooth | Ajustes > Reproductor | PlayerSettings.kt:991 | conmutador | rara | siempre |
+| Mantener la pantalla encendida cuando el reproductor está expandido | Ajustes > Reproductor | PlayerSettings.kt:1011 | conmutador | rara | siempre |
 
 ### Grupo «Avanzado» (hardcoded)
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Descifrado de reproducción — desc. «Descifrado autorreparable de las transmisiones» | Ajustes > Reproductor | PlayerSettings.kt:1152 | navegación | rara | siempre |
-| Atrás (tap) / Ir al inicio (mantener) | Ajustes > Reproductor | PlayerSettings.kt:1169 | navegación | constante | siempre |
+| Descifrado de reproducción — desc. «Descifrado autorreparable de las transmisiones» | Ajustes > Reproductor | PlayerSettings.kt:1039 | navegación | rara | siempre |
+| Atrás (tap; la pulsación larga «Ir al inicio» se eliminó en 0.6.145, fila 111) | Ajustes > Reproductor | PlayerSettings.kt:1054 | navegación | constante | siempre |
 
 ---
 
@@ -3690,7 +3699,7 @@ NO existen en ningún fichero asignado: doble toque; pull-to-refresh en Novedade
 | **Tap + arrastre** en el panel saturación/valor del selector de color | Diálogos de color (Liquid Glass) | ColorPicker.kt:335 y 343 | elige color |
 | **Tap + arrastre** en la barra de tono | Diálogos de color | ColorPicker.kt:382 y 387 | elige tono |
 | **Arrastre del slider de radio personalizado** | Ajustes > Apariencia > Radio de esquina | ThumbnailCornerRadiusSelector.kt:226 | radio en dp |
-| **Arrastre de sliders en línea** (duración de transición, historial, límite de precarga) | Ajustes > Reproductor | PlayerSettings.kt:596, 663, 758 | valor continuo |
+| **Arrastre de sliders en línea** (duración de transición, historial, límite de precarga) | Ajustes > Reproductor | PlayerSettings.kt:503, 565, 664 | valor continuo |
 | **Arrastre de sliders en diálogo** (Liquid Glass: viveza, radio, altura y cantidad de lente, opacidad) | Ajustes > Apariencia > Liquid Glass | GlassEffectSettings.kt:394, 413, 432, 451, 471 | valor continuo |
 | **Arrastre de sliders en diálogo** (tamaño y interlineado de letra, sensibilidad al deslizar) | Ajustes > Apariencia | AppearanceSettings.kt:1440-1500 (sensibilidad), 1622, 1628 | valor continuo |
 | **Arrastre de sliders en diálogo** (scrobble: duración mínima, % de retraso, minutos) | Ajustes > Scrobbling | LastFMSettingsScreen.kt:~460, ~525, ~590 | valor continuo |
@@ -3770,12 +3779,12 @@ Los diálogos del **reproductor** están en §3.8, §4.3, §5.1, §5.2, §7.1 y 
 | 5 diálogos de slider de Liquid Glass | Apariencia > Liquid Glass | GlassEffectSettings.kt:383, 402, 421, 440, 455 |
 | `ColorPickerDialog` (tinte de superficie) | Apariencia > Liquid Glass | GlassEffectSettings.kt:476 |
 | `ColorPickerDialog` (color del texto) | Apariencia > Liquid Glass | GlassEffectSettings.kt:493 |
-| `EnumDialog` de calidad de sonido | Reproductor | PlayerSettings.kt:302 |
-| `EnumDialog` de calidad de descarga | Reproductor | PlayerSettings.kt:328 |
-| `EnumDialog` de curva de transición (9 curvas) | Reproductor | PlayerSettings.kt:364 |
-| Diálogo «Función beta» del crossfade | Reproductor | PlayerSettings.kt:390 |
-| Diálogo «¿Activar Saavn (320 kbps)?» (hardcoded) | Reproductor | PlayerSettings.kt:410 |
-| Diálogo «Activar audio sin pérdida» (advertencia) | Reproductor | PlayerSettings.kt:430 |
+| ~~`EnumDialog` de calidad de sonido~~ — ya no existe (selector quitado, §18.5) | Reproductor | — |
+| ~~`EnumDialog` de calidad de descarga~~ — ya no existe (selector quitado, §18.5) | Reproductor | — |
+| `EnumDialog` de curva de transición (9 curvas) | Reproductor | PlayerSettings.kt:359 |
+| Diálogo «Función beta» del crossfade | Reproductor | PlayerSettings.kt:385 |
+| ~~Diálogo «¿Activar Saavn (320 kbps)?» (hardcoded)~~ — ya no existe (sin selector de calidad) | Reproductor | — |
+| ~~Diálogo «Activar audio sin pérdida» (advertencia)~~ — ya no existe (sin selector de calidad) | Reproductor | — |
 | Diálogo de configuración de proxy | Contenido | ContentSettings.kt:198 |
 | Diálogo de idioma de contenido | Contenido | ContentSettings.kt:321 |
 | Diálogo de país de contenido | Contenido | ContentSettings.kt:341 |
@@ -4057,7 +4066,7 @@ Sin interfaz asociada, así que no son controles placebo, pero son basura que co
 | `AccountSettingsScreen` | `account` | No está en el menú raíz (que va a `settings/accounts`). |
 | `YtmSyncScreen` | `settings/ytm_sync` | Desde Cuentas, Copias de seguridad, onboarding y `MainActivity.kt:1115`. |
 | `QobuzSettingsScreen` | `settings/qobuz` | Solo desde `AccountsScreen.kt:327/339`. |
-| `YoutubeDecryptionSettings` | `settings/youtube_decryption` | Solo desde `PlayerSettings.kt:1156`. |
+| `YoutubeDecryptionSettings` | `settings/youtube_decryption` | Solo desde `PlayerSettings.kt:1043`. |
 | `AxionEqScreen` | `settings/equalizer` | Desde `SoundSettings.kt:73`, `PlayerMenu.kt:838` y `Player.kt:2100`. |
 | `AutoEqScreen` | `settings/sound/autoeq` | Solo desde `SoundSettings.kt:79`. |
 | `UptimeScreen` | `uptime` | Solo desde `ContentSettings.kt:1361`. |

@@ -22,7 +22,6 @@ import android.database.SQLException
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.audiofx.AudioEffect
-import android.media.audiofx.LoudnessEnhancer
 import android.net.ConnectivityManager
 import coil3.imageLoader
 import android.os.Binder
@@ -801,7 +800,8 @@ class MusicService :
     private val instantSilenceSkipEnabled = MutableStateFlow(false)
 
     private var isAudioEffectSessionOpened = false
-    private var loudnessEnhancer: LoudnessEnhancer? = null
+    /** Sessions announced to external equalizers (OPEN sent, CLOSE not yet) — row 723. Main thread only. */
+    private val announcedEffectSessions = mutableSetOf<Int>()
 
     // Which mediaId we've already applied loudness for THIS play. Frozen until the track changes:
     // liking + auto-download used to re-store FormatEntity mid-song and the volume jumped. Volatile
@@ -1829,6 +1829,44 @@ class MusicService :
             videoSwapT0 = 0L
         }
     }
+
+    /** One INFO line per AudioTrack media3 opens, on every player (`AudioTrackDiagnostics`): no song or user data. */
+    private val audioTrackDiagnosticsListener = object : AnalyticsListener {
+        override fun onAudioTrackInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            audioTrackConfig: androidx.media3.exoplayer.audio.AudioSink.AudioTrackConfig,
+        ) {
+            Timber.tag(TAG).i(
+                iad1tya.echo.music.playback.audio.AudioTrackDiagnostics.line(
+                    encoding = audioTrackConfig.encoding,
+                    sampleRate = audioTrackConfig.sampleRate,
+                    channelConfig = audioTrackConfig.channelConfig,
+                    offload = audioTrackConfig.offload,
+                    deviceType = routedOutputDeviceType(),
+                ),
+            )
+        }
+    }
+
+    /**
+     * The output for the AUDIO_TRACK line: the device picked in [setPreferredAudioDevice] while it is connected,
+     * else the platform's media route (API 33+). Null when neither is known.
+     */
+    private fun routedOutputDeviceType(): Int? = runCatching {
+        val preferred = preferredDeviceId?.let { id ->
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull { it.id == id }
+        }
+        when {
+            preferred != null -> preferred.type
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> audioManager.getAudioDevicesForAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build(),
+            ).firstOrNull()?.type
+            else -> null
+        }
+    }.getOrNull()
 
 
     internal var currentMediaIdRetryCount = mutableMapOf<String, Int>()
@@ -3534,6 +3572,7 @@ class MusicService :
                 // play/pause button to "paused" until the swap landed. (Bug A-1)
                 if (!isSecondary) addListener(this@MusicService)
                 addAnalyticsListener(PlaybackStatsListener(false, this@MusicService))
+                addAnalyticsListener(audioTrackDiagnosticsListener)
                 // Debug-only video-swap latency probe (see videoSwapDebugListener). Registered on every
                 // player instance so it survives the crossfade publish of a new main player; it only logs
                 // while a measurement window is armed (videoSwapT0 != 0) and is absent on release builds.
@@ -6622,25 +6661,6 @@ class MusicService :
     }
 
     internal fun setupLoudnessEnhancer() {
-        val audioSessionId = player.audioSessionId
-
-        if (audioSessionId == C.AUDIO_SESSION_ID_UNSET || audioSessionId <= 0) {
-            Timber.tag(TAG).w("setupLoudnessEnhancer: invalid audioSessionId ($audioSessionId), cannot create effect yet")
-            return
-        }
-
-        
-        if (loudnessEnhancer == null) {
-            try {
-                loudnessEnhancer = LoudnessEnhancer(audioSessionId)
-                Timber.tag(TAG).d("LoudnessEnhancer created for sessionId=$audioSessionId")
-            } catch (e: Exception) {
-                reportException(e)
-                loudnessEnhancer = null
-                return
-            }
-        }
-
         scope.launch {
             try {
                 val currentMediaId = withContext(Dispatchers.Main) {
@@ -6674,7 +6694,6 @@ class MusicService :
                         withContext(Dispatchers.Main) {
                             NormalizationGainAudioProcessor.gain = lastAppliedGain
                             TruePeakLimiterAudioProcessor.loudnessMakeup = lastAppliedMakeup
-                            loudnessEnhancer?.enabled = false
                             playerEqProcessors[player]?.applySafeVolume(
                                 safeVol,
                                 if (safeVol) safeVolumeAppliedGain(lastAppliedGain * lastAppliedMakeup) else 1f,
@@ -6695,7 +6714,6 @@ class MusicService :
                         if (isPlayingLoudnessFrozen(currentMediaId, lastNormalizedId)) {
                             NormalizationGainAudioProcessor.gain = lastAppliedGain
                             TruePeakLimiterAudioProcessor.loudnessMakeup = lastAppliedMakeup
-                            loudnessEnhancer?.enabled = false
                             playerEqProcessors[player]?.applySafeVolume(
                                 safeVol,
                                 if (safeVol) safeVolumeAppliedGain(lastAppliedGain * lastAppliedMakeup) else 1f,
@@ -6706,7 +6724,6 @@ class MusicService :
                         lastAppliedMakeup = targetMakeup
                         NormalizationGainAudioProcessor.gain = targetGain
                         TruePeakLimiterAudioProcessor.loudnessMakeup = targetMakeup
-                        loudnessEnhancer?.enabled = false
                         playerEqProcessors[player]?.applySafeVolume(
                             safeVol,
                             if (safeVol) safeVolumeAppliedGain(targetGain * targetMakeup) else 1f,
@@ -6726,7 +6743,6 @@ class MusicService :
                         playerNormProcessors[player]?.instanceGain = null
                         playerNormProcessors[player]?.measureThisTrack = false  // don't integrate while off
                         playerLimiterProcessors[player]?.setInstanceMakeup(null, null)
-                        loudnessEnhancer?.enabled = false
                         // Safe Volume off (both normalization and safe-volume off) → unity, bit-perfect.
                         // The OTHER player too, whichever it is: while a fade is actually running,
                         // performCrossfadeSwap has already set player = incoming and secondaryPlayer = null,
@@ -6745,7 +6761,6 @@ class MusicService :
                 }
             } catch (e: Exception) {
                 reportException(e)
-                releaseLoudnessEnhancer()
             }
         }
     }
@@ -6808,41 +6823,64 @@ class MusicService :
         }
     }
 
-    private fun releaseLoudnessEnhancer() {
-        try {
-            loudnessEnhancer?.release()
-            Timber.tag(TAG).d("LoudnessEnhancer released")
-        } catch (e: Exception) {
-            reportException(e)
-            Timber.tag(TAG).e(e, "Error releasing LoudnessEnhancer: ${e.message}")
-        } finally {
-            loudnessEnhancer = null
-        }
-    }
-
     private fun openAudioEffectSession() {
-        if (isAudioEffectSessionOpened) return
-        isAudioEffectSessionOpened = true
-        setupLoudnessEnhancer()
-        sendBroadcast(
-            Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION).apply {
-                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, player.audioSessionId)
-                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, packageName)
-                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
-            },
-        )
+        if (!isAudioEffectSessionOpened) {
+            isAudioEffectSessionOpened = true
+            setupLoudnessEnhancer()
+        }
+        syncAudioEffectSessions()
     }
 
     private fun closeAudioEffectSession() {
         if (!isAudioEffectSessionOpened) return
         isAudioEffectSessionOpened = false
-        releaseLoudnessEnhancer()
+        syncAudioEffectSessions()
+    }
+
+    /**
+     * Row 723: keeps external equalizers on the LIVE player's audio session (`AudioEffectSessionPlan`). Called on
+     * open/close, wherever the live player changes — the crossfade swap and its cleanup (CrossfadeEngine.kt), the
+     * instant video swap — and when media3 delivers a player's session id, which 1.11 generates in the background.
+     */
+    internal fun syncAudioEffectSessions() {
+        val step = iad1tya.echo.music.playback.audio.AudioEffectSessionPlan.next(
+            announced = announcedEffectSessions,
+            liveSessionId = if (isAudioEffectSessionOpened) player.audioSessionId else C.AUDIO_SESSION_ID_UNSET,
+            fadingSessionId = fadingPlayer?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET,
+        )
+        step.close.forEach { sessionId ->
+            announcedEffectSessions.remove(sessionId)
+            sendAudioEffectSessionBroadcast(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION, sessionId)
+        }
+        step.open?.let { sessionId ->
+            announcedEffectSessions.add(sessionId)
+            sendAudioEffectSessionBroadcast(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION, sessionId)
+        }
+    }
+
+    /** Service teardown: CLOSE every session still announced, the outgoing crossfade player's included. */
+    private fun closeAllAudioEffectSessions() {
+        isAudioEffectSessionOpened = false
+        announcedEffectSessions.toList().forEach { sessionId ->
+            sendAudioEffectSessionBroadcast(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION, sessionId)
+        }
+        announcedEffectSessions.clear()
+    }
+
+    private fun sendAudioEffectSessionBroadcast(action: String, sessionId: Int) {
         sendBroadcast(
-            Intent(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION).apply {
-                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, player.audioSessionId)
+            Intent(action).apply {
+                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
                 putExtra(AudioEffect.EXTRA_PACKAGE_NAME, packageName)
+                if (action == AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION) {
+                    putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+                }
             },
         )
+    }
+
+    override fun onAudioSessionIdChanged(audioSessionId: Int) {
+        syncAudioEffectSessions()
     }
 
     private var previousMediaItemIndex = C.INDEX_UNSET
@@ -10115,6 +10153,7 @@ class MusicService :
             playerLimiterProcessors.remove(old)
             playerEqProcessors.remove(old)?.let { eq -> equalizerService.removeAudioProcessor(eq) }
             runCatching { old.release() }
+            syncAudioEffectSessions() // row 723: external equalizers move from the released player's session to pre's
             videoSwapMark("INSTANT swap published (pre-prepared dual player)")
             swapLogPath("instant")
             true
@@ -11469,7 +11508,7 @@ class MusicService :
         discordRpc = null
         connectivityObserver.unregister()
         abandonAudioFocus()
-        releaseLoudnessEnhancer()
+        closeAllAudioEffectSessions()
         mediaSession.release()
         player.removeListener(this)
         playerSilenceProcessors.remove(player)

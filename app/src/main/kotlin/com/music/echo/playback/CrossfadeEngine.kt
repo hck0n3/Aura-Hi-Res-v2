@@ -15,7 +15,6 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.audiofx.AudioEffect
-import android.media.audiofx.LoudnessEnhancer
 import android.net.ConnectivityManager
 import android.os.Binder
 import android.os.Build
@@ -1138,6 +1137,8 @@ internal fun MusicService.performCrossfadeSwap() {
     } catch (e: Exception) {
         timber.log.Timber.e(e, "Failed to swap player in MediaSession")
     }
+    // Row 723: external equalizers follow the incoming player's session; the outgoing one stays announced while it fades.
+    syncAudioEffectSessions()
 
     crossfadeJob = scope.launch {
         val configured = crossfadeDuration.toLong()
@@ -1292,6 +1293,7 @@ internal fun MusicService.cleanupCrossfade() {
     }
     fadingPlayer?.release()
     fadingPlayer = null
+    syncAudioEffectSessions() // row 723: the released outgoing player's session is closed for external equalizers
     isCrossfading = false
     _isCrossfading.value = false // observation-only mirror for the UI; does not alter the swap
     // The fade committed: the incoming track is now the audible one, so the lyrics view stops following
