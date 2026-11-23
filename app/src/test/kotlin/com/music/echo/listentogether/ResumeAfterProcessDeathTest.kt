@@ -2,6 +2,7 @@ package iad1tya.echo.music.listentogether
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -24,6 +25,22 @@ class ResumeAfterProcessDeathTest {
         val field = ListenTogetherClient::class.java.getDeclaredField("sessionToken")
         field.isAccessible = true
         return field.get(c) as String?
+    }
+
+    private fun confirmedOf(c: ListenTogetherClient): Boolean {
+        val field = ListenTogetherClient::class.java.getDeclaredField("tokenConfirmed")
+        field.isAccessible = true
+        return field.get(c) as Boolean
+    }
+
+    @Test
+    fun aPersistedTokenIsNotConfirmedUntilTheServerTakesItBack() {
+        // Unconfirmed, a dropped socket gets the 5-attempt budget, not the room's 10-minute window: the room may be long gone.
+        val c = client(aura = true)
+        c.resumeWith("u1.secret", "ABC123")
+        assertFalse(confirmedOf(c))
+        c.forgetSessionToken()
+        assertFalse(confirmedOf(c))
     }
 
     @Test

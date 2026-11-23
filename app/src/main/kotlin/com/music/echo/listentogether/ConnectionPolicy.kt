@@ -34,4 +34,18 @@ internal object ConnectionPolicy {
         droppedAtMs: Long,
         nowMs: Long,
     ): Boolean = if (inRoom) nowMs - droppedAtMs >= ROOM_RESUME_WINDOW_MS else attempts >= maxAttempts
+
+    /**
+     * Row 744: the HTTP status of a refused WebSocket upgrade, read from OkHttp's `Expected HTTP 101 response but was '404 Not Found'`
+     * anywhere in the cause chain; null for any other failure (no network, timeout, TLS), which stays a reason to retry.
+     */
+    fun refusedUpgradeStatus(error: Throwable): Int? =
+        generateSequence(error) { t -> t.cause?.takeIf { it !== t } }
+            .take(8)
+            .firstNotNullOfOrNull { t -> REFUSED_UPGRADE.find(t.message.orEmpty())?.groupValues?.get(1)?.toIntOrNull() }
+
+    /** docs/worker/rooms `/rooms/join`: 404 for a room that does not exist, 400 for a malformed code. Neither changes on a retry. */
+    fun roomIsGone(status: Int): Boolean = status == 404 || status == 400
+
+    private val REFUSED_UPGRADE = Regex("""Expected HTTP 101 response but was '(\d{3})""")
 }

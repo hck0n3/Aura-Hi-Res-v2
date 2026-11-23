@@ -37,9 +37,23 @@ class ListenTogetherReliabilityGuardTest {
 
     @Test
     fun insideARoomReconnectingIsBoundedByTimeNotByAttempts() {
-        assertTrue(client.contains("val inRoom = sessionToken != null"))
+        assertTrue("a token read back from disk gets the attempt budget", client.contains("val inRoom = sessionToken != null && tokenConfirmed"))
+        assertTrue(client.contains("MessageTypes.RECONNECTED -> if (sessionToken != null) tokenConfirmed = true"))
         assertTrue(client.contains("if (ConnectionPolicy.shouldGiveUp(inRoom, reconnectAttempts, MAX_RECONNECT_ATTEMPTS, dropped, now)) {"))
         assertTrue("a completed handshake starts the next drop's window afresh", client.contains("droppedAt = null"))
+    }
+
+    @Test
+    fun aResumeToARoomThatIsGoneEndsInsteadOfRetryingAndForgetsThePersistedToken() {
+        assertTrue("a 404 upgrade is the room's final answer", client.contains("if (endResumeIfRoomIsGone(e)) return@launch"))
+        assertTrue(client.contains("_events.emit(ListenTogetherEvent.ResumeRefused(\"The room no longer exists\"))"))
+        val session = text("app/src/main/kotlin/com/music/echo/listentogether/ListenTogetherSession.kt")
+        assertTrue(session.contains("is ListenTogetherEvent.ResumeRefused -> endRefusedResume(event.reason)"))
+        assertTrue("giving up forgets the persisted token too", session.contains("if (!event.willRetry) tokenStore?.clear()"))
+        val create = session.substringAfter("fun createRoom(username: String) =").substringBefore("val sent = client.send(")
+        assertTrue("a new room never carries the old token", create.contains("if (!_state.value.inRoom) client.forgetSessionToken()"))
+        val join = session.substringAfter("fun joinRoom(").substringBefore("val sent = client.send(")
+        assertTrue(join.contains("if (!_state.value.inRoom) client.forgetSessionToken()"))
     }
 
     @Test

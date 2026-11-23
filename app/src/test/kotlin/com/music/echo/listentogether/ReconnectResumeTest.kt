@@ -98,6 +98,16 @@ class ReconnectResumeTest {
     }
 
     @Test
+    fun aRoomThatRefusedTheSocketEndsTheResumeToo() {
+        // Aura's rooms answer the upgrade to a deleted room with HTTP 404: no handshake, so no `error` frame ever comes.
+        joinAsGuest()
+        event(ListenTogetherEvent.ResumeRefused("The room no longer exists"))
+        val s = session.state.value
+        assertFalse(s.inRoom)
+        assertEquals("The room no longer exists", s.error)
+    }
+
+    @Test
     fun anErrorAfterTheResumeWasConfirmedIsJustAnError() {
         joinAsGuest()
         event(ListenTogetherEvent.Connected(serverVersion = "x", compressionEnabled = false, resumed = true))

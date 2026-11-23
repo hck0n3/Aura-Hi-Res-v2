@@ -2,10 +2,11 @@ package iad1tya.echo.music.listentogether
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Row 744: the connection upkeep of [ListenTogetherClient] — liveness watch (P1-9). */
+/** Row 744: the connection upkeep of [ListenTogetherClient] — liveness watch (P1-9), room window (P2-9), a room that is gone. */
 class ConnectionPolicyTest {
     @Test
     fun anyFrameSinceThePingResetsTheCount() {
@@ -44,6 +45,24 @@ class ConnectionPolicyTest {
     fun outsideARoomTheAttemptBudgetStays() {
         assertFalse(ConnectionPolicy.shouldGiveUp(inRoom = false, attempts = 4, maxAttempts = 5, droppedAtMs = 0L, nowMs = 0L))
         assertTrue(ConnectionPolicy.shouldGiveUp(inRoom = false, attempts = 5, maxAttempts = 5, droppedAtMs = 0L, nowMs = 31_000L))
+    }
+
+    @Test
+    fun aRefusedUpgradeIsReadFromOkHttpsMessageAnywhereInTheCauseChain() {
+        val refused = java.net.ProtocolException("Expected HTTP 101 response but was '404 Not Found'")
+        assertEquals(404, ConnectionPolicy.refusedUpgradeStatus(refused))
+        assertEquals(404, ConnectionPolicy.refusedUpgradeStatus(IllegalStateException("wrapped", refused)))
+        assertEquals(400, ConnectionPolicy.refusedUpgradeStatus(java.net.ProtocolException("Expected HTTP 101 response but was '400 '")))
+        assertNull("no network is a reason to retry", ConnectionPolicy.refusedUpgradeStatus(java.net.UnknownHostException("no address")))
+        assertNull(ConnectionPolicy.refusedUpgradeStatus(java.io.IOException("timeout")))
+    }
+
+    @Test
+    fun onlyAMissingRoomOrAMalformedCodeIsFinal() {
+        assertTrue(ConnectionPolicy.roomIsGone(404))
+        assertTrue(ConnectionPolicy.roomIsGone(400))
+        assertFalse("a busy server is worth another try", ConnectionPolicy.roomIsGone(503))
+        assertFalse(ConnectionPolicy.roomIsGone(429))
     }
 
     @Test

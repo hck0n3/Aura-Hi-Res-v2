@@ -207,6 +207,8 @@ class ListenTogetherSession(
     fun createRoom(username: String) =
         launch {
             pendingUsername = username.trim()
+            // Row 744: a new room, not the one a stored token would resume; a stale `reconnect` first on its socket would be refused.
+            if (!_state.value.inRoom) client.forgetSessionToken()
             if (client.isAuraRooms && !client.isConnected) client.roomTarget = ListenTogetherClient.RoomTarget.Create
             val sent = client.send(MessageTypes.CREATE_ROOM, CreateRoomPayload(username = pendingUsername))
             if (!sent) {
@@ -223,6 +225,7 @@ class ListenTogetherSession(
     ) = launch {
         pendingUsername = username.trim()
         val code = roomCode.trim().uppercase()
+        if (!_state.value.inRoom) client.forgetSessionToken()
         _state.update { it.copy(pendingJoinCode = code, error = null) }
         if (client.isAuraRooms && !client.isConnected) client.roomTarget = ListenTogetherClient.RoomTarget.Join(code)
         val sent = client.send(MessageTypes.JOIN_ROOM, JoinRoomPayload(roomCode = code, username = pendingUsername))
@@ -443,7 +446,9 @@ class ListenTogetherSession(
 
             is ListenTogetherEvent.ClockReady -> _clockReadyCount.update { it + 1 }
 
-            is ListenTogetherEvent.Disconnected ->
+            is ListenTogetherEvent.Disconnected -> {
+                // Row 744: a client that gave up holds no token any more; the persisted one goes too, or every app start replays it.
+                if (!event.willRetry) tokenStore?.clear()
                 _state.update {
                     if (event.willRetry) {
                         it.copy(connection = ConnectionState.Connecting)
@@ -453,6 +458,9 @@ class ListenTogetherSession(
                         ListenTogetherState(connection = ConnectionState.Failed(event.reason ?: "Disconnected"))
                     }
                 }
+            }
+
+            is ListenTogetherEvent.ResumeRefused -> endRefusedResume(event.reason)
 
             is ListenTogetherEvent.Message -> onMessage(event.type, event.payload)
         }
@@ -669,20 +677,8 @@ class ListenTogetherSession(
                 if (p.code != "rate_limited") {
                     Timber.tag(TAG).w("Server error %s: %s", p.code, p.message)
                     if (resumePending) {
-                        // Row 744: the answer to the stored token's `reconnect` — the room is gone or the token expired. Forget
-                        // both, or every later drop (and every app start) would keep trying to go back to a room that refused us.
-                        resumePending = false
-                        tokenStore?.clear()
-                        client.forgetSessionToken()
-                        sentAnchor.set(null)
-                        val aura = client.isAuraRooms
-                        // Aura's rooms are one socket per room: this one leads nowhere now.
-                        if (aura) client.disconnect()
-                        _state.value =
-                            ListenTogetherState(
-                                connection = if (aura) ConnectionState.Connected(AURA_ROOMS_VERSION) else _state.value.connection,
-                                error = p.message.ifBlank { p.code },
-                            )
+                        // Row 744: the answer to the stored token's `reconnect` — the room is gone or the token expired.
+                        endRefusedResume(p.message.ifBlank { p.code })
                         return
                     }
                     // An error while waiting to be let in ends that wait — most often a bad code.
@@ -692,6 +688,25 @@ class ListenTogetherSession(
                 }
             }
         }
+    }
+
+    /**
+     * Row 744: the server refused the stored token's resume. Forget the token (store and client), or every later drop and every app
+     * start would keep trying to go back to a room that refused us.
+     */
+    private fun endRefusedResume(error: String) {
+        resumePending = false
+        tokenStore?.clear()
+        client.forgetSessionToken()
+        sentAnchor.set(null)
+        val aura = client.isAuraRooms
+        // Aura's rooms are one socket per room: this one leads nowhere now.
+        if (aura) client.disconnect()
+        _state.value =
+            ListenTogetherState(
+                connection = if (aura) ConnectionState.Connected(AURA_ROOMS_VERSION) else _state.value.connection,
+                error = error,
+            )
     }
 
     /**
