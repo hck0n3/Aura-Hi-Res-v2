@@ -11,4 +11,6 @@
     <string name="playback_error_generic">No se pudo reproducir esta canción. Vuelve a intentarlo.</string>
     <string name="playback_error_action_offline_music">Ver música sin conexión</string>
     <string name="playback_error_action_sign_in">Iniciar sesión</string>
+    <string name="song_unavailable_notice">Canción no disponible</string>
+    <string name="video_unavailable_back_to_audio">Video no disponible — volviendo a audio</string>
 </resources>

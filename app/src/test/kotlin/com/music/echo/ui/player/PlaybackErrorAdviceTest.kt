@@ -232,6 +232,20 @@ class PlaybackErrorAdviceTest {
     }
 
     @Test
+    fun `the service's unavailable notices are resources, not Spanish-only literals`() {
+        val recovery = main("playback/PlaybackErrorRecovery.kt")
+        assertTrue(recovery.contains("val base = getString(R.string.song_unavailable_notice)"))
+        assertFalse(recovery.contains("\"Canción no disponible\""))
+        val service = main("playback/MusicService.kt")
+        assertTrue(service.contains("getString(R.string.video_unavailable_back_to_audio)"))
+        assertFalse(service.contains("\"Video no disponible — volviendo a audio\""))
+        for (name in listOf("song_unavailable_notice", "video_unavailable_back_to_audio")) {
+            assertTrue(resDirHasString("values", name))
+            assertTrue(resDirHasString("values-es", name))
+        }
+    }
+
+    @Test
     fun `the ERR_BR log line is untouched`() {
         assertTrue(main("playback/MusicService.kt").contains("\"ERR_BR=%s id=%s code=%d connected=%b session=%b validated=%b\""))
     }

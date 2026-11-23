@@ -12,4 +12,7 @@
     <string name="playback_error_generic">This song couldn\'t be played. Try again.</string>
     <string name="playback_error_action_offline_music">View offline music</string>
     <string name="playback_error_action_sign_in">Sign in</string>
+    <!-- Service notices (PlaybackErrorRecovery.handleUnresolvableSong, MusicService video fallback). -->
+    <string name="song_unavailable_notice">Song unavailable</string>
+    <string name="video_unavailable_back_to_audio">Video unavailable — back to audio</string>
 </resources>
