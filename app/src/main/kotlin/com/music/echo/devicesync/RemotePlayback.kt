@@ -372,6 +372,17 @@ object RemotePlayback {
     }
 
     /**
+     * Pure (row 745): with a room that keeps one «now» per device, the remote shown is the other device that PLAYS (fresh report), the
+     * newest if several do; with none playing, the newest report of another device, as when the room kept a single one. Null when every
+     * report is this device's own.
+     */
+    fun pickRemote(states: Collection<NowState>, thisDeviceId: String, serverNowMs: Long): NowState? {
+        val others = states.filter { it.deviceId.isNotBlank() && it.deviceId != thisDeviceId }
+        return others.filter { it.playing && serverNowMs - it.atMs <= FRESH_MS }.maxByOrNull { it.atMs }
+            ?: others.maxByOrNull { it.atMs }
+    }
+
+    /**
      * Pure: should THIS device show and control [remote]? Another device, that is playing and recently heard — or paused but just
      * controlled from here — while this device is silent, connected, and the user allows handing over.
      */

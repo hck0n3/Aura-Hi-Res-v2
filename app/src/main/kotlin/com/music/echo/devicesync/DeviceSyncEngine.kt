@@ -70,6 +70,9 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     @Volatile private var library: LibrarySync? = null
     private var libraryGroup: String? = null
     @Volatile private var helloLib = 0
+    /** Row 745: the room keeps one «now» per device (its `hello_ok` says so with `nows`): the last one heard from each device. */
+    @Volatile private var perDeviceNow = false
+    private val remoteNows = java.util.concurrent.ConcurrentHashMap<String, NowState>()
     private var remoteTick: Job? = null
     @Volatile private var listenedPlayer: androidx.media3.exoplayer.ExoPlayer? = null
     private val playWhenReadyListener = object : Player.Listener {
@@ -155,6 +158,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         client.stop()
         DeviceSyncHub.devices.value = emptyList()
         DeviceSyncHub.remoteNow.value = null
+        remoteNows.clear()
         scope.cancel()
     }
 
@@ -190,6 +194,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 client.stop()
                 DeviceSyncHub.devices.value = emptyList()
                 DeviceSyncHub.remoteNow.value = null
+                remoteNows.clear()
                 // A typed code wins; otherwise the license pairs the buyer's devices on its own.
                 val normalized = SyncCode.normalize(code)
                 val (groupId, by) = when {
@@ -254,7 +259,14 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 helloLib = msg.int("lib") ?: 0
                 msg.long("serverTime")?.let { serverOffsetMs = it - System.currentTimeMillis(); DeviceSyncHub.serverOffsetMs = serverOffsetMs; DeviceSyncHub.serverClockKnown = true }
                 DeviceSyncHub.devices.value = parseDevices(msg["devices"])
-                (msg["now"] as? JsonObject)?.let { setRemoteNow(it) }
+                // Row 745: a room that keeps one «now» per device lists them all (`nows`); an older room only has its single `now`.
+                perDeviceNow = msg["nows"] is JsonArray
+                remoteNows.clear()
+                val nows = (msg["nows"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let { o -> parseNow(o) } }
+                if (nows.isNotEmpty()) {
+                    nows.forEach { remoteNows[it.deviceId] = it }
+                    showRemoteNow(RemotePlayback.pickRemote(remoteNows.values, deviceId, serverNow()))
+                } else (msg["now"] as? JsonObject)?.let { setRemoteNow(it) }
                 Timber.tag(TAG).i("DEVICE_SYNC connected devices=%d", DeviceSyncHub.devices.value.size)
                 onConnected()
             }
@@ -304,7 +316,14 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     private fun setRemoteNow(state: JsonObject) {
         val now = parseNow(state) ?: return
-        DeviceSyncHub.remoteNow.value = if (now.deviceId == deviceId) null else now
+        if (perDeviceNow) {
+            remoteNows[now.deviceId] = now
+            showRemoteNow(RemotePlayback.pickRemote(remoteNows.values, deviceId, serverNow()))
+        } else showRemoteNow(if (now.deviceId == deviceId) null else now)
+    }
+
+    private fun showRemoteNow(now: NowState?) {
+        DeviceSyncHub.remoteNow.value = now
         scope.launch { runCatching { evaluateRemote() } }
     }
 
