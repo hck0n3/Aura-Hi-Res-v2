@@ -125,8 +125,8 @@ fun SoundSettings(
                     title = { Text("Volumen seguro") },
                     description = {
                         Text(
-                            "Baja los temas muy fuertes a un nivel parejo y agrega un limitador suave, " +
-                                "para que no distorsionen a todo volumen (activado por defecto). Apagado = reproducción bit-perfect Hi-Res."
+                            "Iguala el volumen entre temas: baja los muy fuertes y sube los silenciosos " +
+                                "(hasta +12 dB), con un limitador suave. Activado por defecto."
                         )
                     },
                     trailingContent = {
