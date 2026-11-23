@@ -374,6 +374,10 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         }
         if (!RemotePlayback.active) Timber.tag(TAG).i("DEVICE_SYNC remote control on")
         RemotePlayback.update(remote, serverNow())
+        // Review C1: a player left ENDED (end of the queue, radio seed pending) keeps play-when-ready = true, and the mirror's seek or a
+        // late radio append then made it sound here with no play-when-ready transition for the guard to see. Showing another device
+        // drops play-when-ready and any pending radio auto-resume here — unless this device was just told to play (take-over).
+        onMain { if (playerOrNull() != null && !RemotePlayback.localStartGranted()) service.standLocalDownForRemote() }
         // Row 595: a stale paused report must not replace this device's own queue (see RemotePlayback.shouldMirrorQueue).
         if (RemotePlayback.shouldMirrorQueue(remote, RemotePlayback.lastControlAtMs + serverOffsetMs)) {
             mirrorRemote(remote)

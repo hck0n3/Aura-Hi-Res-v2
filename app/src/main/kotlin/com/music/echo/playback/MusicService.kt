@@ -705,6 +705,21 @@ class MusicService :
      */
     @Volatile
     internal var mirrorUnprepared = false
+
+    /**
+     * Review C1: another device is now shown and controlled from here (DeviceSyncEngine.evaluateRemote). Nothing armed for THIS
+     * player may start it later: play-when-ready is dropped (an ENDED queue keeps it true) and the end-of-queue radio auto-resume
+     * (resumeAfterSeed / advanceIntoRadioRequested and its watchdog) is cancelled, so a seed that lands afterwards only appends.
+     */
+    internal fun standLocalDownForRemote() {
+        resumeAfterSeed = false
+        advanceIntoRadioRequested = false
+        radioResumeWatchdogJob?.cancel()
+        if (player.playWhenReady) {
+            Timber.tag(TAG).i("START_CAUSE=remote_mode_silence state=%d", player.playbackState)
+            player.pause()
+        }
+    }
     internal var fadingPlayer: ExoPlayer? = null
     internal var isCrossfading = false
     // Read-only OBSERVATION flag only. Mirrors the plain [isCrossfading] boolean so the UI can observe a
@@ -7325,6 +7340,14 @@ class MusicService :
         // on genuine engagement (real playback via EVENT_IS_PLAYING_CHANGED, a genuine playQueue/widget play,
         // or the app coming to the foreground).
         if (playbackState != Player.STATE_IDLE) mirrorUnprepared = false
+        // Review C1: the play-when-ready guard in onPlayWhenReadyChanged never sees a player that was ENDED (or IDLE) with
+        // play-when-ready still true and is moved by a seek or a radio append: it starts to sound with no transition. Caught here.
+        if (!remoteRedirectBypass &&
+            iad1tya.echo.music.devicesync.RemotePlayback.blocksSoundingNow(player.playWhenReady, playbackState)
+        ) {
+            Timber.tag(TAG).i("START_CAUSE=blocked_remote_mode_state state=%d", playbackState)
+            player.pause()
+        }
 
         updateOfflineStallWatchdog()
 
