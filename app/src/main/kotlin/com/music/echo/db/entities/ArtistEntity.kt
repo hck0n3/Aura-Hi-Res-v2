@@ -172,10 +172,12 @@ data class ArtistEntity(
         // the account ends with the last one (an unordered pair could leave it subscribed after an
         // unfollow). `toggled` is the row we are about to persist, so its `unfollowedByUserAt` is the
         // exact timestamp the write-back must not overshoot.
-        accountCalls.submit(
+        val queued = accountCalls.submit(
             iad1tya.echo.music.utils.ArtistSyncPolicy.accountCallKey(id, channelId),
             AccountCall(this, subscribing, toggled.unfollowedByUserAt, onLiveUnsubscribeConfirmed),
         )
+        // Row 716: every tap reaches app.log, even one the queue coalesces away (no names or ids, regla 4).
+        timber.log.Timber.i("ARTIST_FOLLOW_TAP intent=%s queued=%d", if (subscribing) "follow" else "unfollow", queued)
     }
 
     /** One follow/unfollow tap on its way to the account ([toggleLike], row 711). */
@@ -205,6 +207,13 @@ data class ArtistEntity(
             send = ::sendToAccount,
             settle = ::retireHonouredUnfollow,
         )
+
+        /**
+         * Row 716 (rows 106/646): drop every follow/unfollow still waiting to reach the account. `App.forgetAccount`
+         * calls it — the one choke point for both sign-outs and every account switch — so an intent tapped for one
+         * account is never sent to the next.
+         */
+        fun dropPendingAccountCalls() = accountCalls.clear()
 
         /** The live call for one tap. True only when YouTube accepted it. */
         private suspend fun sendToAccount(call: AccountCall): Boolean {

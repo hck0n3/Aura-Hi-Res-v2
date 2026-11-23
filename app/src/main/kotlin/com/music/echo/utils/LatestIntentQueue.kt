@@ -32,31 +32,63 @@ class LatestIntentQueue<T>(
     private val waiting = HashMap<String, MutableList<T>>()
     private val draining = HashSet<String>()
 
-    fun submit(key: String, intent: T) {
-        val start = synchronized(lock) {
-            waiting.getOrPut(key) { mutableListOf() }.add(intent)
-            draining.add(key)
+    /** Bumped by [clear]: a batch taken before it is neither sent nor settled (row 716). Guarded by [lock]. */
+    private var generation = 0L
+
+    /** Queues [intent] for [key]; returns how many intents now wait for that key (the call in flight not counted). */
+    fun submit(key: String, intent: T): Int {
+        val (start, waitingNow) = synchronized(lock) {
+            val list = waiting.getOrPut(key) { mutableListOf() }
+            list.add(intent)
+            draining.add(key) to list.size
         }
         if (start) scope.launch { drain(key) }
+        return waitingNow
     }
 
-    /** The intents waiting for [key], or null — and the key no longer draining — when there are none. */
-    private fun takeOrFinish(key: String): List<T>? = synchronized(lock) {
-        waiting.remove(key) ?: run {
+    /**
+     * Row 716: drops every waiting intent, for every key — on a sign-out or an account switch, so an intent is
+     * never sent to a different account. A call already in flight cannot be recalled; what it confirms is not
+     * settled.
+     */
+    fun clear() {
+        synchronized(lock) {
+            waiting.clear()
+            generation++
+        }
+    }
+
+    private fun isCurrent(taken: Long): Boolean = synchronized(lock) { generation == taken }
+
+    /** The intents waiting for [key] with the generation they were taken in, or null — and the key no longer draining. */
+    private fun takeOrFinish(key: String): Pair<List<T>, Long>? = synchronized(lock) {
+        val batch = waiting.remove(key)
+        if (batch == null) {
             draining.remove(key)
             null
+        } else {
+            batch to generation
         }
     }
 
     private suspend fun drain(key: String) {
+        // What the account is confirmed to hold from a call of this run, and in which generation (a [clear] in
+        // between means a different account, which holds nothing of ours).
         var confirmedEffect: Any? = null
+        var confirmedIn = -1L
         try {
             while (true) {
-                val batch = takeOrFinish(key) ?: return
+                val (batch, taken) = takeOrFinish(key) ?: return
                 val effect = effectOf(batch.last())
-                val confirmed = effect == confirmedEffect || guarded { send(batch.last()) } == true
-                confirmedEffect = if (confirmed) effect else null
-                if (confirmed) batch.filter { effectOf(it) == effect }.forEach { guarded { settle(it) } }
+                val alreadyHeld = effect == confirmedEffect && confirmedIn == taken
+                val confirmed = alreadyHeld || (isCurrent(taken) && guarded { send(batch.last()) } == true)
+                if (confirmed) {
+                    confirmedEffect = effect
+                    confirmedIn = taken
+                } else {
+                    confirmedEffect = null
+                }
+                if (confirmed && isCurrent(taken)) batch.filter { effectOf(it) == effect }.forEach { guarded { settle(it) } }
             }
         } catch (e: Throwable) {
             // Only cancellation gets here. Release the key so the next submit drains what is left.

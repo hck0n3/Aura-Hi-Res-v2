@@ -111,6 +111,34 @@ class ArtistAccountCallOrderTest {
         assertEquals(listOf("a", "b"), sent)
     }
 
+    @Test
+    fun `submit reports how many taps wait for the channel`() = runBlocking {
+        val h = Harness(this)
+        assertEquals(1, h.queue.submit("UC1", Tap("a", true)))
+        assertEquals(2, h.queue.submit("UC1", Tap("b", false)))
+        idle()
+        assertEquals("the call in flight is not counted", 1, h.queue.submit("UC1", Tap("c", true)))
+        h.answer(true); idle()
+        h.answer(true); idle()
+    }
+
+    @Test
+    fun `a sign-out drops what waits and nothing of it reaches the next account`() = runBlocking {
+        val h = Harness(this)
+        h.queue.submit("UC1", Tap("a-follow", true)); idle()
+        h.queue.submit("UC1", Tap("a-unfollow", false))
+        h.queue.submit("UC2", Tap("a-other", true))
+        h.queue.clear()
+        // The next account taps while account A's call is still in flight.
+        h.queue.submit("UC1", Tap("b-follow", true))
+        h.answer(true); idle()
+        assertEquals("only A's call already in flight went out, then B's own tap", listOf("a-follow", "b-follow"), h.sent)
+        assertTrue("what A's call confirmed is not settled", h.settled.isEmpty())
+        h.answer(true); idle()
+        assertEquals(listOf("b-follow"), h.settled)
+        assertTrue(h.answers.isEmpty())
+    }
+
     // ---- wiring (no Android SDK in the unit job, so pinned as source text) -----------------------
 
     private val root: File by lazy {
@@ -134,6 +162,20 @@ class ArtistAccountCallOrderTest {
         val settle = entity.substringAfter("private suspend fun retireHonouredUnfollow(").substringBefore("\n        }\n")
         assertTrue("row 107 write-back kept", settle.contains("liveCallHonouredTheUnfollow(call.subscribing, confirmedByAccount = true)"))
         assertTrue(settle.contains("call.onLiveUnsubscribeConfirmed(call.artist.id, queuedAt)"))
+    }
+
+    @Test
+    fun `every tap is logged without names or ids and a sign-out empties the queue`() {
+        val entity = main("db/entities/ArtistEntity.kt")
+        assertTrue(
+            entity.contains(
+                "timber.log.Timber.i(\"ARTIST_FOLLOW_TAP intent=%s queued=%d\", if (subscribing) \"follow\" else \"unfollow\", queued)",
+            ),
+        )
+        assertTrue(entity.contains("fun dropPendingAccountCalls() = accountCalls.clear()"))
+        val forget = main("App.kt").substringAfter("suspend fun forgetAccount(context: Context) {")
+        val drop = forget.indexOf("ArtistEntity.dropPendingAccountCalls()")
+        assertTrue("dropped before the session goes", drop in 0 until forget.indexOf("YouTube.cookie = null"))
     }
 
     @Test
