@@ -5477,6 +5477,7 @@ class MusicService :
         item: MediaItem,
         position: Int,
     ) {
+        if (refuseQueueEditInRemoteMode()) return
         automixItems.value =
             automixItems.value.toMutableList().apply {
                 removeAt(position)
@@ -5485,6 +5486,8 @@ class MusicService :
     }
 
     fun addNextUnheardAutomix() {
+        // The automatic top-up must not grow (and prepare) the mirror of another device either — silently, nobody asked.
+        if (refuseQueueEditInRemoteMode(notify = false)) return
         val items = automixItems.value
         if (items.isEmpty()) return
         val queued = liveQueueSnapshot(afterCurrent = false)
@@ -5508,6 +5511,7 @@ class MusicService :
         item: MediaItem,
         position: Int,
     ) {
+        if (refuseQueueEditInRemoteMode()) return
         automixItems.value =
             automixItems.value.toMutableList().apply {
                 removeAt(position)
@@ -5519,8 +5523,25 @@ class MusicService :
         automixItems.value = emptyList()
     }
 
+    /**
+     * Review C2: while another device is controlled from here the local player only holds its mirror (IDLE). «Reproducir a
+     * continuación» took the empty-player branch on it (new queue + prepare + play), was paused by the remote-mode guard, reached no
+     * device and was lost at the next mirror update; «Añadir a la cola» prepared the mirror. The other device has no command to
+     * queue a song, so the edit is refused with a notice and the mirror is left untouched. True when refused.
+     */
+    internal fun refuseQueueEditInRemoteMode(notify: Boolean = true): Boolean {
+        val target = iad1tya.echo.music.devicesync.RemotePlayback.target.value ?: return false
+        Timber.tag(TAG).i("DEVICE_SYNC queue edit refused: another device is controlled from here (notify=%b)", notify)
+        if (notify) {
+            iad1tya.echo.music.devicesync.DeviceSyncHub.notice(
+                getString(R.string.device_sync_queue_edit_not_sent, target.deviceName.ifBlank { "—" }),
+            )
+        }
+        return true
+    }
+
     fun playNext(items: List<MediaItem>) {
-        
+        if (refuseQueueEditInRemoteMode()) return
         if (player.mediaItemCount == 0 || player.playbackState == STATE_IDLE) {
             // Con el reproductor vacío esto NO es un "poner a continuación": construye una cola nueva
             // entera, así que la cola anterior tiene que dejar de mandar. Sin esto, el servicio le
@@ -5622,7 +5643,7 @@ class MusicService :
     }
 
     fun addToQueue(items: List<MediaItem>) {
-        
+        if (refuseQueueEditInRemoteMode()) return
         if (dataStore.get(PreventDuplicateTracksInQueueKey, true)) {
             val itemIds = items.map { it.mediaId }.toSet()
             val indicesToRemove = mutableListOf<Int>()
@@ -5669,6 +5690,8 @@ class MusicService :
     fun extendQueueForContext(contextId: String, items: List<MediaItem>) {
         if (items.isEmpty()) return
         if (shuffleContextId != contextId || contextCoverageId != contextId) return
+        // A background fill must not grow (and prepare) the mirror of another device — silently.
+        if (refuseQueueEditInRemoteMode(notify = false)) return
         addToQueue(items)
         if (radioSeedPool.isNotEmpty()) {
             val existingIds = radioSeedPool.mapTo(HashSet()) { it.id }

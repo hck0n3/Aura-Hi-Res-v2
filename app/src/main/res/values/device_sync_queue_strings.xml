@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="device_sync_queue_edit_not_sent">The queue of %1$s can\'t be changed from here yet. Tap «Continue here» to queue songs on this device.</string>
+</resources>
