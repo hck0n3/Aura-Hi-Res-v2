@@ -265,6 +265,7 @@
     <string name="novedades_new_label">Nuevo</string>
     <string name="novedades_more_releases">Más estrenos</string>
     <string name="novedades_empty_hint">Aquí aparecerán los estrenos de tus artistas.</string>
+    <string name="novedades_caught_up">Estás al día</string>
     <string name="library_recently_added">Recién añadido</string>
     <string name="search_top_results">Resultados principales</string>
     <string name="action_presave">Presave</string>

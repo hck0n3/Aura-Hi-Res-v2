@@ -36,6 +36,7 @@ import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -141,8 +142,13 @@ fun AuraNovedadesScreen(
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
     val radar by viewModel.radarReleases.collectAsState()
+    val radarCaughtUp by viewModel.radarCaughtUp.collectAsState()
     val upcoming by viewModel.upcoming.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    // Row 675: a release seen and played during this visit stays on screen until Novedades is left.
+    DisposableEffect(Unit) { onDispose { viewModel.endRadarVisit() } }
+    // Row 675: a release is seen when ITS card is shown (cards compose only on or next to the screen).
+    val markShown: (String) -> Unit = viewModel::markReleaseShown
     val (homeRichLayout) = rememberPreference(HomeRichLayoutKey, true)
     val cardScale = if (homeRichLayout) 1f else 1f / 1.25f
 
@@ -374,10 +380,15 @@ fun AuraNovedadesScreen(
                 if (!isRefreshing && allShelvesEmpty) {
                     item(key = "aura_novedades_empty", contentType = "aura_novedades_empty") {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            AuraEmpty(
-                                text = stringResource(R.string.release_radar_empty),
-                                secondary = stringResource(R.string.novedades_empty_hint),
-                            )
+                            // Row 674: every release the radar had is seen and played (or too old) — not "never loaded".
+                            if (radarCaughtUp) {
+                                AuraEmpty(text = stringResource(R.string.novedades_caught_up))
+                            } else {
+                                AuraEmpty(
+                                    text = stringResource(R.string.release_radar_empty),
+                                    secondary = stringResource(R.string.novedades_empty_hint),
+                                )
+                            }
                             AuraChip(
                                 text = stringResource(R.string.retry),
                                 selected = false,
@@ -412,6 +423,7 @@ fun AuraNovedadesScreen(
                 val hero = shown.hero.firstOrNull()
                 if (hero != null) {
                     item(key = "aura_novedades_hero", contentType = "aura_novedades_hero") {
+                        LaunchedEffect(hero.id) { markShown(hero.id) }
                         NovedadesHero(
                             album = hero,
                             age = ages[hero.id],
@@ -444,6 +456,7 @@ fun AuraNovedadesScreen(
                                 isPlaying = isPlaying,
                                 onOpen = { openYt(it) },
                                 onMenu = { ytMenu(it) },
+                                onShown = markShown,
                             )
                         }
                         carousel
@@ -461,6 +474,7 @@ fun AuraNovedadesScreen(
                     seeLessLabel = seeLess,
                     carouselOverride = heroRestCarousel,
                 ) { index, width ->
+                    LaunchedEffect(heroRest[index].id) { markShown(heroRest[index].id) }
                     NovedadesYtCard(
                         item = heroRest[index],
                         width = width,
@@ -483,6 +497,7 @@ fun AuraNovedadesScreen(
                     seeLessLabel = seeLess,
                     twoRowsHeight = auraShelfCardStackHeight(auraTypeVisual(AuraContentKind.Album).shelfWidth * shelfScale),
                 ) { index, width ->
+                    LaunchedEffect(shown.radarAlbums[index].id) { markShown(shown.radarAlbums[index].id) }
                     NovedadesYtCard(
                         item = shown.radarAlbums[index],
                         width = width,
@@ -1115,6 +1130,7 @@ private fun NovedadesWideCarousel(
     isPlaying: Boolean,
     onOpen: (AlbumItem) -> Unit,
     onMenu: (AlbumItem) -> Unit,
+    onShown: (String) -> Unit,
 ) {
     val size = auraWideHeroCardSize(paneWidth, screenHeightDp)
     key(albums.size) {
@@ -1131,6 +1147,7 @@ private fun NovedadesWideCarousel(
         ) { index ->
             val album = albums.getOrNull(index)
             if (album != null) {
+                LaunchedEffect(album.id) { onShown(album.id) }
                 val age = ages[album.id]
                 val placeholder = remember(album.id) { AuraPalette.coverPlaceholder(album.id) }
                 Box(

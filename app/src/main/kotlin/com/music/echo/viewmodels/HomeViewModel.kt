@@ -1017,8 +1017,15 @@ class HomeViewModel @Inject constructor(
         // was redundant AND hid a valid drop whenever the last successful fetch landed outside the
         // current Friday window (once-per-install seed, or a Doze-deferred Friday worker) — the classic
         // "Release Radar always empty even though I follow artists" bug.
+        // Owner 2026-11-23 (row 674): the radar is cumulative; Home shows the same releases as Novedades (seen there
+        // and played = gone, older than 60 days = gone). Home does not mark anything seen: that is Novedades' card.
         val releases = runCatching {
-            database.releasesByDateDesc().first()
+            iad1tya.echo.music.releaseradar.ReleaseRadarRetention.visible(
+                rows = database.releasesByDateDesc().first(),
+                retiredIds = database.retiredReleaseIds().first().toSet(),
+                shownThisVisit = emptySet(),
+                today = LocalDate.now(),
+            )
         }.getOrDefault(emptyList())
         val albums = releases
             .sortedByDescending { it.releaseDate }

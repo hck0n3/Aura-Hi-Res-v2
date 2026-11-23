@@ -2361,6 +2361,36 @@ interface DatabaseDao {
     @Query("SELECT COUNT(*) FROM release_radar WHERE seen = 0")
     fun unseenReleaseCount(): Flow<Int>
 
+    /**
+     * Cumulative radar (owner 2026-11-23): a release leaves Novedades once it was SEEN there and at least one of its
+     * songs was PLAYED. A song belongs to the release when its album id (the song row, or the album page's
+     * song map) is the release's `playId` (the YouTube album browseId); a play is any `event` row — this device
+     * or one synced from another. Indexed lookups on a table of at most a few hundred rows.
+     */
+    @Query(
+        """
+        SELECT r.id FROM release_radar r
+        WHERE r.seen = 1 AND r.playId != ''
+          AND (
+            EXISTS (SELECT 1 FROM song s JOIN event e ON e.songId = s.id WHERE s.albumId = r.playId)
+            OR EXISTS (SELECT 1 FROM song_album_map m JOIN event e ON e.songId = m.songId WHERE m.albumId = r.playId)
+          )
+        """,
+    )
+    fun retiredReleaseIds(): Flow<List<String>>
+
+    /** Marks as seen only the releases whose card was really shown (see `ReleaseRadarFeed.markShown`). */
+    @Query("UPDATE release_radar SET seen = 1 WHERE seen = 0 AND playId IN (:playIds)")
+    suspend fun markReleasesSeen(playIds: List<String>)
+
+    /**
+     * Drops rows the radar can no longer fetch again, so a pruned release never comes back as new: exact-date
+     * rows older than the fetch window ([threshold]), year-only YouTube-fallback rows (pinned to 1 January) from
+     * before this year ([ytThreshold]). See `ReleaseRadarRetention`.
+     */
+    @Query("DELETE FROM release_radar WHERE (source = 'yt' AND releaseDate < :ytThreshold) OR (source != 'yt' AND releaseDate < :threshold)")
+    suspend fun pruneExpiredReleases(threshold: LocalDateTime, ytThreshold: LocalDateTime)
+
     @Upsert
     suspend fun upsertUpcomingReleases(items: List<UpcomingReleaseEntity>)
 
