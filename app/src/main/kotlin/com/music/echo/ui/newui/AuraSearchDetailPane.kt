@@ -112,7 +112,6 @@ import iad1tya.echo.music.utils.rememberLibraryPins
 import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -1098,22 +1097,22 @@ private fun PaneYtArtist(env: PaneEnv, pick: AuraSearchPick, item: ArtistItem, l
                 label = subscribeLabel,
             ) {
                 // Row 711: the same tap as the artist page (alias-aware toggleArtistFollow), one at a time, and only
-                // while Room still says what the tile showed.
+                // while Room still says what the tile showed (row 716: checked in the toggle's transaction, guard held
+                // until it is committed).
                 val shownFollowed = subscribed
                 if (followInFlight.compareAndSet(false, true)) {
                     env.context.applicationScope.launch(Dispatchers.IO) {
                         try {
-                            if (env.database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id)).first() == shownFollowed) {
-                                env.database.toggleArtistFollow(
-                                    artist.id,
-                                    ArtistEntity(
-                                        id = artist.id,
-                                        name = artist.title,
-                                        channelId = artist.channelId,
-                                        thumbnailUrl = artist.thumbnail,
-                                    ),
-                                )
-                            }
+                            env.database.toggleArtistFollow(
+                                artist.id,
+                                ArtistEntity(
+                                    id = artist.id,
+                                    name = artist.title,
+                                    channelId = artist.channelId,
+                                    thumbnailUrl = artist.thumbnail,
+                                ),
+                                shownFollowed = shownFollowed,
+                            )
                         } finally {
                             followInFlight.set(false)
                         }

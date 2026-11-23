@@ -146,20 +146,19 @@ class ArtistViewModel @Inject constructor(
     fun toggleSubscription() {
         val pageArtist = artistPage?.artist
         // Row 700: one tap at a time, and only against the state the button showed — a second tap that
-        // lands before the first one's write is dropped instead of toggling straight back.
+        // lands before the first one's write is dropped instead of toggling straight back. Row 716: the
+        // check runs inside the toggle's transaction, and the guard is held until that write is committed.
         val shownFollowed = isSubscribed.value
         if (!toggleInFlight.compareAndSet(false, true)) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                if (database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artistId)).first() != shownFollowed) {
-                    return@launch
-                }
                 // Shared with the artist menus (utils/ArtistFollowToggle.kt): one definition of the tap.
                 database.toggleArtistFollow(
                     artistId,
                     pageArtist?.let {
                         ArtistEntity(id = it.id, name = it.title, channelId = it.channelId, thumbnailUrl = it.thumbnail)
                     },
+                    shownFollowed = shownFollowed,
                 )
             } finally {
                 toggleInFlight.set(false)

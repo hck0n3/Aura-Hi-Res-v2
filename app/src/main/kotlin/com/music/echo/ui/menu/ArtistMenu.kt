@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -33,6 +34,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.LocalDatabase
+import iad1tya.echo.music.applicationScope
+import iad1tya.echo.music.utils.ArtistSyncPolicy
+import iad1tya.echo.music.utils.toggleArtistFollow
 import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
@@ -68,6 +72,10 @@ fun ArtistMenu(
     val artistState = database.artist(originalArtist.id).collectAsState(initial = originalArtist)
     val artist = artistState.value ?: originalArtist
     val isPinned by database.speedDialDao.isPinned(artist.id).collectAsState(initial = false)
+    // Row 716: same definition as the artist page (ArtistViewModel.isSubscribed): any spelling of the channel id counts.
+    val isSubscribed by database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id))
+        .collectAsState(initial = artist.artist.followedByUserAt != null)
+    val followInFlight = remember(artist.id) { java.util.concurrent.atomic.AtomicBoolean(false) }
     // Enhanced Shuffle context for this menu's Shuffle action — must match ArtistScreen /
     // ArtistSongsScreen ("AR:" + the LOCAL artist row id) so all three share one no-repeat memory.
     // Never "PL:": DatabaseDao's startup orphan prune deletes every "PL:%" context with no matching
@@ -220,17 +228,26 @@ fun ArtistMenu(
                 items = listOf(
                     Material3MenuItemData(
                         title = {
-                            Text(text = if (artist.artist.followedByUserAt != null) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
+                            Text(text = if (isSubscribed) stringResource(R.string.subscribed) else stringResource(R.string.subscribe))
                         },
                         icon = {
                             Icon(
-                                painter = painterResource(if (artist.artist.followedByUserAt != null) R.drawable.subscribed else R.drawable.subscribe),
+                                painter = painterResource(if (isSubscribed) R.drawable.subscribed else R.drawable.subscribe),
                                 contentDescription = null,
                             )
                         },
                         onClick = {
-                            database.transaction {
-                                update(artist.artist.toggleLike(database::confirmArtistUnsubscribed))
+                            // Row 716: the shared alias-aware tap (toggleArtistFollow), one at a time and only against the
+                            // state shown, on the application scope so it lands even if the menu closes.
+                            val shownFollowed = isSubscribed
+                            if (followInFlight.compareAndSet(false, true)) {
+                                context.applicationScope.launch(Dispatchers.IO) {
+                                    try {
+                                        database.toggleArtistFollow(artist.id, artist.artist, shownFollowed = shownFollowed)
+                                    } finally {
+                                        followInFlight.set(false)
+                                    }
+                                }
                             }
                         }
                     )

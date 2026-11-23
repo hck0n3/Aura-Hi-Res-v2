@@ -182,13 +182,30 @@ object ArtistSyncPolicy {
      *     already carries a real [ArtistEntity.unfollowedByUserAt], in which case the queued unfollow
      *     is preserved so an unsubscribe that never reached YouTube (offline, expired cookie) is still
      *     retried instead of being silently lost.
+     *  3. Row 716: [aliasPendingUnfollow] — another spelling of the channel ([aliasIds]) carries the user's
+     *     unfollow ([hasPendingUnfollow]) — stops it from following this spelling: that would resurrect
+     *     «Suscrito» over an unfollow that has not reached the account yet.
      */
-    fun afterRemoteSubscriptionSeen(artist: ArtistEntity, now: LocalDateTime): ArtistEntity =
+    fun afterRemoteSubscriptionSeen(
+        artist: ArtistEntity,
+        now: LocalDateTime,
+        aliasPendingUnfollow: Boolean = false,
+    ): ArtistEntity =
         if (artist.unfollowedByUserAt != null) {
+            artist.copy(ytmSyncedAt = now)
+        } else if (artist.followedByUserAt == null && aliasPendingUnfollow) {
             artist.copy(ytmSyncedAt = now)
         } else {
             artist.copy(followedByUserAt = artist.followedByUserAt ?: now, ytmSyncedAt = now)
         }
+
+    /** Row 716: the user unfollowed this row and has not followed it again (the marker the account calls honour). */
+    fun hasPendingUnfollow(artist: ArtistEntity): Boolean =
+        artist.unfollowedByUserAt != null && artist.followedByUserAt == null
+
+    /** Row 716: another spelling of [id]'s channel, among the stored [rows] (by id), carries the user's pending unfollow. */
+    fun aliasHasPendingUnfollow(id: String, rows: Map<String, ArtistEntity>): Boolean =
+        aliasIds(id).any { it != id && rows[it]?.let(::hasPendingUnfollow) == true }
 
     /**
      * What one row must look like once an unsubscribe has been confirmed (or is provably impossible,
@@ -349,6 +366,46 @@ object ArtistSyncPolicy {
     fun channelKey(id: String): String {
         val bare = id.removePrefix(LIBRARY_ARTIST_PREFIX)
         return if (bare.startsWith("UC")) bare else id
+    }
+
+    /**
+     * Row 716: the key under which a row's account calls are ordered (`ArtistEntity.toggleLike`). Every spelling of
+     * a channel (`UC…`, `MPLAUC…`) shares the bare `UC…` of its OWN id — never a divergent `channelId` — so all the
+     * alias rows of one channel wait in ONE queue. Only a row whose id is not a channel falls back to its channelId.
+     */
+    fun accountCallKey(id: String, channelId: String?): String {
+        val own = channelKey(id)
+        if (own.startsWith("UC")) return own
+        return channelKey(channelId?.takeIf { it.isNotBlank() } ?: id)
+    }
+
+    /** Which stored rows one follow tap toggles, and whether the row of the tapped id must be created. */
+    data class FollowTapPlan(val toggle: List<ArtistEntity>, val insertFallback: Boolean)
+
+    /**
+     * Row 716: one follow tap over the stored [rows] of every spelling of [artistId] ([aliasIds]). Followed under
+     * any spelling -> unfollow every row that carries the follow. Otherwise -> follow EVERY stored spelling, so no
+     * alias row keeps an old unfollow marker next to the new follow (the next upload pass would honour that marker
+     * and unsubscribe the account while Aura reads «Suscrito»), and create the tapped id's row when it is missing.
+     * Null when [shownFollowed] is given and the stored state is no longer the one the button showed: the tap is
+     * dropped instead of toggling the other way.
+     *
+     * The tapped id's row goes LAST: the account-call queue sends the newest intent of a channel, so the call goes
+     * out with that row's channel id (the page's), as it did when only that row was toggled.
+     */
+    fun followTapPlan(
+        rows: List<ArtistEntity>,
+        artistId: String,
+        shownFollowed: Boolean?,
+        hasFallback: Boolean,
+    ): FollowTapPlan? {
+        val followed = rows.filter { it.followedByUserAt != null }
+        if (shownFollowed != null && followed.isNotEmpty() != shownFollowed) return null
+        if (followed.isNotEmpty()) return FollowTapPlan(followed.sortedBy { it.id == artistId }, insertFallback = false)
+        return FollowTapPlan(
+            rows.sortedBy { it.id == artistId },
+            insertFallback = hasFallback && rows.none { it.id == artistId },
+        )
     }
 
     /**
