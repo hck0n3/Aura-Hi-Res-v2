@@ -77,6 +77,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextAlign
@@ -315,7 +316,8 @@ fun AuraGlobalActions(
                         onClickLabel = accountLabel,
                         role = Role.Button,
                         onClick = onAccountClick,
-                    ),
+                    )
+                    .auraButtonName(accountLabel),
                 contentAlignment = Alignment.Center,
             ) {
                 AsyncImage(
@@ -737,7 +739,11 @@ private fun RowScope.AuraNavItem(
                 role = Role.Tab,
                 onClick = onClick,
             )
-            .semantics { this.selected = selected }
+            .semantics {
+                this.selected = selected
+                // Icon-only cell (row 734): without its label drawn, name it, or TalkBack reads a bare «Pestaña».
+                if (!showLabel) contentDescription = label
+            }
             .padding(vertical = 8.dp),
     ) {
         AuraIconGlyph(
@@ -784,7 +790,8 @@ private fun AuraMiniOutputButton(interactive: Boolean) {
                 enabled = interactive,
                 onClickLabel = stringResource(R.string.cd_audio_output),
                 role = Role.Button,
-            ) { show = true },
+            ) { show = true }
+            .auraButtonName(stringResource(R.string.cd_audio_output)),
     ) {
         androidx.compose.material3.Icon(
             painter = androidx.compose.ui.res.painterResource(R.drawable.speaker_apple),

@@ -693,7 +693,7 @@ private fun AuraSettingsSearchField(
         if (query.isNotEmpty()) {
             AuraIconButton(
                 icon = AuraIcons.Plus,
-                contentDescription = "Borrar búsqueda",
+                contentDescription = stringResource(R.string.search_clear_query),
                 onClick = { onQueryChange("") },
                 size = 18.dp,
                 tint = AuraPalette.OnGroundMuted,
@@ -772,9 +772,10 @@ private fun AuraBackButton(
             .clip(AuraShapes.Pill)
             .clickable(
                 role = Role.Button,
-                onClickLabel = "Atrás",
+                onClickLabel = stringResource(R.string.cd_back),
                 onClick = onClick,
-            ),
+            )
+            .auraButtonName(stringResource(R.string.cd_back)),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

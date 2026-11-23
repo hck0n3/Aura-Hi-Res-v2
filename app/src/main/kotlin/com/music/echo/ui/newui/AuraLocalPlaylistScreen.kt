@@ -1557,7 +1557,8 @@ private fun AuraDrawableIconButton(
         modifier = modifier
             .sizeIn(minWidth = AuraSpacing.MinTouchTarget, minHeight = AuraSpacing.MinTouchTarget)
             .clip(CircleShape)
-            .auraClickableInternal(onClick = onClick, contentDescription = contentDescription),
+            .auraClickableInternal(onClick = onClick, contentDescription = contentDescription)
+            .auraButtonName(contentDescription),
     ) {
         Icon(
             painter = painterResource(painterId),

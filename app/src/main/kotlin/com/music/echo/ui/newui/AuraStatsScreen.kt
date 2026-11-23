@@ -440,7 +440,7 @@ private fun AuraStatsRangeSelector(
                     .tvFocusable(isTvOrCar, AuraShapes.Pill, scaleFocused = 1f)
                     .auraClickableInternal(
                         onClick = { expanded = true },
-                        contentDescription = "Cambiar el tipo de periodo",
+                        contentDescription = stringResource(R.string.cd_change_period_type),
                     )
                     .padding(horizontal = 14.dp, vertical = 9.dp),
             ) {
@@ -547,7 +547,8 @@ private fun AuraStatsShuffleButton(
                         .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
                 },
             )
-            .auraClickableInternal(onClick = onClick, contentDescription = contentDescription),
+            .auraClickableInternal(onClick = onClick, contentDescription = contentDescription)
+            .auraButtonName(contentDescription),
         contentAlignment = Alignment.Center,
     ) {
         AuraIconGlyph(

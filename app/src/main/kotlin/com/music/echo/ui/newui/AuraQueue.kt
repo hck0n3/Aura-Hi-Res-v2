@@ -1353,7 +1353,8 @@ private fun AuraBarButton(
             // Registry row 396: fires on lift even if the thumb rolled a few pixels (a plain clickable is cancelled by
             // the sheet's drag); off while the strip is invisible (`interactive`), like the clickable below.
             .then(if (enabled && interactive) Modifier.unstealableClick(onClick) else Modifier)
-            .clickable(enabled = enabled && interactive, onClickLabel = contentDescription, role = Role.Button, onClick = onClick),
+            .clickable(enabled = enabled && interactive, onClickLabel = contentDescription, role = Role.Button, onClick = onClick)
+            .auraButtonName(contentDescription),
     ) {
         content(if (enabled) tint else tint.copy(alpha = tint.alpha * 0.35f))
     }
@@ -1590,7 +1591,8 @@ private fun AuraPainterIconButton(
                 onClickLabel = contentDescription,
                 role = Role.Button,
                 onClick = onClick,
-            ),
+            )
+            .auraButtonName(contentDescription),
     ) {
         Icon(
             painter = painterResource(painterId),

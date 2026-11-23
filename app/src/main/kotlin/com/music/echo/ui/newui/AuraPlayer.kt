@@ -1263,9 +1263,9 @@ private fun AuraPlayerShape(
                     AuraIconButton(
                         icon = if (widePlayerMode.split) AuraIcons.FullView else AuraIcons.SplitView,
                         contentDescription = if (widePlayerMode.split) {
-                            "Ver el reproductor a pantalla completa"
+                            stringResource(R.string.cd_player_full_view)
                         } else {
-                            "Ver el reproductor en pantalla dividida"
+                            stringResource(R.string.cd_player_split_view)
                         },
                         onClick = widePlayerMode.onToggle,
                         size = 20.dp,
@@ -1280,7 +1280,7 @@ private fun AuraPlayerShape(
                 }
                 AuraIconButton(
                     icon = AuraIcons.ChevronDown,
-                    contentDescription = "Minimizar el reproductor",
+                    contentDescription = stringResource(R.string.cd_minimize_player),
                     onClick = { state.collapseSoft() },
                     size = 22.dp,
                     tint = AuraPalette.OnGround.copy(alpha = 0.6f),
@@ -1338,7 +1338,7 @@ private fun AuraPlayerShape(
                     // §2.1 — the lyrics header controls only exist while the lyrics are open.
                     AuraIconButton(
                         icon = AuraIcons.Lyrics,
-                        contentDescription = "Pantalla completa de la letra",
+                        contentDescription = stringResource(R.string.cd_lyrics_full_screen),
                         onClick = { isFullScreen = !isFullScreen },
                         firstTap = true,
                         size = 20.dp,
@@ -1352,7 +1352,7 @@ private fun AuraPlayerShape(
                     // button (QueueHost onMore below) both still open it.
                     AuraIconButton(
                         icon = AuraIcons.More,
-                        contentDescription = "Menú de la letra",
+                        contentDescription = stringResource(R.string.cd_lyrics_menu),
                         onClick = {
                             val meta = mediaMetadata ?: return@AuraIconButton
                             menuState.show {

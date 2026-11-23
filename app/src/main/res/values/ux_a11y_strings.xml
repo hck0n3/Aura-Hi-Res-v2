@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- UX audit P22C (registry row 734): names for the new UI's icon-only buttons, so TalkBack does not read a bare «Button». -->
+<resources>
+    <string name="cd_close_lyrics">Close lyrics</string>
+    <string name="cd_lyrics_menu">Lyrics menu</string>
+    <string name="cd_minimize_player">Minimize player</string>
+    <string name="cd_lyrics_full_screen">Full-screen lyrics</string>
+    <string name="cd_player_full_view">Show the player full screen</string>
+    <string name="cd_player_split_view">Show the player in split view</string>
+    <string name="cd_change_period_type">Change the period</string>
+    <string name="cd_view_as_grid">View as grid</string>
+    <string name="cd_view_as_list">View as list</string>
+</resources>

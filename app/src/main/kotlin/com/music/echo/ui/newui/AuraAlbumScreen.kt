@@ -1555,7 +1555,8 @@ internal fun AuraDetailCircleButton(
             .clip(CircleShape)
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, CircleShape)
-            .auraClickableInternal(onClick = onClick, contentDescription = contentDescription),
+            .auraClickableInternal(onClick = onClick, contentDescription = contentDescription)
+            .auraButtonName(contentDescription),
         contentAlignment = Alignment.Center,
     ) {
         AuraIconGlyph(

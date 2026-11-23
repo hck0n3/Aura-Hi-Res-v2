@@ -52,11 +52,13 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.onClick as semanticsOnClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import iad1tya.echo.music.R
 
 /**
  * Shared row / list / control primitives for the "Interfaz nueva".
@@ -202,12 +204,14 @@ fun AuraIconButton(
                         contentDescription = contentDescription,
                     )
                 } else {
-                    Modifier.auraClickable(
-                        onClick = onClick,
-                        enabled = enabled && interactive,
-                        role = Role.Button,
-                        contentDescription = contentDescription,
-                    )
+                    Modifier
+                        .auraClickable(
+                            onClick = onClick,
+                            enabled = enabled && interactive,
+                            role = Role.Button,
+                            contentDescription = contentDescription,
+                        )
+                        .auraButtonName(contentDescription)
                 },
             ),
         contentAlignment = Alignment.Center,
@@ -237,7 +241,7 @@ fun AuraPlayButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     diameter: Dp = 70.dp,
-    contentDescription: String = if (isPlaying) "Pausar" else "Reproducir",
+    contentDescription: String = stringResource(if (isPlaying) R.string.pause else R.string.play),
     fill: Brush = AuraPalette.PlayButtonGradient,
     ink: Color = AuraPalette.OnAccent,
     /** See [AuraIconButton.firstTap]. */
@@ -252,7 +256,9 @@ fun AuraPlayButton(
                 if (firstTap) {
                     Modifier.auraFirstTap(action = onClick, enabled = true, contentDescription = contentDescription)
                 } else {
-                    Modifier.auraClickable(onClick = onClick, role = Role.Button, contentDescription = contentDescription)
+                    Modifier
+                        .auraClickable(onClick = onClick, role = Role.Button, contentDescription = contentDescription)
+                        .auraButtonName(contentDescription)
                 },
             ),
         contentAlignment = Alignment.Center,

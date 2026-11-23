@@ -17,9 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import iad1tya.echo.music.R
 
 /**
  * # Chrome for the redesigned screens that are NOT a bottom-bar tab
@@ -100,9 +102,10 @@ fun AuraDetailBackButton(
             .clip(AuraShapes.Pill)
             .clickable(
                 role = Role.Button,
-                onClickLabel = "Atrás",
+                onClickLabel = stringResource(R.string.cd_back),
                 onClick = onClick,
-            ),
+            )
+            .auraButtonName(stringResource(R.string.cd_back)),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

@@ -212,7 +212,7 @@ private fun <T : Enum<T>> AuraSortControl(
                     .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
                     .auraClickableInternal(
                         onClick = { expanded = true },
-                        contentDescription = "Cambiar el criterio de orden",
+                        contentDescription = stringResource(R.string.cd_change_sort_order),
                     )
                     .padding(horizontal = 14.dp, vertical = 9.dp),
             ) {
@@ -255,7 +255,7 @@ private fun <T : Enum<T>> AuraSortControl(
                 icon = AuraIcons.ChevronDown,
                 // The classic header hardcodes "Toggle sort order" in English; the new UI owns this string
                 // and the app's user-facing language is Spanish.
-                contentDescription = "Invertir el orden",
+                contentDescription = stringResource(R.string.cd_reverse_sort_order),
                 onClick = { onSortDescendingChange(!sortDescending) },
                 size = 16.dp,
                 tint = AuraPalette.OnGroundMuted,
@@ -342,7 +342,7 @@ private fun AuraSearchField(
             AuraIconButton(
                 // A "+" turned 45° is the render's own close glyph — no separate icon needed.
                 icon = AuraIcons.Plus,
-                contentDescription = "Borrar la búsqueda",
+                contentDescription = stringResource(R.string.search_clear_query),
                 onClick = { onValueChange("") },
                 size = 16.dp,
                 tint = AuraPalette.OnGroundMuted,
@@ -1201,7 +1201,8 @@ fun AuraLibrarySongsTab(
                     .auraClickableInternal(
                         onClick = onShuffleClick,
                         contentDescription = stringResource(R.string.shuffle),
-                    ),
+                    )
+                    .auraButtonName(stringResource(R.string.shuffle)),
                 contentAlignment = Alignment.Center,
             ) {
                 // Ink follows the ground: dark OnAccent on the teal gradient plate.

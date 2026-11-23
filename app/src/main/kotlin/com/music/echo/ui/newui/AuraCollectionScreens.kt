@@ -979,7 +979,8 @@ internal fun AuraHeaderCircleButton(
                 onClick = onClick,
                 enabled = enabled,
                 contentDescription = contentDescription,
-            ),
+            )
+            .auraButtonName(contentDescription),
         contentAlignment = Alignment.Center,
     ) {
         AuraIconGlyph(

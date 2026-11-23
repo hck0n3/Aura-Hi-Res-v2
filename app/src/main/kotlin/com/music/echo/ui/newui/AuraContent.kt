@@ -1191,7 +1191,7 @@ fun AuraSongRow(
                     if (playedCheck) {
                         AuraIconGlyph(
                             icon = AuraIcons.Check,
-                            contentDescription = "Ya reproducida",
+                            contentDescription = stringResource(R.string.cd_shuffle_already_played),
                             size = 16.dp,
                             tint = AuraPalette.Teal,
                         )
@@ -1504,7 +1504,7 @@ fun AuraAlbumTrackRow(
                 if (playedCheck) {
                     AuraIconGlyph(
                         icon = AuraIcons.Check,
-                        contentDescription = "Ya reproducida",
+                        contentDescription = stringResource(R.string.cd_shuffle_already_played),
                         size = 16.dp,
                         tint = AuraPalette.Teal,
                     )
