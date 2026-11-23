@@ -55,6 +55,20 @@ class LibrarySyncGuardTest {
         assertTrue("y se crea una nueva para la sala nueva", swap.contains("LibrarySyncAndroid.create(") && swap.contains("groupId)"))
     }
 
+    /**
+     * Row 754: every table the library sync reads must wake it. Saving an album only writes the `album` table (no libraryChanged
+     * ping), so without it a save made offline was never stamped and one made online waited for an unrelated change.
+     */
+    @Test
+    fun `the database watcher covers every table the library sync reads, saved albums included`() {
+        val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAndroid.kt")
+        assertTrue(a.contains("InvalidationTracker.Observer(\"song\", \"playlist\", \"playlist_song_map\", \"speed_dial_item\", \"album\")"))
+        val adapter = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAdapter.kt")
+        assertTrue("the adapter reads the saved albums", adapter.contains("database.syncSavedAlbumRows()"))
+        val dao = read("app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt")
+        assertTrue("from the album table", dao.substringBefore("suspend fun syncSavedAlbumRows()").substringAfterLast("@Query(").contains(" FROM album "))
+    }
+
     @Test
     fun `a restored backup forgets every room's ledger and starts the next pull fresh`() {
         val v = read("app/src/main/kotlin/com/music/echo/viewmodels/BackupRestoreViewModel.kt")
