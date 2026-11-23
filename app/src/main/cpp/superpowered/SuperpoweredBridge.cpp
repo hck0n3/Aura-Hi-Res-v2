@@ -1319,8 +1319,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
             }
         }
 
-        // Limiter (peak safety) — runs for EQ OR Safe Volume. Stereo only (Superpowered Limiter is stereo);
-        // mono relies on the soft-clip knee below, which runs for every channel count.
+        // Limiter (peak safety) — runs whenever the chain runs. Stereo directly, mono as dual-mono, more than
+        // two channels not at all (see below); the soft-clip knee after it runs for every channel count.
         // SPEAKER SUB-BASS PROTECTION (user toggle; Kotlin arms it only while the phone speaker plays).
         if (processor->activeSpeakerBassProtect && processor->speakerBassShelf) {
             if (channels == 1) processor->speakerBassShelf->processMono(workBuffer, workBuffer, num_frames);
@@ -1335,21 +1335,30 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
 
         if (processor->limiter && processor->limiter->enabled && channels == 2) {
             processor->limiter->process(workBuffer, workBuffer, num_frames);
-        } else if (processor->limiter && processor->limiter->enabled && channels == 1 &&
-                   requiredSize * 2 <= MAX_BUFFER_SIZE) {
+        } else if (processor->limiter && processor->limiter->enabled && channels == 1) {
             // MONO LIMITING (2026-09-13): the SDK limiter is stereo-only, so mono tracks used to reach the
             // output with nothing but the tanh knee below. Run the mono signal as a dual-mono pair through
             // the same limiter (deEsserBuffer is free scratch at this point) and take one channel back.
+            // Row 790: in slices of MAX_BUFFER_SIZE / 2 frames, so a mono block longer than the scratch's
+            // 16384 dual-mono frames is limited too instead of skipping the limiter. Slices run in order
+            // through the same instance, like consecutive blocks.
             float* scratch = processor->deEsserBuffer;
-            for (int i = 0; i < num_frames; ++i) {
-                scratch[i * 2] = workBuffer[i];
-                scratch[i * 2 + 1] = workBuffer[i];
-            }
-            processor->limiter->process(scratch, scratch, num_frames);
-            for (int i = 0; i < num_frames; ++i) {
-                workBuffer[i] = scratch[i * 2];
+            const int maxSliceFrames = MAX_BUFFER_SIZE / 2;
+            for (int off = 0; off < num_frames; off += maxSliceFrames) {
+                const int n = (num_frames - off < maxSliceFrames) ? (num_frames - off) : maxSliceFrames;
+                for (int i = 0; i < n; ++i) {
+                    scratch[i * 2] = workBuffer[off + i];
+                    scratch[i * 2 + 1] = workBuffer[off + i];
+                }
+                processor->limiter->process(scratch, scratch, (unsigned int) n);
+                for (int i = 0; i < n; ++i) {
+                    workBuffer[off + i] = scratch[i * 2];
+                }
             }
         }
+        // MORE THAN TWO CHANNELS (e.g. a 5.1 file) skip the limiter: one stereo instance cannot carry a
+        // multichannel envelope. They end on the soft clip below alone, which stays under full scale (no
+        // hard clip) but saturates loud peaks instead of limiting them.
 
         // Soft-clip final safety net (rarely fires now that the limiter threshold is -3 dB).
         for (int i = 0; i < num_frames * channels; ++i) {

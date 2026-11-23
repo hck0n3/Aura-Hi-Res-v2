@@ -32,4 +32,13 @@ class PreampNetGainGuardTest {
     fun `no hidden trim is left on the front gain`() {
         assertFalse("hidden -2 dB trim is back", cpp.contains("0.7943f"))
     }
+
+    @Test
+    fun `a long mono block is limited in slices instead of skipping the limiter`() {
+        assertFalse(cpp.contains("requiredSize * 2 <= MAX_BUFFER_SIZE"))
+        val mono = cpp.substringAfter("} else if (processor->limiter && processor->limiter->enabled && channels == 1) {")
+            .substringBefore("// Soft-clip final safety net")
+        assertTrue(mono.contains("const int maxSliceFrames = MAX_BUFFER_SIZE / 2;"))
+        assertTrue(mono.contains("processor->limiter->process(scratch, scratch, (unsigned int) n);"))
+    }
 }
