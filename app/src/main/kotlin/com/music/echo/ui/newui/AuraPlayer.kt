@@ -1333,6 +1333,8 @@ private fun AuraPlayerShape(
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                         )
                     }
+                    // Row 734: a running sleep timer shows here with its countdown; a tap turns it off or extends it.
+                    AuraSleepTimerChip(visible = state.isExpanded)
                 }
                 if (showInlineLyrics) {
                     // §2.1 — the lyrics header controls only exist while the lyrics are open.

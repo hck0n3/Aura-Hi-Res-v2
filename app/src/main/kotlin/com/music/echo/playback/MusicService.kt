@@ -1668,18 +1668,56 @@ class MusicService :
     private var sleepAfterSongId: String? = null
 
     fun startSleepTimer(minutes: Int) {
-        cancelSleepTimer()
+        if (minutes <= 0) {
+            cancelSleepTimer()
+            return
+        }
+        armSleepTimer(android.os.SystemClock.elapsedRealtime() + minutes * 60_000L)
+    }
+
+    /** «+N min» on a running minutes timer (row 734); with none running it starts one of [minutes]. */
+    fun extendSleepTimer(minutes: Int) {
+        val current = _sleepTimerEndsAt.value ?: return startSleepTimer(minutes)
         if (minutes <= 0) return
-        val deadline = android.os.SystemClock.elapsedRealtime() + minutes * 60_000L
+        armSleepTimer(current + minutes * 60_000L)
+    }
+
+    private fun armSleepTimer(deadline: Long) {
+        cancelSleepTimer()
         _sleepTimerEndsAt.value = deadline
         if (!scope.isActive) scope = CoroutineScope(Dispatchers.Main) + Job()
         sleepTimerJob = scope.launch {
+            // Row 734: sleep until the fade must start, not until the deadline — the last 10 s fade the volume out.
             while (true) {
-                val left = deadline - android.os.SystemClock.elapsedRealtime()
-                if (left <= 0L) break
-                delay(left)
+                val wait = SleepTimerMath.waitBeforeFadeMs(deadline - android.os.SystemClock.elapsedRealtime())
+                if (wait <= 0L) break
+                delay(wait)
+            }
+            fadeOutAndFireSleepTimer(deadline)
+        }
+    }
+
+    /**
+     * Row 734 (UX audit P22C: «corta la música de golpe»): ramps the volume to 0 until [deadline], then pauses. Only
+     * while something is audible; a paused player just fires. The `finally` gives the user's volume back (mute-aware)
+     * whether the timer fired or was turned off / extended mid-fade, so the next play is never left silent.
+     */
+    private suspend fun fadeOutAndFireSleepTimer(deadline: Long) {
+        val startVolume = player.volume
+        try {
+            if (player.isPlaying && startVolume > 0f) {
+                for (step in 1..SleepTimerMath.STEPS) {
+                    val left = deadline - android.os.SystemClock.elapsedRealtime()
+                    if (left <= 0L) break
+                    player.volume = startVolume * SleepTimerMath.stepGain(step)
+                    delay(SleepTimerMath.stepDelayMs(left, step))
+                }
             }
             fireSleepTimer()
+        } finally {
+            if (playerVolumeInitialized) {
+                runCatching { player.volume = if (isMuted.value) 0f else playerVolume.value }
+            }
         }
     }
 

@@ -18,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.playback.SleepTimerMath
 import kotlinx.coroutines.delay
 
 private val SLEEP_TIMER_MINUTES = listOf(5, 10, 15, 30, 45, 60, 90, 120)
@@ -73,6 +74,16 @@ fun SleepTimerDialog(onDismiss: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            if (endsAt != null) {
+                // Row 734: extend the running timer instead of starting over.
+                AssistChip(
+                    onClick = {
+                        service.extendSleepTimer(SleepTimerMath.EXTEND_MINUTES)
+                        onDismiss()
+                    },
+                    label = { Text(stringResource(R.string.sleep_timer_extend, SleepTimerMath.EXTEND_MINUTES)) },
+                )
+            }
             SLEEP_TIMER_MINUTES.forEach { minutes ->
                 AssistChip(
                     onClick = {

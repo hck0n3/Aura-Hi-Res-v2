@@ -381,6 +381,12 @@ fun AuraPlayerMenu(
         // Streaming quality cycling (Opus / Saavn / Qobuz) removed — Opus is the only stream path.
         item { Spacer(Modifier.height(6.dp)) }
 
+        // Row 734 (UX audit P22C): the sleep timer in one tap. The «Reproducción» row below still opens the full dialog.
+        item {
+            AuraSleepTimerPresets(onPicked = onDismiss, modifier = Modifier.padding(horizontal = AuraSpacing.Gutter))
+        }
+        item { Spacer(Modifier.height(12.dp)) }
+
         // ── Fijas (siempre visibles): UNA losa de cristal, como el menú ⋯ de una canción ────────────
         item {
             AuraGlassSlab(modifier = Modifier.padding(horizontal = AuraSpacing.Gutter)) {
