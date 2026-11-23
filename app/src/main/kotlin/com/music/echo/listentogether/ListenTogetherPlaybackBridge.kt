@@ -171,6 +171,28 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
     private val applyingRemote: Boolean get() = remoteDepth.get() > 0
 
+    /**
+     * Row 744 (P2-6): how many of the room's own player calls are running RIGHT NOW on the main thread. Main thread only.
+     *
+     * [remoteDepth] spans a whole apply, suspension points included, so a pause the user made on the main thread between two of
+     * its hops was taken for the room's own and not remembered as [pausedLocally] — the next apply undid it. The player listener
+     * judges by this counter instead: it runs on the main thread, and media3 calls it back synchronously from inside the call
+     * that caused it (the same contract MusicService.applyingShuffleOrder relies on), so a callback seen while this is above
+     * zero is the room's doing and anything else is the user's.
+     */
+    private var applyingOnMain = 0
+
+    /** Runs the room's player calls on the main thread, counted in [applyingOnMain]. */
+    private suspend fun <T> remoteOnMain(block: suspend () -> T): T =
+        withContext(Dispatchers.Main.immediate) {
+            applyingOnMain++
+            try {
+                block()
+            } finally {
+                applyingOnMain--
+            }
+        }
+
     @Volatile
     private var pausedLocally = false
 
@@ -284,13 +306,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         ) {
             playIntent.value = playWhenReady
             val state = session.state.value
-            if (!applyingRemote) pausedLocally = !playWhenReady && state.inRoom && !state.isHost
+            val roomsOwnCall = applyingOnMain > 0
+            if (!roomsOwnCall) pausedLocally = !playWhenReady && state.inRoom && !state.isHost
             if (!playWhenReady) return
             // Guest-side resume: the local player started playing while we are a guest and the apply
             // loop did NOT cause it — ask the server where the room is. This is what Metrolist's and
             // SimpMusic's managers do (`requestSync` on guest play), and what makes "guests may
             // pause, and stay paused" possible at all.
-            if (!state.inRoom || state.isHost || applyingRemote) return
+            if (!state.inRoom || state.isHost || roomsOwnCall) return
             Timber.tag(TAG).i("Guest resumed — asking the server where the room is")
             session.requestSync()
             if (state.isPlaying || state.currentTrack == null) return
@@ -300,9 +323,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 if (player !== listeningTo || !player.playWhenReady) return@post
                 if (!now.inRoom || now.isHost || now.isPlaying || now.currentTrack == null) return@post
                 remoteDepth.incrementAndGet()
+                applyingOnMain++
                 try {
                     player.pause()
                 } finally {
+                    applyingOnMain--
                     remoteDepth.decrementAndGet()
                 }
             }
@@ -439,7 +464,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         // Row 616: when the room moved to a track this device ALREADY has loaded further down its own list (the host
                         // pressed next, or the song ended), jump to it in place: ExoPlayer has been pre-buffering it, so it starts at
                         // once instead of being torn down and resolved again (1-3 s later than the host, then a visible catch-up jump).
-                        val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally) }
+                        val reused = !sameTrack && remoteOnMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally) }
                         if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing && !pausedLocally)
                     }
                     applyTransport(service, playing && !pausedLocally, position, track, anchorServerTime)
@@ -619,23 +644,23 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         position: Long,
         roomTrack: TrackInfo?,
         anchorServerTime: Long,
-    ): Boolean = withContext(Dispatchers.Main.immediate) {
+    ): Boolean = remoteOnMain {
         // True only when this call jumped the playhead (SyncAction.Resync): see [realignGuestWhenAudioIsReady].
         var seeked = false
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
-        val player = runCatching { service.player }.getOrNull() ?: return@withContext false
+        val player = runCatching { service.player }.getOrNull() ?: return@remoteOnMain false
         val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
         val corrected = capToTrack(session.positionAt(position, isPlaying, anchorServerTime), roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
             val previous = player.previousMediaItemIndex
             val cameFromRoomTrack = previous != androidx.media3.common.C.INDEX_UNSET && player.getMediaItemAt(previous).mediaId == roomTrack.id
-            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@withContext false
+            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@remoteOnMain false
             val attempt = roomTrack.id to anchorServerTime
-            if (mismatchReload == attempt) return@withContext false
+            if (mismatchReload == attempt) return@remoteOnMain false
             mismatchReload = attempt
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
-            return@withContext false
+            return@remoteOnMain false
         }
         if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) mismatchReload = null
         // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
@@ -727,9 +752,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
         // Dispatchers.Main is mandatory, not tidiness: Media3 throws if the player is touched off
         // the main thread, and this collector runs on the bridge scope (Default).
-        withContext(Dispatchers.Main.immediate) {
+        remoteOnMain {
             val items = ordered.map { it.toRoomMediaItem() }
-            val player = runCatching { service.player }.getOrNull() ?: return@withContext
+            val player = runCatching { service.player }.getOrNull() ?: return@remoteOnMain
             // La cola de la sala la manda el ANFITRIÓN, así que el servicio tiene que saber que la suya
             // ya no es la que estaba puesta antes. Si no, a cinco canciones del final paginaba la cola
             // anterior del invitado DENTRO de la sala — canciones que el anfitrión nunca puso. Es el mismo

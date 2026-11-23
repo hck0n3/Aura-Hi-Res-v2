@@ -50,6 +50,16 @@ class ListenTogetherReliabilityGuardTest {
     }
 
     @Test
+    fun aGuestPauseIsJudgedByTheRoomsCallsOnTheMainThreadOnly() {
+        assertTrue(bridge.contains("val roomsOwnCall = applyingOnMain > 0"))
+        assertTrue(bridge.contains("if (!roomsOwnCall) pausedLocally = !playWhenReady && state.inRoom && !state.isHost"))
+        assertTrue("every room call that moves the player is counted", bridge.contains("): Boolean = remoteOnMain {"))
+        assertTrue(bridge.contains("remoteOnMain { advanceInPlace("))
+        val posted = bridge.substringAfter("android.os.Handler(android.os.Looper.getMainLooper()).post {").substringBefore("override fun onIsPlayingChanged")
+        assertTrue("the room's own pause of a guest is counted too", posted.contains("applyingOnMain++"))
+    }
+
+    @Test
     fun theHostPublishesItsQueueInPlaybackOrder() {
         assertTrue(bridge.contains("next = { i -> timeline.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },"))
         assertTrue(bridge.contains("previous = { i -> timeline.getPreviousWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },"))
