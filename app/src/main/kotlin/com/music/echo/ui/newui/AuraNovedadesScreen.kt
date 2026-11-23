@@ -779,7 +779,7 @@ private fun NovedadesYtCard(
 
 /** Owner 2026-11-22: every release card says, in words, whether it is a single, an EP or an album. */
 @Composable
-private fun novedadesTypeLabel(kind: AuraContentKind): String? = when (kind) {
+internal fun novedadesTypeLabel(kind: AuraContentKind): String? = when (kind) {
     AuraContentKind.Single -> stringResource(R.string.novedades_type_single)
     AuraContentKind.Ep -> stringResource(R.string.novedades_type_ep)
     AuraContentKind.Album -> stringResource(R.string.novedades_type_album)

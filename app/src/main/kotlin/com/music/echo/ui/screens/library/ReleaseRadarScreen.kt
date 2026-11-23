@@ -43,6 +43,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
 import com.music.innertube.YouTube
+import com.music.innertube.models.AlbumItem
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.ui.utils.tvFocusRestorer
@@ -50,6 +51,9 @@ import iad1tya.echo.music.R
 import iad1tya.echo.music.playback.queues.YouTubeAlbumRadio
 import iad1tya.echo.music.releaseradar.ReleaseRadarWorker
 import iad1tya.echo.music.ui.component.EmptyPlaceholder
+import iad1tya.echo.music.ui.newui.NovedadesShelves
+import iad1tya.echo.music.ui.newui.auraContentKind
+import iad1tya.echo.music.ui.newui.novedadesTypeLabel
 import iad1tya.echo.music.utils.reportException
 import iad1tya.echo.music.viewmodels.ReleaseRadarViewModel
 import kotlinx.coroutines.Dispatchers
@@ -168,8 +172,22 @@ fun ReleaseRadarScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        // Rows 653/710: the same Sencillo/EP/Álbum the Novedades cards print for this row
+                        // (the stored radar type as the AlbumItem description, then auraContentKind).
+                        val typeLabel = novedadesTypeLabel(
+                            auraContentKind(
+                                AlbumItem(
+                                    browseId = item.playId,
+                                    playlistId = "",
+                                    title = item.title,
+                                    artists = null,
+                                    thumbnail = "",
+                                    description = NovedadesShelves.typeHint(item.type),
+                                ),
+                            ),
+                        )
                         Text(
-                            text = "${item.artist} · ${item.releaseDate.year}",
+                            text = listOfNotNull(typeLabel, item.artist, item.releaseDate.year.toString()).joinToString(" · "),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
