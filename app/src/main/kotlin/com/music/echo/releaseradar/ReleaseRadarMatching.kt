@@ -1,6 +1,7 @@
 package iad1tya.echo.music.releaseradar
 
 import java.time.LocalDate
+import java.util.Locale
 import kotlin.math.abs
 
 data class ReleaseCandidate(
@@ -102,11 +103,28 @@ object ReleaseRadarMatching {
      * page's type, decided like the Novedades card (`typeHint` + `auraContentKind`: a «Single» title or the stored
      * single wins, then EP): [storedType] is the album's `release_radar.type` (null when it is not in the radar)
      * and [trackCount] its song count (0 = unknown). One track is a single.
+     * Row 726: [youTubeType] ([youTubeHeaderType] of the album page) only fills the gap where the radar has no type.
      */
-    fun albumPageType(storedType: String?, trackCount: Int, title: String): String = when {
-        trackCount == 1 || storedType == TYPE_SINGLE || SINGLE_IN_TITLE.containsMatchIn(title) -> TYPE_SINGLE
-        storedType == TYPE_EP || EP_IN_TITLE.containsMatchIn(title) -> TYPE_EP
-        else -> TYPE_ALBUM
+    fun albumPageType(storedType: String?, trackCount: Int, title: String, youTubeType: String? = null): String {
+        val fromYouTube = youTubeType?.takeIf { storedType == null || storedType == TYPE_UNKNOWN }
+        return when {
+            trackCount == 1 || storedType == TYPE_SINGLE || SINGLE_IN_TITLE.containsMatchIn(title) -> TYPE_SINGLE
+            storedType == TYPE_EP || EP_IN_TITLE.containsMatchIn(title) -> TYPE_EP
+            fromYouTube == TYPE_SINGLE -> TYPE_SINGLE
+            fromYouTube == TYPE_EP -> TYPE_EP
+            else -> TYPE_ALBUM
+        }
+    }
+
+    /**
+     * Row 726: the type YouTube writes first in its album page header (`AlbumPage.typeText`), worded in the `hl`
+     * the client sends. Only the known English/Spanish single and EP words count; anything else (an album, another
+     * language) is null and the page keeps today's logic.
+     */
+    fun youTubeHeaderType(typeText: String?): String? = when (typeText?.trim()?.lowercase(Locale.ROOT)) {
+        "single", "sencillo" -> TYPE_SINGLE
+        "ep" -> TYPE_EP
+        else -> null
     }
 
     fun isWithinWindow(date: LocalDate, ref: LocalDate, days: Long): Boolean {

@@ -12,6 +12,7 @@ import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.YTItem
 import com.music.innertube.pages.AlbumPage
 import iad1tya.echo.music.db.MusicDatabase
+import iad1tya.echo.music.releaseradar.ReleaseRadarMatching
 import iad1tya.echo.music.utils.reportException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +48,8 @@ constructor(
         database
             .releaseRadarTypeForAlbum(albumId)
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    /** Row 726: the type YouTube's own album header gives (`ReleaseRadarMatching.youTubeHeaderType`), null if unknown. */
+    val youTubeType = MutableStateFlow<String?>(null)
     var otherVersions = MutableStateFlow<List<AlbumItem>>(emptyList())
     var releasesForYou = MutableStateFlow<List<AlbumItem>>(emptyList())
     var moreFromArtist = MutableStateFlow<List<AlbumItem>>(emptyList())
@@ -118,6 +121,7 @@ constructor(
             // Paint instantly from this session's cache while the network refresh below still runs.
             albumPageCache[albumId]?.let { cached ->
                 playlistId.value = cached.album.playlistId
+                youTubeType.value = ReleaseRadarMatching.youTubeHeaderType(cached.typeText)
                 otherVersions.value = cached.otherVersions
                 releasesForYou.value = cached.releasesForYou
                 if (description.value == null) description.value = cached.description
@@ -154,6 +158,7 @@ constructor(
                     loaded = true
                     succeeded = true
                     playlistId.value = it.album.playlistId
+                    youTubeType.value = ReleaseRadarMatching.youTubeHeaderType(it.typeText)
                     otherVersions.value = it.otherVersions
                     releasesForYou.value = it.releasesForYou
                     if (it.description != null) {
@@ -280,6 +285,7 @@ constructor(
             if (isActive) {
                 _hasFailed.value = !succeeded
             }
+            youTubeType.value?.let { database.fillRadarReleaseType(albumId, it) }
             // One track is a single: the radar row (typed by Spotify or, YouTube-only, by its title) learns it.
             if (database.album(albumId).first()?.album?.songCount == 1) database.markRadarReleaseSingle(albumId)
         }

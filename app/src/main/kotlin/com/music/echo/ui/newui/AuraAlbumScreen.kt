@@ -200,6 +200,7 @@ fun AuraAlbumScreen(
     val hasFailed by viewModel.hasFailed.collectAsState()
     val notFound by viewModel.notFound.collectAsState()
     val radarType by viewModel.radarType.collectAsState()
+    val youTubeType by viewModel.youTubeType.collectAsState()
 
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
     // Ahorro de datos, exactly as the classic screen reads it: video songs hidden and the album canvas
@@ -328,6 +329,7 @@ fun AuraAlbumScreen(
                         startAligned = startAligned,
                         album = album,
                         radarType = radarType,
+                        youTubeType = youTubeType,
                         filteredSongs = filteredSongs,
                         playlistId = playlistId,
                         isPlaying = isPlaying,
@@ -908,6 +910,7 @@ internal fun AuraAlbumHero(
 private fun AuraAlbumHeader(
     album: iad1tya.echo.music.db.entities.AlbumWithSongs,
     radarType: String?,
+    youTubeType: String?,
     filteredSongs: List<iad1tya.echo.music.db.entities.Song>,
     playlistId: String,
     isPlaying: Boolean,
@@ -1019,7 +1022,7 @@ private fun AuraAlbumHeader(
         // "ÁLBUM · 2019 · 12 CANCIONES · 48:31" — the classic meta line, as the redesign's technical
         // type. The track word is the app's own plural (the classic literal was English "Tracks").
         val totalSeconds = remember(album) { album.songs.sumOf { it.song.duration } }
-        val releaseType = albumReleaseType(album, radarType)
+        val releaseType = albumReleaseType(album, radarType, youTubeType)
         val metaLine = listOfNotNull(
             stringResource(albumTypeLabelRes(releaseType)),
             album.album.year?.toString(),
@@ -1194,9 +1197,13 @@ private fun AuraAlbumHeader(
 }
 
 /** Row 710: the album page's type (Sencillo/EP/Álbum), shared with the classic AlbumScreen. */
-internal fun albumReleaseType(album: iad1tya.echo.music.db.entities.AlbumWithSongs, radarType: String?): String =
+internal fun albumReleaseType(
+    album: iad1tya.echo.music.db.entities.AlbumWithSongs,
+    radarType: String?,
+    youTubeType: String? = null,
+): String =
     iad1tya.echo.music.releaseradar.ReleaseRadarMatching
-        .albumPageType(radarType, album.album.songCount, album.album.title)
+        .albumPageType(radarType, album.album.songCount, album.album.title, youTubeType)
 
 internal fun albumTypeLabelRes(releaseType: String): Int = when (releaseType) {
     iad1tya.echo.music.releaseradar.ReleaseRadarMatching.TYPE_SINGLE -> R.string.novedades_type_single
