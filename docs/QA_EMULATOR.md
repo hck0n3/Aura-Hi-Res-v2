@@ -103,6 +103,21 @@ En la ejecución, el resumen (*Summary*) trae la tabla de escenarios. El artefac
   90 s; la causa (¿YouTube rechazando la IP del runner?) **no se pudo leer**: el artefacto estaba en un host de
   descarga no permitido para el agente. `[NO VERIFICADO]`. Desde ahora el fallo trae el **código** de error del
   reproductor (`error=ERROR_CODE_…`, nunca su mensaje, que puede llevar la URL con `sig`/`pot`) en el propio log del job.
+- **Tercera ejecución (run 45243030897, commit `44fe25b`, 2026-11-23): 1-4 en verde.** Cero cierres/ANR. El 5a falló
+  buscando el «+» de Biblioteca por `By.desc`: el `AuraFab` solo da su nombre a la acción de clic
+  (`clickable(onClickLabel)`), no a `contentDescription`. Ahora `UpdateSurvivalTest.libraryPlusButton()` lo busca por su
+  nombre o, si la build no lo expone, por su forma (commit `2463794`). El 6, WARN permitido con
+  `ERROR_CODE_IO_UNSPECIFIED`.
+- **Cuarta ejecución (run 45249314558, commit `2463794`, anterior `v2.0.69-beta2`, 2026-11-23): 1-4, 5a y 5c en verde;
+  los datos sobreviven a la actualización.** Cero cierres/ANR en las cuatro fases. El 5c leyó la base de datos después
+  del `adb install -r`: la lista sigue (`matching_playlists` 1) y `user_version` 45 es el `@Database` nuevo. El **5b falló
+  por la prueba, no por la app**: el filtro de Biblioteca se guarda (`ChipSortTypeKey`) y tocar el chip que ya está activo
+  vuelve al hub, que solo enseña las listas **fijadas** (`AuraLibraryScreen.kt`). El 5a deja el filtro en Listas (crear
+  la lista abre la lista y el «atrás» vuelve a Biblioteca sin cambiarlo), así que el toque sin mirar del 5b lo apagaba.
+  Ahora el 5b busca la lista primero y solo toca el chip mientras no aparece (como mucho dos veces); la condición para
+  aprobar no cambia: el nombre de la lista en pantalla. El 6 repite el WARN permitido
+  (`state=1 playing=false positionMs=0 error=ERROR_CODE_IO_UNSPECIFIED` tras 90 s): si es la IP del runner o la app sigue
+  `[NO VERIFICADO]`, porque el logcat está en el artefacto y su host de descarga no está permitido para el agente.
 - **`[NO VERIFICADO]` hasta la primera ejecución en GitHub.** El agente que lo escribió no tiene KVM ni puede llegar a
   YouTube, y por norma no corre Gradle en el contenedor compartido. Lo comprobado aquí: las pruebas Java compilan
   contra `android.jar` 36 y las librerías exactas que declara `smoketest/build.gradle.kts`; las herramientas del
