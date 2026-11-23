@@ -1372,3 +1372,6 @@ val ShareUseSongLinkKey = booleanPreferencesKey("share_use_song_link")
 
 // One-shot first-run prompt asking to make Aura the default app for YouTube Music / music links.
 val OpenLinksPromptShownKey = booleanPreferencesKey("open_links_default_prompt_shown")
+
+// One-shot (registry 765): Listen Together durations stored in milliseconds were repaired (RoomDurationRepair).
+val RoomDurationRepairDoneKey = booleanPreferencesKey("room_duration_repair_done")

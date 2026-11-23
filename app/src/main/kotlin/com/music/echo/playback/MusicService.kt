@@ -3176,6 +3176,8 @@ class MusicService :
             everPlayedIds()
             everPlayedKeys()
         }
+        // Registry 765: one-time repair of Listen Together durations stored in milliseconds (flag-gated, off main).
+        scope.launch(Dispatchers.IO) { runCatching { iad1tya.echo.music.listentogether.RoomDurationRepair.runOnce(this@MusicService, database) } }
         // Registry 764: not persistentQueueHint — its collector has not emitted yet here, and a default of true would
         // restore a queue the user turned off. The snapshot is exact (blocking read only before its first emission).
         if (dataStore.getNonBlocking(PersistentQueueKey, true)) {

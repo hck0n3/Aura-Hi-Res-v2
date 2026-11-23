@@ -2749,6 +2749,10 @@ interface DatabaseDao {
 
     @Query("DELETE FROM playlist_song_map WHERE playlistId = :playlistId AND songId = :songId")
     suspend fun syncRemoveMember(playlistId: String, songId: String)
+
+    /** Registry 765: Listen Together durations stored in milliseconds. See `RoomDurationRepair`. */
+    @Query("UPDATE song SET duration = duration / 1000 WHERE duration >= :minSeconds AND isLocal = 0 AND isUploaded = 0")
+    suspend fun repairMillisecondDurations(minSeconds: Int): Int
 }
 
 /** One playlist as the library sync reads it. */
