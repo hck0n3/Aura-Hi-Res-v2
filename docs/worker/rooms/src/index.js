@@ -10,6 +10,8 @@ const MAX_USERS = 12;
 const MAX_QUEUE = 200;
 const MAX_FRAME = 64 * 1024;
 const BUFFER_TIMEOUT_MS = 10_000;
+/** How old a host's capturedAtServerTime may be and still anchor the room (W1); older, or in the future, is clamped. */
+const CAPTURE_MAX_AGE_MS = 5_000;
 const HOST_GRACE_MS = 60_000;
 const EMPTY_ROOM_MS = 5 * 60_000;
 
@@ -34,7 +36,7 @@ export function fromWire(type, p) {
     case "approve_join": return { t: type, userId: p.userId };
     case "reject_join": case "kick_user": return { t: type, userId: p.userId, reason: p.reason };
     case "transfer_host": return { t: type, userId: p.newHostId };
-    case "playback_action": return { t: type, action: p.action, trackId: p.trackId, positionMs: p.position, track: p.trackInfo, queue: p.queue, insertNext: !!p.insertNext, volume: p.volume };
+    case "playback_action": return { t: type, action: p.action, trackId: p.trackId, positionMs: p.position, track: p.trackInfo, queue: p.queue, insertNext: !!p.insertNext, volume: p.volume, capturedAt: p.capturedAtServerTime };
     case "buffer_ready": return { t: type, trackId: p.trackId };
     case "ping": return { t: type, clientTime: p.clientTime, sequence: p.sequence };
     case "suggest_track": return { t: type, track: p.trackInfo };
@@ -74,6 +76,16 @@ export function toWire(m) {
     case "suggestion_rejected": return { type: m.t, payload: { suggestionId: m.suggestionId, reason: m.reason || "" } };
     default: return { type: m.t, payload: m };
   }
+}
+
+/**
+ * W1: the server time the room's position is anchored to — when the host CAPTURED the command (its capturedAtServerTime, on this
+ * server's clock through the app's ServerClock), not when it arrived here; anchoring at arrival left every guest behind by the host's
+ * upload latency. Clamped to the last CAPTURE_MAX_AGE_MS and never later than now; 0 or absent (uncalibrated clock) = now.
+ */
+export function anchorTime(capturedAt, now) {
+  const c = Number(capturedAt) || 0;
+  return c > 0 ? Math.min(now, Math.max(now - CAPTURE_MAX_AGE_MS, c)) : now;
 }
 
 export function cleanTrack(t) {
@@ -289,16 +301,18 @@ export class Room {
     const r = this.room;
     const now = Date.now();
     const action = String(m.action || "");
+    // A position the host gave is anchored where it captured it (W1); one the room computes itself is anchored now.
+    const at = m.positionMs != null ? anchorTime(m.capturedAt, now) : now;
     r.revision = (r.revision || 0) + 1;
     const out = { t: "sync_playback", action, serverTime: now, revision: r.revision };
     switch (action) {
-      case "play": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = true; r.anchorAt = now; break;
-      case "pause": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = false; r.anchorAt = now; break;
-      case "seek": r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = now; break;
+      case "play": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = true; r.anchorAt = at; break;
+      case "pause": r.positionMs = m.positionMs != null ? Math.max(0, Number(m.positionMs) || 0) : this.position(now); r.playing = false; r.anchorAt = at; break;
+      case "seek": r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = anchorTime(m.capturedAt, now); break;
       case "change_track": {
         const tr = cleanTrack(m.track);
         if (!tr) return send(ws, { t: "error", code: "bad_track" });
-        r.track = tr; r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = now; r.playing = true;
+        r.track = tr; r.positionMs = Math.max(0, Number(m.positionMs) || 0); r.anchorAt = anchorTime(m.capturedAt, now); r.playing = true;
         // The queue travels on the SAME message as the track (the app relies on it): keep it and echo it.
         if (Array.isArray(m.queue) && m.queue.length) r.queue = m.queue.map(cleanTrack).filter(Boolean).slice(0, MAX_QUEUE);
         out.track = tr; out.queue = r.queue;

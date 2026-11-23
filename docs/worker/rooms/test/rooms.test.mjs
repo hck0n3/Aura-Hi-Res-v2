@@ -144,6 +144,30 @@ test("position keeps moving while playing and a late joiner gets the right spot"
   assert.equal(paused.isPlaying, false);
 });
 
+test("W1: the room anchors the host's position where the host captured it, clamped to the last 5 s", async () => {
+  const { anchorTime } = await import("../src/index.js");
+  assert.equal(anchorTime(9_700, 10_000), 9_700, "a capture 300 ms ago anchors 300 ms ago");
+  assert.equal(anchorTime(1_000, 10_000), 5_000, "older than 5 s is clamped to 5 s");
+  assert.equal(anchorTime(12_000, 10_000), 10_000, "a capture in the future is now");
+  assert.equal(anchorTime(0, 10_000), 10_000, "an uncalibrated host (0) is now");
+  assert.equal(anchorTime(undefined, 10_000), 10_000, "an app that sends nothing is now");
+
+  const { h, created } = await host();
+  const { g } = await guest(created.roomCode, "Beto", h);
+  h.send("playback_action", { action: "play", trackId: "", position: 10000, capturedAtServerTime: Date.now() - 300 });
+  const play = await g.next((m) => m.type === "sync_playback" && m.action === "play");
+  assert.ok(play.position >= 10300 && play.position < 11500, "the guest no longer lags by the upload latency: " + play.position);
+  assert.equal(play.capturedAtServerTime, play.serverTime, "the position goes out anchored to the moment it is sent");
+  h.send("playback_action", { action: "play", trackId: "", position: 10000, capturedAtServerTime: Date.now() - 60_000 });
+  const old = await g.next((m) => m.type === "sync_playback" && m.action === "play");
+  assert.ok(old.position >= 15000 && old.position < 16500, "a stale capture moves it 5 s at most: " + old.position);
+  h.send("playback_action", { action: "play", trackId: "", position: 10000, capturedAtServerTime: Date.now() + 60_000 });
+  const future = await g.next((m) => m.type === "sync_playback" && m.action === "play");
+  assert.ok(future.position >= 10000 && future.position < 11000, "a capture from the future never pushes it ahead: " + future.position);
+  h.send("playback_action", { action: "pause", trackId: "", position: 20000, capturedAtServerTime: Date.now() - 300 });
+  assert.equal((await g.next((m) => m.type === "sync_playback" && m.action === "pause")).position, 20000, "a paused room does not move");
+});
+
 test("suggestions go through the host; approved ones join the queue", async () => {
   const { h, created } = await host();
   const { g, ok } = await guest(created.roomCode, "Beto", h);

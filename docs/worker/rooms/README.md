@@ -18,6 +18,7 @@ Cada mensaje es un texto JSON `{"type": …, "payload": {…}}`. Los campos del 
 - Reconectar: mismo `…/rooms/join?code=…` y `reconnect {sessionToken}` → `reconnected {roomCode, userId, state, isHost}`. El `sessionToken` es `userId.secreto`.
 - Reloj: `ping {clientTime, sequence}` → `pong {clientTime, serverReceiveTime, serverSendTime, sequence}`; toda orden de reproducción (`sync_playback`) lleva `serverTime`, `capturedAtServerTime` y `position`.
 - Tras `buffer_wait {trackId, waitingFor}` y `buffer_complete {trackId}` el servidor manda a todos un `sync_playback` `play` con la posición actual para arrancar juntos.
+- La posición que manda el anfitrión se ancla en su `capturedAtServerTime` (como mucho 5 s atrás, nunca en el futuro), no en la hora de llegada (W1).
 - Los errores llevan `code` y un `message` en español para mostrar tal cual.
 
 ## Reglas
