@@ -156,7 +156,7 @@ class LibrarySync(
             delay(wait)
             mutex.withLock {
                 lastDiffAt = System.currentTimeMillis()
-                runCatching { if (connected) pushDiffLocked() else stampOfflineLocked() }
+                runCatching { if (connected && pulledOnce) pushDiffLocked() else stampOfflineLocked() }
                     .onFailure { Timber.tag(TAG).w("LIB_SYNC diff failed: %s", it.javaClass.simpleName) }
             }
         }
