@@ -256,4 +256,14 @@ class LibrarySyncCoreTest {
         assertFalse(known.guessed(row))
         assertTrue(LibrarySyncCore.PlaylistTargets(listOf(row), known, known).forRemoval("PLgym").isEmpty())
     }
+
+    @Test
+    fun `when two rows share a key only one of them says the list, the one whose id is the key`() {
+        val state = ids(reg("pl:LPgymgymgy", 10, "{\"n\":\"Gym\"}"), reg("pb:LPgymgymgy", 11, "PLgym"))
+        val download = LibrarySyncCore.PlaylistRow("LPdownload", "PLgym")
+        val own = LibrarySyncCore.PlaylistRow("LPgymgymgy", null)
+        val other = LibrarySyncCore.PlaylistRow("LPotherxyz", null)
+        assertEquals(mapOf("LPgymgymgy" to "LPgymgymgy", "LPotherxyz" to "LPotherxyz"), state.sources(listOf(download, own, other)))
+        assertEquals("alone, the YouTube copy says it", mapOf("LPdownload" to "LPgymgymgy"), state.sources(listOf(download)))
+    }
 }

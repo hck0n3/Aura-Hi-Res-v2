@@ -299,6 +299,21 @@ object LibrarySyncCore {
         /** None of [row]'s names is live here and it is not held: [keyOf] is only the old guess (an emptied ledger after a restore). */
         fun guessed(row: PlaylistRow): Boolean = canonical(names(row)) == null && lists[row.id]?.let(::isHeld) != true
 
+        /**
+         * Row 741: the one row whose name and songs travel for each key (row id → key) when several rows here share a key (this
+         * device's own YouTube copy of a list another device linked): the row whose id is the key, else the first. A union of their
+         * songs kept a song the user removed from one of them alive in the other, so the removal never travelled.
+         */
+        fun sources(rows: List<PlaylistRow>): Map<String, String> {
+            val rowOfKey = LinkedHashMap<String, String>()
+            for (row in rows) {
+                val key = keyOf(row)
+                val chosen = rowOfKey[key]
+                if (chosen == null || (chosen != key && row.id == key)) rowOfKey[key] = row.id
+            }
+            return rowOfKey.entries.associate { it.value to it.key }
+        }
+
         /** The list [key] named lives on under another of its names: a removal under [key] is a change of name, not a deletion. */
         fun renamed(key: String): Boolean = canonical(group(key)).let { it != null && it != key }
 

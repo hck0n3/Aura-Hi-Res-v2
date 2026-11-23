@@ -41,14 +41,18 @@ class LibrarySyncAdapter(
         // Row 740: a list keeps the key it first travelled under; being linked to YouTube adds a `pb:` fact instead of a new key.
         val keyOfRow = HashMap<String, String>()
         val keyOf = HashMap<String, String>()
-        for (row in database.syncPlaylistRows()) {
+        val playlistRows = database.syncPlaylistRows()
+        // Row 741: when two rows here share a key, only one of them says the list's name and songs.
+        val sources = playlists.sources(playlistRows.map { LibrarySyncCore.PlaylistRow(it.id, it.browseId) })
+        for (row in playlistRows) {
             val ref = LibrarySyncCore.PlaylistRow(row.id, row.browseId)
             val key = playlists.keyOf(ref)
             keyOfRow[row.id] = key
             if (!LibrarySyncCore.syncableId(key)) continue
+            playlists.linkFact(ref)?.let { (k, v) -> facts[k] = v }
+            if (sources[row.id] != key) continue
             keyOf[row.id] = key
             facts[LibrarySyncCore.playlistKey(key)] = LibrarySyncCore.encodePlaylistName(row.name)
-            playlists.linkFact(ref)?.let { (k, v) -> facts[k] = v }
         }
         for (row in database.syncMemberRows()) {
             val key = keyOf[row.playlistId] ?: continue

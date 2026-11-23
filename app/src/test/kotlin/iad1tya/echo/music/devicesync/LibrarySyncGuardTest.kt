@@ -99,6 +99,7 @@ class LibrarySyncGuardTest {
         val adapter = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAdapter.kt")
         assertTrue(adapter.contains("val key = playlists.keyOf(ref)"))
         assertTrue(adapter.contains("playlists.linkFact(ref)?.let { (k, v) -> facts[k] = v }"))
+        assertTrue("row 741: one row per key says the list's name and songs", adapter.contains("if (sources[row.id] != key) continue"))
         assertTrue(adapter.contains("it.readLocal(keyOfRow)"))
         assertTrue(adapter.contains("val targets = LibrarySyncCore.PlaylistTargets("))
         assertTrue(adapter.contains("database.syncLinkPlaylist(row, browseId)"))
