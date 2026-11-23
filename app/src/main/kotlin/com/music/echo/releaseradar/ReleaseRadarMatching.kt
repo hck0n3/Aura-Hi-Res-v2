@@ -41,6 +41,24 @@ object ReleaseRadarMatching {
                 )!!
             }
 
+    /**
+     * [onePerArtist] + [rankForRadar] applied BEFORE the YouTube lookups (review of row 674, battery rule 7): only the
+     * newest release of each artist inside the pass's cap can end up in the pass's list, so only those are worth a
+     * search. (If that newest one has no YouTube match, the artist adds nothing this pass instead of an older one.)
+     */
+    fun <T> newestPerArtistRanked(
+        items: List<T>,
+        artist: (T) -> String,
+        date: (T) -> LocalDate,
+        followed: (T) -> Boolean,
+        cap: Int,
+    ): List<T> =
+        items.groupBy { norm(artist(it)) }
+            .values
+            .map { group -> group.maxWithOrNull(compareBy<T> { date(it) }.thenBy { followed(it) })!! }
+            .sortedWith(compareByDescending<T> { followed(it) }.thenByDescending { date(it) })
+            .take(cap)
+
     /** Order followed-artist releases first, then by release date descending, and cap the list. */
     fun rankForRadar(items: List<ReleaseCandidate>, cap: Int): List<ReleaseCandidate> =
         items.sortedWith(

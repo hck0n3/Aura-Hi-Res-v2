@@ -2373,6 +2373,10 @@ interface DatabaseDao {
     @Query("DELETE FROM release_radar")
     suspend fun clearReleases()
 
+    /** YouTube-fallback rows a Spotify row replaced (`ReleaseRadarRetention.upgradeYtRows`). */
+    @Query("DELETE FROM release_radar WHERE id IN (:ids)")
+    suspend fun deleteReleasesByIds(ids: List<String>)
+
     @Query("SELECT COUNT(*) FROM release_radar WHERE seen = 0")
     fun unseenReleaseCount(): Flow<Int>
 

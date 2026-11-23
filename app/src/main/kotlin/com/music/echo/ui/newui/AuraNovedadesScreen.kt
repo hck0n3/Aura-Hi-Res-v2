@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -147,7 +148,7 @@ fun AuraNovedadesScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     // Row 675: a release seen and played during this visit stays on screen until Novedades is left.
     DisposableEffect(Unit) { onDispose { viewModel.endRadarVisit() } }
-    // Row 675: a release is seen when ITS card is shown (cards compose only on or next to the screen).
+    // Row 675: a release is seen when ITS card is on screen (SeenWhenVisible), not when a lazy list precomposes it.
     val markShown: (String) -> Unit = viewModel::markReleaseShown
     val (homeRichLayout) = rememberPreference(HomeRichLayoutKey, true)
     val cardScale = if (homeRichLayout) 1f else 1f / 1.25f
@@ -423,23 +424,24 @@ fun AuraNovedadesScreen(
                 val hero = shown.hero.firstOrNull()
                 if (hero != null) {
                     item(key = "aura_novedades_hero", contentType = "aura_novedades_hero") {
-                        LaunchedEffect(hero.id) { markShown(hero.id) }
-                        NovedadesHero(
-                            album = hero,
-                            age = ages[hero.id],
-                            wide = wide,
-                            paneWidth = paneWidth,
-                            isActive = hero.id == activeAlbumId,
-                            isPlaying = isPlaying,
-                            onPlay = {
-                                if (hero.id == activeAlbumId) playerConnection.togglePlayPause() else playAlbum(hero)
-                            },
-                            onOpen = { openYt(hero) },
-                            onArtist = hero.artists?.firstOrNull()?.id?.let { id ->
-                                { navController.navigate("artist/$id") }
-                            },
-                            onMenu = { ytMenu(hero) },
-                        )
+                        SeenWhenVisible(hero.id, markShown) {
+                            NovedadesHero(
+                                album = hero,
+                                age = ages[hero.id],
+                                wide = wide,
+                                paneWidth = paneWidth,
+                                isActive = hero.id == activeAlbumId,
+                                isPlaying = isPlaying,
+                                onPlay = {
+                                    if (hero.id == activeAlbumId) playerConnection.togglePlayPause() else playAlbum(hero)
+                                },
+                                onOpen = { openYt(hero) },
+                                onArtist = hero.artists?.firstOrNull()?.id?.let { id ->
+                                    { navController.navigate("artist/$id") }
+                                },
+                                onMenu = { ytMenu(hero) },
+                            )
+                        }
                     }
                 }
 
@@ -474,17 +476,18 @@ fun AuraNovedadesScreen(
                     seeLessLabel = seeLess,
                     carouselOverride = heroRestCarousel,
                 ) { index, width ->
-                    LaunchedEffect(heroRest[index].id) { markShown(heroRest[index].id) }
-                    NovedadesYtCard(
-                        item = heroRest[index],
-                        width = width,
-                        cardScale = shelfScale,
-                        age = ages[heroRest[index].id],
-                        isActive = heroRest[index].id == activeAlbumId,
-                        isPlaying = isPlaying,
-                        onOpen = openYt,
-                        onMenu = ytMenu,
-                    )
+                    SeenWhenVisible(heroRest[index].id, markShown) {
+                        NovedadesYtCard(
+                            item = heroRest[index],
+                            width = width,
+                            cardScale = shelfScale,
+                            age = ages[heroRest[index].id],
+                            isActive = heroRest[index].id == activeAlbumId,
+                            isPlaying = isPlaying,
+                            onOpen = openYt,
+                            onMenu = ytMenu,
+                        )
+                    }
                 }
 
                 novedadesShelf(
@@ -497,17 +500,18 @@ fun AuraNovedadesScreen(
                     seeLessLabel = seeLess,
                     twoRowsHeight = auraShelfCardStackHeight(auraTypeVisual(AuraContentKind.Album).shelfWidth * shelfScale),
                 ) { index, width ->
-                    LaunchedEffect(shown.radarAlbums[index].id) { markShown(shown.radarAlbums[index].id) }
-                    NovedadesYtCard(
-                        item = shown.radarAlbums[index],
-                        width = width,
-                        cardScale = shelfScale,
-                        age = ages[shown.radarAlbums[index].id],
-                        isActive = shown.radarAlbums[index].id == activeAlbumId,
-                        isPlaying = isPlaying,
-                        onOpen = openYt,
-                        onMenu = ytMenu,
-                    )
+                    SeenWhenVisible(shown.radarAlbums[index].id, markShown) {
+                        NovedadesYtCard(
+                            item = shown.radarAlbums[index],
+                            width = width,
+                            cardScale = shelfScale,
+                            age = ages[shown.radarAlbums[index].id],
+                            isActive = shown.radarAlbums[index].id == activeAlbumId,
+                            isPlaying = isPlaying,
+                            onOpen = openYt,
+                            onMenu = ytMenu,
+                        )
+                    }
                 }
                 // 🔴 "Playlists actualizadas" FUERA (punto 9 del dueño, 2026-09-17: *"eliminar la
                 // categoría de 'playlists actualizadas' para evitar contenido repetido. Mantener
@@ -724,6 +728,20 @@ private fun NovedadesShelfHeader(
 }
 
 // ── Cards ─────────────────────────────────────────────────────────────────────────────────────────
+
+/** Half of a card on screen counts as seen: a hero taller than a phone held sideways is never fully visible. */
+private const val SEEN_MIN_FRACTION_VISIBLE = 0.5f
+
+/**
+ * Row 675 (review): a release is seen when its card is really ON screen. A lazy list also composes the next card
+ * ahead of time (prefetch), so composition alone over-counted. The callback runs on layout changes, not per frame.
+ */
+@Composable
+private fun SeenWhenVisible(id: String, onShown: (String) -> Unit, content: @Composable () -> Unit) {
+    Box(Modifier.onVisibilityChanged(minFractionVisible = SEEN_MIN_FRACTION_VISIBLE) { if (it) onShown(id) }) {
+        content()
+    }
+}
 
 /** A YouTube item as a shelf / grid card, with the age pill and the «E» where the data has them. */
 @Composable
@@ -1147,12 +1165,12 @@ private fun NovedadesWideCarousel(
         ) { index ->
             val album = albums.getOrNull(index)
             if (album != null) {
-                LaunchedEffect(album.id) { onShown(album.id) }
                 val age = ages[album.id]
                 val placeholder = remember(album.id) { AuraPalette.coverPlaceholder(album.id) }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .onVisibilityChanged(minFractionVisible = SEEN_MIN_FRACTION_VISIBLE) { if (it) onShown(album.id) }
                         .maskClip(AuraShapes.Card)
                         .maskBorder(BorderStroke(1.dp, AuraPalette.SurfaceLine), AuraShapes.Card)
                         .background(placeholder)

@@ -61,7 +61,10 @@ import java.util.concurrent.TimeUnit
  * so a known row keeps its `seen` flag and first `fetchedAt`). A release leaves Novedades once it was seen AND played
  * ([ReleaseRadarRetention], `DatabaseDao.retiredReleaseIds`) or when it is older than the window; rows that can no
  * longer be fetched are pruned (`DatabaseDao.pruneExpiredReleases`). The very first cumulative run replaces the old
- * weekly table once (rows from before rows 366/653). Releases already stored are not searched on YouTube again.
+ * weekly table once (rows from before rows 366/653). Releases already stored are not searched on YouTube again; of
+ * the rest only the newest per artist inside the pass's cap is searched, and one older than
+ * [ReleaseRadarRetention.LOOKUP_RETRY_DAYS] only once. A Spotify row replaces the YouTube-fallback row of the same
+ * release, and a transient token failure does not run the fallback over a table that has Spotify rows.
  *
  * Sources (when a Spotify session exists): artists the user FOLLOWS (Spotify follows ∪ app-bookmarked artists,
  * priority) plus artists they LISTEN to (Spotify top artists ∪ local most-played). Exact dates come from
@@ -107,6 +110,12 @@ class ReleaseRadarWorker(
                 val gathered = gatherSpotify(database, today, windowStart, known)
                 items = gathered.items
                 emptyIsTrusted = gathered.feedOk
+            } else if (spotifySessionStored() && known.values.any { it.source != ReleaseRadarRetention.SOURCE_YT }) {
+                // Review of row 674: a Spotify session exists but its token could not be refreshed (transient). The
+                // YouTube fallback would now store a whole year of releases dated 1 January with guessed types next
+                // to the good Spotify rows, and keep them for 60 days. Nothing is written this pass.
+                items = emptyList()
+                emptyIsTrusted = false
             } else {
                 // FALLBACK: Spotify not connected → YouTube-only (release YEAR, no exact dates).
                 items = gatherYouTubeFallback(database, today)
@@ -114,24 +123,37 @@ class ReleaseRadarWorker(
             }
 
             val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-            if (!prefs.getBoolean(CUMULATIVE_MIGRATED_KEY, false)) {
-                // Once, on the first cumulative run: the table still holds the last weekly wipe (rows typed
-                // «Release» before row 653, possibly listened-only artists before row 366). Replace it like the
-                // weekly model did, behind the same guard; from then on rows are only added and pruned.
-                if (items.isNotEmpty() || emptyIsTrusted) {
-                    database.clearReleases()
-                    if (items.isNotEmpty()) database.insertNewReleasesIgnore(items)
-                    prefs.edit().putBoolean(CUMULATIVE_MIGRATED_KEY, true).apply()
+            val upgrade = ReleaseRadarRetention.upgradeYtRows(known.values, items)
+            var migratedNow = false
+            // One transaction: a screen reading the table never sees it empty between the clear and the insert
+            // (that would flash «Estás al día»), nor a fallback row deleted before its Spotify replacement lands.
+            database.withTransaction {
+                if (!prefs.getBoolean(CUMULATIVE_MIGRATED_KEY, false)) {
+                    // Once, on the first cumulative run: the table still holds the last weekly wipe (rows typed
+                    // «Release» before row 653, possibly listened-only artists before row 366). Replace it like the
+                    // weekly model did, behind the same guard; from then on rows are only added and pruned.
+                    if (items.isNotEmpty() || emptyIsTrusted) {
+                        clearReleases()
+                        if (items.isNotEmpty()) insertNewReleasesIgnore(items)
+                        migratedNow = true
+                    }
+                } else {
+                    // A Spotify row replaces the fallback row of the same release (exact date + real type, row 653).
+                    if (upgrade.deleteIds.isNotEmpty()) deleteReleasesByIds(upgrade.deleteIds)
+                    if (upgrade.upserts.isNotEmpty()) upsertReleases(upgrade.upserts)
+                    val toInsert = ReleaseRadarRetention.withoutDuplicateAlbums(known.values, items)
+                    if (toInsert.isNotEmpty()) insertNewReleasesIgnore(toInsert)
                 }
-            } else if (items.isNotEmpty()) {
-                database.insertNewReleasesIgnore(items)
             }
+            if (migratedNow) prefs.edit().putBoolean(CUMULATIVE_MIGRATED_KEY, true).apply()
             database.pruneExpiredReleases(
                 threshold = ReleaseRadarRetention.pruneThreshold(today).atStartOfDay(),
                 ytThreshold = ReleaseRadarRetention.ytPruneThreshold(today).atStartOfDay(),
             )
             if (items.isNotEmpty()) prefs.edit().putBoolean(HAD_RELEASES_KEY, true).apply()
-            val newCount = items.count { it.id !in existingIds }
+            // An album the table already held (a fallback row a Spotify row just replaced) is not news.
+            val heldAlbums = known.values.mapNotNull { it.playId.takeIf(String::isNotBlank) }.toSet()
+            val newCount = items.count { it.id !in existingIds && it.playId !in heldAlbums }
             if (newCount > 0) postNotification(newCount)
 
             // Record a successful completion so the on-entry opportunistic refresh (refreshIfStale) can
@@ -219,11 +241,24 @@ class ReleaseRadarWorker(
         // 4. Resolve each Spotify release → a playable YouTube Music album browseId (bounded concurrency).
         //    A release the table already holds reuses its stored browseId: with the 60-day window (row 674) the
         //    same releases come back on every run, and only the new ones cost a YouTube search.
-        val allHits = (discoReleases + feedReleases).distinctBy { it.album.id }
+        //    Review of row 674 (battery, rule 7): only the hits that can reach this pass's list are searched (newest
+        //    per artist, ranked, capped), and one older than LOOKUP_RETRY_DAYS is searched once, not every pass.
+        val allHits = ReleaseRadarMatching.newestPerArtistRanked(
+            (discoReleases + feedReleases).distinctBy { it.album.id },
+            artist = { it.artistName },
+            date = { it.date },
+            followed = { it.followed },
+            cap = MAX_ITEMS,
+        )
+        val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val lookups = java.util.concurrent.ConcurrentHashMap(
+            ReleaseRadarRetention.readLookups(prefs.getStringSet(LOOKED_UP_KEY, null).orEmpty(), today),
+        )
         val candidates = coroutineScope {
             allHits.map { hit ->
                 async {
-                    val stored = known[ReleaseRadarMatching.dedupeKey(hit.artistName, hit.album.name)]
+                    val key = ReleaseRadarMatching.dedupeKey(hit.artistName, hit.album.name)
+                    val stored = known[key]
                     if (stored != null && stored.playId.isNotBlank()) {
                         return@async ReleaseCandidate(
                             title = hit.album.name,
@@ -237,9 +272,12 @@ class ReleaseRadarWorker(
                             type = ReleaseRadarMatching.releaseType(hit.album.albumType, hit.album.totalTracks, hit.album.name),
                         )
                     }
+                    if (!ReleaseRadarRetention.needsLookup(hit.date, today, key in lookups)) return@async null
                     semaphore.withPermit {
-                        val ytMatch = runCatching { matchSpotifyToYoutubeAlbum(hit.album.name, hit.artistName) }
-                            .getOrNull()
+                        // Recorded only when YouTube answered: a failed request is retried next pass.
+                        val ytMatch = runCatching {
+                            matchSpotifyToYoutubeAlbum(hit.album.name, hit.artistName) { lookups[key] = today.toEpochDay() }
+                        }.getOrNull()
                         ytMatch?.let {
                             ReleaseCandidate(
                                 title = hit.album.name,
@@ -256,6 +294,7 @@ class ReleaseRadarWorker(
                 }
             }.awaitAll().filterNotNull()
         }
+        prefs.edit().putStringSet(LOOKED_UP_KEY, ReleaseRadarRetention.writeLookups(lookups)).apply()
 
         val ranked = ReleaseRadarMatching.rankForRadar(
             ReleaseRadarMatching.onePerArtist(ReleaseRadarMatching.dedupe(candidates)),
@@ -311,10 +350,15 @@ class ReleaseRadarWorker(
      * When nothing passes both checks it returns null and the caller DROPS the release (see [gatherSpotify]:
      * `ytMatch?.let { … }` + `filterNotNull()`), so a wrong/similar release is never stored in `playId`.
      */
-    private suspend fun matchSpotifyToYoutubeAlbum(albumName: String, artistName: String): AlbumItem? {
+    private suspend fun matchSpotifyToYoutubeAlbum(
+        albumName: String,
+        artistName: String,
+        onAnswered: () -> Unit = {},
+    ): AlbumItem? {
         val query = listOf(albumName, artistName).filter { it.isNotBlank() }.joinToString(" ")
         if (query.isBlank()) return null
         val result = YouTube.search(query, YouTube.SearchFilter.FILTER_ALBUM).getOrNull() ?: return null
+        onAnswered()
 
         val wantedTitle = normalizeForMatch(albumName)
         val wantedArtist = normalizeForMatch(artistName)
@@ -454,6 +498,11 @@ class ReleaseRadarWorker(
         true
     }.getOrDefault(false)
 
+    /** Whether the user connected Spotify (the cookie the token is refreshed from is stored), whatever the token did. */
+    private suspend fun spotifySessionStored(): Boolean = runCatching {
+        context.dataStore.data.first()[SpotifySpDcKey].orEmpty().isNotBlank()
+    }.getOrDefault(false)
+
     private fun ReleaseCandidate.toEntity(artistId: String) = ReleaseRadarItem(
         id = ReleaseRadarMatching.dedupeKey(this),
         artistId = artistId,
@@ -540,6 +589,9 @@ class ReleaseRadarWorker(
 
         /** Set once the first cumulative run replaced the old weekly table (see [doWork], row 674). */
         private const val CUMULATIVE_MIGRATED_KEY = "release_radar_cumulative_v1"
+
+        /** Releases already searched on YouTube ("epochDay:dedupeKey", see [ReleaseRadarRetention.readLookups]). */
+        private const val LOOKED_UP_KEY = "release_radar_looked_up"
 
         /** Set once the radar has stored a release: an empty Novedades then says «Estás al día» (row 674). */
         private const val HAD_RELEASES_KEY = "release_radar_had_releases"
