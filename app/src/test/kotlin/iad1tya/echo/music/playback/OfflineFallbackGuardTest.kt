@@ -1,6 +1,7 @@
 package iad1tya.echo.music.playback
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -283,6 +284,9 @@ class OfflineFallbackGuardTest {
         assertTrue(deadEnd.contains("val noInternet = clientFailures.allConnectivity()"))
         assertTrue(deadEnd.contains("cause = noInternet,"))
         assertTrue(ytp.contains("PlaybackErrorClassifier.isConnectivityCause(error)"))
+        // A single client call that got ANY response proves the internet works: never reported as "no internet".
+        assertEquals(4, Regex(Regex.escape("clientFailures.record(it) }.onSuccess { clientFailures.answered() }")).findAll(ytp).count())
+        assertTrue(ytp.contains("return if (!anyAnswered && failed > 0 && connectivity.get() == failed)"))
     }
 
     /** (1) Never a stall skip while a resolution is in flight (a fresh resolve after a retry, the probe). */

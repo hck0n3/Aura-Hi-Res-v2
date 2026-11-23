@@ -124,6 +124,11 @@ object YTPlayerUtils {
         private val connectivity = java.util.concurrent.atomic.AtomicInteger(0)
         private val lastConnectivity = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
 
+        @Volatile private var anyAnswered = false
+
+        /** A client call got a response from YouTube (whatever its playability): the device HAS internet. */
+        fun answered() { anyAnswered = true }
+
         fun record(error: Throwable) {
             if (isBenignResolveCancellation(error)) return
             failures.incrementAndGet()
@@ -133,10 +138,13 @@ object YTPlayerUtils {
             }
         }
 
-        /** The connectivity error when at least one attempt failed and EVERY failed attempt was one; otherwise null. */
+        /**
+         * The connectivity error when no client got any response, at least one attempt failed and EVERY failed attempt
+         * was a connectivity one; otherwise null (a single answered call proves the internet works — no false positive).
+         */
         fun allConnectivity(): Throwable? {
             val failed = failures.get()
-            return if (failed > 0 && connectivity.get() == failed) lastConnectivity.get() else null
+            return if (!anyAnswered && failed > 0 && connectivity.get() == failed) lastConnectivity.get() else null
         }
     }
 
@@ -895,12 +903,12 @@ object YTPlayerUtils {
                     YouTube.player(
                         videoId, playlistId, VIDEO_CLIENT,
                         mainSts, null, noLogin = noLogin,
-                    ).onFailure { logClientFailure(VIDEO_CLIENT.clientName, videoId, it); clientFailures.record(it) }.getOrNull()
+                    ).onFailure { logClientFailure(VIDEO_CLIENT.clientName, videoId, it); clientFailures.record(it) }.onSuccess { clientFailures.answered() }.getOrNull()
                 } else {
                     YouTube.player(
                         videoId, playlistId, MAIN_CLIENT,
                         mainSts, poToken?.playerRequestPoToken, noLogin = noLogin,
-                    ).onFailure { logClientFailure(MAIN_CLIENT.clientName, videoId, it); clientFailures.record(it) }.getOrNull()
+                    ).onFailure { logClientFailure(MAIN_CLIENT.clientName, videoId, it); clientFailures.record(it) }.onSuccess { clientFailures.answered() }.getOrNull()
                 }
                 timing?.let {
                     it.playerMs += SystemClock.elapsedRealtime() - mainCallStartMs
@@ -984,7 +992,7 @@ object YTPlayerUtils {
                 }
                 val gateSts = if (gateClient.useSignatureTimestamp) awaitSts().timestamp else null
                 val gateResponse = YouTube.player(videoId, playlistId, gateClient, gateSts, gatePoToken?.playerRequestPoToken, noLogin = noLogin)
-                    .onFailure { logClientFailure(gateClient.clientName, videoId, it); clientFailures.record(it) }
+                    .onFailure { logClientFailure(gateClient.clientName, videoId, it); clientFailures.record(it) }.onSuccess { clientFailures.answered() }
                     .getOrNull()
                 val gateStatus = gateResponse?.playabilityStatus?.status
                 // Client name and status only — never the reason, the body or the cookie (log privacy, AGENTS.md rule 4).
@@ -1145,7 +1153,7 @@ object YTPlayerUtils {
                 val clientCallStartMs = SystemClock.elapsedRealtime()
                 streamPlayerResponse =
                     YouTube.player(videoId, playlistId, client, clientSigTimestamp, clientPoToken, noLogin = noLogin)
-                        .onFailure { logClientFailure(client.clientName, videoId, it); clientFailures.record(it) }
+                        .onFailure { logClientFailure(client.clientName, videoId, it); clientFailures.record(it) }.onSuccess { clientFailures.answered() }
                         .getOrNull()
                 timing?.let {
                     it.playerMs += SystemClock.elapsedRealtime() - clientCallStartMs
