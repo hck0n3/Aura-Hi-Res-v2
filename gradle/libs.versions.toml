@@ -1,6 +1,6 @@
 [versions]
 haze = "1.7.2"
-androidGradlePlugin = "9.4.1"
+androidGradlePlugin = "9.5.2"
 kotlin = "2.4.21"
 compose = "1.11.4"
 lifecycle = "2.11.1"
