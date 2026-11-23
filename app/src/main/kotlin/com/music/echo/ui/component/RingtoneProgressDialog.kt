@@ -33,9 +33,9 @@ fun RingtoneProgressDialog(
         title = {
             Text(
                 if (isComplete) {
-                    if (isSuccess) "Success!" else "Failed"
+                    stringResource(if (isSuccess) R.string.ringtone_done else R.string.ringtone_failed)
                 } else {
-                    "Setting Ringtone..."
+                    stringResource(R.string.ringtone_setting)
                 },
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
@@ -80,7 +80,7 @@ fun RingtoneProgressDialog(
                             if (isSuccess) onOpenSettings() else onDismiss()
                         },
                     ) {
-                        Text(if (isSuccess) "Open Settings" else "Close")
+                        Text(stringResource(if (isSuccess) R.string.ringtone_open_settings else R.string.close))
                     }
                 }
             }
@@ -88,7 +88,7 @@ fun RingtoneProgressDialog(
         dismissButton = {
             if (isComplete && isSuccess) {
                 TextButton(onClick = onDismiss) {
-                    Text("Cerrar")
+                    Text(stringResource(R.string.close))
                 }
             }
         }

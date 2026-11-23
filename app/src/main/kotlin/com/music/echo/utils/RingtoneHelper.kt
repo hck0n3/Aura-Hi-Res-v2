@@ -116,7 +116,7 @@ object RingtoneHelper {
         onComplete: (Boolean, String, Uri?, Boolean) -> Unit
     ) = withContext(Dispatchers.IO) {
         try {
-            onProgress(0.05f, "Getting audio stream...")
+            onProgress(0.05f, context.getString(R.string.ringtone_progress_stream))
 
             val tempFile = File(context.cacheDir, "temp_ringtone_source_$songId")
             if (tempFile.exists()) tempFile.delete()
@@ -124,32 +124,36 @@ object RingtoneHelper {
             // 1) CACHE FIRST: a fully downloaded/cached song is copied from the local media3 caches
             // (instant, works offline, zero googlevideo traffic). Any miss/problem falls through to
             // the ranged network download below.
-            val servedFromCache = copyFromCacheIfComplete(songId, tempFile, downloadCache, playerCache, onProgress)
+            val servedFromCache = copyFromCacheIfComplete(songId, tempFile, downloadCache, playerCache) { progress, _ ->
+                onProgress(progress, context.getString(R.string.ringtone_progress_cached))
+            }
 
             if (!servedFromCache) {
                 val stream = getStreamInfo(context, songId)
                 if (stream == null) {
                     withContext(Dispatchers.Main) {
-                        onComplete(false, "Failed to get audio stream", null, false)
+                        onComplete(false, context.getString(R.string.ringtone_error_stream), null, false)
                     }
                     return@withContext
                 }
 
-                onProgress(0.1f, "Fetching audio...")
+                onProgress(0.1f, context.getString(R.string.ringtone_progress_fetching))
 
                 // 2) Ranged, resumable OkHttp download with the proper per-client User-Agent —
                 // 4) capped at the trim-window prefix when the format metadata allows it.
-                downloadStreamToFile(stream, tempFile, endMs, onProgress)
+                downloadStreamToFile(stream, tempFile, endMs) { progress, _ ->
+                    onProgress(progress, context.getString(R.string.ringtone_progress_downloading, (progress * 100).toInt()))
+                }
             }
 
             if (!tempFile.exists() || tempFile.length() == 0L) {
                 withContext(Dispatchers.Main) {
-                    onComplete(false, "Failed to prepare source file", null, false)
+                    onComplete(false, context.getString(R.string.ringtone_error_source), null, false)
                 }
                 return@withContext
             }
 
-            onProgress(0.6f, "Processing audio...")
+            onProgress(0.6f, context.getString(R.string.ringtone_progress_processing))
 
             // P23: actually trim to [startMs, endMs] (previously a whole-file copy).
             // P42: the returned extension/MIME describe the REAL container the trim produced,
@@ -160,14 +164,14 @@ object RingtoneHelper {
             if (trim == null || trimmedFile == null || !trimmedFile.exists() || trimmedFile.length() == 0L) {
                 trimmedFile?.delete()
                 withContext(Dispatchers.Main) {
-                    onComplete(false, "Failed to process audio or output is empty", null, false)
+                    onComplete(false, context.getString(R.string.ringtone_error_process), null, false)
                 }
                 return@withContext
             }
 
             val outputMime = trim.mimeType
 
-            onProgress(0.85f, "Saving ringtone...")
+            onProgress(0.85f, context.getString(R.string.ringtone_progress_saving))
 
             val fileName = "${title.replace(Regex("[^a-zA-Z0-9\\s]"), "")}_trimmed_$songId.${trim.extension}"
 
@@ -227,7 +231,7 @@ object RingtoneHelper {
                 trimmedFile.delete()
             }
 
-            onProgress(0.95f, "Song saved to Ringtones...")
+            onProgress(0.95f, context.getString(R.string.ringtone_progress_saved))
 
             // Actually APPLY the ringtone: inserting into MediaStore (and even the system picker intent)
             // never calls RingtoneManager.setActualDefaultRingtoneUri, so on many ROMs nothing got set.
@@ -250,7 +254,7 @@ object RingtoneHelper {
             }
 
             withContext(Dispatchers.Main) {
-                onProgress(1f, "Done!")
+                onProgress(1f, context.getString(R.string.ringtone_done))
                 if (appliedDirectly) {
                     onComplete(true, context.getString(R.string.ringtone_set_directly, title), ringtoneUri, true)
                 } else {
@@ -261,7 +265,7 @@ object RingtoneHelper {
         } catch (e: Exception) {
             timber.log.Timber.w("Ringtone: download-and-trim failed: %s", privacySafeSummary(e))
             withContext(Dispatchers.Main) {
-                onComplete(false, "Error: ${e.message}", null, false)
+                onComplete(false, context.getString(R.string.ringtone_error_generic), null, false)
             }
         }
     }

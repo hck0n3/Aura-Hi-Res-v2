@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auditoría de UX P22C (fila 734 del registro): nombres de los botones de solo icono de la interfaz nueva. -->
+<resources>
+    <string name="cd_close_lyrics">Cerrar la letra</string>
+    <string name="cd_lyrics_menu">Menú de la letra</string>
+    <string name="cd_minimize_player">Minimizar el reproductor</string>
+    <string name="cd_lyrics_full_screen">Pantalla completa de la letra</string>
+    <string name="cd_player_full_view">Ver el reproductor a pantalla completa</string>
+    <string name="cd_player_split_view">Ver el reproductor en pantalla dividida</string>
+    <string name="cd_change_period_type">Cambiar el tipo de periodo</string>
+    <string name="cd_view_as_grid">Ver en cuadrícula</string>
+    <string name="cd_view_as_list">Ver en lista</string>
+</resources>

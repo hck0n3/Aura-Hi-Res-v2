@@ -198,7 +198,7 @@ fun AuraLyricsScreen(
             ) {
                 AuraIconButton(
                     icon = AuraIcons.ChevronDown,
-                    contentDescription = "Cerrar la letra",
+                    contentDescription = stringResource(R.string.cd_close_lyrics),
                     onClick = onClose,
                     size = 22.dp,
                     tint = AuraPalette.OnGround.copy(alpha = 0.6f),
@@ -227,7 +227,7 @@ fun AuraLyricsScreen(
                 )
                 AuraIconButton(
                     icon = AuraIcons.More,
-                    contentDescription = "Menú de la letra",
+                    contentDescription = stringResource(R.string.cd_lyrics_menu),
                     onClick = {
                         val meta = mediaMetadata ?: return@AuraIconButton
                         menuState.show {

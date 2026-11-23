@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auditoría de UX P22C (fila 734 del registro): el chip del temporizador en el reproductor y su «+15 min». -->
+<resources>
+    <string name="sleep_timer_chip_minutes">Apagado · %1$s</string>
+    <string name="sleep_timer_chip_after_song">Apagado · fin de la canción</string>
+    <string name="sleep_timer_chip_cd">Temporizador activo (%1$s). Toca para alargarlo o apagarlo</string>
+    <string name="sleep_timer_extend">+%1$d min</string>
+</resources>

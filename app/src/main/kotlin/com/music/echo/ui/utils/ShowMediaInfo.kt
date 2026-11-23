@@ -365,7 +365,7 @@ fun InfoItem(
             .clickable {
                 val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText(label, value))
-                Toast.makeText(context, "$label copied", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.label_copied, label), Toast.LENGTH_SHORT).show()
             },
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {

@@ -104,14 +104,17 @@ fun RecognitionHistoryScreen(
     }
 
     
-    val groupedItems = remember(filteredItems) {
+    val todayLabel = stringResource(R.string.today)
+    val yesterdayLabel = stringResource(R.string.yesterday)
+    val thisWeekLabel = stringResource(R.string.this_week)
+    val groupedItems = remember(filteredItems, todayLabel, yesterdayLabel, thisWeekLabel) {
         val today = LocalDate.now()
         filteredItems.groupBy { item ->
             val date = item.recognizedAt.toLocalDate()
             when {
-                date == today                -> "Today"
-                date == today.minusDays(1)  -> "Yesterday"
-                date >= today.minusDays(7)  -> "This Week"
+                date == today                -> todayLabel
+                date == today.minusDays(1)  -> yesterdayLabel
+                date >= today.minusDays(7)  -> thisWeekLabel
                 else -> item.recognizedAt.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
             }
         }
@@ -304,7 +307,7 @@ fun RecognitionHistoryScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "No recognition history",
+                                text = stringResource(R.string.no_recognition_history),
                                 style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodyLarge,
                                 color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -329,7 +332,7 @@ fun RecognitionHistoryScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "No results for \"${query.text}\"",
+                                text = stringResource(R.string.no_results_for_query, query.text),
                                 style = if (skin.enabled) AuraType.RowSubtitle else MaterialTheme.typography.bodyLarge,
                                 color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
                             )

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- UX audit P22C (registry row 734): the sleep timer chip of the full player and its «+15 min». -->
+<resources>
+    <string name="sleep_timer_chip_minutes">Sleep · %1$s</string>
+    <string name="sleep_timer_chip_after_song">Sleep · end of song</string>
+    <string name="sleep_timer_chip_cd">Sleep timer on (%1$s). Tap to extend it or turn it off</string>
+    <string name="sleep_timer_extend">+%1$d min</string>
+</resources>

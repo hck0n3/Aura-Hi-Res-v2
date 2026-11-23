@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auditoría de UX P22C (fila 734 del registro): textos que estaban escritos en inglés en Kotlin y claves que faltaban en español. -->
+<resources>
+    <string name="lyrics_from_provider">Letra de %1$s</string>
+    <string name="label_copied">%1$s: copiado</string>
+    <string name="lyrics_offset_decrease">Disminuir</string>
+    <string name="lyrics_offset_increase">Aumentar</string>
+    <string name="no_recognition_history">Aún no has reconocido ninguna canción</string>
+    <string name="no_results_for_query">Sin resultados para «%1$s»</string>
+    <string name="ringtone_trim_title">Recortar el tono</string>
+    <string name="ringtone_trim_instructions">Elige la parte de «%1$s» que quieres usar como tono (se recomienda 30 s como máximo).</string>
+    <string name="ringtone_preview_play">Escuchar la parte elegida</string>
+    <string name="ringtone_preview_pause">Pausar la escucha</string>
+    <string name="ringtone_selected_duration">Duración elegida: %1$s</string>
+    <string name="ringtone_setting">Creando el tono…</string>
+    <string name="ringtone_done">¡Listo!</string>
+    <string name="ringtone_failed">No se pudo</string>
+    <string name="ringtone_open_settings">Abrir ajustes</string>
+    <string name="ringtone_progress_stream">Obteniendo el audio…</string>
+    <string name="ringtone_progress_fetching">Descargando el audio…</string>
+    <string name="ringtone_progress_cached">Preparando el audio guardado…</string>
+    <string name="ringtone_progress_downloading">Descargando… %1$d%%</string>
+    <string name="ringtone_progress_processing">Procesando el audio…</string>
+    <string name="ringtone_progress_saving">Guardando el tono…</string>
+    <string name="ringtone_progress_saved">Canción guardada en los tonos…</string>
+    <string name="ringtone_error_stream">No se pudo obtener el audio</string>
+    <string name="ringtone_error_source">No se pudo preparar el archivo de origen</string>
+    <string name="ringtone_error_process">No se pudo procesar el audio</string>
+    <string name="ringtone_error_generic">No se pudo crear el tono</string>
+
+    <!-- Claves que existían en values/ sin versión en español. -->
+    <string name="song_liked_toast">Añadida a Me gusta</string>
+    <string name="song_removed_from_playlist">Canción quitada de la lista</string>
+    <string name="home_syncing_library">Sincronizando tu biblioteca…</string>
+    <string name="on_latest_version">No hay actualizaciones — ya tienes la versión más reciente.</string>
+</resources>

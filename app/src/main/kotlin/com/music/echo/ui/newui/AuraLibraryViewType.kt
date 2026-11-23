@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.R
@@ -26,14 +27,16 @@ import iad1tya.echo.music.constants.LibraryViewType
 @Composable
 internal fun AuraViewTypeToggle(viewType: LibraryViewType, onChange: (LibraryViewType) -> Unit) {
     val next = viewType.toggle()
+    val viewTypeLabel = stringResource(if (next == LibraryViewType.GRID) R.string.cd_view_as_grid else R.string.cd_view_as_list)
     Box(
         modifier = Modifier
             .minimumInteractiveComponentSize()
             .clip(CircleShape)
             .auraClickableInternal(
                 onClick = { onChange(next) },
-                contentDescription = if (next == LibraryViewType.GRID) "Ver en cuadrícula" else "Ver en lista",
+                contentDescription = viewTypeLabel,
             )
+            .auraButtonName(viewTypeLabel)
             .padding(6.dp),
     ) {
         Icon(
