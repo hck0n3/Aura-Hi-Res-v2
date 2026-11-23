@@ -81,4 +81,21 @@ class EqFftMeterLoopTest {
         assertTrue(screen.contains("val player = livePlayer ?: playerConnection?.player"))
         assertFalse(screen.contains("DisposableEffect(playerConnection) {\n        val player = playerConnection?.player"))
     }
+
+    /** Row 770: the FFT gain indicator subtracts the band-boost headroom only while auto headroom is on. */
+    @Test
+    fun `the expected output gain follows the auto headroom switch`() {
+        val gains = listOf(6.0, -3.0, 2.0)
+        org.junit.Assert.assertEquals(0.0, eqFftExpectedGainDb(false, true, -2.0, gains), 0.0)
+        org.junit.Assert.assertEquals(0.0, eqFftExpectedGainDb(false, false, -2.0, gains), 0.0)
+        org.junit.Assert.assertEquals(-2.0, eqFftExpectedGainDb(true, false, -2.0, gains), 0.0)
+        org.junit.Assert.assertEquals(
+            iad1tya.echo.music.eq.audio.headroomPreampDb(-2.0, gains),
+            eqFftExpectedGainDb(true, true, -2.0, gains),
+            0.0,
+        )
+        org.junit.Assert.assertEquals(-9.0, eqFftExpectedGainDb(true, true, -2.0, gains), 1e-9)
+        assertTrue(screen.contains("rememberPreference(iad1tya.echo.music.constants.AutoHeadroomEnabledKey, false)"))
+        assertTrue(screen.contains("val expectedGainDb = remember(preamp, bandGains, enabled, autoHeadroom) {"))
+    }
 }

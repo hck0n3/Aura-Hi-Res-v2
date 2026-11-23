@@ -427,6 +427,21 @@ fun eqFftConvergedToZero(bars: FloatArray, peak: Float, epsilon: Float): Boolean
 fun eqFftMeterSettled(playing: Boolean, bars: FloatArray, peak: Float): Boolean =
     !playing && eqFftConvergedToZero(bars, peak, EQ_FFT_ZERO_EPSILON)
 
+/**
+ * Row 770: the output gain the FFT gain indicator assumes. The EQ engine subtracts the band-boost headroom only
+ * while auto headroom is on; with it off (the default) the user's preamp is applied unchanged. Pure.
+ */
+fun eqFftExpectedGainDb(
+    eqEnabled: Boolean,
+    autoHeadroom: Boolean,
+    userPreampDb: Double,
+    bandGainsDb: List<Double>,
+): Double = when {
+    !eqEnabled -> 0.0
+    autoHeadroom -> headroomPreampDb(userPreampDb = userPreampDb, enabledBandGainsDb = bandGainsDb)
+    else -> userPreampDb
+}
+
 private val EqFftGreen = Color(0xFF5AD68A)
 private val EqFftAmber = Color(0xFFFFB74D)
 
@@ -815,16 +830,16 @@ private fun ColumnScope.EqMainContent(
         enabled = fftMeterEnabled,
         playing = meterPlaying,
     )
-    // Model output gain the same way the EQ engine does (preamp minus band-boost headroom).
-    val expectedGainDb = remember(preamp, bandGains, enabled) {
-        if (!enabled) {
-            0.0
-        } else {
-            headroomPreampDb(
-                userPreampDb = preamp.toDouble(),
-                enabledBandGainsDb = bandGains.map { it.toDouble() },
-            )
-        }
+    // Model output gain the same way the EQ engine does: the band-boost headroom is subtracted only while
+    // «Headroom automático» is on (row 770); otherwise the engine applies the user's preamp as is.
+    val autoHeadroom by rememberPreference(iad1tya.echo.music.constants.AutoHeadroomEnabledKey, false)
+    val expectedGainDb = remember(preamp, bandGains, enabled, autoHeadroom) {
+        eqFftExpectedGainDb(
+            eqEnabled = enabled,
+            autoHeadroom = autoHeadroom,
+            userPreampDb = preamp.toDouble(),
+            bandGainsDb = bandGains.map { it.toDouble() },
+        )
     }
     val expectedGainState = rememberUpdatedState(expectedGainDb)
     val preampBadgePeak by remember(fftSnapshotState) {
