@@ -90,6 +90,12 @@ object NetworkState {
                 refresh()
                 _capsEpoch.update { it + 1 }
             }
+            // API 29+: Data Saver / a background restriction blocks the app (activeNetwork reads null, so "no network");
+            // lifting it brings no onAvailable, so the unblock counts as a network change of its own.
+            override fun onBlockedStatusChanged(network: Network, blocked: Boolean) {
+                if (!blocked) _epoch.update { it + 1 }
+                refresh()
+            }
         }
         runCatching { cm.registerDefaultNetworkCallback(callback) }
             .onFailure {
