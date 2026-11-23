@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sound_safe_volume_title">Volumen seguro</string>
+    <string name="sound_safe_volume_desc">Iguala el volumen entre temas: baja los muy fuertes y sube los silenciosos (hasta +12 dB), con un limitador suave. Activado por defecto.</string>
+    <string name="sound_glue_compressor_title">Compresor suave (pegamento)</string>
+    <string name="sound_glue_compressor_desc">Compresión 2:1 por encima de −12 dB, sin ganancia de compensación: baja un poco los pasajes fuertes para unir la mezcla. Apagado por defecto.</string>
+    <string name="welcome_sound_limiter_bullet">Limitador y margen automático opcional; sin «mejoras» inventadas sobre Opus</string>
+</resources>

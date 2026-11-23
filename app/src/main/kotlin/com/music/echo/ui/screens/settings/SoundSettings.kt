@@ -122,12 +122,9 @@ fun SoundSettings(
             items = listOf(
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.volume_up),
-                    title = { Text("Volumen seguro") },
+                    title = { Text(stringResource(R.string.sound_safe_volume_title)) },
                     description = {
-                        Text(
-                            "Iguala el volumen entre temas: baja los muy fuertes y sube los silenciosos " +
-                                "(hasta +12 dB), con un limitador suave. Activado por defecto."
-                        )
+                        Text(stringResource(R.string.sound_safe_volume_desc))
                     },
                     trailingContent = {
                         Switch(
@@ -193,9 +190,9 @@ fun SoundSettings(
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.volume_up),
-                    title = { Text("Compresor suave (pegamento)") },
+                    title = { Text(stringResource(R.string.sound_glue_compressor_title)) },
                     description = {
-                        Text("Compresión 2:1 por encima de −12 dB, sin ganancia de compensación: baja un poco los pasajes fuertes para unir la mezcla. Apagado por defecto.")
+                        Text(stringResource(R.string.sound_glue_compressor_desc))
                     },
                     trailingContent = {
                         Switch(
