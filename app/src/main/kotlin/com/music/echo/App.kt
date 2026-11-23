@@ -673,7 +673,12 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                     untrustRestoredArtistMarkers()
                 }
                 runCatching {
-                    dataStore.edit { it[iad1tya.echo.music.constants.InstallOriginResolvedV1Key] = true }
+                    dataStore.edit {
+                        it[iad1tya.echo.music.constants.InstallOriginResolvedV1Key] = true
+                        // Row 678: in the SAME transaction as the flag. Written later, a process death in between
+                        // would make the next start classify this install as UPDATED and turn sync ON for a fresh one.
+                        applyGoogleSyncDefaultsV1(it, origin == iad1tya.echo.music.utils.InstallOrigin.FRESH)
+                    }
                 }.onFailure { reportException(it) }
             }
         }
@@ -701,11 +706,12 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 }
             }.onFailure { reportException(it) }
         }
-        // Row 678: before tryAutoSync and the HALLAZGO-061 recovery below, which read these values.
+        // Row 678: before tryAutoSync below, which reads these values. Already done above on the launch that
+        // classifies the install; this covers installs classified on an earlier launch (they get the old defaults).
         if (settings[iad1tya.echo.music.constants.GoogleSyncDefaultsV1AppliedKey] != true) {
             val freshInstall = installOrigin == iad1tya.echo.music.utils.InstallOrigin.FRESH
             runCatching {
-                dataStore.edit { p -> applyGoogleSyncDefaultsV1(p, settings, freshInstall) }
+                dataStore.edit { p -> applyGoogleSyncDefaultsV1(p, freshInstall) }
             }.onFailure { reportException(it) }
         }
 
@@ -1764,11 +1770,11 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
      */
     private fun applyGoogleSyncDefaultsV1(
         p: androidx.datastore.preferences.core.MutablePreferences,
-        settings: androidx.datastore.preferences.core.Preferences,
         freshInstall: Boolean,
     ) {
-        if (settings[iad1tya.echo.music.constants.GoogleSyncDefaultsV1AppliedKey] == true) return
-        // Stored values read from the live transaction `p`, so a switch flipped since the snapshot still wins.
+        // Both the flag and the stored values are read from the live transaction `p`: the classification launch already
+        // wrote them in its own edit, and a switch flipped since the `settings` snapshot still wins.
+        if (p[iad1tya.echo.music.constants.GoogleSyncDefaultsV1AppliedKey] == true) return
         p[YtmSyncKey] = iad1tya.echo.music.utils.GoogleSyncDefaults
             .downloadSync(stored = p[YtmSyncKey], freshInstall = freshInstall)
         p[iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey] = iad1tya.echo.music.utils.GoogleSyncDefaults

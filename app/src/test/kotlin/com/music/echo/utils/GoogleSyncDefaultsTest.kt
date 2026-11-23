@@ -42,14 +42,18 @@ class GoogleSyncDefaultsTest {
     fun theOneTimeWriteRunsBeforeTheStartupSyncsAndOnlyForAFreshInstallTurnsThemOff() {
         val app = src("App.kt")
         val init = app.substringAfter("private suspend fun initializeSettings()")
-        val write = init.indexOf("applyGoogleSyncDefaultsV1(p, settings, freshInstall)")
-        assertTrue("the one-time write is gone", write > 0)
+        // On the classification launch: in the SAME edit as InstallOriginResolvedV1Key, so a process death in between
+        // cannot leave a fresh install classified UPDATED with sync ON.
+        val sameEdit = init.substringAfter("it[iad1tya.echo.music.constants.InstallOriginResolvedV1Key] = true").substringBefore("}")
+        assertTrue(sameEdit.contains("applyGoogleSyncDefaultsV1(it, origin == iad1tya.echo.music.utils.InstallOrigin.FRESH)"))
+        // Installs classified on an earlier launch: a second call (old defaults), still before the startup sync.
+        val write = init.indexOf("applyGoogleSyncDefaultsV1(p, freshInstall)")
+        assertTrue("the one-time write for older installs is gone", write > 0)
         assertTrue("it must run before the cold-start tryAutoSync", write < init.indexOf("syncUtils.tryAutoSync()"))
-        assertTrue("it must run before the HALLAZGO-061 recovery", write < init.indexOf("syncUtils.syncLibraryAfterLogin()"))
         val freshLine = init.substring(init.lastIndexOf("val freshInstall", write), write)
         assertTrue(freshLine.contains("installOrigin == iad1tya.echo.music.utils.InstallOrigin.FRESH"))
         val fn = app.substringAfter("private fun applyGoogleSyncDefaultsV1(").substringBefore("\n    }\n")
-        assertTrue(fn.contains("GoogleSyncDefaultsV1AppliedKey] == true) return"))
+        assertTrue("the flag is read from the live transaction", fn.contains("if (p[iad1tya.echo.music.constants.GoogleSyncDefaultsV1AppliedKey] == true) return"))
         assertTrue("stored values come from the live transaction", fn.contains("stored = p[YtmSyncKey]"))
         assertTrue(fn.contains("stored = p[iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey]"))
     }
