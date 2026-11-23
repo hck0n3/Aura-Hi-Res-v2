@@ -81,6 +81,8 @@ object ReleaseRadarMatching {
      * EP. Without a type (YouTube-only path) only the title can tell; otherwise [TYPE_UNKNOWN].
      */
     fun releaseType(albumType: String?, totalTracks: Int, title: String): String {
+        // Owner 2026-11-23: one track is a single, never an album, whatever the type says.
+        if (totalTracks == 1) return TYPE_SINGLE
         val epTitle = EP_IN_TITLE.containsMatchIn(title)
         return when (albumType?.lowercase()) {
             "ep" -> TYPE_EP
@@ -93,6 +95,18 @@ object ReleaseRadarMatching {
                 else -> TYPE_UNKNOWN
             }
         }
+    }
+
+    /**
+     * Owner 2026-11-23: «dice que son de un álbum pero no son de un álbum porque solo es una canción». The album
+     * page's type, decided like the Novedades card (`typeHint` + `auraContentKind`: a «Single» title or the stored
+     * single wins, then EP): [storedType] is the album's `release_radar.type` (null when it is not in the radar)
+     * and [trackCount] its song count (0 = unknown). One track is a single.
+     */
+    fun albumPageType(storedType: String?, trackCount: Int, title: String): String = when {
+        trackCount == 1 || storedType == TYPE_SINGLE || SINGLE_IN_TITLE.containsMatchIn(title) -> TYPE_SINGLE
+        storedType == TYPE_EP || EP_IN_TITLE.containsMatchIn(title) -> TYPE_EP
+        else -> TYPE_ALBUM
     }
 
     fun isWithinWindow(date: LocalDate, ref: LocalDate, days: Long): Boolean {

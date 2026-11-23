@@ -2359,6 +2359,14 @@ interface DatabaseDao {
     @Query("SELECT * FROM release_radar ORDER BY releaseDate DESC")
     fun releasesByDateDesc(): Flow<List<ReleaseRadarItem>>
 
+    /** The radar's type for the release that opens album [albumId] (`ReleaseRadarMatching.albumPageType`). */
+    @Query("SELECT type FROM release_radar WHERE playId = :albumId LIMIT 1")
+    fun releaseRadarTypeForAlbum(albumId: String): Flow<String?>
+
+    /** The album page found a single track: the Novedades card says «Sencillo» too. */
+    @Query("UPDATE release_radar SET type = 'single' WHERE playId = :albumId AND type != 'single'")
+    suspend fun markRadarReleaseSingle(albumId: String)
+
     /** Releases first seen on/after [since] (the current Friday weekly-window start), newest first. */
     @Query("SELECT * FROM release_radar WHERE fetchedAt >= :since ORDER BY releaseDate DESC")
     fun releasesSince(since: LocalDateTime): Flow<List<ReleaseRadarItem>>

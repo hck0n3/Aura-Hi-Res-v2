@@ -199,6 +199,7 @@ fun AuraAlbumScreen(
     val descriptionRuns by viewModel.descriptionRuns.collectAsState()
     val hasFailed by viewModel.hasFailed.collectAsState()
     val notFound by viewModel.notFound.collectAsState()
+    val radarType by viewModel.radarType.collectAsState()
 
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
     // Ahorro de datos, exactly as the classic screen reads it: video songs hidden and the album canvas
@@ -326,6 +327,7 @@ fun AuraAlbumScreen(
                     AuraAlbumHeader(
                         startAligned = startAligned,
                         album = album,
+                        radarType = radarType,
                         filteredSongs = filteredSongs,
                         playlistId = playlistId,
                         isPlaying = isPlaying,
@@ -905,6 +907,7 @@ internal fun AuraAlbumHero(
 @Composable
 private fun AuraAlbumHeader(
     album: iad1tya.echo.music.db.entities.AlbumWithSongs,
+    radarType: String?,
     filteredSongs: List<iad1tya.echo.music.db.entities.Song>,
     playlistId: String,
     isPlaying: Boolean,
@@ -1017,7 +1020,16 @@ private fun AuraAlbumHeader(
         // type. The track word is the app's own plural (the classic literal was English "Tracks").
         val totalSeconds = remember(album) { album.songs.sumOf { it.song.duration } }
         val metaLine = listOfNotNull(
-            stringResource(R.string.album_text),
+            stringResource(
+                when (
+                    iad1tya.echo.music.releaseradar.ReleaseRadarMatching
+                        .albumPageType(radarType, album.album.songCount, album.album.title)
+                ) {
+                    iad1tya.echo.music.releaseradar.ReleaseRadarMatching.TYPE_SINGLE -> R.string.novedades_type_single
+                    iad1tya.echo.music.releaseradar.ReleaseRadarMatching.TYPE_EP -> R.string.novedades_type_ep
+                    else -> R.string.album_text
+                },
+            ),
             album.album.year?.toString(),
             pluralStringResource(R.plurals.n_song, album.songs.size, album.songs.size),
             makeTimeString(totalSeconds * 1000L),

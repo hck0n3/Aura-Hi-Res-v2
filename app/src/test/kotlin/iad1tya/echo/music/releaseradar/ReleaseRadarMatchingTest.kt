@@ -41,6 +41,28 @@ class ReleaseRadarMatchingTest {
         // "Step" is not an EP.
         assertEquals(m.TYPE_UNKNOWN, m.releaseType(null, 0, "Step"))
     }
+    @Test fun oneTrackReleaseIsASingleOnCardAndPage() {
+        val m = ReleaseRadarMatching
+        // Card (Spotify type): one track is never an album or an EP.
+        assertEquals(m.TYPE_SINGLE, m.releaseType("album", 1, "Record"))
+        assertEquals(m.TYPE_SINGLE, m.releaseType("ep", 1, "Song"))
+        assertEquals(m.TYPE_SINGLE, m.releaseType(null, 1, "Record"))
+        // Page: one track wins over any stored type.
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(null, 1, "Record"))
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(m.TYPE_ALBUM, 1, "Record"))
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(m.TYPE_UNKNOWN, 1, "Record"))
+        // Page agrees with the card's stored type when there is more than one track.
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(m.releaseType("single", 3, "Song"), 3, "Song"))
+        assertEquals(m.TYPE_EP, m.albumPageType(m.releaseType("single", 5, "Song"), 5, "Song"))
+        assertEquals(m.TYPE_ALBUM, m.albumPageType(m.releaseType("album", 12, "Record"), 12, "Record"))
+        assertEquals(m.TYPE_ALBUM, m.albumPageType(m.TYPE_COMPILATION, 20, "Hits"))
+        // Not in the radar / unknown count: the title, like the card.
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(null, 0, "Song - Single"))
+        assertEquals(m.TYPE_EP, m.albumPageType(null, 4, "Song - EP"))
+        assertEquals(m.TYPE_ALBUM, m.albumPageType(null, 0, "Step"))
+        // Card order (auraContentKind): a «Single» title beats a stored EP.
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(m.TYPE_EP, 4, "Song (Single)"))
+    }
     @Test fun windowFiltersOld() {
         val ref = LocalDate.of(2026, 6, 12)
         assertTrue(ReleaseRadarMatching.isWithinWindow(LocalDate.of(2026, 6, 10), ref, days = 7))

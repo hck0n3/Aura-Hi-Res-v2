@@ -42,6 +42,11 @@ constructor(
         database
             .albumWithSongs(albumId)
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    /** `release_radar.type` of this album, so the page says Sencillo/EP/Álbum like its Novedades card. */
+    val radarType =
+        database
+            .releaseRadarTypeForAlbum(albumId)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     var otherVersions = MutableStateFlow<List<AlbumItem>>(emptyList())
     var releasesForYou = MutableStateFlow<List<AlbumItem>>(emptyList())
     var moreFromArtist = MutableStateFlow<List<AlbumItem>>(emptyList())
@@ -275,6 +280,8 @@ constructor(
             if (isActive) {
                 _hasFailed.value = !succeeded
             }
+            // One track is a single: the radar row (typed by Spotify or, YouTube-only, by its title) learns it.
+            if (database.album(albumId).first()?.album?.songCount == 1) database.markRadarReleaseSingle(albumId)
         }
     }
 
