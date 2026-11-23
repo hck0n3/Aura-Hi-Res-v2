@@ -648,13 +648,18 @@ class LibraryUploadSync @Inject constructor(
                 }
                 if (!spend()) break
                 // Row 716: re-read right before the call. A re-follow tapped during the lookup or the delay above
-                // wins, and a channel the user follows again under another spelling (UC… / MPLAUC…) is not
-                // unsubscribed while Aura reads «Suscrito»: that spelling's stale marker is retired instead.
+                // wins, and a channel the user followed again LATER under another spelling (UC… / MPLAUC…) is not
+                // unsubscribed while Aura reads «Suscrito»: that spelling's stale marker is retired instead. An
+                // older follow of the other spelling does not cancel this newer unfollow: it is sent.
                 val current = database.getArtistEntitiesByIds(listOf(artist.id)).firstOrNull()
                 if (current == null || ArtistSyncPolicy.refuseUnsubscribe(current, LocalDateTime.now()) != null) continue
-                if (database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id)).first()) {
-                    runCatching { database.retireSupersededUnfollow(artist.id) }
-                    Timber.i("UPLOAD_SYNC unfollow superseded by a follow of the same channel; marker retired")
+                val newerFollow = ArtistSyncPolicy.supersedingAliasFollow(
+                    current,
+                    database.getArtistEntitiesByIds(ArtistSyncPolicy.aliasIds(artist.id)),
+                )
+                if (newerFollow != null) {
+                    runCatching { database.retireSupersededUnfollow(artist.id, newerFollow) }
+                    Timber.i("UPLOAD_SYNC unfollow superseded by a newer follow of the same channel; marker retired")
                     continue
                 }
                 Timber.i("ARTIST_SUBSCRIBE_SYNC subscribing=false")

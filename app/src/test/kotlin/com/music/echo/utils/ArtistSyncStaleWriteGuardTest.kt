@@ -116,12 +116,29 @@ class ArtistSyncStaleWriteGuardTest {
         assertEquals(2, Regex("""database\.setArtistChannelIdIfMissing\(""").findAll(upload).count())
         assertTrue(upload.contains("if (current == null || !ArtistSyncPolicy.maySubscribe(current)) continue"))
         assertTrue(upload.contains("if (current == null || ArtistSyncPolicy.refuseUnsubscribe(current, LocalDateTime.now()) != null) continue"))
-        assertTrue(upload.contains("if (database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id)).first()) {"))
-        assertTrue(upload.contains("database.retireSupersededUnfollow(artist.id)"))
+        assertTrue(upload.contains("val newerFollow = ArtistSyncPolicy.supersedingAliasFollow("))
+        assertTrue(upload.contains("database.getArtistEntitiesByIds(ArtistSyncPolicy.aliasIds(artist.id)),"))
+        assertTrue(upload.contains("database.retireSupersededUnfollow(artist.id, newerFollow)"))
+        assertFalse("an alias follow of ANY date cancels the unsubscribe again", upload.contains("isAnyArtistFollowed("))
+        val retire = query(dao, "retireSupersededUnfollow")
+        assertTrue("the write re-checks the dates", retire.contains("AND unfollowedByUserAt < :supersededBy"))
         // the re-read sits right before each account call
         val subscribe = upload.substringAfter("if (current == null || !ArtistSyncPolicy.maySubscribe(current)) continue")
         assertTrue(subscribe.indexOf("YouTube.subscribeChannel(channelId, true)") in 0..2000)
-        val unsubscribe = upload.substringAfter("database.retireSupersededUnfollow(artist.id)")
+        val unsubscribe = upload.substringAfter("database.retireSupersededUnfollow(artist.id, newerFollow)")
         assertTrue(unsubscribe.indexOf("YouTube.subscribeChannel(channelId, false)") in 0..600)
+    }
+
+    // ---- which follow of another spelling cancels an unfollow -------------------------------------
+
+    @Test
+    fun `only a follow of another spelling NEWER than the unfollow cancels it`() {
+        val unfollowed = owed("UCx")
+        val newer = row("MPLAUCx").copy(followedByUserAt = now)
+        val older = row("MPLAUCx").copy(followedByUserAt = earlier.minusDays(3))
+        assertEquals(now, ArtistSyncPolicy.supersedingAliasFollow(unfollowed, listOf(unfollowed, newer)))
+        assertNull("an older follow (a beta's own-row menu, an import) keeps the unsubscribe", ArtistSyncPolicy.supersedingAliasFollow(unfollowed, listOf(unfollowed, older)))
+        assertNull("its own row never cancels itself", ArtistSyncPolicy.supersedingAliasFollow(unfollowed.copy(followedByUserAt = now), listOf(unfollowed.copy(followedByUserAt = now))))
+        assertNull("no unfollow, nothing to cancel", ArtistSyncPolicy.supersedingAliasFollow(row("UCx"), listOf(newer)))
     }
 }

@@ -1956,11 +1956,17 @@ interface DatabaseDao {
     suspend fun setArtistChannelIdIfMissing(id: String, channelId: String)
 
     /**
-     * Row 716: retire the unfollow marker of a spelling whose channel the user follows again under another spelling
-     * (a newer follow wins). Only while this row is still not followed itself.
+     * Row 716: retire the unfollow marker of a spelling whose channel the user followed again under another spelling
+     * at [supersededBy] — only when that follow is NEWER than this unfollow, and while this row is still not
+     * followed itself.
      */
-    @Query("UPDATE artist SET unfollowedByUserAt = NULL WHERE id = :id AND followedByUserAt IS NULL")
-    suspend fun retireSupersededUnfollow(id: String)
+    @Query(
+        """
+        UPDATE artist SET unfollowedByUserAt = NULL
+        WHERE id = :id AND followedByUserAt IS NULL AND unfollowedByUserAt < :supersededBy
+        """
+    )
+    suspend fun retireSupersededUnfollow(id: String, supersededBy: java.time.LocalDateTime)
 
     /**
      * Playlists that live only in Aura and should be created on the account ("las que ya tenga creadas

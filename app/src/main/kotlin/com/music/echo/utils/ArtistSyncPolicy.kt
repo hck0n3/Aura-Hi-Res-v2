@@ -207,6 +207,20 @@ object ArtistSyncPolicy {
     fun hasPendingUnfollow(artist: ArtistEntity): Boolean =
         artist.unfollowedByUserAt != null && artist.followedByUserAt == null && artist.ytmSyncedAt != null
 
+    /**
+     * Row 716: the newest follow of ANOTHER stored spelling of [row]'s channel ([spellings] = the rows of [aliasIds])
+     * that is newer than [row]'s unfollow — the user followed the channel again after unfollowing it here — or null.
+     * An older follow (a beta whose menu toggled only its own row, an import) does not cancel the newer unfollow.
+     */
+    fun supersedingAliasFollow(row: ArtistEntity, spellings: List<ArtistEntity>): LocalDateTime? {
+        val unfollowedAt = row.unfollowedByUserAt ?: return null
+        return spellings.asSequence()
+            .filter { it.id != row.id }
+            .mapNotNull { it.followedByUserAt }
+            .filter { it.isAfter(unfollowedAt) }
+            .maxOrNull()
+    }
+
     /** Row 716: another spelling of [id]'s channel, among the stored [rows] (by id), carries the user's pending unfollow. */
     fun aliasHasPendingUnfollow(id: String, rows: Map<String, ArtistEntity>): Boolean =
         aliasIds(id).any { it != id && rows[it]?.let(::hasPendingUnfollow) == true }
