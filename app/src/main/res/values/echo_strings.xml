@@ -660,6 +660,7 @@
     <string name="eq_save_dialog_title">Save Preset</string>
     <string name="eq_save_name_hint">Preset Name</string>
     <string name="eq_profile_saved">Preset saved</string>
+    <string name="autoeq_bypass_hint">For pure correction, choose the Bypass preset</string>
     <string name="eq_manage_presets">Manage Presets</string>
     <string name="eq_delete_selected">Delete</string>
     <string name="eq_no_custom_presets">No custom presets found</string>

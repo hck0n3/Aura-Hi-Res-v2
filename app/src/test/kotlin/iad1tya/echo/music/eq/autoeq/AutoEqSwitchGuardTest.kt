@@ -1,0 +1,63 @@
+package iad1tya.echo.music.eq.autoeq
+
+import java.io.File
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * Registry rows 133 and 792: the Auto-EQ screen's switch must never touch the master EQ, and OFF must keep the
+ * profile's bands so ON (reEnableAutoEq, a no-op without bands) can bring the same correction back.
+ */
+class AutoEqSwitchGuardTest {
+    private val root: File by lazy {
+        generateSequence(File("").absoluteFile) { it.parentFile }
+            .firstOrNull { File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")
+    }
+
+    private fun source(path: String): String = File(root, path).readText()
+
+    private val screen by lazy {
+        source("app/src/main/kotlin/com/music/echo/ui/screens/equalizer/autoeq/AutoEqScreen.kt")
+    }
+    private val viewModel by lazy {
+        source("app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt")
+    }
+
+    @Test fun `switch OFF disables Auto-EQ instead of erasing it`() {
+        assertTrue(screen.contains("if (on) eqViewModel.reEnableAutoEq() else eqViewModel.disableAutoEq()"))
+        assertFalse(screen.contains("eqViewModel.clearAutoEq()"))
+        assertFalse(screen.contains("eqViewModel.setEnabled("))
+    }
+
+    @Test fun `disableAutoEq keeps the stored bands`() {
+        val body = viewModel.substringAfter("fun disableAutoEq() {").substringBefore("\n    }")
+        assertTrue(body.contains("setAutoEqActive(false)"))
+        assertFalse(body.contains("_autoEqBands.value ="))
+        assertFalse(body.contains("persistAutoEqBands()"))
+        assertFalse(body.contains("setEnabled("))
+    }
+
+    @Test fun `ON restores the preamp AutoEq computed for the stored bands`() {
+        val batch = viewModel.substringAfter("fun applyProfileBatch(").substringBefore("\n    }")
+        val autoEqBranch = batch.substringAfter("if (isAutoEq) {").substringBefore("} else {")
+        assertTrue(autoEqBranch.contains("putFloat(\"autoeq_preamp\", _preamp.value)"))
+        val body = viewModel.substringAfter("fun reEnableAutoEq() {").substringBefore("\n    }")
+        val restore = body.indexOf("prefs.getFloat(\"autoeq_preamp\", _preamp.value)")
+        assertTrue(restore >= 0)
+        assertTrue(body.indexOf("prefs.edit().putFloat(\"preampDb\", _preamp.value).apply()") > restore)
+        assertTrue(body.indexOf("applyToService()") > restore)
+    }
+
+    @Test fun `prefs listener keeps the Auto-EQ state and preamp in step across instances, read-only`() {
+        val body = viewModel
+            .substringAfter("private val enabledSync = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->")
+            .substringBefore("\n    }")
+        assertTrue(body.contains("key == \"autoeq_active\") _autoEqActive.value = p.getBoolean(\"autoeq_active\", false)"))
+        assertTrue(body.contains("key == \"autoeq_bands\") _autoEqBands.value = loadAutoEqBands()"))
+        assertTrue(body.contains("_preamp.value = p.getFloat(\"preampDb\", EqConstants.DEFAULT_PREAMP_DB)"))
+        assertFalse(body.contains("applyToService("))
+        assertFalse(body.contains("edit()"))
+        assertFalse(body.contains("setAutoEqActive("))
+    }
+}

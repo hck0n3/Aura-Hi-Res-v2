@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -48,8 +49,7 @@ import iad1tya.echo.music.R
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.eq.autoeq.AutoEqEntry
 import iad1tya.echo.music.eq.autoeq.AutoEqRepository
-import iad1tya.echo.music.eq.autoeq.projectAutoEqToBands
-import iad1tya.echo.music.eq.data.EqConstants
+import iad1tya.echo.music.eq.autoeq.toAutoBands
 import iad1tya.echo.music.ui.newui.auraScreenBackground
 import iad1tya.echo.music.ui.newui.rememberAuraBloom
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
@@ -181,7 +181,7 @@ fun AutoEqScreen(navController: NavController) {
         )
 
         // Toggle the Auto-EQ correction stage independently of the master EQ switch.
-        // OFF → clearAutoEq() removes the correction stage while keeping manual EQ untouched.
+        // OFF → disableAutoEq() switches the correction stage off but keeps its bands (manual EQ untouched).
         // ON  → reEnableAutoEq() restores the persisted profile (no-op if none stored yet).
         ListItem(
             headlineContent = { Text("Auto-EQ activado", fontWeight = FontWeight.Medium) },
@@ -198,10 +198,16 @@ fun AutoEqScreen(navController: NavController) {
                 Switch(
                     checked = autoEqActive,
                     onCheckedChange = { on ->
-                        if (on) eqViewModel.reEnableAutoEq() else eqViewModel.clearAutoEq()
+                        if (on) eqViewModel.reEnableAutoEq() else eqViewModel.disableAutoEq()
                     },
                 )
             },
+        )
+        // Auto-EQ stacks on the manual EQ (house curve by default): pure correction = manual preset Bypass.
+        Text(
+            stringResource(R.string.autoeq_bypass_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         Row(
@@ -267,13 +273,14 @@ fun AutoEqScreen(navController: NavController) {
                                 if (profile == null) {
                                     Toast.makeText(context, "No se pudo descargar el perfil", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    val gains = projectAutoEqToBands(profile, EqConstants.FREQUENCIES)
                                     // Apply bands + preamp + enable in ONE shot (avoids the audio
                                     // stutter from three back-to-back DSP re-applies + DB writes).
+                                    // The profile's own PK/LSC/HSC filters run as the Auto-EQ stage.
                                     eqViewModel.applyProfileBatch(
-                                        gains,
+                                        FloatArray(0),
                                         profile.preampDb.toFloat(),
                                         isAutoEq = true,
+                                        autoBands = profile.toAutoBands(),
                                     )
                                     Toast.makeText(context, "Auto-EQ aplicado: ${entry.name}", Toast.LENGTH_SHORT).show()
                                 }

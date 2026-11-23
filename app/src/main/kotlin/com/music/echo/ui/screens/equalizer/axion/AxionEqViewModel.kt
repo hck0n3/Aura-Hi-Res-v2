@@ -175,7 +175,23 @@ class AxionEqViewModel @Inject constructor(
      */
     fun reEnableAutoEq() {
         if (_autoEqBands.value.isEmpty()) return
+        // The bands come back with the headroom AutoEq computed for them, not on top of whatever preamp was
+        // set while the stage was OFF. Bands stored before autoeq_preamp existed keep the current preamp.
+        if (prefs.contains("autoeq_preamp")) {
+            _preamp.value = prefs.getFloat("autoeq_preamp", _preamp.value)
+                .coerceIn(EqConstants.PREAMP_MIN, EqConstants.PREAMP_MAX)
+            prefs.edit().putFloat("preampDb", _preamp.value).apply()
+        }
         setAutoEqActive(true)
+        if (_enabled.value) applyToService()
+    }
+
+    /**
+     * Switch the Auto-EQ correction stage off WITHOUT forgetting its bands, so [reEnableAutoEq] brings the same
+     * profile back. Wired to the Auto-EQ screen's switch. Does NOT touch master [enabled] or the manual EQ.
+     */
+    fun disableAutoEq() {
+        setAutoEqActive(false)
         if (_enabled.value) applyToService()
     }
 
@@ -268,6 +284,13 @@ class AxionEqViewModel @Inject constructor(
      */
     private val enabledSync = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->
         if (key == null || key == "enabled") _enabled.value = p.getBoolean("enabled", false)
+        // The EQ screen and the Auto-EQ screen each own an instance (one per nav entry): the Auto-EQ state and
+        // the preamp one of them writes must reach the other, or its next edit re-sends a stale Auto-EQ stage.
+        if (key == null || key == "autoeq_active") _autoEqActive.value = p.getBoolean("autoeq_active", false)
+        if (key == null || key == "autoeq_bands") _autoEqBands.value = loadAutoEqBands()
+        if (key == null || key == "preampDb") {
+            _preamp.value = p.getFloat("preampDb", EqConstants.DEFAULT_PREAMP_DB)
+        }
     }
 
     init {
@@ -453,19 +476,26 @@ class AxionEqViewModel @Inject constructor(
      * re-apply), which stuttered the audio every time an AutoEq profile was selected. This batches it
      * into a single apply.
      */
-    fun applyProfileBatch(gains: FloatArray, preampDb: Float, isAutoEq: Boolean = false) {
+    fun applyProfileBatch(
+        gains: FloatArray,
+        preampDb: Float,
+        isAutoEq: Boolean = false,
+        autoBands: List<ParametricEQBand>? = null,
+    ) {
         val arr = FloatArray(n) { i ->
             gains.getOrElse(i) { 0f }.coerceIn(EqConstants.GAIN_MIN, EqConstants.GAIN_MAX)
         }
         _preamp.value = preampDb.coerceIn(EqConstants.PREAMP_MIN, EqConstants.PREAMP_MAX)
         _enabled.value = true
         if (isAutoEq) {
-            // Auto-EQ correction stage: store the projected curve as its OWN autoBands (24 PK bands at the
-            // ISO centers). The manual graphic/parametric EQ is left UNTOUCHED so it stacks on top.
-            _autoEqBands.value = buildEqBands(arr, IntArray(n) { 0 })
+            // Auto-EQ correction stage: store the profile's own PK/LSC/HSC filters ([autoBands]) as its OWN
+            // stage. The manual graphic/parametric EQ is left UNTOUCHED so it stacks on top. 48 = the 64 native
+            // slots (SuperpoweredBridge NUM_EQ_FILTERS) minus PeqConstants.MAX_BANDS manual bands.
+            _autoEqBands.value = (autoBands ?: buildEqBands(arr, IntArray(n) { 0 })).take(48)
             persistAutoEqBands()
             prefs.edit().apply {
                 putFloat("preampDb", _preamp.value)
+                putFloat("autoeq_preamp", _preamp.value)
                 putBoolean("enabled", true)
             }.apply()
             setAutoEqActive(true)

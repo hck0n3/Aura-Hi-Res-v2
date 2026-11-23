@@ -2753,6 +2753,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/autoeq/AutoEqS
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Auto-EQ activado (tarjeta de estado, hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:171 | informativo | ocasional | solo si hay un perfil aplicado |
+| «Para corrección pura, elige el preset Bypass» (pista, `autoeq_bypass_hint` ES+EN, fila 792) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:208 | informativo | ocasional | siempre |
 | «Catálogo: N modelos» / «Catálogo no cargado» (hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:191 | informativo | ocasional | siempre |
 | Actualizar base de datos / «Actualizando…» (hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:196 | acción secundaria | rara | siempre |
 | Buscar (ej. WH-1000XM5) (campo de texto, hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:204 | acción secundaria | ocasional | siempre |
