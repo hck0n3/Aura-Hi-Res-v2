@@ -68,6 +68,20 @@ fun isBenignResolveCancellation(e: Throwable?): Boolean =
     e is CancellationException || e is InterruptedException
 
 /**
+ * Registry row 761: what a resolve failure may put in the shared app.log — the exception's simple name
+ * and, for a ktor [io.ktor.client.plugins.ResponseException], its HTTP status. Never the message: a
+ * ktor ClientRequestException message is `POST <url> ... Text: "<body>"`, i.e. the /player URL with its
+ * query and the start of the response body.
+ */
+internal fun resolveFailureSummary(error: Throwable): String = resolveFailureSummary(
+    error.javaClass.simpleName,
+    runCatching { (error as? io.ktor.client.plugins.ResponseException)?.response?.status?.value }.getOrNull(),
+)
+
+internal fun resolveFailureSummary(exceptionName: String, httpStatus: Int?): String =
+    if (httpStatus != null) "$exceptionName http=$httpStatus" else exceptionName
+
+/**
  * HALLAZGO-035: video-export URL preference. "Export as video" resolved ONLY through the burned
  * InnerTube TVHTML5 path (videoStreamUrlDiag) while in-app video mode plays fine through NewPipe's
  * ANDROID_VR extraction — so the export row stayed dead. NewPipe wins; a blank/missing NewPipe URL
@@ -158,7 +172,7 @@ object YTPlayerUtils {
             return
         }
         Timber.tag("RESOLVE_FAIL").w(
-            "client=$clientName videoId=$videoId ${error.javaClass.simpleName}: ${error.message?.take(180)}"
+            "client=$clientName videoId=$videoId ${resolveFailureSummary(error)}"
         )
     }
     private const val TAG = "YTPlayerUtils"
@@ -245,7 +259,7 @@ object YTPlayerUtils {
                 // query-stripped Address.url today, so this did not leak — but it is one library
                 // behaviour change away from writing credentials into the file the user shares, and
                 // the attached throwable's own message was going in unbounded. Do not restore `$uri`.
-                Timber.tag(TAG).e("Proxy connection failed for host=${uri?.host}: ${ioe?.javaClass?.simpleName}: ${ioe?.message?.take(180)}")
+                Timber.tag(TAG).e("Proxy connection failed for host=${uri?.host}: ${ioe?.let { resolveFailureSummary(it) }}")
             }
         })
         .proxyAuthenticator { _, response ->
