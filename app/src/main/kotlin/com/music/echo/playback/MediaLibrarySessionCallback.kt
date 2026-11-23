@@ -115,6 +115,25 @@ constructor(
         controller: MediaSession.ControllerInfo,
         playerCommand: Int,
     ): Int {
+        // Registry 786: external next / previous / seek obey remote mode and the Listen Together guest lock, like the in-app buttons.
+        val transport = ExternalTransportPolicy.kindOf(playerCommand)
+        if (transport != null && this::service.isInitialized) {
+            val guest = runCatching { service.listenTogetherManager.shouldBlockPlaybackChanges() }.getOrDefault(false)
+            val route = ExternalTransportPolicy.route(transport, guest, iad1tya.echo.music.devicesync.RemotePlayback.active)
+            val sent = when (route) {
+                ExternalTransportPolicy.Route.LOCAL -> false
+                ExternalTransportPolicy.Route.REFUSE_GUEST, ExternalTransportPolicy.Route.REFUSE_REMOTE -> true
+                ExternalTransportPolicy.Route.REMOTE ->
+                    if (transport == ExternalTransportPolicy.Kind.NEXT) iad1tya.echo.music.devicesync.RemotePlayback.next()
+                    else iad1tya.echo.music.devicesync.RemotePlayback.previous()
+            }
+            if (sent) {
+                timber.log.Timber.tag("PLAYBACK").i(
+                    "START_CAUSE=external_%s_%s from=%s", transport.name.lowercase(), route.name.lowercase(), controller.packageName,
+                )
+                return SessionResult.RESULT_ERROR_PERMISSION_DENIED
+            }
+        }
         if (PHANTOM_PLAY_VETO_ENABLED &&
             playerCommand == androidx.media3.common.Player.COMMAND_PLAY_PAUSE &&
             this::service.isInitialized &&
@@ -321,8 +340,12 @@ constructor(
 
                     MusicService.PLAYLIST -> {
                         val likedSongCount = database.likedSongsCount().first()
-                        val downloadedSongCount = downloadUtil.downloads.value.size
-                        val youtubePlaylists = try {
+                        // Registry 786: the count matches the list it opens (only finished downloads), and offline (manual switch or
+                        // the playback offline session) browsing the root makes no network call.
+                        val downloadedSongCount = downloadUtil.downloads.value.values.count { it.state == Download.STATE_COMPLETED }
+                        val offline = PlaybackOfflineSession.isActive ||
+                            (context.dataStore.data.first()[iad1tya.echo.music.constants.OfflineModeKey] ?: false)
+                        val youtubePlaylists = if (offline) emptyList<PlaylistItem>() else try {
                             YouTube.home().getOrNull()?.sections
                                 ?.flatMap { it.items }
                                 ?.filterIsInstance<PlaylistItem>()

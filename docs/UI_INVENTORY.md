@@ -4259,10 +4259,11 @@ producto. Si el rediseño cambia iconografía, colores o nombres, hay que decidi
 
 | Etiqueta (ES) | Destino | Definición |
 |---|---|---|
-| **Buscar** | `search_input` | `res/xml/shortcuts.xml` → `MainActivity.kt:1801-1814` |
+| **Buscar** | `search_input` | `utils/LauncherShortcuts.kt` (publicado en `MainActivity.onCreate`) → `MainActivity.kt:958`, `:2963` |
 | **Biblioteca** | `library` | ídem |
 
-No hay accesos directos dinámicos.
+Son accesos directos **dinámicos** (fila 785): aparecen tras abrir la app una vez. El antiguo `res/xml/shortcuts.xml` apuntaba
+al paquete de la app vieja (`iad1tya.echo.music`) y no abría esta.
 
 ## 25.4 Botones de la notificación de reproducción y de Android Auto
 

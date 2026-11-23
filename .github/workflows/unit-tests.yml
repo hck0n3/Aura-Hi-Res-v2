@@ -59,6 +59,10 @@ jobs:
       - name: Worker rooms tests
         run: cd docs/worker/rooms && npm install --no-audit --no-fund --silent && npm test
 
+      # Worker de sincronización entre aparatos (fila 786): mismas versiones fijadas que el de salas (package-lock.json).
+      - name: Worker sync tests
+        run: cd docs/worker/sync && npm ci --no-audit --no-fund --silent && npm test
+
       - name: Set up JDK 21
         uses: actions/setup-java@v6
         with:

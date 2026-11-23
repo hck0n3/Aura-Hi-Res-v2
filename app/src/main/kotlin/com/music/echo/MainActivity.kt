@@ -623,6 +623,9 @@ class MainActivity : ComponentActivity() {
         // and anything Activity-scoped would stop publishing the moment the screen went away.
         listenTogetherManager.connectIfResumable()
 
+        // Registry row 785: long-press Buscar / Biblioteca, built for THIS build's applicationId (no static shortcuts.xml).
+        iad1tya.echo.music.utils.LauncherShortcuts.publish(this, ACTION_SEARCH, ACTION_LIBRARY)
+
         // App language (device/system locale by default) is applied for all API levels in attachBaseContext().
 
         lifecycleScope.launch {
