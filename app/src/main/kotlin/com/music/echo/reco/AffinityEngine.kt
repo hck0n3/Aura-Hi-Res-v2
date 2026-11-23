@@ -59,6 +59,10 @@ object AffinityEngine {
      *  gives artist names, not YouTube ids, so it never touches maxArtistWeight (computed from byId). */
     private const val LASTFM_KEY_CAP = 2.0
 
+    /** Row 720 — the most quick skips ([QuickSkipLog]) may take from one artist id/name: what a library import may
+     *  give it, so a burst of skips while hunting for a song cannot bury an artist the user otherwise plays. */
+    private const val QUICK_SKIP_KEY_CAP = LIBRARY_KEY_CAP
+
     suspend fun buildProfile(
         events: List<EventWithSong>,
         disliked: DislikeStore.Disliked,
@@ -81,6 +85,8 @@ object AffinityEngine {
         // capped, so it seeds cold-start / cross-app taste but never outranks real local plays. Empty by default
         // (Last.fm off/absent) => zero behavior change.
         externalArtistWeights: Map<String, Double> = emptyMap(),
+        // Row 720: the quick skips the history never recorded ([QuickSkipLog]). Empty => zero behavior change.
+        quickSkips: List<QuickSkipLog.Entry> = emptyList(),
     ): TasteProfile {
         val byId = HashMap<String, Double>()
         val byName = HashMap<String, Double>()
@@ -159,6 +165,25 @@ object AffinityEngine {
             }
         }
 
+        // Row 720: a quick skip counts against its primary artist exactly as the play the history never recorded
+        // would have ([quickSkipWeight]), capped per key. A marked song or artist feeds nothing, as above (row 285).
+        if (quickSkips.isNotEmpty()) {
+            val skipById = HashMap<String, Double>()
+            val skipByName = HashMap<String, Double>()
+            quickSkips.forEach { s ->
+                if (s.songId in disliked.songs) return@forEach
+                val id = s.artistId?.takeIf { it.isNotBlank() }
+                val name = s.artistName?.takeIf { it.isNotBlank() }
+                if (id != null && isDislikedArtist(id, name.orEmpty())) return@forEach
+                val w = quickSkipWeight(s, now, nowHour)
+                if (w >= 0.0) return@forEach
+                id?.let { skipById.merge(it, -w, Double::plus) }
+                name?.let { skipByName.merge(it.lowercase(), -w, Double::plus) }
+            }
+            skipById.forEach { (k, v) -> byId.merge(k, -min(v, QUICK_SKIP_KEY_CAP), Double::plus) }
+            skipByName.forEach { (k, v) -> byName.merge(k, -min(v, QUICK_SKIP_KEY_CAP), Double::plus) }
+        }
+
         // B4: seed taste from the saved/imported library. A song you saved but never played is a real
         // (if weaker) taste signal — so the AI works from the whole imported library, even on a fresh install
         // where there's no in-app play history yet. Liked songs weigh a bit more than plain imported ones.
@@ -230,6 +255,20 @@ object AffinityEngine {
             byId, byName, lane, genre, artistGenres, disliked, maxW, maxG,
             dislikedArtistNames = dislikedArtistNames,
         )
+    }
+
+    /**
+     * Row 720 — what one quick skip weighs: the same recency decay, time-of-day boost and completion → quality mapping
+     * as a play in [buildProfile], never above zero (a skip never ADDS taste). Unknown duration = nothing heard.
+     */
+    internal fun quickSkipWeight(entry: QuickSkipLog.Entry, now: Long, nowHour: Int): Double {
+        val ageDays = ((now - entry.atMs) / 86_400_000.0).coerceAtLeast(0.0)
+        val decay = exp(-ln(2.0) * ageDays / HALF_LIFE_DAYS)
+        val hour = runCatching { Instant.ofEpochMilli(entry.atMs).atZone(ZoneId.systemDefault()).hour }.getOrDefault(nowHour)
+        val timeBoost = if (circularHourDistance(hour, nowHour) <= 3) 1.25 else 1.0
+        val completion = if (entry.durationMs > 0) (entry.listenedMs.toDouble() / entry.durationMs).coerceIn(0.0, 1.0) else 0.0
+        val quality = (completion - SKIP_PIVOT) / (1.0 - SKIP_PIVOT)
+        return (decay * quality * timeBoost).coerceAtMost(0.0)
     }
 
     /** Smallest distance between two hours on a 24h clock (0..12). */
