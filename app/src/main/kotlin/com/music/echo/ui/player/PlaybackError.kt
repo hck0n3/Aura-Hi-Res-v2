@@ -2,6 +2,7 @@
 
 package iad1tya.echo.music.ui.player
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +17,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -28,42 +31,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.PlaybackException
 import iad1tya.echo.music.R
+import iad1tya.echo.music.utils.YTPlayerUtils
 
+/**
+ * @param onNavigate opens an app route (the card's next step: «Ver música sin conexión», «Iniciar sesión»). Null keeps
+ *   the card to «Reintentar» only, so a host without navigation never shows a button that does nothing.
+ */
 @Composable
 fun PlaybackError(
     error: PlaybackException,
     retry: () -> Unit,
+    onNavigate: ((String) -> Unit)? = null,
 ) {
-    
-    val rawErrorMessage = error.cause?.cause?.message 
-        ?: error.cause?.message 
-        ?: error.message 
-        ?: stringResource(R.string.error_unknown)
-    
-    
-    
-    // Only text that genuinely names an age check is "age restricted". LOGIN_REQUIRED / 403 /
-    // IO_BAD_HTTP_STATUS were lumped in here too, which mislabeled a rejected/expired stream or a stale
-    // session as "age-restricted" — exactly the wrong hint (it sent a user hunting for an age setting
-    // when the real fix was retry / sign out and back in). Split them.
-    val isAgeRestricted = rawErrorMessage.contains("age", ignoreCase = true) ||
-            rawErrorMessage.contains("confirm your age", ignoreCase = true)
-
-    val isAccessOrSession = !isAgeRestricted && (
-            rawErrorMessage.contains("LOGIN_REQUIRED", ignoreCase = true) ||
-            rawErrorMessage.contains("bot", ignoreCase = true) ||
-            rawErrorMessage.contains("403", ignoreCase = true) ||
-            rawErrorMessage.contains("Response code: 403", ignoreCase = true) ||
-            error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS)
-
-    val errorMessage = when {
-        isAgeRestricted ->
-            "YouTube pide confirmar la edad y Aura no pudo confirmarla con tu cuenta. Entra en youtube.com con esta misma cuenta, verifica tu edad y vuelve a intentarlo."
-        isAccessOrSession ->
-            "The server rejected the request for this song. Check your connection and retry — if it keeps happening, sign out and back in."
-        else -> rawErrorMessage
+    // UX audit P22A: a plain sentence and ONE next step per class of failure, read through the same classifier
+    // onPlayerError routes on (PlaybackErrorAdvice, pinned by PlaybackErrorAdviceTest) instead of the raw English
+    // loader text. Age checks keep their own message, as before; the «Code: …» line below is unchanged.
+    val kind = remember(error) {
+        PlaybackErrorAdvice.kindOf(error, sessionRejected = YTPlayerUtils.identityRejections.isIdentityShaped)
     }
-    
+    val action = PlaybackErrorAdvice.actionOf(kind)
+        .takeIf { it.route == null || onNavigate != null }
+        ?: PlaybackErrorAdvice.Action.RETRY
+    val errorMessage = stringResource(playbackErrorMessageRes(kind))
+    val detail = remember(error, kind) { PlaybackErrorAdvice.detailOf(error, kind) }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -97,10 +88,22 @@ fun PlaybackError(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            maxLines = 3,
+            maxLines = 4,
             overflow = TextOverflow.Ellipsis
         )
-        
+
+        if (detail != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
         Spacer(modifier = Modifier.height(4.dp))
         
         
@@ -117,22 +120,53 @@ fun PlaybackError(
         Spacer(modifier = Modifier.height(16.dp))
         
         
+        val route = action.route
         Button(
-            onClick = retry,
+            onClick = { if (route != null && onNavigate != null) onNavigate(route) else retry() },
             shape = RoundedCornerShape(20.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary
             )
         ) {
-            Icon(
-                painter = painterResource(R.drawable.replay),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(text = stringResource(R.string.retry))
+            if (action == PlaybackErrorAdvice.Action.RETRY) {
+                Icon(
+                    painter = painterResource(R.drawable.replay),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text(text = stringResource(playbackErrorActionLabelRes(action)))
+        }
+
+        // «Reintentar» never disappears: when the primary step is somewhere else, it stays as the secondary button.
+        if (action != PlaybackErrorAdvice.Action.RETRY) {
+            TextButton(onClick = retry) {
+                Text(text = stringResource(R.string.retry))
+            }
         }
     }
+}
+
+@StringRes
+private fun playbackErrorMessageRes(kind: PlaybackErrorAdvice.Kind): Int = when (kind) {
+    PlaybackErrorAdvice.Kind.OFFLINE_MODE -> R.string.playback_error_offline_mode
+    PlaybackErrorAdvice.Kind.NO_CONNECTION -> R.string.playback_error_no_connection
+    PlaybackErrorAdvice.Kind.UNSTABLE_CONNECTION -> R.string.playback_error_unstable_connection
+    PlaybackErrorAdvice.Kind.AGE_RESTRICTED -> R.string.playback_error_age_restricted
+    PlaybackErrorAdvice.Kind.AGE_RESTRICTED_GUEST -> R.string.playback_error_age_restricted_guest
+    PlaybackErrorAdvice.Kind.SESSION_EXPIRED -> R.string.session_expired_sign_in_again
+    PlaybackErrorAdvice.Kind.NOT_AVAILABLE -> R.string.playback_error_not_available
+    PlaybackErrorAdvice.Kind.ACCESS_REJECTED -> R.string.playback_error_access_rejected
+    PlaybackErrorAdvice.Kind.UNRESOLVED -> R.string.playback_error_unresolved
+    PlaybackErrorAdvice.Kind.GENERIC -> R.string.playback_error_generic
+}
+
+@StringRes
+private fun playbackErrorActionLabelRes(action: PlaybackErrorAdvice.Action): Int = when (action) {
+    PlaybackErrorAdvice.Action.RETRY -> R.string.retry
+    PlaybackErrorAdvice.Action.OPEN_OFFLINE_MUSIC -> R.string.playback_error_action_offline_music
+    PlaybackErrorAdvice.Action.SIGN_IN -> R.string.playback_error_action_sign_in
 }
 
 

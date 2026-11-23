@@ -424,6 +424,8 @@ fun Thumbnail(
     isListenTogetherGuest: Boolean = false,
     /** See [ThumbnailHost]. The default keeps every classic call site unchanged. */
     host: ThumbnailHost = ThumbnailHost.CLASSIC,
+    /** The error card's next step (an app route). Null: the card offers «Reintentar» only. */
+    onPlaybackErrorNavigate: ((String) -> Unit)? = null,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val context = LocalContext.current
@@ -637,6 +639,7 @@ fun Thumbnail(
                     PlaybackError(
                         error = playbackError,
                         retry = playerConnection.player::prepare,
+                        onNavigate = onPlaybackErrorNavigate,
                     )
                 }
             }

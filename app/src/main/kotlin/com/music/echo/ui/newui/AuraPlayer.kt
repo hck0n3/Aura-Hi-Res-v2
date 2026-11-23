@@ -1516,6 +1516,12 @@ private fun AuraPlayerShape(
                         // APPLE_MUSIC on every fresh install). Declaring the host fixes it for ALL SEVEN
                         // style values at once instead of special-casing one.
                         host = ThumbnailHost.OPAQUE_DARK,
+                        // P22A: the error card's next step («Ver música sin conexión», «Iniciar sesión») leaves the player
+                        // through the same door as every other navigation that starts here.
+                        onPlaybackErrorNavigate = { route ->
+                            navController.navigateOnce(route)
+                            state.collapseAfterNavigate()
+                        },
                     )
                     // Canvas animates in Thumbnail; no on-screen "CANVAS EN MOVIMIENTO" badge (owner).
                 }

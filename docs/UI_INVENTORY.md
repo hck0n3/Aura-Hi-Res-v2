@@ -495,6 +495,8 @@ La barra tiene **cuatro implementaciones distintas** según el ajuste de estilo.
 | Indicador de carga de vídeo | Reproductor > sobre la portada | `app/.../ui/player/Thumbnail.kt:437` | informativo | ocasional | `videoMode` ON y todavía sin URL |
 | Portada giratoria (forma trébol) | Reproductor > portada | `app/.../ui/player/Thumbnail.kt:774-780` | informativo | rara | `RotatingThumbnail` ON (limitado por rendimiento) |
 | **«Reproducción fallida»** + mensaje + código + **«Reintentar»** | Reproductor > sobre la portada | `app/.../ui/player/Thumbnail.kt:457` → `ui/player/PlaybackError.kt:121` | acción primaria | rara | solo si `playerConnection.error != null` |
+| Mensaje en lenguaje llano según la clase de fallo (P22A, fila 732): «Sin conexión…», «El modo sin conexión está activado…», «La conexión falló…», edad (cuenta / sin cuenta), «Tu sesión de YouTube caducó…», «YouTube no ofrece esta canción en tu país o para tu cuenta…» (+ el motivo de YouTube debajo), «YouTube rechazó esta canción…», «Aura no pudo cargar esta canción» (+ motivo), «No se pudo reproducir esta canción…» | Reproductor > tarjeta de error | `ui/player/PlaybackErrorAdvice.kt` (`kindOf`) → `ui/player/PlaybackError.kt` (`playbackErrorMessageRes`) | informativo | rara | según `PlaybackErrorClassifier`; la línea «Code: …» y el `ERR_BR` del registro no cambian |
+| **«Ver música sin conexión»** (abre Descargadas) / **«Iniciar sesión»** (abre Ajustes ▸ Cuentas) + «Reintentar» debajo como botón secundario | Reproductor > tarjeta de error | `ui/player/PlaybackError.kt` (botón principal + `TextButton`) ← `Thumbnail.kt` `onPlaybackErrorNavigate` ← `ui/newui/AuraPlayer.kt` (`navigateOnce` + `collapseAfterNavigate`) | navegación | rara | «Ver música sin conexión»: sin internet o modo sin conexión; «Iniciar sesión»: sesión rechazada o edad sin cuenta. En los demás casos el botón principal sigue siendo «Reintentar» |
 | Overlay **«−N segundos hacia atrás» / «+N segundos hacia adelante»** | Reproductor > centro de la portada | `app/.../ui/player/Thumbnail.kt:580` (impl. `:1036`) | informativo | ocasional | 1 s tras un doble toque lateral |
 
 ## 2.7 Reproductor > vídeo inmersivo (retrato)
@@ -3487,7 +3489,7 @@ Ser **invitado** de una sala degrada el reproductor entero. Un mockup nunca ense
 | **La canción es explícita** | Insignia «E» |
 | **La canción es FLAC / AAC ≥320** | Insignias «LOSSLESS» / «320KBPS» |
 | **Ya sonó en esta ronda del Aleatorio Mejorado** | Check «Ya reproducida en aleatorio» + fila atenuada al 50 % |
-| **Hay error de reproducción** | Superposición «Reproducción fallida» + «Reintentar» sobre la portada, y aviso en el mini reproductor |
+| **Hay error de reproducción** | Superposición «Reproducción fallida» + mensaje llano + «Reintentar» sobre la portada (con «Ver música sin conexión» o «Iniciar sesión» como botón principal cuando esa es la salida, P22A), y aviso en el mini reproductor |
 | **Está sonando un fundido cruzado** | Chip parpadeante «Fundido cruzado» |
 
 ## 20.5 Por contexto de origen (el mismo menú cambia según de dónde se abra)
@@ -3899,7 +3901,7 @@ Kotlin, que no pasa por el sistema de traducción.
 | Dónde | Texto |
 |---|---|
 | Pantalla de actualizaciones ENTERA | `app/src/main/res/values/updater_strings.xml` (77 cadenas) **no tiene versión en español**: «Check for update», «Later», «Update», «Install», «Current version», «Released on», «Size», «Can't check for updates», «Download Failed» |
-| Reproductor | «Cast» / «Stop casting» (`gms/.../CastButton.kt:138`, `:206`), «Casting» (`MiniPlayer.kt:429`), «Hosting Listen Together» / «Listening Together» (`Thumbnail.kt:610`), mensajes de error de edad y de servidor (`PlaybackError.kt:61`, `:63`) |
+| Reproductor | «Cast» / «Stop casting» (`gms/.../CastButton.kt:138`, `:206`), «Casting» (`MiniPlayer.kt:429`), «Hosting Listen Together» / «Listening Together» (`Thumbnail.kt:610`). ~~Mensajes de error de edad y de servidor (`PlaybackError.kt:61`, `:63`)~~ — resuelto en P22A (fila 732): la tarjeta de error lee sus textos de `playback_error_strings.xml` (es/en) |
 | Letras | «Lyrics from <proveedor>» (`Lyrics.kt:1061`) |
 | Información de la canción | «<etiqueta> copied» (`ShowMediaInfo.kt:363`) |
 | Desfase de la letra | «Reset», «Decrease», «Increase» (`ShowOffsetDialog.kt:180`, `:200`, `:225`) |

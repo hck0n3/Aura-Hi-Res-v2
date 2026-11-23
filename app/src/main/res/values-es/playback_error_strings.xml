@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="playback_error_no_connection">Sin conexión. Puedes seguir escuchando la música que descargaste.</string>
+    <string name="playback_error_offline_mode">El modo sin conexión está activado y esta canción necesita internet.</string>
+    <string name="playback_error_unstable_connection">La conexión falló al cargar esta canción. Revisa tu internet y vuelve a intentarlo.</string>
+    <string name="playback_error_age_restricted">YouTube pide confirmar la edad y Aura no pudo confirmarla con tu cuenta. Entra en youtube.com con esta misma cuenta, verifica tu edad y vuelve a intentarlo.</string>
+    <string name="playback_error_age_restricted_guest">Esta canción tiene restricción de edad. Inicia sesión con una cuenta de YouTube de un adulto para reproducirla.</string>
+    <string name="playback_error_not_available">YouTube no ofrece esta canción en tu país o para tu cuenta (puede ser solo para Premium o haber sido retirada).</string>
+    <string name="playback_error_access_rejected">YouTube rechazó esta canción. Vuelve a intentarlo; si sigue pasando, cierra sesión y vuelve a entrar.</string>
+    <string name="playback_error_unresolved">Aura no pudo cargar esta canción.</string>
+    <string name="playback_error_generic">No se pudo reproducir esta canción. Vuelve a intentarlo.</string>
+    <string name="playback_error_action_offline_music">Ver música sin conexión</string>
+    <string name="playback_error_action_sign_in">Iniciar sesión</string>
+</resources>
