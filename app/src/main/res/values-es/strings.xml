@@ -217,7 +217,7 @@
         <item quantity="other">%d años</item>
     </plurals>
     <string name="playlist_imported">Lista de reproducción importada</string>
-    <string name="removed_song_from_playlist">Eliminado «%s» de la lista de reproducción</string>
+    <string name="removed_song_from_playlist">Eliminado «%s» de la cola</string>
     <string name="playlist_synced">Lista de reproducción sincronizada</string>
     <string name="undo">Deshacer</string>
     <string name="previous_queue_offer">¿Volver a la cola anterior?</string>
