@@ -326,13 +326,13 @@ Con `-Pnosub=true` la puerta se salta entera (`license/LicenseGate.kt:21-24`).
 | «Activar suscripción» + explicación | Alta de suscripción | `license/LicenseScreens.kt:282-283` | informativo | rara | siempre |
 | **Clave de licencia** *(campo, teclado en mayúsculas)* | Alta de suscripción | `license/LicenseScreens.kt:290-291` | acción primaria | rara | siempre |
 | **«Activar»** / «Verificando…» | Alta de suscripción | `license/LicenseScreens.kt:302-307` | acción primaria | rara | habilitado solo con la clave escrita |
-| **«Suscribirme por $3.74/mes»** *(abre Gumroad en Chrome Custom Tab)* | Alta de suscripción | `license/LicenseScreens.kt:309-313` | acción primaria | rara | siempre |
+| **«Suscribirme: US$3.74 al mes + impuestos»** *(abre Gumroad en Chrome Custom Tab)* | Alta de suscripción | `license/LicenseScreens.kt:309-313` | acción primaria | rara | siempre |
 | **«Volver»** | Alta de suscripción | `license/LicenseScreens.kt:323` | navegación | rara | siempre |
 | «Licencia detectada, activando…» | Alta de suscripción | `license/LicenseScreens.kt:272` | informativo | rara | al volver a la app con una clave en el portapapeles |
 | Mensajes de error: cancelada/vencida, clave en otro equipo, clave inválida, sin conexión | Alta de suscripción | `license/LicenseScreens.kt:243`, `:247`, `:251`, `:255` | informativo | rara | según el resultado |
 | «Suscripción vencida» + **«Renovar en Gumroad»** + **«Ya pagué, reintentar»** | Renovación | `license/LicenseScreens.kt:335`, `:342`, `:344-358` | acción primaria | rara | solo `SUBSCRIPTION_EXPIRED` |
 | «Conéctate a internet» + **«Reintentar»** | Sin conexión | `license/LicenseScreens.kt:365-368` | acción primaria | rara | solo `NEEDS_CONNECTION` |
-| «Suscripción en otro equipo» + **«Reintentar»** + **«Suscribirme ($3.74/mes)»** | Equipo bloqueado | `license/LicenseScreens.kt:376-386` | acción primaria | rara | solo `DEVICE_BLOCKED` |
+| «Suscripción en otro equipo» + **«Reintentar»** + **«Suscribirme (US$3.74 al mes, renovación automática)»** | Equipo bloqueado | `license/LicenseScreens.kt:376-386` | acción primaria | rara | solo `DEVICE_BLOCKED` |
 
 ## 1.12 Onboarding (4 pasos, todo hardcoded en español)
 

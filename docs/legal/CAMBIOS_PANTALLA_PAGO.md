@@ -1,18 +1,12 @@
 # Cambios de texto para la pantalla de pago (`license/LicenseScreens.kt`)
 
-La carpeta `license/` está protegida por el guardián del proyecto (`.claude/hooks/protect-zones.sh`), así que estos
-cambios los aplica el dueño a mano. **Solo cambian frases; la lógica de demo, licencia y suscripción no se toca.**
+> **APLICADO (2026-11-23, fila 794 del registro).** El dueño abrió el candado de `license/` (commit `866d026`) y los
+> 7 cambios de la tabla están ya en `LicenseScreens.kt`. No hace falta pegarlos a mano. Lo vigila
+> `app/src/test/kotlin/iad1tya/echo/music/license/PaymentScreenTextsGuardTest.kt` (textos nuevos presentes, antiguos fuera).
 
-## Cómo aplicarlos desde el móvil (web de GitHub)
-1. Abre `https://github.com/hck0n3/Aura-Hi-Res-v2/blob/claude/compassionate-gates-1dotj5/app/src/main/kotlin/com/music/echo/license/LicenseScreens.kt`
-2. Pulsa el lápiz (Editar).
-3. Busca cada texto de la columna «Ahora» (en el menú ⋯ del editor: *Buscar*) y sustitúyelo por el de «Queda así».
-   Copia solo lo que va entre comillas; no toques lo que hay alrededor.
-4. Abajo, *Commit changes* en la **misma rama** `claude/compassionate-gates-1dotj5` (no en `main`).
+**Solo cambian frases; la lógica de demo, licencia y suscripción no se toca.**
 
-Los números de línea son aproximados; busca por el texto.
-
-| Línea aprox. | Ahora | Queda así |
+| Línea aprox. | Antes | Queda así |
 |---|---|---|
 | 70 | `"$3.74"` | `"US$3.74"` |
 | 261 | `"Tu demo de 3 días terminó. Suscríbete para seguir disfrutando de toda la música."` | `"Tu demo de 3 días terminó. Para seguir usando Aura necesitas una suscripción mensual. El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial."` |
@@ -25,4 +19,4 @@ Los números de línea son aproximados; busca por el texto.
 El enlace de Gumroad (`GUMROAD_URL`, línea ~72) **no se cambia**: si se cambiara el producto, también habría que
 cambiar el `PRODUCT_ID` del servidor de licencias.
 
-Cuando los hayas pegado, avisa: se comprueba que compila en GitHub y entra en la siguiente beta.
+Se comprueba que compila en GitHub y entra en la siguiente beta.
