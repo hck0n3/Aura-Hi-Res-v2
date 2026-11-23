@@ -837,6 +837,7 @@ class MusicService :
     @Volatile private var spatialEnabledHint: Boolean = false
     @Volatile private var spatialProfileNameHint: String = SpatialAudioProfile.WIDE_SURROUND.name
     @Volatile private var tidalEnabledHint: Boolean = true
+    @Volatile private var deEsserEnabledHint: Boolean = iad1tya.echo.music.constants.DeEsserDefault
     // Mastering toggles (owner directive 2026-09-13). Defaults mirror the preference keys.
     @Volatile private var glueCompressorHint: Boolean = iad1tya.echo.music.constants.GlueCompressorDefault
     @Volatile private var outputDitherHint: Boolean = true
@@ -2304,6 +2305,10 @@ class MusicService :
         playerEqProcessors.values.forEach { it.applyTidalSimulation(tidalEnabledHint) }
     }
 
+    private fun applyDeEsserFromPrefs() {
+        playerEqProcessors.values.forEach { it.applyDeEsser(deEsserEnabledHint) }
+    }
+
     /**
      * Pushes the mastering toggles to every player processor. Sub-bass protection is resolved against the
      * LIVE route here: armed only while the phone's own speaker plays, never on headphones, Bluetooth or a
@@ -3017,6 +3022,16 @@ class MusicService :
                 }
         }
 
+        scope.launch {
+            dataStore.data
+                .map { it[iad1tya.echo.music.constants.DeEsserEnabledKey] ?: iad1tya.echo.music.constants.DeEsserDefault }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    deEsserEnabledHint = enabled
+                    applyDeEsserFromPrefs()
+                }
+        }
+
         // MASTERING toggles (glue compressor / output dither / phone-speaker sub-bass protection).
         scope.launch {
             combine(
@@ -3614,6 +3629,7 @@ class MusicService :
         playerLimiterProcessors[player] = limiterProcessor
         applySpatialFromPrefs()
         applyTidalFromPrefs()
+        applyDeEsserFromPrefs()
         applyMasteringFromPrefs()
 
         player.apply {

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Equalizer ▸ Effects group (registry row 793). -->
+    <string name="eq_effects_title">Effects</string>
+    <string name="eq_tidal_signature_title">Tidal sound signature</string>
+    <string name="eq_tidal_signature_desc">Fixed gentle curve: +1 dB of sub-bass (60 Hz), −0.5 dB at 250 Hz, +0.5 dB of presence (3 kHz) and +1.5 dB of air (12 kHz). Only with the equalizer on.</string>
+    <string name="eq_de_esser_title">De-esser (sibilance control)</string>
+    <string name="eq_de_esser_desc">Lowers the 6.5 kHz region by up to 5 dB only when the “s” sounds get loud. Only with the equalizer on.</string>
+</resources>

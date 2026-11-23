@@ -489,6 +489,16 @@ val AudioNormalizationKey = booleanPreferencesKey("audioNormalization")
 // loud tracks don't blast at full native level. Does not break Hi-Res output.
 val SafeVolumeEnabledKey = booleanPreferencesKey("safeVolume")
 val TidalSimulationEnabledKey = booleanPreferencesKey("tidalSimulation")
+
+/**
+ * Row 793: the dynamic de-esser's own switch (equalizer ▸ Efectos). Default ON, so an update changes
+ * nothing. MusicService (hint + collector) and AxionEqScreen (the switch) MUST read [DeEsserDefault].
+ * Guarded by `DeEsserDefaultParityTest`.
+ */
+val DeEsserEnabledKey = booleanPreferencesKey("eq_de_esser_enabled")
+
+/** The ONE default of [DeEsserEnabledKey]. */
+const val DeEsserDefault = true
 val AutoLoadMoreKey = booleanPreferencesKey("autoLoadMore")
 val DisableLoadMoreWhenRepeatAllKey = booleanPreferencesKey("disableLoadMoreWhenRepeatAll")
 val AutoDownloadOnLikeKey = booleanPreferencesKey("autoDownloadOnLike")

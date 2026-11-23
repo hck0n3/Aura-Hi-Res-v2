@@ -147,6 +147,8 @@ object AudioOffloadGate {
             masterEqOn = equalizerActive,
             spatialEnabled = spatialEnabled,
             tidalSignatureEnabled = tidalSignatureEnabled,
+            // Not a term here: the de-esser only runs with the EQ active, which already vetoes (EQUALIZER).
+            deEsserEnabled = false,
         ).let { it.spatial || it.tidalSignature }
 
     /** The final answer handed to the players: the user asked for it AND nothing needs the samples. */

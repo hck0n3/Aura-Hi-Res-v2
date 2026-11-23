@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="eq_effects_title">Efectos</string>
+    <string name="eq_tidal_signature_title">Firma de sonido Tidal</string>
+    <string name="eq_tidal_signature_desc">Curva suave fija: +1 dB de sub-grave (60 Hz), −0,5 dB a 250 Hz, +0,5 dB de presencia (3 kHz) y +1,5 dB de aire (12 kHz). Solo con el ecualizador activado.</string>
+    <string name="eq_de_esser_title">De-esser (control de eses)</string>
+    <string name="eq_de_esser_desc">Baja hasta 5 dB la zona de 6,5 kHz solo cuando las eses suenan fuertes. Solo con el ecualizador activado.</string>
+</resources>

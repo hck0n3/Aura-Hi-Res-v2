@@ -25,27 +25,45 @@ import org.junit.Test
 class EqBypassTest {
     @Test
     fun `with the equalizer off its own stages are bypassed`() {
-        val off = EqBypass.toneStages(masterEqOn = false, spatialEnabled = true, tidalSignatureEnabled = true)
+        val off = EqBypass.toneStages(
+            masterEqOn = false,
+            spatialEnabled = true,
+            tidalSignatureEnabled = true,
+            deEsserEnabled = true,
+        )
 
         assertFalse("spatial kept playing with the EQ off", off.spatial)
         assertFalse("the Tidal signature kept playing with the EQ off", off.tidalSignature)
+        assertFalse("the de-esser kept playing with the EQ off", off.deEsser)
     }
 
     @Test
     fun `with the equalizer on the user's choices are published untouched`() {
-        val on = EqBypass.toneStages(masterEqOn = true, spatialEnabled = true, tidalSignatureEnabled = true)
+        val on = EqBypass.toneStages(
+            masterEqOn = true,
+            spatialEnabled = true,
+            tidalSignatureEnabled = true,
+            deEsserEnabled = true,
+        )
 
         assertTrue(on.spatial)
         assertTrue(on.tidalSignature)
+        assertTrue(on.deEsser)
     }
 
     @Test
     fun `the switch never turns a stage ON that the user had off`() {
         // The master switch may only ever subtract.
-        val stages = EqBypass.toneStages(masterEqOn = true, spatialEnabled = false, tidalSignatureEnabled = false)
+        val stages = EqBypass.toneStages(
+            masterEqOn = true,
+            spatialEnabled = false,
+            tidalSignatureEnabled = false,
+            deEsserEnabled = false,
+        )
 
         assertFalse(stages.spatial)
         assertFalse(stages.tidalSignature)
+        assertFalse(stages.deEsser)
     }
 
     @Test
@@ -68,7 +86,9 @@ class EqBypassTest {
             "EqBypass.ToneStages may only govern the stages the equalizer SCREEN owns. Anything else " +
                 "belongs to its own screen's control: gating it here makes that control silently inert, " +
                 "which is the exact bug this class was written to remove.",
-            listOf("spatial", "tidalSignature"),
+            // Row 793 (owner-approved, deliberate): the de-esser joined, because its switch now lives in
+            // the equalizer screen's «Efectos» group and it only ever ran with the equalizer on.
+            listOf("deEsser", "spatial", "tidalSignature"),
             fields,
         )
     }
@@ -77,11 +97,18 @@ class EqBypassTest {
     fun `the bypass is total for the stages it does own`() {
         for (spatial in listOf(false, true)) {
             for (tidal in listOf(false, true)) {
-                assertEquals(
-                    "spatial=$spatial tidal=$tidal leaked past the bypass",
-                    EqBypass.ToneStages(spatial = false, tidalSignature = false),
-                    EqBypass.toneStages(masterEqOn = false, spatialEnabled = spatial, tidalSignatureEnabled = tidal),
-                )
+                for (deEsser in listOf(false, true)) {
+                    assertEquals(
+                        "spatial=$spatial tidal=$tidal deEsser=$deEsser leaked past the bypass",
+                        EqBypass.ToneStages(spatial = false, tidalSignature = false, deEsser = false),
+                        EqBypass.toneStages(
+                            masterEqOn = false,
+                            spatialEnabled = spatial,
+                            tidalSignatureEnabled = tidal,
+                            deEsserEnabled = deEsser,
+                        ),
+                    )
+                }
             }
         }
     }

@@ -2743,6 +2743,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqS
 | Tipo de filtro: PK / LSC / HSC (hardcoded, 3 botones segmentados) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:1332 (bucle) | acción primaria (selección) | ocasional | `onClick` solo `if (enabled)` |
 | Personalizado — icono de editar (gestionar preajustes) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:1423 | navegación (abre diálogo) | rara | siempre |
 | Fila de preajuste guardado (aplicar) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:1446 (bucle) | acción primaria | ocasional | `onClick` solo `if (enabled)` |
+| **2026-11-23 (fila 793):** «De-esser (control de eses)» — desc. «Baja hasta 5 dB la zona de 6,5 kHz solo cuando las eses suenan fuertes. Solo con el ecualizador activado.» Grupo **Efectos**, debajo de «Firma de sonido Tidal»; clave `DeEsserEnabledKey`, **activado por defecto** (antes no tenía interruptor y sonaba siempre con el EQ encendido). Los textos del grupo Efectos (título, Firma de sonido Tidal y su descripción) pasan a `res/values*/eq_effects_strings.xml` (ES + EN), mismo texto en español. También en la búsqueda de Ajustes | Ajustes > Sonido > Ecualizador > Efectos | AxionEqScreen.kt (grupo «Efectos», `DeEsserEnabledKey`) | conmutador | rara | siempre (solo suena con el EQ activado) |
 
 ---
 
