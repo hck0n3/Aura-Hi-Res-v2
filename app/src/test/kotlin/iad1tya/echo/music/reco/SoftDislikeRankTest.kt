@@ -88,15 +88,17 @@ class SoftDislikeRankTest {
         File(root, "app/src/main/kotlin/com/music/echo/$path").also { assertTrue("$path se movió", it.isFile) }.readText()
 
     @Test
-    fun `the menu marks the song, its primary artist and the smart queue's skip memory`() {
+    fun `the menu marks the song and its primary artist, never the smart queue's skip memory`() {
         val menu = main("ui/menu/YouTubeSongMenu.kt")
         val item = menu.substringAfter("title = { Text(text = \"Menos de esto\") }").substringBefore("onDismiss()")
         assertTrue(item.contains("description = { Text(text = \"Se recomendará menos parecido a esto\") }"))
         assertTrue(item.contains("store.softDislikeSong(song.id)"))
         assertTrue(item.contains("SoftDislikeRank.artistKey(primary?.id, primary?.name)"))
         assertTrue(item.contains("?.let { store.softDislikeArtist(it) }"))
-        assertTrue(item.contains("ContinuationSkipMemory.recordSkip(context, skipKey)"))
-        assertTrue("the prefs write stays off the main thread", item.contains("withContext(Dispatchers.IO)"))
+        assertFalse(
+            "two taps would reject the artist from every continuation for 30 days (row 525: only queue-added songs count)",
+            item.contains("ContinuationSkipMemory"),
+        )
     }
 
     @Test
