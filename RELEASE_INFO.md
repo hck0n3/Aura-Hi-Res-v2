@@ -41,7 +41,16 @@ Beta solo para probar, sobre la 2.0.69-beta2 (incluye todo lo de la beta2 y la b
 
 ## Ecualizador
 
-<!-- EQ: preamp sin −2 dB ocultos (+9 máx.), Auto-EQ con filtros reales, interruptor del de-esser, textos de pago — completar al fusionar -->
+- El preamp ya suena exactamente con el valor que ves: quitamos 2 dB que se restaban a escondidas. Por eso el ecualizador sonará un poco más fuerte que antes con el mismo ajuste; si te parece mucho, bájalo 2 dB.
+- El preamp ahora llega hasta +9 dB (antes +6).
+- Auto-EQ aplica el perfil de tus auriculares completo, con sus filtros de graves y agudos (antes se perdían y solo quedaba el recorte de volumen). Si quieres la corrección pura, sin la curva de la casa, elige el preset «Bypass».
+- Apagar y volver a encender Auto-EQ ya no borra el perfil: vuelve tal cual, con su preamp.
+- Nuevo interruptor «De-esser (control de eses)» en Ecualizador ▸ Efectos. Viene encendido, como hasta ahora; apágalo si prefieres las eses sin suavizar.
+- Volumen Seguro: quitamos una medición que no hacía nada. El volumen no cambia.
+
+## Pantalla de pago
+
+- Textos más claros: el precio en dólares con «+ impuestos», que la suscripción se renueva sola y que no hay reembolsos. Los botones se agrandan para que el texto no se corte.
 
 ## Escuchar juntos y control entre aparatos
 
