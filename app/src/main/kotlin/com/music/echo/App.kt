@@ -1231,7 +1231,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 deviceModel = "Equalizer",
                 bands = bands,
                 autoBands = emptyList(),
-                preamp = 2.2,
+                preamp = iad1tya.echo.music.eq.data.EqConstants.DEFAULT_PREAMP_DB.toDouble(),
                 isCustom = false,
                 isActive = true,
             )
@@ -1242,7 +1242,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             // EQ-screen UI mirror so the enabled toggle / sliders / preamp reflect the seeded Aura Hi-Res v2 tuning.
             val ed = eqPrefs.edit()
             ed.putBoolean("enabled", true)
-            ed.putFloat("preampDb", 2.2f)
+            ed.putFloat("preampDb", iad1tya.echo.music.eq.data.EqConstants.DEFAULT_PREAMP_DB)
             gains.forEachIndexed { i, g -> ed.putFloat("band24_$i", g) }
             ed.apply()
             true

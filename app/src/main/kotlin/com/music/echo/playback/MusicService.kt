@@ -2057,11 +2057,12 @@ class MusicService :
      * Brings the EQ preamp down to the house level ([EqConstants.DEFAULT_PREAMP_DB]) when the user turns
      * Safe Volume OFF. It used to force 0.0 dB — see the owner report in the body.
      *
-     * WHY: the preamp is output make-up applied AFTER the limiter, so while Safe Volume is on it is
-     * safe — the limiter catches whatever it pushes past full scale. Turn Safe Volume off and that
-     * safety net disappears while the boost stays, so the very next loud master clips. Anyone who
-     * raised the preamp to compensate for Safe Volume's level drop gets distortion the moment they
-     * switch to bit-perfect playback, with nothing on screen linking the two settings.
+     * WHY: the preamp is the FRONT gain of the native chain (`frontGain` in SuperpoweredBridge.cpp),
+     * applied BEFORE the bands and the -3 dB limiter, which catches whatever it pushes past full scale.
+     * The limiter keeps running while the chain does, but Safe Volume's levelling — which pulls loud
+     * masters down before they reach it — goes away while the boost stays, so the very next loud master
+     * drives the limiter much harder. Anyone who raised the preamp to compensate for Safe Volume's level
+     * drop gets that the moment they switch it off, with nothing on screen linking the two settings.
      *
      * Only ever called on a real ON -> OFF transition (see the collector), never at startup, so a user
      * who deliberately runs with Safe Volume off keeps whatever preamp they set.
