@@ -56,10 +56,6 @@ class GoogleSyncDefaultsTest {
 
     @Test
     fun everyAutomaticPullHonoursTheOffState() {
-        val app = src("App.kt").substringAfter("private suspend fun initializeSettings()")
-        val recovery = app.substringBefore("syncUtils.syncLibraryAfterLogin()").substringAfterLast("HALLAZGO-061: stuck-state recovery")
-        assertTrue("the cold-start recovery must read the download-sync switch", recovery.contains("dataStore.data.first()[YtmSyncKey] ?: true"))
-
         val sync = src("utils/SyncUtils.kt").substringAfter("fun tryAutoSync() {").substringBefore("fun runAllSyncs()")
         assertTrue(sync.contains("!context.isSyncEnabled()"))
         assertTrue("row 214: <= 0 means no automatic sync", sync.contains("if (freqDays <= 0) return@launch"))
@@ -82,6 +78,20 @@ class GoogleSyncDefaultsTest {
 
         val tabs = src("ui/newui/AuraLibraryTabs.kt")
         assertFalse("a library tab pulls without the switch", Regex("""\n\s+syncUtils\.tryAutoSync\(\)""").containsMatchIn(tabs))
+    }
+
+    /**
+     * Row 678: the HALLAZGO-061 cold-start net is NOT gated on the switch. It only completes the one-off pull the user
+     * triggered by signing in (which runs whatever the switch says), so a fresh install whose login pull was cancelled
+     * still gets its library.
+     */
+    @Test
+    fun theColdStartNetCompletesAnInterruptedLoginPullEvenWithSyncOff() {
+        val init = src("App.kt").substringAfter("private suspend fun initializeSettings()")
+        val recovery = init.substringBefore("syncUtils.syncLibraryAfterLogin()").substringAfterLast("HALLAZGO-061: stuck-state recovery")
+        assertTrue(recovery.contains("if (shouldRecoverLibrarySyncOnStart(isLoggedCookie(settings[InnerTubeCookieKey]), syncUtils.lastLikedSyncTimeMs())) {"))
+        assertFalse(recovery.contains("[YtmSyncKey]"))
+        assertTrue(src("ui/screens/LoginScreen.kt").contains("syncUtils.syncLibraryAfterLogin()"))
     }
 
     @Test

@@ -779,11 +779,10 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // never written = the login completion got cancelled before it enqueued the library syncs
         // (the exact state the owner's v2.0.11 log showed). Heal it once at cold start; after the
         // first completed sync the stamp is > 0 and this is a no-op forever.
-        // Row 678: an automatic pull, so it honours the download-sync switch (read live: the row-678 write above
-        // is not in the `settings` snapshot).
-        if ((dataStore.data.first()[YtmSyncKey] ?: true) &&
-            shouldRecoverLibrarySyncOnStart(isLoggedCookie(settings[InnerTubeCookieKey]), syncUtils.lastLikedSyncTimeMs())
-        ) {
+        // Row 678: deliberately NOT gated on the download-sync switch. It only finishes the one-off pull the user
+        // triggered by signing in (LoginScreen runs it whatever the switch says), so a fresh install whose login pull
+        // was cancelled still gets its library; once the stamp is > 0 it never runs again.
+        if (shouldRecoverLibrarySyncOnStart(isLoggedCookie(settings[InnerTubeCookieKey]), syncUtils.lastLikedSyncTimeMs())) {
             Timber.d("Cold start: logged-in account never synced its library, enqueueing recovery syncs (HALLAZGO-061)")
             syncUtils.syncLibraryAfterLogin()
         }
