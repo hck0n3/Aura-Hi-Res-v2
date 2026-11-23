@@ -705,6 +705,37 @@ class MusicService :
      */
     @Volatile
     internal var mirrorUnprepared = false
+
+    /**
+     * Review P5: inside a Listen Together room the local player belongs to the room (row 617) and remote mode stands down at the
+     * engine's next evaluation; until then the remote-mode guards must not block the room's own play (a guest's first sync).
+     */
+    private val inListenRoom: Boolean
+        get() = ::listenTogetherManager.isInitialized && listenTogetherManager.isInRoom
+
+    /**
+     * Review C4: right now the player only SHOWS another device's playback — an unprepared mirror, remote mode on, and no take-over
+     * or order to play here in flight. Its song changes are the other device's: nothing may be preloaded or recorded for them.
+     */
+    private val onlyShowingMirror: Boolean
+        get() = mirrorUnprepared && player.playbackState == Player.STATE_IDLE &&
+            iad1tya.echo.music.devicesync.RemotePlayback.active &&
+            !iad1tya.echo.music.devicesync.RemotePlayback.localStartGranted()
+
+    /**
+     * Review C1: another device is now shown and controlled from here (DeviceSyncEngine.evaluateRemote). Nothing armed for THIS
+     * player may start it later: play-when-ready is dropped (an ENDED queue keeps it true) and the end-of-queue radio auto-resume
+     * (resumeAfterSeed / advanceIntoRadioRequested and its watchdog) is cancelled, so a seed that lands afterwards only appends.
+     */
+    internal fun standLocalDownForRemote() {
+        resumeAfterSeed = false
+        advanceIntoRadioRequested = false
+        radioResumeWatchdogJob?.cancel()
+        if (player.playWhenReady) {
+            Timber.tag(TAG).i("START_CAUSE=remote_mode_silence state=%d", player.playbackState)
+            player.pause()
+        }
+    }
     internal var fadingPlayer: ExoPlayer? = null
     internal var isCrossfading = false
     // Read-only OBSERVATION flag only. Mirrors the plain [isCrossfading] boolean so the UI can observe a
@@ -4434,6 +4465,8 @@ class MusicService :
                 // branch above.
                 dropQualityPin()
                 if (isRestore && !prepareRestore) player.stop()
+                // Review C4: decided BEFORE the items land, so the transition setMediaItems fires is already seen as a mirror's (or not).
+                mirrorUnprepared = isRestore && !prepareRestore
                 player.setMediaItems(
                     initialStatus.items,
                     safeIndex,
@@ -4485,7 +4518,7 @@ class MusicService :
             // list is still playing (minutes or hours of slack) means the profile is complete when it is
             // needed. Bounded: GenreCache.enrich skips known artists, caps at 15 lookups, caches definitive
             // misses forever and honours the network preference — a list it has already studied costs zero.
-            if (keepGenreLaneHint && radioSeedPool.size > 1) {
+            if (keepGenreLaneHint && radioSeedPool.size > 1 && !(isRestore && !prepareRestore)) {
                 val studyNames = iad1tya.echo.music.reco.ContextPattern.studyArtists(
                     radioSeedPool.mapNotNull { it.artists.firstOrNull()?.name },
                     CONTEXT_STUDY_ARTISTS,
@@ -5462,6 +5495,7 @@ class MusicService :
         item: MediaItem,
         position: Int,
     ) {
+        if (refuseQueueEditInRemoteMode()) return
         automixItems.value =
             automixItems.value.toMutableList().apply {
                 removeAt(position)
@@ -5470,6 +5504,8 @@ class MusicService :
     }
 
     fun addNextUnheardAutomix() {
+        // The automatic top-up must not grow (and prepare) the mirror of another device either — silently, nobody asked.
+        if (refuseQueueEditInRemoteMode(notify = false)) return
         val items = automixItems.value
         if (items.isEmpty()) return
         val queued = liveQueueSnapshot(afterCurrent = false)
@@ -5493,6 +5529,7 @@ class MusicService :
         item: MediaItem,
         position: Int,
     ) {
+        if (refuseQueueEditInRemoteMode()) return
         automixItems.value =
             automixItems.value.toMutableList().apply {
                 removeAt(position)
@@ -5504,8 +5541,25 @@ class MusicService :
         automixItems.value = emptyList()
     }
 
+    /**
+     * Review C2: while another device is controlled from here the local player only holds its mirror (IDLE). «Reproducir a
+     * continuación» took the empty-player branch on it (new queue + prepare + play), was paused by the remote-mode guard, reached no
+     * device and was lost at the next mirror update; «Añadir a la cola» prepared the mirror. The other device has no command to
+     * queue a song, so the edit is refused with a notice and the mirror is left untouched. True when refused.
+     */
+    internal fun refuseQueueEditInRemoteMode(notify: Boolean = true): Boolean {
+        val target = iad1tya.echo.music.devicesync.RemotePlayback.target.value ?: return false
+        Timber.tag(TAG).i("DEVICE_SYNC queue edit refused: another device is controlled from here (notify=%b)", notify)
+        if (notify) {
+            iad1tya.echo.music.devicesync.DeviceSyncHub.notice(
+                getString(R.string.device_sync_queue_edit_not_sent, target.deviceName.ifBlank { "—" }),
+            )
+        }
+        return true
+    }
+
     fun playNext(items: List<MediaItem>) {
-        
+        if (refuseQueueEditInRemoteMode()) return
         if (player.mediaItemCount == 0 || player.playbackState == STATE_IDLE) {
             // Con el reproductor vacío esto NO es un "poner a continuación": construye una cola nueva
             // entera, así que la cola anterior tiene que dejar de mandar. Sin esto, el servicio le
@@ -5607,7 +5661,7 @@ class MusicService :
     }
 
     fun addToQueue(items: List<MediaItem>) {
-        
+        if (refuseQueueEditInRemoteMode()) return
         if (dataStore.get(PreventDuplicateTracksInQueueKey, true)) {
             val itemIds = items.map { it.mediaId }.toSet()
             val indicesToRemove = mutableListOf<Int>()
@@ -5654,6 +5708,8 @@ class MusicService :
     fun extendQueueForContext(contextId: String, items: List<MediaItem>) {
         if (items.isEmpty()) return
         if (shuffleContextId != contextId || contextCoverageId != contextId) return
+        // A background fill must not grow (and prepare) the mirror of another device — silently.
+        if (refuseQueueEditInRemoteMode(notify = false)) return
         addToQueue(items)
         if (radioSeedPool.isNotEmpty()) {
             val existingIds = radioSeedPool.mapTo(HashSet()) { it.id }
@@ -6383,6 +6439,16 @@ class MusicService :
         val previousMediaId = currentPlayingMediaId
         currentPlayingMediaId = mediaItem?.mediaId
         val trackChanged = previousMediaId != mediaItem?.mediaId
+        // Review C4 (rule 7): a song change of an unprepared device-sync mirror is another device's, nothing was heard here. None of
+        // what follows (style learning, preload, SponsorBlock, video prefetch, no-repeat and shuffle memory, radio pre-seed,
+        // pagination) may run; only the listen session of what played here before is closed.
+        if (onlyShowingMirror) {
+            if (trackChanged) {
+                metricsSessionJob?.cancel()
+                endMetricsSession()
+            }
+            return
+        }
         // Fila 356, punto 3 — the exact-style gate learns from quick skips / full listens (no I/O).
         exactStyleOnTransition(mediaItem, reason)
         // Metrics session net (SimpMusic sendBackToGoogle): a new track means the previous listen is
@@ -7325,6 +7391,14 @@ class MusicService :
         // on genuine engagement (real playback via EVENT_IS_PLAYING_CHANGED, a genuine playQueue/widget play,
         // or the app coming to the foreground).
         if (playbackState != Player.STATE_IDLE) mirrorUnprepared = false
+        // Review C1: the play-when-ready guard in onPlayWhenReadyChanged never sees a player that was ENDED (or IDLE) with
+        // play-when-ready still true and is moved by a seek or a radio append: it starts to sound with no transition. Caught here.
+        if (!remoteRedirectBypass && !inListenRoom &&
+            iad1tya.echo.music.devicesync.RemotePlayback.blocksSoundingNow(player.playWhenReady, playbackState)
+        ) {
+            Timber.tag(TAG).i("START_CAUSE=blocked_remote_mode_state state=%d", playbackState)
+            player.pause()
+        }
 
         updateOfflineStallWatchdog()
 
@@ -7433,7 +7507,7 @@ class MusicService :
         }
         // While another of the user's devices is controlled from here, this player only holds its mirror: like the cast guard
         // above, nothing may start it locally unless the device-sync engine granted it (take-over, an order from that device).
-        if (playWhenReady && !remoteRedirectBypass && iad1tya.echo.music.devicesync.RemotePlayback.blocksLocalStartNow()) {
+        if (playWhenReady && !remoteRedirectBypass && !inListenRoom && iad1tya.echo.music.devicesync.RemotePlayback.blocksLocalStartNow()) {
             Timber.tag(TAG).i("START_CAUSE=blocked_remote_mode reason=%d", reason)
             player.pause()
             return
@@ -11278,6 +11352,8 @@ class MusicService :
     private var preloadJob: kotlinx.coroutines.Job? = null
 
     private fun preloadUpcomingItems() {
+        // Review C4: the IDLE mirror of another device downloads nothing (rule 7).
+        if (onlyShowingMirror) return
         // Capture player state HERE on the player/callback thread (cheap, in-memory). The DataStore reads
         // (disk I/O via runBlocking) are moved INTO the coroutine below so onMediaItemTransition is never
         // blocked by a blocking disk read on the callback thread (jank / contributes to mid-song stalls).

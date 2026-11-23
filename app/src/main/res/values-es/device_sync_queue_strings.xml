@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="device_sync_queue_edit_not_sent">Aún no se puede cambiar la cola de %1$s desde aquí. Toca «Continuar aquí» para añadir canciones en este dispositivo.</string>
+</resources>

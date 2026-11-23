@@ -46,7 +46,7 @@ class RemoteLocalStartGuardTest {
         val service = read("app/src/main/kotlin/com/music/echo/playback/MusicService.kt")
         val pwr = service.substringAfter("override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {")
             .substringBefore("scheduleSoftVideoRestoreOnPause(playWhenReady)")
-        val guard = pwr.indexOf("if (playWhenReady && !remoteRedirectBypass && iad1tya.echo.music.devicesync.RemotePlayback.blocksLocalStartNow()) {")
+        val guard = pwr.indexOf("if (playWhenReady && !remoteRedirectBypass && !inListenRoom && iad1tya.echo.music.devicesync.RemotePlayback.blocksLocalStartNow()) {")
         assertTrue(guard > pwr.indexOf("castConnectionHandler?.isCasting?.value == true"))
         assertTrue("blocked before the mirror is prepared", guard < pwr.indexOf("player.prepare()"))
         assertTrue(pwr.substring(guard).substringBefore("return").contains("player.pause()"))

@@ -288,6 +288,25 @@ object RemotePlayback {
     fun blocksLocalStartNow(nowMs: Long = System.currentTimeMillis()): Boolean =
         blocksLocalStart(active, nowMs - localStartGrantedAt)
 
+    /** True while a [grantLocalStart] is still fresh (a take-over or an order to play here is in flight). */
+    fun localStartGranted(nowMs: Long = System.currentTimeMillis()): Boolean =
+        !blocksLocalStart(remoteActive = true, msSinceGrant = nowMs - localStartGrantedAt)
+
+    /**
+     * Pure: is a player with this state actually sounding (or about to: buffering with play-when-ready)? The same test the engine
+     * uses for «this device plays». A player ENDED or IDLE with play-when-ready still set is NOT sounding — but a seek or a radio
+     * append makes it sound without play-when-ready ever changing. [playbackState] is media3's `Player.STATE_*` (1 idle, 4 ended).
+     */
+    fun sounding(playWhenReady: Boolean, playbackState: Int): Boolean =
+        playWhenReady && playbackState != 1 && playbackState != 4
+
+    /** Pure (review C1): the local player is about to SOUND (whatever moved it) while another device is shown, with no grant. */
+    fun blocksSounding(remoteActive: Boolean, msSinceGrant: Long, playWhenReady: Boolean, playbackState: Int): Boolean =
+        sounding(playWhenReady, playbackState) && blocksLocalStart(remoteActive, msSinceGrant)
+
+    fun blocksSoundingNow(playWhenReady: Boolean, playbackState: Int, nowMs: Long = System.currentTimeMillis()): Boolean =
+        blocksSounding(active, nowMs - localStartGrantedAt, playWhenReady, playbackState)
+
     /** What an external PLAY (notification, lock screen, Bluetooth, watch, Android Auto) does. */
     enum class ExternalPlay { LOCAL, REMOTE, IGNORE }
 

@@ -145,8 +145,9 @@ constructor(
         }
         // Owner 2026-11-22 (registry 556: «two local External PLAY with remote control on»): while another device is controlled from
         // here, this player only holds its mirror. An external PLAY goes to the device that plays; the reconnect echo goes nowhere.
+        // Review C1: «not sounding», not «play-when-ready off» — an ENDED queue keeps play-when-ready and media3 would rewind and play it.
         if (playerCommand == androidx.media3.common.Player.COMMAND_PLAY_PAUSE && this::service.isInitialized &&
-            !service.player.playWhenReady
+            !iad1tya.echo.music.devicesync.RemotePlayback.sounding(service.player.playWhenReady, service.player.playbackState)
         ) {
             val action = iad1tya.echo.music.devicesync.RemotePlayback.externalPlay(
                 remoteActive = iad1tya.echo.music.devicesync.RemotePlayback.active,
@@ -164,7 +165,7 @@ constructor(
         if (playerCommand == androidx.media3.common.Player.COMMAND_PLAY_PAUSE && this::service.isInitialized) {
             timber.log.Timber.tag("PLAYBACK").i(
                 "START_CAUSE=external_%s from=%s",
-                if (service.player.playWhenReady) "pause" else "play",
+                if (iad1tya.echo.music.devicesync.RemotePlayback.sounding(service.player.playWhenReady, service.player.playbackState)) "pause" else "play",
                 controller.packageName,
             )
         }
@@ -808,6 +809,9 @@ constructor(
                     startIndex = resolved.startIndex,
                 )
             }
+            // Review P2: the grant given when the selection arrived (onControllerSelectedItem) can expire while a slow branch
+            // (a YouTube playlist, a search) resolves; renewed now, as media3 is about to set these items and play them here.
+            if (resolved.mediaItems.isNotEmpty()) iad1tya.echo.music.devicesync.RemotePlayback.grantLocalStart()
             resolved
         }
 
