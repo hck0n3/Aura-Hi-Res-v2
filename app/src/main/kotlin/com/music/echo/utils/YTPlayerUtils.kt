@@ -118,6 +118,28 @@ object YTPlayerUtils {
      * fallback cascade is for. Only the final give-up is an error. Video id + exception class +
      * message only; no URL, which would carry the credentialed query string.
      */
+    /** See resolvePlaybackData: one per resolve call, written from its client coroutines. */
+    private class ClientFailureTally {
+        private val failures = java.util.concurrent.atomic.AtomicInteger(0)
+        private val connectivity = java.util.concurrent.atomic.AtomicInteger(0)
+        private val lastConnectivity = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+
+        fun record(error: Throwable) {
+            if (isBenignResolveCancellation(error)) return
+            failures.incrementAndGet()
+            if (iad1tya.echo.music.playback.PlaybackErrorClassifier.isConnectivityCause(error)) {
+                connectivity.incrementAndGet()
+                lastConnectivity.set(error)
+            }
+        }
+
+        /** The connectivity error when at least one attempt failed and EVERY failed attempt was one; otherwise null. */
+        fun allConnectivity(): Throwable? {
+            val failed = failures.get()
+            return if (failed > 0 && connectivity.get() == failed) lastConnectivity.get() else null
+        }
+    }
+
     private fun logClientFailure(clientName: String, videoId: String, error: Throwable) {
         // HALLAZGO-056: a client attempt cut short by teardown (scope left, track skipped) is not a
         // client failure — persisting it as WARNING flooded the shared log with noise. Debug only.
@@ -756,6 +778,9 @@ object YTPlayerUtils {
         timing: ResolveTiming? = null,
     ): Result<PlaybackData> = runCatching {
         if (timing != null) timing.attempts++
+        // Per call, never shared (playback and the crossfade prefetch resolve concurrently): did every client attempt that
+        // failed fail for lack of internet? Read only at the "all clients failed" dead end below.
+        val clientFailures = ClientFailureTally()
         Timber.tag(logTag).d("Fetching player response for videoId: $videoId, playlistId: $playlistId")
         PlaybackLogManager.log(PlaybackLogLevel.INFO, "Resolving playback data", "Video: $videoId")
 
@@ -870,12 +895,12 @@ object YTPlayerUtils {
                     YouTube.player(
                         videoId, playlistId, VIDEO_CLIENT,
                         mainSts, null, noLogin = noLogin,
-                    ).onFailure { logClientFailure(VIDEO_CLIENT.clientName, videoId, it) }.getOrNull()
+                    ).onFailure { logClientFailure(VIDEO_CLIENT.clientName, videoId, it); clientFailures.record(it) }.getOrNull()
                 } else {
                     YouTube.player(
                         videoId, playlistId, MAIN_CLIENT,
                         mainSts, poToken?.playerRequestPoToken, noLogin = noLogin,
-                    ).onFailure { logClientFailure(MAIN_CLIENT.clientName, videoId, it) }.getOrNull()
+                    ).onFailure { logClientFailure(MAIN_CLIENT.clientName, videoId, it); clientFailures.record(it) }.getOrNull()
                 }
                 timing?.let {
                     it.playerMs += SystemClock.elapsedRealtime() - mainCallStartMs
@@ -959,7 +984,7 @@ object YTPlayerUtils {
                 }
                 val gateSts = if (gateClient.useSignatureTimestamp) awaitSts().timestamp else null
                 val gateResponse = YouTube.player(videoId, playlistId, gateClient, gateSts, gatePoToken?.playerRequestPoToken, noLogin = noLogin)
-                    .onFailure { logClientFailure(gateClient.clientName, videoId, it) }
+                    .onFailure { logClientFailure(gateClient.clientName, videoId, it); clientFailures.record(it) }
                     .getOrNull()
                 val gateStatus = gateResponse?.playabilityStatus?.status
                 // Client name and status only — never the reason, the body or the cookie (log privacy, AGENTS.md rule 4).
@@ -1120,7 +1145,7 @@ object YTPlayerUtils {
                 val clientCallStartMs = SystemClock.elapsedRealtime()
                 streamPlayerResponse =
                     YouTube.player(videoId, playlistId, client, clientSigTimestamp, clientPoToken, noLogin = noLogin)
-                        .onFailure { logClientFailure(client.clientName, videoId, it) }
+                        .onFailure { logClientFailure(client.clientName, videoId, it); clientFailures.record(it) }
                         .getOrNull()
                 timing?.let {
                     it.playerMs += SystemClock.elapsedRealtime() - clientCallStartMs
@@ -1352,12 +1377,20 @@ object YTPlayerUtils {
         }
 
         if (streamPlayerResponse == null) {
-            Timber.tag(logTag).e("Bad stream player response - all clients failed (uploadedTrack=%b)", isUploadedTrack)
+            // Owner 2026-11-22 («sin internet por cualquier motivo»): when EVERY failed client attempt failed for lack of
+            // internet (no DNS / could not connect / no route / ENETUNREACH), that cause rides along, so the player can
+            // tell "the device has no internet" from "the song cannot be served". Which clients run is unchanged.
+            val noInternet = clientFailures.allConnectivity()
+            Timber.tag(logTag).e(
+                "Bad stream player response - all clients failed (uploadedTrack=%b connectivity=%b)",
+                isUploadedTrack, noInternet != null,
+            )
             // DEAD-END (fix #1): no client could serve this song. Typed so the loader maps it to NO_STREAM
             // (skip + message), NEVER a network code — carry the real reason when we captured one.
             throw StreamResolutionException(
                 (if (ageGateMet) AgeGateChain.failureMessage(isLoggedIn) else null)
                     ?: lastPlayabilityReason ?: "No hay ninguna fuente disponible para esta canción",
+                cause = noInternet,
                 contentLevel = lastPlayabilityReason != null && onlyContentRefusals == true,
             )
         }
