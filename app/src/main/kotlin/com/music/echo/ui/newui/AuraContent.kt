@@ -413,8 +413,11 @@ fun youtubeCoverOrFallback(videoId: String?, thumbnailUrl: String?): String? {
     ) {
         return null
     }
+    if (!AURA_PLAUSIBLE_VIDEO_ID.matches(vid)) return null
     return "https://i.ytimg.com/vi/$vid/hqdefault.jpg"
 }
+
+private val AURA_PLAUSIBLE_VIDEO_ID = Regex("^[A-Za-z0-9_-]{11}$")
 
 @Composable
 fun AuraCover(
