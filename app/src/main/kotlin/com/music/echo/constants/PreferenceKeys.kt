@@ -493,7 +493,7 @@ val TidalSimulationEnabledKey = booleanPreferencesKey("tidalSimulation")
 /**
  * Row 793: the dynamic de-esser's own switch (equalizer ▸ Efectos). Default ON, so an update changes
  * nothing. MusicService (hint + collector) and AxionEqScreen (the switch) MUST read [DeEsserDefault].
- * Guarded by `DeEsserDefaultParityTest`.
+ * Guarded by `DeEsserSwitchGuardTest`.
  */
 val DeEsserEnabledKey = booleanPreferencesKey("eq_de_esser_enabled")
 
