@@ -88,6 +88,15 @@ class SmartQueueNoRepeatGuardTest {
         assertTrue(service.contains("m.id in playedHistory || m.id in everPlayed ||"))
     }
 
+    /** Row 750: a song the strict no-repeat drops never takes one of the AI second opinion's slots (EdgeJudge.MAX_CANDIDATES). */
+    @Test
+    fun `the AI second opinion is only asked about songs that can still play`() {
+        val gate = main("playback/ExactStyleGate.kt")
+        val doubtful = gate.substringAfter("val doubtful = judged.indices.filter { i ->").substringBefore("}.take(iad1tya.echo.music.edge.EdgeJudge.MAX_CANDIDATES)")
+        assertTrue(doubtful.contains("all[i].mediaId !in heardInBatch && step != null && step >= 1"))
+        assertTrue("heardInBatch is declared before the AI pass", gate.indexOf("val heardInBatch: Set<String> =") in 0 until gate.indexOf("val doubtful = judged.indices.filter { i ->"))
+    }
+
     /** Row 655: when every source is exhausted the user is told once per queue (online), never a silent stop. */
     @Test
     fun `an exhausted smart queue tells the user once instead of stopping silently`() {
