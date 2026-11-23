@@ -420,6 +420,13 @@ fun eqFftConvergedToZero(bars: FloatArray, peak: Float, epsilon: Float): Boolean
     return true
 }
 
+/**
+ * Row 770: the meter loop may stop asking for frames — not playing AND the smoothed spectrum decayed to visual
+ * silence. Pure and JVM-testable.
+ */
+fun eqFftMeterSettled(playing: Boolean, bars: FloatArray, peak: Float): Boolean =
+    !playing && eqFftConvergedToZero(bars, peak, EQ_FFT_ZERO_EPSILON)
+
 private val EqFftGreen = Color(0xFF5AD68A)
 private val EqFftAmber = Color(0xFFFFB74D)
 
@@ -544,7 +551,10 @@ private fun rememberEqFftMeter(
         }
         val smoothed = FloatArray(EQ_FFT_BAR_COUNT)
         var smoothedPeak = 0f
-        while (isActive) {
+        // Row 770: paused and decayed to nothing, the loop leaves instead of asking for a frame every vsync with the
+        // bars at zero. The effect is keyed on [playing], so it starts again the moment playback does.
+        var settled = false
+        while (isActive && !settled) {
             withFrameNanos {
                 val frame = AuraVisualizerHub.fftFrame.value
                 val fresh = frame != null &&
@@ -573,8 +583,10 @@ private fun rememberEqFftMeter(
                             hasSignal = hasSignal,
                         )
                     }
+                settled = eqFftMeterSettled(playing, smoothed, peakOut)
             }
         }
+        if (settled) snapshot.value = EqFftSnapshot.Zero
     }
 
     return snapshot

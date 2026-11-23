@@ -43,3 +43,33 @@ class EqFftMeterTest {
         assertFalse(eqFftConvergedToZero(FloatArray(0), peak = 1f, epsilon = epsilon))
     }
 }
+
+/** Row 770: the EQ meter's per-frame loop leaves once paused and decayed, instead of ticking every vsync at zero. */
+class EqFftMeterLoopTest {
+    private val root: java.io.File by lazy {
+        generateSequence(java.io.File("").absoluteFile) { it.parentFile }
+            .firstOrNull { java.io.File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")
+    }
+
+    private val screen: String by lazy {
+        java.io.File(root, "app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqScreen.kt").readText()
+    }
+
+    @Test
+    fun `the loop settles only when paused and silent`() {
+        val epsilon = EQ_FFT_ZERO_EPSILON
+        assertTrue(eqFftMeterSettled(playing = false, bars = FloatArray(24), peak = 0f))
+        assertFalse(eqFftMeterSettled(playing = true, bars = FloatArray(24), peak = 0f))
+        assertFalse(eqFftMeterSettled(playing = false, bars = FloatArray(24) { epsilon * 4f }, peak = 0f))
+        assertFalse(eqFftMeterSettled(playing = false, bars = FloatArray(24), peak = 0.3f))
+    }
+
+    @Test
+    fun `the frame loop has an exit condition`() {
+        val loop = screen.substringAfter("LaunchedEffect(enabled, playing) {").substringBefore("return snapshot")
+        assertTrue(loop.contains("withFrameNanos"))
+        assertTrue(loop.contains("while (isActive && !settled)"))
+        assertTrue(loop.contains("settled = eqFftMeterSettled(playing, smoothed, peakOut)"))
+        assertFalse(loop.contains("while (isActive) {\n            withFrameNanos"))
+    }
+}
