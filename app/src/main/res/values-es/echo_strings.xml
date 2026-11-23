@@ -874,6 +874,7 @@
     <string name="eq_save_dialog_title">Guardar preajuste</string>
     <string name="eq_save_name_hint">Nombre del preajuste</string>
     <string name="eq_profile_saved">Preajuste guardado</string>
+    <string name="autoeq_bypass_hint">Para corrección pura, elige el preset Bypass</string>
     <string name="eq_manage_presets">Gestionar preajustes</string>
     <string name="eq_delete_selected">Eliminar</string>
     <string name="eq_no_custom_presets">No se encontraron preajustes personalizados</string>

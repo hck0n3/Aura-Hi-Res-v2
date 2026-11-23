@@ -453,16 +453,22 @@ class AxionEqViewModel @Inject constructor(
      * re-apply), which stuttered the audio every time an AutoEq profile was selected. This batches it
      * into a single apply.
      */
-    fun applyProfileBatch(gains: FloatArray, preampDb: Float, isAutoEq: Boolean = false) {
+    fun applyProfileBatch(
+        gains: FloatArray,
+        preampDb: Float,
+        isAutoEq: Boolean = false,
+        autoBands: List<ParametricEQBand>? = null,
+    ) {
         val arr = FloatArray(n) { i ->
             gains.getOrElse(i) { 0f }.coerceIn(EqConstants.GAIN_MIN, EqConstants.GAIN_MAX)
         }
         _preamp.value = preampDb.coerceIn(EqConstants.PREAMP_MIN, EqConstants.PREAMP_MAX)
         _enabled.value = true
         if (isAutoEq) {
-            // Auto-EQ correction stage: store the projected curve as its OWN autoBands (24 PK bands at the
-            // ISO centers). The manual graphic/parametric EQ is left UNTOUCHED so it stacks on top.
-            _autoEqBands.value = buildEqBands(arr, IntArray(n) { 0 })
+            // Auto-EQ correction stage: store the profile's own PK/LSC/HSC filters ([autoBands]) as its OWN
+            // stage. The manual graphic/parametric EQ is left UNTOUCHED so it stacks on top. 48 = the 64 native
+            // slots (SuperpoweredBridge NUM_EQ_FILTERS) minus PeqConstants.MAX_BANDS manual bands.
+            _autoEqBands.value = (autoBands ?: buildEqBands(arr, IntArray(n) { 0 })).take(48)
             persistAutoEqBands()
             prefs.edit().apply {
                 putFloat("preampDb", _preamp.value)
