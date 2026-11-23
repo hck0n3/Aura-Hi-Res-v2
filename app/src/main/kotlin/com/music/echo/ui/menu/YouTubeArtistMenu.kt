@@ -37,6 +37,8 @@ import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.applicationScope
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.toggleArtistFollow
 import iad1tya.echo.music.db.entities.SpeedDialItem
 import iad1tya.echo.music.db.entities.ArtistEntity
@@ -156,6 +158,7 @@ fun YouTubeArtistMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTARTMENU_SUBSCRIBE)
                             // Application scope: the menu can close right after the tap and the tap must still land.
                             // Row 716: one tap at a time, and only against the state shown (checked in the toggle's
                             // own transaction).

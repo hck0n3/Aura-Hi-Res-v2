@@ -141,6 +141,8 @@ import iad1tya.echo.music.ui.utils.tvFocusableItem
 import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.HighPerformanceModeKey
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.ShareLinks
 import iad1tya.echo.music.utils.isLocalMediaId
 import iad1tya.echo.music.utils.lookupExportedFileUri
@@ -474,6 +476,7 @@ fun AuraQueue(
         LaunchedEffect(reorderableState.isAnyItemDragging) {
             if (!reorderableState.isAnyItemDragging) {
                 dragInfo?.let { (from, to) ->
+                    ActionLog.tap(ActionId.QUEUE_MOVE)
                     val safeFrom = from.coerceIn(0, queueWindows.lastIndex.coerceAtLeast(0))
                     val safeTo = to.coerceIn(0, queueWindows.lastIndex.coerceAtLeast(0))
                     if (!playerConnection.player.shuffleModeEnabled) {
@@ -580,6 +583,7 @@ fun AuraQueue(
                             icon = AuraIcons.Shuffle,
                             contentDescription = stringResource(R.string.shuffle),
                             onClick = {
+                                ActionLog.tap(ActionId.QUEUE_SHUFFLE)
                                 if (shuffleModeEnabled) {
                                     playerConnection.player.shuffleModeEnabled = false
                                 } else {
@@ -596,7 +600,7 @@ fun AuraQueue(
                             AuraPainterIconButton(
                                 painterId = R.drawable.repeat_one,
                                 contentDescription = stringResource(R.string.repeat),
-                                onClick = { playerConnection.player.toggleRepeatMode() },
+                                onClick = { ActionLog.tap(ActionId.QUEUE_REPEAT); playerConnection.player.toggleRepeatMode() },
                                 enabled = !isListenTogetherGuest,
                                 size = 22.dp,
                                 tint = AuraPalette.Teal,
@@ -605,7 +609,7 @@ fun AuraQueue(
                             AuraIconButton(
                                 icon = AuraIcons.Repeat,
                                 contentDescription = stringResource(R.string.repeat),
-                                onClick = { playerConnection.player.toggleRepeatMode() },
+                                onClick = { ActionLog.tap(ActionId.QUEUE_REPEAT); playerConnection.player.toggleRepeatMode() },
                                 enabled = !isListenTogetherGuest,
                                 size = 22.dp,
                                 tint = if (repeatMode == Player.REPEAT_MODE_ALL) AuraPalette.Teal
@@ -624,7 +628,7 @@ fun AuraQueue(
                         AuraIconButton(
                             icon = AuraIcons.More,
                             contentDescription = stringResource(R.string.more_options),
-                            onClick = openPlayerMenu,
+                            onClick = { ActionLog.tap(ActionId.QUEUE_MENU); openPlayerMenu() },
                             size = 22.dp,
                             tint = AuraPalette.OnGround,
                         )
@@ -654,7 +658,7 @@ fun AuraQueue(
                                     icon = if (liked) AuraIcons.HeartFilled else AuraIcons.Heart,
                                     contentDescription = if (liked) stringResource(R.string.action_remove_like)
                                     else stringResource(R.string.action_like),
-                                    onClick = playerConnection::toggleLike,
+                                    onClick = { ActionLog.tap(ActionId.QUEUE_LIKE); playerConnection.toggleLike() },
                                     size = 20.dp,
                                     tint = if (liked) AuraPalette.Teal else AuraPalette.OnGroundMuted,
                                 )
@@ -679,7 +683,14 @@ fun AuraQueue(
                             AuraChip(
                                 text = stringResource(titleRes),
                                 selected = selectedTab == index,
-                                onClick = { selectedTab = index },
+                                onClick = {
+                                    when (index) {
+                                        0 -> ActionLog.tap(ActionId.QUEUE_TAB_NEXT)
+                                        1 -> ActionLog.tap(ActionId.QUEUE_TAB_LYRICS)
+                                        else -> ActionLog.tap(ActionId.QUEUE_TAB_RELATED)
+                                    }
+                                    selectedTab = index
+                                },
                                 modifier = Modifier.tvFocusable(isTvOrCarTabs, AuraShapes.Pill),
                             )
                         }
@@ -713,7 +724,7 @@ fun AuraQueue(
                                 AuraPainterIconButton(
                                     painterId = R.drawable.close,
                                     contentDescription = stringResource(R.string.cd_exit_selection),
-                                    onClick = onExitSelectionMode,
+                                    onClick = { ActionLog.tap(ActionId.QUEUE_SELECT_EXIT); onExitSelectionMode() },
                                     size = 20.dp,
                                 )
                                 Text(
@@ -727,6 +738,7 @@ fun AuraQueue(
                                 Checkbox(
                                     checked = count == mutableQueueWindows.size && count > 0,
                                     onCheckedChange = {
+                                        ActionLog.tap(ActionId.QUEUE_SELECT_ALL)
                                         if (count == mutableQueueWindows.size) {
                                             selection.clear()
                                         } else {
@@ -745,6 +757,7 @@ fun AuraQueue(
                                     contentDescription = stringResource(R.string.more_options),
                                     enabled = count > 0,
                                     onClick = {
+                                        ActionLog.tap(ActionId.QUEUE_SELECT_MENU)
                                         menuState.show {
                                             SelectionMediaMetadataMenu(
                                                 songSelection = selectedSongs,
@@ -920,6 +933,7 @@ fun AuraQueue(
                                                             )
                                                     ) {
                                                         processedDismiss = true
+                                                        ActionLog.tap(ActionId.QUEUE_REMOVE)
                                                         playerConnection.player.removeMediaItem(currentItem.firstPeriodIndex)
                                                         dismissJob?.cancel()
                                                         dismissJob = coroutineScope.launch {
@@ -932,6 +946,7 @@ fun AuraQueue(
                                                                 duration = SnackbarDuration.Short,
                                                             )
                                                             if (snackbarResult == SnackbarResult.ActionPerformed) {
+                                                                ActionLog.tap(ActionId.QUEUE_REMOVE_UNDO)
                                                                 playerConnection.player.addMediaItem(currentItem.mediaItem)
                                                                 playerConnection.player.moveMediaItem(
                                                                     mutableQueueWindows.size,
@@ -1009,6 +1024,7 @@ fun AuraQueue(
                                                                         size = 20.dp,
                                                                         tint = AuraPalette.OnGroundMuted,
                                                                         onClick = onClick@{
+                                                                            ActionLog.tap(ActionId.QUEUE_ITEM_MENU)
                                                                             val meta = window.mediaItem.metadata ?: return@onClick
                                                                             menuState.show {
                                                                                 QueueMenu(
@@ -1031,6 +1047,7 @@ fun AuraQueue(
                                                             }
                                                         },
                                                         onClick = {
+                                                            ActionLog.tap(ActionId.QUEUE_ITEM)
                                                             if (inSelectMode) {
                                                                 onCheckedChange(window.mediaItem.mediaId !in selection)
                                                             } else if (!isListenTogetherGuest) {
@@ -1048,6 +1065,7 @@ fun AuraQueue(
                                                             }
                                                         },
                                                         onLongClick = {
+                                                            ActionLog.tap(ActionId.QUEUE_ITEM_SELECT)
                                                             if (!inSelectMode) {
                                                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                                 inSelectMode = true
@@ -1156,7 +1174,7 @@ fun AuraQueue(
                         AuraIconButton(
                             icon = AuraIcons.Lyrics,
                             contentDescription = stringResource(R.string.queue_tab_lyrics),
-                            onClick = onToggleLyrics,
+                            onClick = { ActionLog.tap(ActionId.QUEUE_LYRICS); onToggleLyrics() },
                             size = 20.dp,
                             tint = if (showInlineLyrics) AuraPalette.Teal else AuraPalette.OnGroundMuted,
                         )
@@ -1234,7 +1252,7 @@ private fun AuraQueueBar(
             interactive = interactive,
             contentDescription = stringResource(R.string.cd_open_queue),
             active = false,
-            onClick = onOpenQueue,
+            onClick = { ActionLog.tap(ActionId.QBAR_QUEUE); onOpenQueue() },
             contentColor = contentColor,
             activeContainerColor = activeContainerColor,
             activeContentColor = activeContentColor,
@@ -1246,7 +1264,7 @@ private fun AuraQueueBar(
             interactive = interactive,
             contentDescription = stringResource(R.string.cd_audio_output),
             active = false,
-            onClick = onAudioOutput,
+            onClick = { ActionLog.tap(ActionId.QBAR_OUTPUT); onAudioOutput() },
             contentColor = contentColor,
             activeContainerColor = activeContainerColor,
             activeContentColor = activeContentColor,
@@ -1267,7 +1285,7 @@ private fun AuraQueueBar(
                 interactive = interactive,
                 contentDescription = stringResource(R.string.device_sync_sheet_title),
                 active = false,
-                onClick = onDevices,
+                onClick = { ActionLog.tap(ActionId.QBAR_DEVICES); onDevices() },
                 contentColor = contentColor,
                 activeContainerColor = activeContainerColor,
                 activeContentColor = activeContentColor,
@@ -1278,7 +1296,7 @@ private fun AuraQueueBar(
             interactive = interactive,
             contentDescription = stringResource(R.string.queue_tab_lyrics),
             active = showInlineLyrics,
-            onClick = onToggleLyrics,
+            onClick = { ActionLog.tap(ActionId.QBAR_LYRICS); onToggleLyrics() },
             contentColor = contentColor,
             activeContainerColor = activeContainerColor,
             activeContentColor = activeContentColor,
@@ -1289,7 +1307,7 @@ private fun AuraQueueBar(
             interactive = interactive,
                 contentDescription = stringResource(R.string.comments),
                 active = false,
-                onClick = onComments,
+                onClick = { ActionLog.tap(ActionId.QBAR_COMMENTS); onComments() },
                 contentColor = contentColor,
                 activeContainerColor = activeContainerColor,
                 activeContentColor = activeContentColor,
@@ -1315,7 +1333,7 @@ private fun AuraQueueBar(
             interactive = interactive,
             contentDescription = stringResource(R.string.more_options),
             active = false,
-            onClick = onMore,
+            onClick = { ActionLog.tap(ActionId.QBAR_MORE); onMore() },
             contentColor = contentColor,
             activeContainerColor = activeContainerColor,
             activeContentColor = activeContentColor,
@@ -1414,7 +1432,7 @@ private fun AuraQueueListHeader(
                     enabled = radioEnabled,
                     onClickLabel = stringResource(R.string.start_an_radio),
                     role = Role.Button,
-                    onClick = onStartRadio,
+                    onClick = { ActionLog.tap(ActionId.QUEUE_RADIO); onStartRadio() },
                 )
                 .padding(horizontal = 14.dp, vertical = 8.dp),
         ) {
@@ -1494,6 +1512,7 @@ private fun AuraAutomixRow(
                     painterId = R.drawable.playlist_play,
                     contentDescription = stringResource(R.string.play_next),
                     onClick = {
+                        ActionLog.tap(ActionId.QUEUE_AUTOMIX_NEXT)
                         val at = poolPosition()
                         if (at >= 0) playerConnection.service.playNextAutomix(item, at)
                     },
@@ -1504,6 +1523,7 @@ private fun AuraAutomixRow(
                     icon = AuraIcons.Queue,
                     contentDescription = stringResource(R.string.add_to_queue),
                     onClick = {
+                        ActionLog.tap(ActionId.QUEUE_AUTOMIX_ADD)
                         val at = poolPosition()
                         if (at >= 0) playerConnection.service.addToQueueAutomix(item, at)
                     },
@@ -1516,6 +1536,7 @@ private fun AuraAutomixRow(
         // steer the room's queue. `playWhenReady` mirrors the queue row too — and is skipped while casting,
         // where playback belongs to the other device and `playNext` itself already declines to start it.
         onClick = {
+            ActionLog.tap(ActionId.QUEUE_AUTOMIX_ITEM)
             val at = if (isListenTogetherGuest) -1 else poolPosition()
             // Review C3: with another device controlled from here, neither the pool nor the mirror is touched (the service says why).
             if (at >= 0 && !playerConnection.service.refuseQueueEditInRemoteMode()) {
@@ -1525,6 +1546,7 @@ private fun AuraAutomixRow(
             }
         },
         onLongClick = {
+            ActionLog.tap(ActionId.QUEUE_AUTOMIX_MENU)
             menuState.show {
                 QueueMenu(
                     mediaMetadata = metadata,
@@ -1987,6 +2009,7 @@ internal fun AuraWideQueuePane(modifier: Modifier = Modifier) {
                                 }
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.QUEUE_WIDE_ITEM)
                                 // A Listen Together GUEST does not steer the room's playback — the same
                                 // guard the sheet's rows carry.
                                 if (!isListenTogetherGuest) {

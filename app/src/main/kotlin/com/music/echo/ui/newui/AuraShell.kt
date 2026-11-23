@@ -103,6 +103,8 @@ import iad1tya.echo.music.ui.player.PlayerVideoSurface
 import iad1tya.echo.music.ui.screens.Screens
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import kotlin.math.exp
@@ -779,12 +781,12 @@ private fun AuraMiniOutputButton(interactive: Boolean) {
         modifier = Modifier
             .sizeIn(minWidth = AuraSpacing.MinTouchTarget, minHeight = AuraSpacing.MinTouchTarget)
             .clip(CircleShape)
-            .then(if (interactive) Modifier.unstealableClick { show = true } else Modifier)
+            .then(if (interactive) Modifier.unstealableClick { ActionLog.tap(ActionId.MINI_OUTPUT); show = true } else Modifier)
             .clickable(
                 enabled = interactive,
                 onClickLabel = stringResource(R.string.cd_audio_output),
                 role = Role.Button,
-            ) { show = true },
+            ) { ActionLog.tap(ActionId.MINI_OUTPUT); show = true },
     ) {
         androidx.compose.material3.Icon(
             painter = androidx.compose.ui.res.painterResource(R.drawable.speaker_apple),
@@ -1021,8 +1023,10 @@ fun AuraMiniPlayer(
                                 velocity > autoSwipeThreshold * 4
                             if (committed) {
                                 if (offsetX.value > 0) {
+                                    ActionLog.tap(ActionId.MINI_SWIPE_PREV)
                                     if (canSkipPrevious) iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() }
                                 } else {
+                                    ActionLog.tap(ActionId.MINI_SWIPE_NEXT)
                                     if (canSkipNext) iad1tya.echo.music.devicesync.RemotePlayback.nextOrLocal { playerConnection.player.seekToNext() }
                                 }
                             }
@@ -1306,7 +1310,7 @@ fun AuraMiniPlayer(
                     AuraIconButton(
                         icon = if (songLiked) AuraIcons.HeartFilled else AuraIcons.Heart,
                         contentDescription = stringResource(R.string.action_like),
-                        onClick = { playerConnection.toggleLike() },
+                        onClick = { ActionLog.tap(ActionId.MINI_LIKE); playerConnection.toggleLike() },
                         interactive = gesturesEnabled,
                         firstTap = true,
                         size = 22.dp,
@@ -1317,7 +1321,10 @@ fun AuraMiniPlayer(
                     AuraIconButton(
                         icon = AuraIcons.SkipPrevious,
                         contentDescription = stringResource(R.string.previous),
-                        onClick = { iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() } },
+                        onClick = {
+                            ActionLog.tap(ActionId.MINI_PREV)
+                            iad1tya.echo.music.devicesync.RemotePlayback.previousOrLocal { playerConnection.player.seekToPreviousMediaItem() }
+                        },
                         enabled = canSkipPrevious && !isListenTogetherGuest,
                         interactive = gesturesEnabled,
                         firstTap = true,
@@ -1341,6 +1348,7 @@ fun AuraMiniPlayer(
                         else -> stringResource(R.string.play)
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.MINI_PLAY)
                         when {
                             isListenTogetherGuest -> playerConnection.toggleMute()
                             isCasting -> if (remoteActive) RemotePlayback.toggle() else if (castIsPlaying) castHandler?.pause() else castHandler?.play()
@@ -1366,7 +1374,10 @@ fun AuraMiniPlayer(
                     AuraIconButton(
                         icon = AuraIcons.SkipNext,
                         contentDescription = stringResource(R.string.next),
-                        onClick = { iad1tya.echo.music.devicesync.RemotePlayback.nextOrLocal { playerConnection.player.seekToNext() } },
+                        onClick = {
+                            ActionLog.tap(ActionId.MINI_NEXT)
+                            iad1tya.echo.music.devicesync.RemotePlayback.nextOrLocal { playerConnection.player.seekToNext() }
+                        },
                         enabled = canSkipNext && !isListenTogetherGuest,
                         interactive = gesturesEnabled,
                         firstTap = true,
@@ -1396,7 +1407,7 @@ fun AuraMiniPlayer(
                         // Invisible strip of the expanded sheet: no gesture grabbing at all (it would
                         // swallow the Cast tap that lands on top of this corner).
                         modifier = if (gesturesEnabled) {
-                            Modifier.unstealableClick { homeShortcut?.invoke() }
+                            Modifier.unstealableClick { ActionLog.tap(ActionId.MINI_HOME); homeShortcut?.invoke() }
                         } else {
                             Modifier
                         },
@@ -1405,7 +1416,7 @@ fun AuraMiniPlayer(
                         // existe en contexto composable, y este `onClick` es una lambda normal. Y
                         // `?.invoke()` en vez de `!!` porque dentro de `AnimatedVisibility` el contenido
                         // sobrevive a la salida mientras se anima, y ahí ya puede ser null.
-                        onClick = { homeShortcut?.invoke() },
+                        onClick = { ActionLog.tap(ActionId.MINI_HOME); homeShortcut?.invoke() },
                         size = 20.dp,
                         tint = AuraPalette.OnGround.copy(alpha = 0.85f),
                     )

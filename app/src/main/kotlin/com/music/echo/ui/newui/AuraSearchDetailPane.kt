@@ -100,6 +100,8 @@ import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.ui.utils.LocalContentPaneWidth
 import iad1tya.echo.music.ui.utils.resize
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.LibraryPin
 import iad1tya.echo.music.utils.LibraryPinKind
 import iad1tya.echo.music.utils.LibraryPins
@@ -1099,6 +1101,7 @@ private fun PaneYtArtist(env: PaneEnv, pick: AuraSearchPick, item: ArtistItem, l
                 // Row 711: the same tap as the artist page (alias-aware toggleArtistFollow), one at a time, and only
                 // while Room still says what the tile showed (row 716: checked in the toggle's transaction, guard held
                 // until it is committed).
+                ActionLog.tap(ActionId.PANE_ARTIST_SUBSCRIBE)
                 val shownFollowed = subscribed
                 if (followInFlight.compareAndSet(false, true)) {
                     env.context.applicationScope.launch(Dispatchers.IO) {

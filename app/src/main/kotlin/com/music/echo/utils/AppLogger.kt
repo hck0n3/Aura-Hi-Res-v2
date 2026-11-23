@@ -307,9 +307,11 @@ object AppLogger {
                 else -> "D"
             }
             val ts = timestampFormat.format(Date())
+            // Row 730: a line written within ActionLog.JOIN_WINDOW_MS of a tap names it (` a=<n>`); the ACT line already does.
+            val action = if (tag == ActionLog.TAG) "" else ActionLog.correlationSuffix()
             val builder = StringBuilder()
                 .append(ts).append(' ').append(level).append('/')
-                .append(tag ?: "App").append(": ").append(message).append('\n')
+                .append(tag ?: "App").append(": ").append(message).append(action).append('\n')
             // COLLAPSE REPEATED STACK TRACES. A full trace is 15-40 lines (~2 KB), and the stream
             // resolver logs one per failing client inside a fallback loop of 11 clients that the whole
             // resolve retries ~3 times — up to ~130 KB for ONE unplayable song, against a 256 KB cap.

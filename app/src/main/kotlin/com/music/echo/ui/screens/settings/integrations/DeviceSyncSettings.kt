@@ -67,6 +67,8 @@ import iad1tya.echo.music.ui.component.IntegrationCardItem
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.AuraPanelSkin
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.BackgroundReliability
 import iad1tya.echo.music.utils.rememberPreference
 
@@ -111,7 +113,7 @@ fun DeviceSyncSettings(
             initial = server,
             label = stringResource(R.string.device_sync_server_hint),
             help = stringResource(R.string.device_sync_server_help),
-            onSave = { server = it.trim(); showServer = false },
+            onSave = { ActionLog.tap(ActionId.DEVSET_SERVER_SAVE); server = it.trim(); showServer = false },
             onDismiss = { showServer = false },
         )
     }
@@ -121,7 +123,7 @@ fun DeviceSyncSettings(
             initial = deviceName,
             label = stringResource(R.string.device_sync_name),
             help = null,
-            onSave = { deviceName = it.trim().take(40); showName = false },
+            onSave = { ActionLog.tap(ActionId.DEVSET_NAME_SAVE); deviceName = it.trim().take(40); showName = false },
             onDismiss = { showName = false },
         )
     }
@@ -134,6 +136,7 @@ fun DeviceSyncSettings(
             help = null,
             transform = SyncCode::typing,
             onSave = { typed ->
+                ActionLog.tap(ActionId.DEVSET_CODE_SAVE)
                 val normalized = SyncCode.normalize(typed)
                 if (normalized == null) {
                     Toast.makeText(context, invalid, Toast.LENGTH_SHORT).show()
@@ -239,7 +242,10 @@ fun DeviceSyncSettings(
                                     icon = painterResource(R.drawable.sync),
                                     title = { Text(stringResource(R.string.device_sync_battery_title)) },
                                     description = { Text(stringResource(R.string.device_sync_battery_desc)) },
-                                    onClick = { BackgroundReliability.requestIgnoreBatteryOptimizations(context) },
+                                    onClick = {
+                                        ActionLog.tap(ActionId.DEVSET_BATTERY)
+                                        BackgroundReliability.requestIgnoreBatteryOptimizations(context)
+                                    },
                                 )
                             )
                         }
@@ -255,7 +261,7 @@ fun DeviceSyncSettings(
                                 icon = painterResource(R.drawable.sync),
                                 title = { Text(stringResource(R.string.device_sync_lib_title)) },
                                 description = { Text(libraryText) },
-                                onClick = { DeviceSyncHub.controller?.syncLibraryNow() },
+                                onClick = { ActionLog.tap(ActionId.DEVSET_LIBRARY_SYNC); DeviceSyncHub.controller?.syncLibraryNow() },
                             )
                         )
                         add(
@@ -277,7 +283,7 @@ fun DeviceSyncSettings(
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 },
-                                onClick = { showServer = true },
+                                onClick = { ActionLog.tap(ActionId.DEVSET_SERVER); showServer = true },
                             )
                         )
                         add(
@@ -292,6 +298,7 @@ fun DeviceSyncSettings(
                                 },
                                 onClick = if (normalizedCode != null) {
                                     {
+                                        ActionLog.tap(ActionId.DEVSET_CODE_COPY)
                                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                         cm.setPrimaryClip(ClipData.newPlainText("code", SyncCode.pretty(normalizedCode)))
                                         Toast.makeText(context, codeCopied, Toast.LENGTH_SHORT).show()
@@ -303,14 +310,14 @@ fun DeviceSyncSettings(
                             IntegrationCardItem(
                                 icon = painterResource(R.drawable.add),
                                 title = { Text(stringResource(R.string.device_sync_code_create)) },
-                                onClick = { code = SyncCode.normalize(SyncCode.generate()).orEmpty() },
+                                onClick = { ActionLog.tap(ActionId.DEVSET_CODE_CREATE); code = SyncCode.normalize(SyncCode.generate()).orEmpty() },
                             )
                         )
                         add(
                             IntegrationCardItem(
                                 icon = painterResource(R.drawable.edit),
                                 title = { Text(stringResource(R.string.device_sync_code_enter)) },
-                                onClick = { showEnterCode = true },
+                                onClick = { ActionLog.tap(ActionId.DEVSET_CODE_ENTER); showEnterCode = true },
                             )
                         )
                         if (normalizedCode != null) {
@@ -318,14 +325,14 @@ fun DeviceSyncSettings(
                                 IntegrationCardItem(
                                     icon = painterResource(R.drawable.link),
                                     title = { Text(stringResource(R.string.qr_pair_show)) },
-                                    onClick = { showQr = true },
+                                    onClick = { ActionLog.tap(ActionId.DEVSET_CODE_QR); showQr = true },
                                 )
                             )
                             add(
                                 IntegrationCardItem(
                                     icon = painterResource(R.drawable.close),
                                     title = { Text(stringResource(R.string.device_sync_code_remove)) },
-                                    onClick = { code = "" },
+                                    onClick = { ActionLog.tap(ActionId.DEVSET_CODE_REMOVE); code = "" },
                                 )
                             )
                         }
@@ -343,7 +350,7 @@ fun DeviceSyncSettings(
                             description = {
                                 Text(deviceName.ifBlank { stringResource(R.string.device_sync_name_default) })
                             },
-                            onClick = { showName = true },
+                            onClick = { ActionLog.tap(ActionId.DEVSET_NAME); showName = true },
                         ),
                         switchItem(
                             title = stringResource(R.string.device_sync_shuffle),
