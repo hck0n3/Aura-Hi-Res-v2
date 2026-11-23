@@ -176,7 +176,7 @@ class LibrarySync(
     private suspend fun stampOfflineLocked() {
         if (!watchingSinceCaughtUp || !clockKnown() || sinceStore.freshStart()) return
         val ledger = ledger()
-        val current = adapter.readLocal { key -> ledger.containsKey(key) }
+        val current = adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger)) { key -> ledger.containsKey(key) }
         val fresh = LibrarySyncCore.localOps(current, ledger, clock())
         if (fresh.isEmpty()) return
         fresh.forEach { ledger[it.key] = it }
@@ -263,14 +263,16 @@ class LibrarySync(
             Reg(key, ts, value)
         }
         var accepted = LibrarySyncCore.acceptedFrom(ledger, incoming)
-        var plan = LibrarySyncCore.plan(accepted)
+        // Row 740: which key each playlist had before this batch and has with it, so a register only reaches the list it names.
+        val before = LibrarySyncCore.PlaylistIds.of(ledger)
+        var plan = LibrarySyncCore.plan(accepted, before, LibrarySyncCore.PlaylistIds.of(ledger, accepted))
         val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
         var held = emptyList<Reg>()
         if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
             // A pile of removals at once is not a person tidying up. Keep every addition, hold every removal, and say so.
             held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
             accepted = accepted - held.toSet()
-            plan = LibrarySyncCore.plan(accepted)
+            plan = LibrarySyncCore.plan(accepted, before, LibrarySyncCore.PlaylistIds.of(ledger, accepted + held.map { it.copy(parked = true) }))
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
             DeviceSyncHub.notice("Otro dispositivo quitó ${held.size} elementos de golpe; no los quité aquí por seguridad.")
         }
@@ -282,7 +284,8 @@ class LibrarySync(
         store.append(stored)
         val retry = parkedBefore.filter { ledger[it.key] == it }
         if (retry.isNotEmpty()) {
-            val retryPlan = LibrarySyncCore.plan(retry)
+            val ids = LibrarySyncCore.PlaylistIds.of(ledger)
+            val retryPlan = LibrarySyncCore.plan(retry, ids, ids)
             val again = adapter.apply(retryPlan)
             val placed = retry.filter { it.key !in again.unplaced && it.key !in retryPlan.undecoded }.map { it.copy(parked = false) }
             placed.forEach { ledger[it.key] = it }
@@ -350,7 +353,7 @@ class LibrarySync(
             return
         }
         val ledger = ledger()
-        val current = adapter.readLocal { key -> ledger.containsKey(key) }
+        val current = adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger)) { key -> ledger.containsKey(key) }
         val released = ledger.values.filter {
             it.parked && (if (LibrarySyncCore.isHeld(it)) it.key !in current else current[it.key] == it.value)
         }.map { it.copy(parked = false) }
@@ -388,6 +391,7 @@ class LibrarySync(
 
     private fun rank(key: String) = when (key.substringBefore(':')) {
         "sg", "ag" -> 0
+        "pb" -> 0
         "pl" -> 1
         "pm", "ab" -> 2
         "lk" -> 3
@@ -409,7 +413,8 @@ data class ApplyResult(val applied: Int, val unresolved: Int, val unplaced: Set<
 
 /** What [LibrarySync] needs from the app: the present facts, and a way to write what other devices changed. */
 interface LibraryBackend {
-    suspend fun readLocal(songMetaKnown: (String) -> Boolean): Map<String, String>
+    /** [playlists] = what the ledger says about the playlists, to give each one its key (row 740). */
+    suspend fun readLocal(playlists: LibrarySyncCore.PlaylistIds, songMetaKnown: (String) -> Boolean): Map<String, String>
     suspend fun apply(plan: LibrarySyncCore.Plan): ApplyResult
 }
 

@@ -2,6 +2,7 @@ package iad1tya.echo.music.devicesync
 
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -86,6 +87,34 @@ class LibrarySyncGuardTest {
         assertTrue(a.contains("mirrorLikesToAccount(changedLikes)"))
         assertTrue(a.contains("AccountPushPolicy.Op.SONG_LIKE"))
         assertTrue("una sincronización inicial grande no se reenvía una a una a YouTube", a.contains("changed.size > MIRROR_MAX"))
+    }
+
+    /**
+     * Row 740: the database side gives a playlist the key the core picks ([LibrarySyncCore.PlaylistIds.keyOf]), for the list, its songs
+     * and its pins, and places what arrives by the same rules. «Its browseId when it has one» is what moved a list to a new key the
+     * moment it was linked to YouTube: deleted and recreated on the other devices, or left twice by the mass-removal brake.
+     */
+    @Test
+    fun `a playlist linked to YouTube keeps its sync key in the adapter and in the pins`() {
+        val adapter = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAdapter.kt")
+        assertTrue(adapter.contains("val key = playlists.keyOf(ref)"))
+        assertTrue(adapter.contains("playlists.linkFact(ref)?.let { (k, v) -> facts[k] = v }"))
+        assertTrue("row 741: one row per key says the list's name and songs", adapter.contains("if (sources[row.id] != key) continue"))
+        assertTrue(adapter.contains("it.readLocal(keyOfRow)"))
+        assertTrue(adapter.contains("val targets = LibrarySyncCore.PlaylistTargets("))
+        assertTrue(adapter.contains("database.syncLinkPlaylist(row, browseId)"))
+        assertFalse(adapter.contains("row.browseId ?: row.id"))
+        val pins = read("app/src/main/kotlin/com/music/echo/devicesync/LibraryPinsBackend.kt")
+        assertFalse(pins.contains("it.browseId ?: it.id"))
+        assertFalse("a pin reaches a row by the adapter's rules, not by a lookup of its own", pins.contains("syncPlaylistIdFor"))
+        val dao = read("app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt")
+        assertTrue(
+            "never a list that is linked, never a browseId another list has",
+            dao.contains("WHERE id = :id AND browseId IS NULL AND NOT EXISTS (SELECT 1 FROM playlist WHERE browseId = :browseId)"),
+        )
+        val sync = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
+        assertTrue(sync.contains("adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger))"))
+        assertTrue(sync.contains("LibrarySyncCore.plan(accepted, before, LibrarySyncCore.PlaylistIds.of(ledger, accepted))"))
     }
 
     @Test

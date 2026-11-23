@@ -18,8 +18,8 @@ import kotlinx.coroutines.flow.first
  * can be pinned, as registers of the library sync:
  *  · scope `l` — Biblioteca ▸ Fijados ([LibraryPinsStore], one preference);
  *  · scope `h` — «Fijadas en inicio» (the `speed_dial_item` table).
- * A local playlist has a different row id on each device, so its pin travels under the playlist's SYNC key (its browseId, or its own id
- * when it has none) and is mapped back to the row id of the device that receives it. A pin whose playlist has not arrived yet waits (it
+ * A local playlist has a different row id on each device, so its pin travels under the playlist's SYNC key (the one the playlist itself
+ * travels under, [LibrarySyncCore.PlaylistIds.keyOf], row 740) and is mapped back to the row id of the device that receives it. A pin whose playlist has not arrived yet waits (it
  * is reported as unresolved and comes with the next round).
  */
 class LibraryPinsBackend(
@@ -27,9 +27,8 @@ class LibraryPinsBackend(
     private val database: MusicDatabase,
 ) : PinsBackend {
 
-    override suspend fun readLocal(): Map<String, String> {
+    override suspend fun readLocal(keyOfRow: Map<String, String>): Map<String, String> {
         val facts = LinkedHashMap<String, String>()
-        val keyOfRow = database.syncPlaylistRows().associate { it.id to (it.browseId ?: it.id) }
 
         for (pin in LibraryPins.parse(context.dataStore.data.first()[LibraryPinsKey])) {
             val id = if (pin.kind == LibraryPinKind.PLAYLIST && pin.local) keyOfRow[pin.id] ?: continue else pin.id
@@ -51,22 +50,21 @@ class LibraryPinsBackend(
         return facts
     }
 
-    override suspend fun applyPins(upserts: List<Pair<PinRef, PinMeta>>, removals: List<PinRef>): ApplyResult {
+    override suspend fun applyPins(
+        upserts: List<Pair<PinRef, PinMeta>>,
+        removals: List<PinRef>,
+        rowForAddition: Map<String, String?>,
+        rowsForRemoval: Map<String, List<String>>,
+    ): ApplyResult {
         var applied = 0
         var unresolved = 0
         val unplaced = HashSet<String>()
-
-        // The row id here of every playlist a pin names (suspend lookups first: the preference edit below is not a suspend lambda).
-        val rowFor = HashMap<String, String?>()
-        for (ref in upserts.map { it.first } + removals) {
-            if (ref.code == "P" && ref.id !in rowFor) rowFor[ref.id] = database.syncPlaylistIdFor(ref.id)
-        }
 
         val libraryUps = ArrayList<LibraryPin>()
         for ((ref, meta) in upserts) {
             if (ref.scope != SCOPE_LIBRARY) continue
             val kind = LibraryPinKind.fromCode(ref.code) ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue
-            val id = if (kind == LibraryPinKind.PLAYLIST && meta.local) rowFor[ref.id] ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue else ref.id
+            val id = if (kind == LibraryPinKind.PLAYLIST && meta.local) rowForAddition[ref.id] ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue else ref.id
             libraryUps += LibraryPin(
                 kind, id, meta.title, meta.subtitle.ifBlank { null }, meta.cover.ifBlank { null }, meta.local,
                 meta.extra.ifBlank { null }, meta.at,
@@ -75,7 +73,7 @@ class LibraryPinsBackend(
         val libraryRemovals = removals.filter { it.scope == SCOPE_LIBRARY }.mapNotNull { ref ->
             val kind = LibraryPinKind.fromCode(ref.code) ?: return@mapNotNull null
             // A local playlist pin may be stored under the row id here; try both spellings.
-            listOfNotNull(LibraryPin.keyOf(kind, ref.id), rowFor[ref.id]?.let { LibraryPin.keyOf(kind, it) })
+            listOf(LibraryPin.keyOf(kind, ref.id)) + rowsForRemoval[ref.id].orEmpty().map { LibraryPin.keyOf(kind, it) }
         }.flatten()
         if (libraryUps.isNotEmpty() || libraryRemovals.isNotEmpty()) {
             LibraryPinsStore.update(context) { current ->
@@ -90,7 +88,7 @@ class LibraryPinsBackend(
         for ((ref, meta) in upserts) {
             if (ref.scope != SCOPE_HOME) continue
             val type = homeType(ref.code) ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue
-            val id = if (ref.code == "P" && meta.local) rowFor[ref.id] ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue else ref.id
+            val id = if (ref.code == "P" && meta.local) rowForAddition[ref.id] ?: run { unresolved++; unplaced += LibrarySyncCore.pinKey(ref); null } ?: continue else ref.id
             database.speedDialDao.insert(
                 SpeedDialItem(
                     id = id,
@@ -107,7 +105,7 @@ class LibraryPinsBackend(
         for (ref in removals) {
             if (ref.scope != SCOPE_HOME) continue
             database.speedDialDao.delete(ref.id)
-            rowFor[ref.id]?.let { database.speedDialDao.delete(it) }
+            rowsForRemoval[ref.id].orEmpty().forEach { database.speedDialDao.delete(it) }
             applied++
         }
         return ApplyResult(applied, unresolved, unplaced)

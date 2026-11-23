@@ -179,4 +179,91 @@ class LibrarySyncCoreTest {
         // And a listen already in the ledger is not sent again.
         assertTrue(LibrarySyncCore.localOps(mapOf(key to "1"), ledger, now = 99).isEmpty())
     }
+
+    // Row 740: a playlist keeps one sync key for its whole life; the YouTube browseId it is linked to is another name of it.
+
+    private fun ids(vararg regs: Reg) = LibrarySyncCore.PlaylistIds.of(regs.associateBy { it.key })
+
+    @Test
+    fun `a list that travelled under its own id keeps that key once linked to YouTube, and says the link once`() {
+        val row = LibrarySyncCore.PlaylistRow("LPgymgymgy", "PLgym")
+        val known = ids(reg("pl:LPgymgymgy", 10, "{\"n\":\"Gym\"}"))
+        assertEquals("LPgymgymgy", known.keyOf(row))
+        assertEquals("pb:LPgymgymgy" to "PLgym", known.linkFact(row))
+        assertEquals(Key.PlaylistLink("LPgymgymgy"), LibrarySyncCore.parse("pb:LPgymgymgy"))
+        assertTrue("create-only, never turned off", LibrarySyncCore.isMeta("pb:LPgymgymgy"))
+        // Never in the room under its own id: it travels under its browseId, as before, and has no link to say.
+        val fresh = ids()
+        assertEquals("PLgym", fresh.keyOf(row))
+        assertNull(fresh.linkFact(row))
+        assertEquals("LPgymgymgy", fresh.keyOf(LibrarySyncCore.PlaylistRow("LPgymgymgy", null)))
+    }
+
+    @Test
+    fun `a list an older version moved to its browseId stays there, and the old key going off is not a deletion`() {
+        val after = ids(
+            reg("pl:LPgymgymgy", 20, "0"),
+            reg("pl:PLgym", 20, "{\"n\":\"Gym\"}"),
+            reg("pb:LPgymgymgy", 21, "PLgym"),
+        )
+        assertEquals("PLgym", after.keyOf(LibrarySyncCore.PlaylistRow("LPgymgymgy", "PLgym")))
+        assertEquals("the unlinked copy of another device follows it", "PLgym", after.keyOf(LibrarySyncCore.PlaylistRow("LPgymgymgy", null)))
+        assertTrue(after.renamed("LPgymgymgy"))
+        assertFalse(after.renamed("PLgym"))
+        val plan = LibrarySyncCore.plan(listOf(reg("pl:LPgymgymgy", 20, "0"), reg("pm:LPgymgymgy:s1", 20, "0")), LibrarySyncCore.PlaylistIds.EMPTY, after)
+        assertTrue(plan.playlistRemovals.isEmpty())
+        assertTrue(plan.memberRemovals.isEmpty())
+        assertEquals(0, plan.removalCount)
+    }
+
+    @Test
+    fun `a linked list deleted for real is still deleted`() {
+        val after = ids(reg("pl:LPgymgymgy", 30, "0"), reg("pb:LPgymgymgy", 21, "PLgym"))
+        assertFalse(after.renamed("LPgymgymgy"))
+        val plan = LibrarySyncCore.plan(listOf(reg("pl:LPgymgymgy", 30, "0")), LibrarySyncCore.PlaylistIds.EMPTY, after)
+        assertEquals(listOf("LPgymgymgy"), plan.playlistRemovals)
+    }
+
+    @Test
+    fun `registers reach only the rows that travel under their key`() {
+        val state = ids(reg("pl:LPgymgymgy", 10, "{\"n\":\"Gym\"}"), reg("pb:LPgymgymgy", 11, "PLgym"))
+        // This device has the list it got from the room AND a copy its own YouTube sync downloaded under another id.
+        val targets = LibrarySyncCore.PlaylistTargets(
+            listOf(LibrarySyncCore.PlaylistRow("LPgymgymgy", null), LibrarySyncCore.PlaylistRow("LPdownload", "PLgym")), state, state,
+        )
+        assertEquals(listOf("LPgymgymgy", "LPdownload"), targets.rowsOf("LPgymgymgy"))
+        assertEquals("LPgymgymgy", targets.forAddition("LPgymgymgy"))
+        assertEquals("an addition under the browseId lands in the same list", "LPgymgymgy", targets.forAddition("PLgym"))
+        assertTrue("a removal under the browseId reaches no row: none travels under it", targets.forRemoval("PLgym").isEmpty())
+        assertEquals(listOf("LPgymgymgy", "LPdownload"), targets.forRemoval("LPgymgymgy"))
+        assertEquals("the unlinked row learns the link", listOf("LPgymgymgy" to "PLgym"), targets.unlinked())
+    }
+
+    @Test
+    fun `after a restore emptied the ledger, a removal still reaches the linked row under its own id`() {
+        val row = LibrarySyncCore.PlaylistRow("LPgymgymgy", "PLgym")
+        val empty = LibrarySyncCore.PlaylistIds.EMPTY
+        assertTrue(empty.guessed(row))
+        // Deleted on another device: the list is off, its link stays.
+        val deleted = LibrarySyncCore.PlaylistTargets(listOf(row), empty, ids(reg("pl:LPgymgymgy", 30, "0"), reg("pb:LPgymgymgy", 21, "PLgym")))
+        assertEquals(listOf("LPgymgymgy"), deleted.forRemoval("LPgymgymgy"))
+        // A song removed from it: the list lives on under that same key.
+        val live = LibrarySyncCore.PlaylistTargets(listOf(row), empty, ids(reg("pl:LPgymgymgy", 30, "{\"n\":\"Gym\"}"), reg("pb:LPgymgymgy", 21, "PLgym")))
+        assertEquals(listOf("LPgymgymgy"), live.forRemoval("LPgymgymgy"))
+        assertTrue("its browseId is not the key the list lives under", live.forRemoval("PLgym").isEmpty())
+        // A row the ledger knew is not guessed: it is reached only under the key it travelled with.
+        val known = ids(reg("pl:LPgymgymgy", 10, "{\"n\":\"Gym\"}"))
+        assertFalse(known.guessed(row))
+        assertTrue(LibrarySyncCore.PlaylistTargets(listOf(row), known, known).forRemoval("PLgym").isEmpty())
+    }
+
+    @Test
+    fun `when two rows share a key only one of them says the list, the one whose id is the key`() {
+        val state = ids(reg("pl:LPgymgymgy", 10, "{\"n\":\"Gym\"}"), reg("pb:LPgymgymgy", 11, "PLgym"))
+        val download = LibrarySyncCore.PlaylistRow("LPdownload", "PLgym")
+        val own = LibrarySyncCore.PlaylistRow("LPgymgymgy", null)
+        val other = LibrarySyncCore.PlaylistRow("LPotherxyz", null)
+        assertEquals(mapOf("LPgymgymgy" to "LPgymgymgy", "LPotherxyz" to "LPotherxyz"), state.sources(listOf(download, own, other)))
+        assertEquals("alone, the YouTube copy says it", mapOf("LPdownload" to "LPgymgymgy"), state.sources(listOf(download)))
+    }
 }

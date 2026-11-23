@@ -2738,6 +2738,15 @@ interface DatabaseDao {
     @Query("SELECT id FROM playlist WHERE id = :key OR browseId = :key LIMIT 1")
     suspend fun syncPlaylistIdFor(key: String): String?
 
+    /** Row 740: links a list to the YouTube playlist another device linked it to; never a list that has one, never a browseId already taken here. */
+    @Query(
+        """
+        UPDATE playlist SET browseId = :browseId
+        WHERE id = :id AND browseId IS NULL AND NOT EXISTS (SELECT 1 FROM playlist WHERE browseId = :browseId)
+        """
+    )
+    suspend fun syncLinkPlaylist(id: String, browseId: String)
+
     @Query("UPDATE playlist SET name = :name, lastUpdateTime = :at WHERE id = :id AND name != :name")
     suspend fun syncRenamePlaylist(id: String, name: String, at: java.time.LocalDateTime)
 

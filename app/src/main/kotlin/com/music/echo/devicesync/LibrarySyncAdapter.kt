@@ -28,7 +28,7 @@ class LibrarySyncAdapter(
      * The present facts: key → value ("1" / the playlist's name as JSON). [songMetaKnown] says whether a song's `sg:` register is
      * already in the ledger, so metadata is read only for songs the others have never been told about.
      */
-    override suspend fun readLocal(songMetaKnown: (String) -> Boolean): Map<String, String> {
+    override suspend fun readLocal(playlists: LibrarySyncCore.PlaylistIds, songMetaKnown: (String) -> Boolean): Map<String, String> {
         val facts = LinkedHashMap<String, String>()
         val referenced = LinkedHashSet<String>()
 
@@ -38,10 +38,19 @@ class LibrarySyncAdapter(
             referenced += id
         }
 
+        // Row 740: a list keeps the key it first travelled under; being linked to YouTube adds a `pb:` fact instead of a new key.
+        val keyOfRow = HashMap<String, String>()
         val keyOf = HashMap<String, String>()
-        for (row in database.syncPlaylistRows()) {
-            val key = row.browseId ?: row.id
+        val playlistRows = database.syncPlaylistRows()
+        // Row 741: when two rows here share a key, only one of them says the list's name and songs.
+        val sources = playlists.sources(playlistRows.map { LibrarySyncCore.PlaylistRow(it.id, it.browseId) })
+        for (row in playlistRows) {
+            val ref = LibrarySyncCore.PlaylistRow(row.id, row.browseId)
+            val key = playlists.keyOf(ref)
+            keyOfRow[row.id] = key
             if (!LibrarySyncCore.syncableId(key)) continue
+            playlists.linkFact(ref)?.let { (k, v) -> facts[k] = v }
+            if (sources[row.id] != key) continue
             keyOf[row.id] = key
             facts[LibrarySyncCore.playlistKey(key)] = LibrarySyncCore.encodePlaylistName(row.name)
         }
@@ -71,7 +80,7 @@ class LibrarySyncAdapter(
             referenced += row.songId
         }
 
-        pins?.let { runCatching { it.readLocal() }.onSuccess { facts.putAll(it) } }
+        pins?.let { runCatching { it.readLocal(keyOfRow) }.onSuccess { facts.putAll(it) } }
 
         val d = dislikes.snapshot()
         fun add(set: String, ids: Set<String>) = ids.filter(LibrarySyncCore::syncableId).forEach { facts[LibrarySyncCore.dislikeKey(set, it)] = ON }
@@ -138,29 +147,44 @@ class LibrarySyncAdapter(
             applied++
         }
 
-        // 2. Playlists: create or rename.
+        // 2. Playlists: create or rename. Row 740: a register reaches only the list it names ([LibrarySyncCore.PlaylistTargets]); a
+        // row outside the synced ones (a list taken out of the library) is still found the old way, by id or browseId.
+        val targets = LibrarySyncCore.PlaylistTargets(
+            database.syncPlaylistRows().map { LibrarySyncCore.PlaylistRow(it.id, it.browseId) }, plan.before, plan.after,
+        )
+        suspend fun unsynced(key: String) = database.syncPlaylistIdFor(key)?.takeIf { it !in targets.ids }
         for ((key, name) in plan.playlistUpserts) {
-            val local = database.syncPlaylistIdFor(key)
-            if (local == null) {
-                val ownId = isOwnPlaylistId(key)
-                database.insert(
-                    PlaylistEntity(
+            val rows = targets.rowsOf(key)
+            if (rows.isNotEmpty()) {
+                rows.forEach { database.syncRenamePlaylist(it, name, LocalDateTime.now()) }
+            } else if (targets.forAddition(key) == null) {
+                val local = unsynced(key)
+                if (local == null) {
+                    val ownId = LibrarySyncCore.isOwnPlaylistId(key)
+                    val entity = PlaylistEntity(
                         id = if (ownId) key else PlaylistEntity.generatePlaylistId(),
                         name = name,
                         browseId = if (ownId) null else key,
                         bookmarkedAt = LocalDateTime.now(),
                         isEditable = true,
-                    ),
-                )
-            } else {
-                database.syncRenamePlaylist(local, name, LocalDateTime.now())
+                    )
+                    database.insert(entity)
+                    targets.add(LibrarySyncCore.PlaylistRow(entity.id, entity.browseId))
+                } else {
+                    database.syncRenamePlaylist(local, name, LocalDateTime.now())
+                }
             }
             applied++
+        }
+        // 2b. Row 740: a list another device linked to YouTube is linked here too (never a browseId another list here already has), so
+        // this device's own YouTube sync finds it instead of downloading a second copy, and its upload does not create a second one.
+        for ((row, browseId) in targets.unlinked()) {
+            database.syncLinkPlaylist(row, browseId)
         }
 
         // 3. Songs added to playlists.
         for ((key, songId) in plan.memberAdds) {
-            val playlist = database.syncPlaylistIdFor(key)
+            val playlist = targets.forAddition(key) ?: unsynced(key)
             if (playlist == null || database.syncSongExists(songId) == 0) {
                 unresolved++
                 unplaced += LibrarySyncCore.memberKey(key, songId)
@@ -217,20 +241,27 @@ class LibrarySyncAdapter(
 
         // 6. Removals last, so a song moved between lists is never momentarily in none.
         for ((key, songId) in plan.memberRemovals) {
-            val playlist = database.syncPlaylistIdFor(key) ?: continue
-            database.syncRemoveMember(playlist, songId)
+            val rows = targets.forRemoval(key) + listOfNotNull(unsynced(key))
+            if (rows.isEmpty()) continue
+            rows.forEach { database.syncRemoveMember(it, songId) }
             applied++
         }
         for (key in plan.playlistRemovals) {
-            val playlist = database.syncPlaylistIdFor(key) ?: continue
-            database.syncDeletePlaylist(playlist)
+            val rows = targets.forRemoval(key) + listOfNotNull(unsynced(key))
+            if (rows.isEmpty()) continue
+            rows.forEach { database.syncDeletePlaylist(it) }
             applied++
         }
 
         // 7. Pins (Biblioteca ▸ Fijados and «Fijadas en inicio»): after the playlists, so a pinned playlist already exists here.
         val pinsBackend = pins
         if (pinsBackend != null && (plan.pinUpserts.isNotEmpty() || plan.pinRemovals.isNotEmpty())) {
-            val result = runCatching { pinsBackend.applyPins(plan.pinUpserts, plan.pinRemovals) }.getOrNull()
+            // The row here of every playlist a pin names, by the same rules as the playlist registers (row 740).
+            val pinAdds = HashMap<String, String?>()
+            for ((ref, _) in plan.pinUpserts) if (ref.code == "P") pinAdds[ref.id] = targets.forAddition(ref.id) ?: unsynced(ref.id)
+            val pinRemovals = HashMap<String, List<String>>()
+            for (ref in plan.pinRemovals) if (ref.code == "P") pinRemovals[ref.id] = targets.forRemoval(ref.id) + listOfNotNull(unsynced(ref.id))
+            val result = runCatching { pinsBackend.applyPins(plan.pinUpserts, plan.pinRemovals, pinAdds, pinRemovals) }.getOrNull()
             if (result != null) {
                 applied += result.applied
                 unresolved += result.unresolved
@@ -274,9 +305,6 @@ class LibrarySyncAdapter(
         Timber.tag("DeviceSync").i("LIB_SYNC albums mirrored to account=%d", changed.size)
     }
 
-    /** `LP` + 8 letters is how this app names a playlist that lives only on the device; anything else is a YouTube browseId. */
-    private fun isOwnPlaylistId(key: String) = key.length == 10 && key.startsWith("LP") && key.drop(2).all { it.isLetter() }
-
     private companion object {
         const val MIRROR_MAX = 25
 
@@ -287,9 +315,17 @@ class LibrarySyncAdapter(
 
 /** Row 584 — what the library sync needs from the two pin stores; the Android side is [LibraryPinsBackend]. */
 interface PinsBackend {
-    /** Every pin here as a register fact: `pn:…` key → [LibrarySyncCore.encodePin]. */
-    suspend fun readLocal(): Map<String, String>
+    /** Every pin here as a register fact: `pn:…` key → [LibrarySyncCore.encodePin]. [keyOfRow]: playlist row id → its sync key (row 740). */
+    suspend fun readLocal(keyOfRow: Map<String, String>): Map<String, String>
 
-    /** Writes what other devices pinned and unpinned. Returns how many it applied and how many it could not place yet. */
-    suspend fun applyPins(upserts: List<Pair<LibrarySyncCore.PinRef, LibrarySyncCore.PinMeta>>, removals: List<LibrarySyncCore.PinRef>): ApplyResult
+    /**
+     * Writes what other devices pinned and unpinned. Returns how many it applied and how many it could not place yet. For playlist
+     * pins, [rowForAddition] / [rowsForRemoval] give the row here that a sync key reaches (row 740).
+     */
+    suspend fun applyPins(
+        upserts: List<Pair<LibrarySyncCore.PinRef, LibrarySyncCore.PinMeta>>,
+        removals: List<LibrarySyncCore.PinRef>,
+        rowForAddition: Map<String, String?>,
+        rowsForRemoval: Map<String, List<String>>,
+    ): ApplyResult
 }

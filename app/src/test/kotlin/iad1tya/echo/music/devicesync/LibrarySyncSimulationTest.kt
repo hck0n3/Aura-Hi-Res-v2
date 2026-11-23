@@ -133,6 +133,10 @@ class LibrarySyncSimulationTest {
         val members = LinkedHashSet<Pair<String, String>>()
         val albums = HashMap<String, LibrarySyncCore.AlbumMeta>()
         val savedAlbums = HashSet<String>()
+        /** Row id → the YouTube playlist it is linked to (`PlaylistEntity.browseId`); [playlists] and [members] are by row id. */
+        val browseIds = HashMap<String, String>()
+        /** Biblioteca ▸ Fijados, local playlists only: row id → the pin's snapshot. */
+        val pins = LinkedHashMap<String, LibrarySyncCore.PinMeta>()
         var applied = 0
 
         fun saveAlbum(id: String) = synchronized(lock) {
@@ -151,12 +155,19 @@ class LibrarySyncSimulationTest {
 
         private val lock = Any()
 
-        override suspend fun readLocal(songMetaKnown: (String) -> Boolean): Map<String, String> = synchronized(lock) {
+        private fun rows() = playlists.keys.map { LibrarySyncCore.PlaylistRow(it, browseIds[it]) }
+
+        override suspend fun readLocal(playlists: LibrarySyncCore.PlaylistIds, songMetaKnown: (String) -> Boolean): Map<String, String> = synchronized(lock) {
             val facts = LinkedHashMap<String, String>()
             val referenced = LinkedHashSet<String>()
             likes.forEach { facts[LibrarySyncCore.likeKey(it)] = "1"; referenced += it }
-            playlists.forEach { (k, n) -> facts[LibrarySyncCore.playlistKey(k)] = LibrarySyncCore.encodePlaylistName(n) }
-            members.forEach { (p, s) -> if (p in playlists) { facts[LibrarySyncCore.memberKey(p, s)] = "1"; referenced += s } }
+            val keyOf = rows().associate { it.id to playlists.keyOf(it) }
+            // The same rule as LibrarySyncAdapter (row 741): one row per key says the list's name and songs.
+            val sources = playlists.sources(rows())
+            rows().forEach { row -> playlists.linkFact(row)?.let { (k, v) -> facts[k] = v } }
+            this.playlists.forEach { (id, n) -> sources[id]?.let { k -> facts[LibrarySyncCore.playlistKey(k)] = LibrarySyncCore.encodePlaylistName(n) } }
+            members.forEach { (p, s) -> sources[p]?.let { k -> facts[LibrarySyncCore.memberKey(k, s)] = "1"; referenced += s } }
+            pins.forEach { (p, meta) -> keyOf[p]?.let { k -> facts[LibrarySyncCore.pinKey(LibrarySyncCore.PinRef("l", "P", k))] = LibrarySyncCore.encodePin(meta) } }
             dislikes.forEach { (set, id) -> facts[LibrarySyncCore.dislikeKey(set, id)] = "1" }
             savedAlbums.forEach { id ->
                 facts[LibrarySyncCore.albumKey(id)] = "1"
@@ -172,14 +183,32 @@ class LibrarySyncSimulationTest {
             var unresolved = 0
             val unplaced = HashSet<String>()
             for ((id, meta) in plan.songs) if (id !in songs) songs[id] = meta
-            for ((k, n) in plan.playlistUpserts) playlists[k] = n
-            for ((p, s) in plan.memberAdds) if (p in playlists && s in songs) members += p to s else { unresolved++; unplaced += LibrarySyncCore.memberKey(p, s) }
+            // The same placing rules as LibrarySyncAdapter (row 740). A list that arrives here is created with its key as its row id.
+            val targets = LibrarySyncCore.PlaylistTargets(rows(), plan.before, plan.after)
+            for ((k, n) in plan.playlistUpserts) {
+                val all = targets.rowsOf(k)
+                if (all.isNotEmpty()) all.forEach { playlists[it] = n }
+                else if (targets.forAddition(k) == null) { playlists[k] = n; targets.add(LibrarySyncCore.PlaylistRow(k, null)) }
+            }
+            for ((row, b) in targets.unlinked()) if (b !in browseIds.values) browseIds[row] = b
+            for ((p, s) in plan.memberAdds) {
+                val row = targets.forAddition(p)
+                if (row != null && s in songs) members += row to s else { unresolved++; unplaced += LibrarySyncCore.memberKey(p, s) }
+            }
             for ((id, on) in plan.likes) if (on) { if (id in songs) likes += id else { unresolved++; unplaced += LibrarySyncCore.likeKey(id) } } else likes -= id
             for ((set, id, on) in plan.dislikes) if (on) dislikes += set to id else dislikes -= set to id
             for ((id, meta) in plan.albums) albums.putIfAbsent(id, meta)
             for ((id, on) in plan.albumSaves) if (on) { if (id in albums) savedAlbums += id else { unresolved++; unplaced += LibrarySyncCore.albumKey(id) } } else savedAlbums -= id
-            for ((p, s) in plan.memberRemovals) members -= p to s
-            for (p in plan.playlistRemovals) { playlists -= p; members.removeAll { it.first == p } }
+            for ((p, s) in plan.memberRemovals) targets.forRemoval(p).forEach { members -= it to s }
+            for (p in plan.playlistRemovals) targets.forRemoval(p).forEach { row ->
+                playlists -= row; browseIds -= row; pins -= row; members.removeAll { it.first == row }
+            }
+            for ((ref, meta) in plan.pinUpserts) {
+                if (ref.scope != "l" || ref.code != "P" || !meta.local) continue
+                val row = targets.forAddition(ref.id)
+                if (row != null) pins[row] = meta else { unresolved++; unplaced += LibrarySyncCore.pinKey(ref) }
+            }
+            for (ref in plan.pinRemovals) if (ref.scope == "l" && ref.code == "P") targets.forRemoval(ref.id).forEach { pins -= it }
             applied++
             ApplyResult(applied, unresolved, unplaced)
         }
@@ -859,5 +888,267 @@ class LibrarySyncSimulationTest {
         assertEquals("the restored library was not wiped by the room's removals", 40, restored.backend.likes.size)
         assertTrue("and the held removals were not sent back as new likes", (0 until 40).all { room.value("lk:b$it") == "0" })
         assertEquals(40, tablet.backend.likes.size)
+    }
+
+    // Row 740: a local list that LibraryUploadSync links to the YouTube account gets a browseId. It used to travel under that browseId
+    // from then on: the other devices saw «list deleted, new list created», and with a big list the brake kept the deletion = two lists.
+
+    private fun Device.listWithSongs(id: String, name: String, songs: Int, prefix: String) {
+        backend.playlists[id] = name
+        for (i in 1..songs) { backend.addSong("$prefix$i"); backend.members += id to "$prefix$i" }
+    }
+
+    private fun Device.songsOf(row: String) = backend.members.filter { it.first == row }.map { it.second }.toSet()
+
+    @Test
+    fun `a list linked to YouTube on one device stays one list on the other, with its songs and its pin`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.listWithSongs("LPgymgymgy", "Gym", 5, "g")
+        phone.backend.pins["LPgymgymgy"] = LibrarySyncCore.PinMeta("Gym", local = true, at = 1L)
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the list, its songs and its pin") { tablet.songsOf("LPgymgymgy").size == 5 && "LPgymgymgy" in tablet.backend.pins }
+        settle()
+        val head = room.head
+
+        phone.backend.browseIds["LPgymgymgy"] = "PLgymOnYouTube"; phone.changed() // LibraryUploadSync linked it
+        eventually("the link reached the room") { room.head > head }
+        settle(); settle()
+        assertEquals("one list on the tablet", setOf("LPgymgymgy"), tablet.backend.playlists.keys)
+        assertEquals((1..5).map { "g$it" }.toSet(), tablet.songsOf("LPgymgymgy"))
+        assertEquals("its pin", setOf("LPgymgymgy"), tablet.backend.pins.keys)
+        assertEquals("and one on the phone", setOf("LPgymgymgy"), phone.backend.playlists.keys)
+        assertEquals("nothing was removed in the room", LibrarySyncCore.encodePlaylistName("Gym"), room.value("pl:LPgymgymgy"))
+        assertTrue((1..5).all { room.value("pm:LPgymgymgy:g$it") == "1" })
+        assertEquals(LibrarySyncCore.encodePin(LibrarySyncCore.PinMeta("Gym", local = true, at = 1L)), room.value("pn:l:P:LPgymgymgy"))
+        assertEquals("no second key for the same list", null, room.value("pl:PLgymOnYouTube"))
+        eventually("the tablet learned the link") { tablet.backend.browseIds["LPgymgymgy"] == "PLgymOnYouTube" }
+    }
+
+    @Test
+    fun `a big list linked on one device is never left duplicated by the mass-removal brake on the other`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.listWithSongs("LPbigbigbig", "Todo", 60, "b")
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the 60 songs") { tablet.songsOf("LPbigbigbig").size == 60 }
+        settle()
+        val head = room.head
+
+        phone.backend.browseIds["LPbigbigbig"] = "PLtodo"; phone.changed()
+        eventually("the link reached the room") { room.head > head }
+        settle(); settle()
+        assertEquals("one list, not two", setOf("LPbigbigbig"), tablet.backend.playlists.keys)
+        assertEquals(60, tablet.songsOf("LPbigbigbig").size)
+        assertTrue("no removal was ever held", tablet.ledger.stored.values.none { LibrarySyncCore.isHeld(it) })
+        assertTrue("the room still has every song of the list", (1..60).all { room.value("pm:LPbigbigbig:b$it") == "1" })
+    }
+
+    @Test
+    fun `both devices linking the same list to the same YouTube playlist leave one list and nothing removed`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.listWithSongs("LPsamesame", "Misma", 30, "m")
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the list") { tablet.songsOf("LPsamesame").size == 30 }
+        settle()
+        // Both link it while away from the room (each device's own LibraryUploadSync found the same playlist on the account).
+        phone.disconnect(); tablet.disconnect()
+        phone.backend.browseIds["LPsamesame"] = "PLmisma"; phone.changed()
+        tablet.backend.browseIds["LPsamesame"] = "PLmisma"; tablet.changed()
+        settle()
+        phone.connect(); tablet.connect()
+        settle(); settle()
+        for (d in listOf(phone, tablet)) {
+            assertEquals(setOf("LPsamesame"), d.backend.playlists.keys)
+            assertEquals(30, d.songsOf("LPsamesame").size)
+        }
+        assertEquals(LibrarySyncCore.encodePlaylistName("Misma"), room.value("pl:LPsamesame"))
+        assertTrue((1..30).all { room.value("pm:LPsamesame:m$it") == "1" })
+        assertEquals(null, room.value("pl:PLmisma"))
+        val head = room.head
+        phone.changed(); tablet.changed()
+        settle(); settle()
+        assertEquals("and nothing echoes afterwards", head, room.head)
+    }
+
+    @Test
+    fun `both devices linking the same list to two different YouTube playlists still leave one list, and nothing ping-pongs`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.listWithSongs("LPracerace", "Carrera", 5, "r")
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the list") { tablet.songsOf("LPracerace").size == 5 }
+        settle()
+        phone.disconnect(); tablet.disconnect()
+        phone.backend.browseIds["LPracerace"] = "PLfromPhone"; phone.changed()
+        tablet.backend.browseIds["LPracerace"] = "PLfromTablet"; tablet.changed()
+        settle()
+        phone.connect(); tablet.connect()
+        settle(); settle()
+        for (d in listOf(phone, tablet)) assertEquals(setOf("LPracerace"), d.backend.playlists.keys)
+        assertEquals("each device keeps the link it made", "PLfromPhone", phone.backend.browseIds["LPracerace"])
+        assertEquals("PLfromTablet", tablet.backend.browseIds["LPracerace"])
+        assertEquals(LibrarySyncCore.encodePlaylistName("Carrera"), room.value("pl:LPracerace"))
+        assertTrue(room.value("pb:LPracerace") in setOf("PLfromPhone", "PLfromTablet"))
+        val head = room.head
+        phone.changed(); tablet.changed()
+        settle(); settle()
+        assertEquals("the two links do not fight", head, room.head)
+    }
+
+    @Test
+    fun `a device that already has the YouTube copy of a linked list gets no second one, and its extra song reaches the other`() {
+        val phone = Device("phone")
+        phone.listWithSongs("LPgymgymgy", "Gym", 5, "g")
+        phone.connect()
+        settle()
+        phone.backend.browseIds["LPgymgymgy"] = "PLgymOnYouTube"; phone.changed()
+        eventually("the link is in the room") { room.value("pb:LPgymgymgy") == "PLgymOnYouTube" }
+        settle()
+        // The tablet downloaded that YouTube playlist on its own (its YouTube sync), under an id of its own, before joining the room.
+        val tablet = Device("tablet")
+        tablet.backend.playlists["LPdownload"] = "Gym"; tablet.backend.browseIds["LPdownload"] = "PLgymOnYouTube"
+        for (s in listOf("g1", "g2", "extra")) { tablet.backend.addSong(s); tablet.backend.members += "LPdownload" to s }
+        tablet.connect()
+        eventually("the phone gets the tablet's extra song") { "extra" in phone.songsOf("LPgymgymgy") }
+        settle(); settle()
+        assertEquals("one list on the tablet, its own", setOf("LPdownload"), tablet.backend.playlists.keys)
+        assertEquals((1..5).map { "g$it" }.toSet() + "extra", tablet.songsOf("LPdownload"))
+        assertEquals(setOf("LPgymgymgy"), phone.backend.playlists.keys)
+        assertEquals("the list kept its key", null, room.value("pl:PLgymOnYouTube"))
+    }
+
+    @Test
+    fun `an older version moving a linked list to its browseId deletes nothing here`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.listWithSongs("LPgymgymgy", "Gym", 6, "g")
+        phone.backend.pins["LPgymgymgy"] = LibrarySyncCore.PinMeta("Gym", local = true, at = 1L)
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the list") { tablet.songsOf("LPgymgymgy").size == 6 && "LPgymgymgy" in tablet.backend.pins }
+        phone.backend.browseIds["LPgymgymgy"] = "PLgymOnYouTube"; phone.changed()
+        eventually("the tablet learned the link") { tablet.backend.browseIds["LPgymgymgy"] == "PLgymOnYouTube" }
+        settle()
+        // A third device on an older build links its copy and moves it the old way: every register of the old key off, all under the new one.
+        val now = System.currentTimeMillis() + 1_000
+        fun op(key: String, v: String) = buildJsonArray { add(JsonPrimitive(key)); add(JsonPrimitive(now)); add(JsonPrimitive(v)) }
+        room.receive("old", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray {
+                add(op("pl:PLgymOnYouTube", LibrarySyncCore.encodePlaylistName("Gym")))
+                for (i in 1..6) add(op("pm:PLgymOnYouTube:g$i", "1"))
+                add(op("pn:l:P:PLgymOnYouTube", LibrarySyncCore.encodePin(LibrarySyncCore.PinMeta("Gym", local = true, at = 1L))))
+                add(op("pl:LPgymgymgy", "0"))
+                for (i in 1..6) add(op("pm:LPgymgymgy:g$i", "0"))
+                add(op("pn:l:P:LPgymgymgy", "0"))
+            })
+        })
+        settle(); settle(); settle()
+        for (d in listOf(phone, tablet)) {
+            assertEquals(setOf("LPgymgymgy"), d.backend.playlists.keys)
+            assertEquals(6, d.songsOf("LPgymgymgy").size)
+            assertEquals(setOf("LPgymgymgy"), d.backend.pins.keys)
+            assertTrue("kept as a change of name, not by the brake", d.ledger.stored.values.none { LibrarySyncCore.isHeld(it) })
+        }
+        assertEquals("the list lives on under the browseId", LibrarySyncCore.encodePlaylistName("Gym"), room.value("pl:PLgymOnYouTube"))
+        assertTrue((1..6).all { room.value("pm:PLgymOnYouTube:g$it") == "1" })
+        assertEquals("0", room.value("pl:LPgymgymgy"))
+        val head = room.head
+        phone.changed(); tablet.changed()
+        settle(); settle()
+        assertEquals("and it settles there", head, room.head)
+    }
+
+    @Test
+    fun `a list linked before it ever went to the room travels under its browseId only`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.listWithSongs("LPnewnewnw", "Nueva", 3, "n")
+        phone.backend.browseIds["LPnewnewnw"] = "PLnueva"
+        phone.connect(); tablet.connect()
+        eventually("the tablet has it") { tablet.songsOf("PLnueva").size == 3 }
+        assertEquals(null, room.value("pl:LPnewnewnw"))
+        assertEquals(null, room.value("pb:LPnewnewnw"))
+    }
+
+    @Test
+    fun `a song removed from a linked list, and then the list deleted, still go away on the other device`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.listWithSongs("LPgymgymgy", "Gym", 5, "g")
+        phone.backend.pins["LPgymgymgy"] = LibrarySyncCore.PinMeta("Gym", local = true, at = 1L)
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the list") { tablet.songsOf("LPgymgymgy").size == 5 && "LPgymgymgy" in tablet.backend.pins }
+        phone.backend.browseIds["LPgymgymgy"] = "PLgymOnYouTube"; phone.changed()
+        eventually("the tablet learned the link") { tablet.backend.browseIds["LPgymgymgy"] == "PLgymOnYouTube" }
+        settle()
+
+        tablet.backend.members -= "LPgymgymgy" to "g1"; tablet.changed()
+        eventually("the removal reaches the phone") { "g1" !in phone.songsOf("LPgymgymgy") }
+        phone.backend.pins.clear(); phone.changed()
+        eventually("the unpin reaches the tablet") { tablet.backend.pins.isEmpty() }
+        phone.backend.playlists.clear(); phone.backend.members.clear(); phone.backend.browseIds.clear(); phone.changed()
+        eventually("the deletion reaches the tablet") { tablet.backend.playlists.isEmpty() && tablet.backend.members.isEmpty() }
+        settle()
+        assertEquals("0", room.value("pl:LPgymgymgy"))
+        assertEquals("and does not come back under the browseId", null, room.value("pl:PLgymOnYouTube"))
+    }
+
+    @Test
+    fun `a restored backup does not bring back a linked list another device deleted, nor a song removed from one`() {
+        val phone = Device("phone")
+        phone.listWithSongs("LPgymgymgy", "Gym", 5, "g")
+        phone.listWithSongs("LPrunrunru", "Run", 4, "r")
+        phone.connect()
+        settle()
+        phone.backend.browseIds["LPgymgymgy"] = "PLgymOnYouTube"; phone.backend.browseIds["LPrunrunru"] = "PLrunOnYouTube"; phone.changed()
+        eventually("the links are in the room") { room.value("pb:LPgymgymgy") == "PLgymOnYouTube" && room.value("pb:LPrunrunru") == "PLrunOnYouTube" }
+        settle()
+        // A backup taken now, on another device: both lists, linked, with their songs.
+        val tablet = Device("tablet", fresh = true)
+        tablet.listWithSongs("LPgymgymgy", "Gym", 5, "g"); tablet.backend.browseIds["LPgymgymgy"] = "PLgymOnYouTube"
+        tablet.listWithSongs("LPrunrunru", "Run", 4, "r"); tablet.backend.browseIds["LPrunrunru"] = "PLrunOnYouTube"
+        // Since then the phone deleted one list and took a song out of the other.
+        phone.backend.playlists -= "LPgymgymgy"; phone.backend.browseIds -= "LPgymgymgy"; phone.backend.members.removeAll { it.first == "LPgymgymgy" }
+        phone.backend.members -= "LPrunrunru" to "r1"
+        phone.changed()
+        eventually("the phone's changes are in the room") { room.value("pl:LPgymgymgy") == "0" && room.value("pm:LPrunrunru:r1") == "0" }
+        settle()
+
+        tablet.connect() // the restore emptied its ledger: it reads the room from the start
+        eventually("the room wins on the restored tablet") {
+            tablet.backend.playlists.keys == setOf("LPrunrunru") && tablet.songsOf("LPrunrunru") == setOf("r2", "r3", "r4")
+        }
+        settle(); settle()
+        assertTrue(tablet.songsOf("LPgymgymgy").isEmpty())
+        assertEquals("the deleted list did not come back", "0", room.value("pl:LPgymgymgy"))
+        assertEquals("nor under its browseId", null, room.value("pl:PLgymOnYouTube"))
+        assertEquals("the removed song did not come back", "0", room.value("pm:LPrunrunru:r1"))
+        assertEquals(setOf("LPrunrunru"), phone.backend.playlists.keys)
+        assertEquals(setOf("r2", "r3", "r4"), phone.songsOf("LPrunrunru"))
+    }
+
+    @Test
+    fun `a song removed from a list still travels when this device also has its own YouTube copy of it`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.listWithSongs("LPgymgymgy", "Gym", 5, "g")
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the list") { tablet.songsOf("LPgymgymgy").size == 5 }
+        settle()
+        tablet.disconnect()
+        phone.backend.browseIds["LPgymgymgy"] = "PLgymOnYouTube"; phone.changed()
+        eventually("the link is in the room") { room.value("pb:LPgymgymgy") == "PLgymOnYouTube" }
+        // Before it learns the link, the tablet's own YouTube sync downloads that playlist as a second row.
+        tablet.backend.playlists["LPdownload"] = "Gym (YouTube)"; tablet.backend.browseIds["LPdownload"] = "PLgymOnYouTube"
+        for (i in 1..5) tablet.backend.members += "LPdownload" to "g$i"
+        tablet.changed()
+        tablet.connect()
+        settle(); settle()
+        assertEquals("both rows are still here", setOf("LPgymgymgy", "LPdownload"), tablet.backend.playlists.keys)
+        assertEquals("one list on the phone", setOf("LPgymgymgy"), phone.backend.playlists.keys)
+        assertEquals((1..5).map { "g$it" }.toSet(), phone.songsOf("LPgymgymgy"))
+        assertEquals("the list travels under one name, the one of the row whose id is its key", LibrarySyncCore.encodePlaylistName("Gym"), room.value("pl:LPgymgymgy"))
+
+        tablet.backend.members -= "LPgymgymgy" to "g3"; tablet.changed()
+        eventually("the removal reaches the phone although the YouTube copy still has the song") { "g3" !in phone.songsOf("LPgymgymgy") }
+        assertEquals("0", room.value("pm:LPgymgymgy:g3"))
+        val head = room.head
+        phone.changed(); tablet.changed()
+        settle(); settle()
+        assertEquals("nothing echoes afterwards", head, room.head)
     }
 }
