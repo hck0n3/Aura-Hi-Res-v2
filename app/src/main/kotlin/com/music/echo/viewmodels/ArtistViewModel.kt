@@ -26,7 +26,6 @@ import iad1tya.echo.music.extensions.filterExplicitAlbums
 import iad1tya.echo.music.utils.ArtistPageCache
 import iad1tya.echo.music.utils.ArtistSyncPolicy
 import iad1tya.echo.music.utils.toggleArtistFollow
-import iad1tya.echo.music.utils.isLoggedCookie
 import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.reportException
@@ -133,9 +132,8 @@ class ArtistViewModel @Inject constructor(
     // The ONE answer to "is this artist subscribed?" for both artist screens. It reads the deliberate-
     // follow column (`followedByUserAt`, registry #154) of EVERY spelling of this channel id, not only
     // the id the page was opened under: the library sync stores the account's artists under the id
-    // YouTube lists them with, which is not always the one a song or an album links to. The account's
-    // own answer is folded into that column by [reconcileRemoteSubscription], so this stays a pure
-    // Room read with a single writer-side source of truth.
+    // YouTube lists them with, which is not always the one a song or an album links to. Only a tap and
+    // the library sync's subscription read-back write that column; opening a page never does (row 700).
     val isSubscribed = database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artistId))
         .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
@@ -147,58 +145,37 @@ class ArtistViewModel @Inject constructor(
      */
     fun toggleSubscription() {
         val pageArtist = artistPage?.artist
+        // Row 700: one tap at a time, and only against the state the button showed — a second tap that
+        // lands before the first one's write is dropped instead of toggling straight back.
+        val shownFollowed = isSubscribed.value
+        if (!toggleInFlight.compareAndSet(false, true)) return
         viewModelScope.launch(Dispatchers.IO) {
-            // Shared with the artist menus (utils/ArtistFollowToggle.kt): one definition of the tap.
-            database.toggleArtistFollow(
-                artistId,
-                pageArtist?.let {
-                    ArtistEntity(id = it.id, name = it.title, channelId = it.channelId, thumbnailUrl = it.thumbnail)
-                },
-            )
+            try {
+                if (database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artistId)).first() != shownFollowed) {
+                    return@launch
+                }
+                // Shared with the artist menus (utils/ArtistFollowToggle.kt): one definition of the tap.
+                database.toggleArtistFollow(
+                    artistId,
+                    pageArtist?.let {
+                        ArtistEntity(id = it.id, name = it.title, channelId = it.channelId, thumbnailUrl = it.thumbnail)
+                    },
+                )
+            } finally {
+                toggleInFlight.set(false)
+            }
         }
     }
 
-    /**
-     * Ask the SIGNED-IN account whether it is subscribed to this artist, and fold a "yes" into Room.
-     *
-     * Why this exists: the follow state shown is local, and only the library sync and taps ever wrote
-     * it. A subscription made in the YouTube app after the last sync, a sync walk that stopped early,
-     * or an artist the account lists under a different id than the one the page was opened with all
-     * read "Suscribirse" for an artist the owner IS subscribed to (owner report 2026-10-20, "no es con
-     * todos"). The artist page's own subscribe button is the account's live answer.
-     *
-     * Only ever moves a row towards "followed" ([ArtistSyncPolicy.healFromRemoteSubscription]); a
-     * `false`, an unknown, a guest page or a failed request changes nothing. Runs only when logged in,
-     * only for a direct channel id, only when the local state says "not subscribed" (a subscribed
-     * artist costs no request), and at most once per [REMOTE_CHECK_TTL_MS] per artist.
-     */
-    private fun reconcileRemoteSubscription(pageArtist: com.music.innertube.models.ArtistItem) {
-        if (ArtistSyncPolicy.aliasIds(artistId).size < 2) return
-        if (!isLoggedCookie(YouTube.cookie)) return
-        val nowMs = System.currentTimeMillis()
-        val last = remoteCheckedAt[artistId]
-        if (last != null && nowMs - last < REMOTE_CHECK_TTL_MS) return
-        viewModelScope.launch(Dispatchers.IO) {
-            if (database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artistId)).first()) return@launch
-            remoteCheckedAt[artistId] = nowMs
-            if (YouTube.artistSubscribed(artistId).getOrNull() != true) return@launch
-            // Read the row AFTER the request: an unfollow tapped while it was in flight must be seen.
-            val existing = database.getArtistEntitiesByIds(listOf(artistId)).firstOrNull()
-            val fresh = ArtistEntity(
-                id = artistId,
-                name = pageArtist.title,
-                channelId = pageArtist.channelId,
-                thumbnailUrl = pageArtist.thumbnail,
-            )
-            val healed = ArtistSyncPolicy.healFromRemoteSubscription(
-                existing = existing,
-                fresh = fresh,
-                now = java.time.LocalDateTime.now(),
-            ) ?: return@launch
-            database.transaction { if (existing != null) update(healed) else insert(healed) }
-            timber.log.Timber.i("ARTIST_PAGE_SUBSCRIPTION_HEALED")
-        }
-    }
+    private val toggleInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    // TOMBSTONE (row 700, owner 2026-11-23, «el peor error»): `reconcileRemoteSubscription` (row 487) is
+    // gone. Opening an artist page asked the account's subscribe button and, on a `subscribed = true`,
+    // WROTE `followedByUserAt` — the page then read «Suscrito» for artists the owner never followed
+    // (five `ARTIST_PAGE_SUBSCRIPTION_HEALED` in 30 min around «Pedir música», four undone by hand). It
+    // also fought the library mirror (`ArtistSyncPolicy.followsGoneFromAccount`), which keeps «Artistas»
+    // to the account's library list and clears such a row on its next complete walk when that list does
+    // not hold it. Do not bring back any write of the follow column that is not a tap or that read-back.
 
     // Display name used to bridge YouTube channel ids and local LA######## artist rows that share a name.
     // Updated whenever the page (or a local artist row) resolves — empty means id-only matching.
@@ -271,12 +248,6 @@ class ArtistViewModel @Inject constructor(
         // artist renders instantly (no spinner) while a fresh copy is still fetched in the background.
         private val pageCache =
             java.util.concurrent.ConcurrentHashMap<String, ArtistPage>()
-
-        // artistId -> when the account was last asked whether it is subscribed (see
-        // reconcileRemoteSubscription). Keeps re-opening an artist from costing a second request.
-        private const val REMOTE_CHECK_TTL_MS = 10 * 60 * 1000L
-        private val remoteCheckedAt =
-            java.util.concurrent.ConcurrentHashMap<String, Long>()
 
         // Locally-created artist row id ("LA########") -> the YouTube channel id resolved by NAME.
         // An empty value marks a resolved-miss so the search isn't repeated all session. In memory ONLY:
@@ -425,8 +396,6 @@ class ArtistViewModel @Inject constructor(
                     noteLibraryArtistName(filteredPage.artist.title)
                     pageCache[artistId] = filteredPage
                     loaded = true
-                    // Only for a page fetched under the id the user opened (not a LA-row resolved by name).
-                    if (effectiveArtistId == artistId) reconcileRemoteSubscription(filteredPage.artist)
                     launch { ArtistPageCache.save(context, artistId, filteredPage) }
                     launch(Dispatchers.IO) {
                         expandPopularSongsSection(
