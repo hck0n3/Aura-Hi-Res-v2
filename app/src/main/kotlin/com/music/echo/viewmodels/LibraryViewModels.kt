@@ -4,6 +4,7 @@
 
 package iad1tya.echo.music.viewmodels
 
+import iad1tya.echo.music.db.getSongsByIdsFlowChunked
 import android.content.Context
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
@@ -144,7 +145,7 @@ constructor(
                     SongFilter.EXPORTED -> {
                         val ids = exportedSongIds.split(",").filter { it.isNotBlank() }
                         // `WHERE id IN (...)` comes back unordered, so the sort selector is applied here.
-                        database.getSongsByIdsFlow(ids).map {
+                        database.getSongsByIdsFlowChunked(ids).map {
                             it.filterExplicit(hideExplicit)
                                 .filterVideoSongs(hideVideoSongs)
                                 .sortedAsExported(ids, sortType, descending)

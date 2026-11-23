@@ -2,6 +2,7 @@
 
 package iad1tya.echo.music.ui.menu
 
+import iad1tya.echo.music.db.getSongsByIdsFlowChunked
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -85,7 +86,7 @@ fun YouTubeSelectionSongMenu(
     // appear, and selecting already-liked songs showed "Me gusta a todas" doing nothing.
     val selectedIds = remember(songSelection) { songSelection.map { it.id } }
     val selectedDbSongs by remember(selectedIds) {
-        database.getSongsByIdsFlow(selectedIds)
+        database.getSongsByIdsFlowChunked(selectedIds)
     }.collectAsState(initial = emptyList())
     val allLiked = selectedIds.isNotEmpty() &&
         selectedDbSongs.size == selectedIds.size &&

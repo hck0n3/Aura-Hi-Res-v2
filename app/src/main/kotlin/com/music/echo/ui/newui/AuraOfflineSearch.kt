@@ -1,5 +1,6 @@
 package iad1tya.echo.music.ui.newui
 
+import iad1tya.echo.music.db.getSongsByIdsFlowChunked
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -122,7 +123,7 @@ internal fun rememberOfflineLibrary(): OfflineLibrary {
     val exportedSongIds = remember(exportedSongIdsRaw) { exportedSongIdsRaw.split(",").filter { it.isNotBlank() } }
     val exportedVideoIds = remember(exportedVideoIdsRaw) { exportedVideoIdsRaw.split(",").filter { it.isNotBlank() } }
     val exportedSongRows by remember(exportedSongIds) {
-        if (exportedSongIds.isEmpty()) flowOf(emptyList()) else database.getSongsByIdsFlow(exportedSongIds)
+        if (exportedSongIds.isEmpty()) flowOf(emptyList()) else database.getSongsByIdsFlowChunked(exportedSongIds)
     }.collectAsState(initial = emptyList())
     // Only exports whose file still exists: the resolver plays an export from that file and refuses it when it is gone,
     // so listing it would be a song that shows as available offline and does not play.
@@ -137,7 +138,7 @@ internal fun rememberOfflineLibrary(): OfflineLibrary {
         }
     }
     val exportedVideosRaw by remember(exportedVideoIds) {
-        if (exportedVideoIds.isEmpty()) flowOf(emptyList()) else database.getSongsByIdsFlow(exportedVideoIds)
+        if (exportedVideoIds.isEmpty()) flowOf(emptyList()) else database.getSongsByIdsFlowChunked(exportedVideoIds)
     }.collectAsState(initial = emptyList())
     // Exported videos open in video (the export has no audio-only rendition), same as Biblioteca's list.
     val exportedVideos = remember(exportedVideosRaw) {

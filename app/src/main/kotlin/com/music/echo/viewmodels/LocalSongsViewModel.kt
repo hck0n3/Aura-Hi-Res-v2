@@ -7,6 +7,7 @@
 
 package iad1tya.echo.music.viewmodels
 
+import iad1tya.echo.music.db.getSongsByIdsFlowChunked
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -80,7 +81,7 @@ constructor(
                 val (sortType, descending) = sortDesc
                 val ids = exportedVideoIds.split(",").filter { it.isNotBlank() }
                 if (ids.isEmpty()) return@flatMapLatest flowOf(emptyList<Song>())
-                database.getSongsByIdsFlow(ids).map {
+                database.getSongsByIdsFlowChunked(ids).map {
                     it.filterExplicit(hideExplicit).sortedAsExported(ids, sortType, descending)
                 }
             }

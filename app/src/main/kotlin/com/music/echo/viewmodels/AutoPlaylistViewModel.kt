@@ -2,6 +2,7 @@
 
 package iad1tya.echo.music.viewmodels
 
+import iad1tya.echo.music.db.getSongsByIdsFlowChunked
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -81,7 +82,7 @@ constructor(
                     "exported" -> {
                         val ids = exportedSongIds.split(",").filter { it.isNotBlank() }
                         // `WHERE id IN (...)` comes back unordered, so the sort selector is applied here.
-                        database.getSongsByIdsFlow(ids)
+                        database.getSongsByIdsFlowChunked(ids)
                             .map {
                                 it.filterExplicit(hideExplicit)
                                     .filterVideoSongs(hideVideoSongs)
@@ -92,7 +93,7 @@ constructor(
                     "exported_videos" -> {
                         val ids = exportedVideoIds.split(",").filter { it.isNotBlank() }
                         if (ids.isEmpty()) return@flatMapLatest flowOf(emptyList())
-                        database.getSongsByIdsFlow(ids)
+                        database.getSongsByIdsFlowChunked(ids)
                             .map { songs ->
                                 // Force isVideo so tap → auto video mode + expanded player.
                                 songs.filterExplicit(hideExplicit)

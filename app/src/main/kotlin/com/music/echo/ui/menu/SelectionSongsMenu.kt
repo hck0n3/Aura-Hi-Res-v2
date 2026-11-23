@@ -2,6 +2,7 @@
 
 package iad1tya.echo.music.ui.menu
 
+import iad1tya.echo.music.db.getSongsByIdsFlowChunked
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.PaddingValues
@@ -539,7 +540,7 @@ fun SelectionMediaMetadataMenu(
     // assigns it), so the old check was structurally always false — the un-like branch was unreachable.
     val selectedIds = remember(songSelection) { songSelection.map { it.id } }
     val selectedDbSongs by remember(selectedIds) {
-        database.getSongsByIdsFlow(selectedIds)
+        database.getSongsByIdsFlowChunked(selectedIds)
     }.collectAsState(initial = emptyList())
     val allLiked = selectedIds.isNotEmpty() &&
         selectedDbSongs.size == selectedIds.size &&
