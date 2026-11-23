@@ -272,7 +272,7 @@ class ReleaseRadarWorker(
                             type = ReleaseRadarMatching.releaseType(hit.album.albumType, hit.album.totalTracks, hit.album.name),
                         )
                     }
-                    if (!ReleaseRadarRetention.needsLookup(hit.date, today, key in lookups)) return@async null
+                    if (!ReleaseRadarRetention.needsLookup(hit.date, today, lookups.containsKey(key))) return@async null
                     semaphore.withPermit {
                         // Recorded only when YouTube answered: a failed request is retried next pass.
                         val ytMatch = runCatching {
