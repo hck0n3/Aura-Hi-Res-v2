@@ -772,6 +772,7 @@ Se abre desde `ui/player/Queue.kt:475` (barra colapsada) y `ui/player/Queue.kt:8
 | Restablecer *(a ×1 / 0 semitonos)* | Cola > menú ⋮ > Avanzado | `ui/menu/PlayerMenu.kt:896` | destructiva | rara | siempre |
 | Aceptar | Cola > menú ⋮ > Avanzado | `ui/menu/PlayerMenu.kt:903` | acción primaria | rara | siempre |
 | **Velocidad ×0,25 … ×2,0** | Cola > menú ⋮ > Avanzado | `ui/menu/PlayerMenu.kt:909-919` | acción primaria | rara | **solo si NO estás en una sala de Escuchar juntos** |
+| «La velocidad se queda en 1,0× mientras estás en una sala de Escuchar juntos…» *(en lugar del control de velocidad; fila 744: en la sala todos suenan a 1,0× y al salir vuelve la velocidad que tenías)* | Cola > menú ⋮ > Avanzado | `ui/menu/PlayerMenu.kt` (`listen_together_tempo_locked`) | informativo | rara | **solo si estás en una sala de Escuchar juntos** |
 | **Tono ±12 semitonos** | Cola > menú ⋮ > Avanzado | `ui/menu/PlayerMenu.kt:921-930` | acción primaria | rara | siempre |
 | − *(decrementar)* | Cola > menú ⋮ > Avanzado | `ui/menu/PlayerMenu.kt:956-966` | acción secundaria | rara | deshabilitado en el primer valor |
 | + *(incrementar)* | Cola > menú ⋮ > Avanzado | `ui/menu/PlayerMenu.kt:975-985` | acción secundaria | rara | deshabilitado en el último valor |
@@ -3485,7 +3486,7 @@ Ser **invitado** de una sala degrada el reproductor entero. Un mockup nunca ense
 - En la Cola se ocultan el asa de arrastre, el deslizar-para-eliminar y el menú ⋮ de cada fila.
 - Aparece **«Re sincronizar»** en los dos menús del reproductor.
 - Aparece **«Sugerir alojar»** en los menús de canción.
-- La **velocidad de reproducción** se bloquea si estás en una sala (`ui/menu/PlayerMenu.kt:909-919`).
+- La **velocidad de reproducción** se bloquea si estás en una sala (`ui/menu/PlayerMenu.kt:909-919`): se fija en 1,0× al entrar, el diálogo «Tempo y tono» lo explica en su lugar y al salir vuelve la que tenías (fila 744).
 - Siendo **anfitrión** aparecen: solicitudes pendientes, sugerencias pendientes, el diálogo «Administrar usuario» (expulsar / bloquear / transferir) y los botones de copiar enlace y código.
 
 ## 20.4 Por contenido de la canción

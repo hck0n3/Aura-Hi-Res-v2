@@ -163,6 +163,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** The scope [start] was given; the trim's end is scheduled on it. */
     private var bridgeScope: CoroutineScope? = null
 
+    /** The speed this device had when it entered the room, given back when it leaves ([lockTempoInRoom]). Main thread only. */
+    private var tempoBeforeRoom: Float? = null
+
     /** True while the guest is executing the host's last command; guards the publish loops. */
     private val remoteDepth = java.util.concurrent.atomic.AtomicInteger(0)
 
@@ -238,6 +241,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { publishPlayPauseAsHost() }
         scope.launch { publishQueueAsHost() }
         scope.launch { answerBufferBarrier() }
+        scope.launch { lockTempoInRoom() }
     }
 
     /**
@@ -268,6 +272,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         if (player.playWhenReady) pausedLocally = false
         isPlayingNow.value = player.isPlaying
         timelineRevision.value++
+        // A room joined before this player existed, or a rebuilt player, plays at the room's speed too.
+        if (session.state.value.inRoom) lockRoomTempo(player)
         Timber.tag(TAG).i("Listening to the service player")
     }
 
@@ -571,6 +577,37 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         }
     }
 
+    /**
+     * Row 744 (P2-2): inside a room every device plays at [ROOM_TEMPO]. The protocol, shared with Metrolist, carries no tempo:
+     * a host at 1.25× drifted from its own anchor and republished every 15 s, and a guest at 1.25× ran ahead of the room and
+     * jumped back on every heartbeat. The speed the user had is given back when the room ends; «Tempo y tono» shows why its
+     * speed control is gone meanwhile. Event-driven: runs only when the device enters or leaves a room.
+     */
+    private suspend fun lockTempoInRoom() {
+        session.state
+            .map { it.inRoom }
+            .distinctUntilChanged()
+            .collect { inRoom -> onMain { if (inRoom) lockRoomTempo(listeningTo) else unlockRoomTempo(listeningTo) } }
+    }
+
+    private fun lockRoomTempo(player: Player?) {
+        if (player == null) return
+        if (tempoBeforeRoom == null) tempoBeforeRoom = syncUserTempo ?: player.playbackParameters.speed
+        if (player.playbackParameters.speed != ROOM_TEMPO) player.playbackParameters = player.playbackParameters.withSpeed(ROOM_TEMPO)
+    }
+
+    private fun unlockRoomTempo(player: Player?) {
+        val tempo = tempoBeforeRoom ?: return
+        tempoBeforeRoom = null
+        // The room's trim is over with the room: nothing may set the room's speed back after this.
+        trimEnd?.cancel()
+        trimEnd = null
+        syncUserTempo = null
+        if (player != null && player.playbackParameters.speed != tempo) {
+            player.playbackParameters = player.playbackParameters.withSpeed(tempo)
+        }
+    }
+
     private suspend fun applyTransport(
         service: MusicService,
         isPlaying: Boolean,
@@ -609,10 +646,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // Solo mientras SUENA: con la reproducción parada no hay nada que converger, y tocar la
         // velocidad de un reproductor en pausa no alinea nada.
         if (isPlaying) {
-            // Cuando NO estamos corrigiendo, la velocidad del reproductor es la que el usuario
-            // eligió — se vuelve a leer aquí para que un cambio suyo a mitad de sala se recoja solo,
-            // en vez de que se lo pisemos con el valor que capturamos al entrar.
-            val userTempo = syncUserTempo ?: player.playbackParameters.speed
+            // Inside a room the base speed is always [ROOM_TEMPO] (row 744, [lockTempoInRoom]): the protocol carries no
+            // tempo, so a guest at 1.25× ran ahead of the room and jumped back on every heartbeat.
+            val userTempo = ROOM_TEMPO
             // El anfitrión ya publicó lo que OYE, así que aquí se compara contra lo que oigo yo:
             // resto el retardo de mi propia salida. Ver [OutputLatency] — así los dos extremos se
             // compensan solos y el caso "los dos por Bluetooth" no sobrecorrige.
@@ -1123,6 +1159,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         const val TRACK_END_MARGIN_MS = 500L
 
         const val TRACK_END_HANDOFF_MS = 2_000L
+
+        /** Every device's speed inside a room: the protocol shared with Metrolist carries no tempo. */
+        const val ROOM_TEMPO = 1f
     }
 }
 
