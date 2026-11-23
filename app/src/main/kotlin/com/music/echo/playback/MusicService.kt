@@ -3724,7 +3724,7 @@ class MusicService :
         }
     }
 
-    internal fun skipOnError() {
+    internal fun skipOnError(wasPlayWhenReady: Boolean = player.playWhenReady) {
         // ONE per failure, not two. With `+= 2` against MAX_CONSECUTIVE_ERR = 5 the real budget was 2 skips,
         // so THREE unresolvable songs in a row hard-paused playback. On a slower device — where resolves
         // routinely hit the 30s timeout and surface as "song unavailable" — that is exactly the reported
@@ -3735,8 +3735,9 @@ class MusicService :
         if (consecutivePlaybackErr <= MAX_CONSECUTIVE_ERR && nextWindowIndex != C.INDEX_UNSET) {
             player.seekTo(nextWindowIndex, C.TIME_UNSET)
             player.prepare()
-            
-            if (castConnectionHandler?.isCasting?.value != true) {
+
+            // Registry 763: a paused or restored queue whose item fails is skipped but stays paused.
+            if (ErrorSkipPolicy.shouldResumeAfterErrorSkip(wasPlayWhenReady, castConnectionHandler?.isCasting?.value == true)) {
                 Timber.tag(TAG).i("START_CAUSE=error_skip")
                 player.play()
             }
@@ -9023,6 +9024,8 @@ class MusicService :
             return
         }
 
+        // Registry 763: the user's play intent, read before any handling below can pause or re-prepare.
+        val wasPlayWhenReady = player.playWhenReady
         val mediaId = player.currentMediaItem?.mediaId
         Timber.tag(TAG).w(error, "Player error occurred for ${iad1tya.echo.music.utils.LogRedaction.forLog(mediaId)}: errorCode=${error.errorCode}, message=${error.message}")
         reportException(error)
@@ -9314,7 +9317,7 @@ class MusicService :
         if (dataStore.get(AutoSkipNextOnErrorKey, false)) {
             Timber.tag(TAG).d("Auto-skipping to next track due to unrecoverable error")
             logErrorBranch("auto_skip", mediaId, error)
-            skipOnError()
+            skipOnError(wasPlayWhenReady)
         } else {
             Timber.tag(TAG).d("Stopping playback due to unrecoverable error")
             logErrorBranch("stop", mediaId, error)
