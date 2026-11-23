@@ -102,7 +102,8 @@ class PlayerArtistFollowTest {
     fun `the player's tap is the artist page's tap and reads only the deliberate follow`() {
         val follow = main("ui/newui/PlayerArtistFollow.kt")
         // Rows 106/107: the shared toggle (toggleLike + confirmArtistUnsubscribed, live call not gated on the upload switch).
-        assertTrue(follow.contains("toggleArtistFollow(channelId, ArtistEntity(id = channelId, name = name))"))
+        // Row 716: the same shared toggle, now also comparing the shown state inside its transaction.
+        assertTrue(follow.contains("toggleArtistFollow(channelId, ArtistEntity(id = channelId, name = name), shownFollowed = shownFollowed)"))
         assertTrue(follow.contains("if (PlayerArtistFollow.shouldToggle(shownFollowed, isPlayerArtistFollowed(channelId))) {"))
         // Row 154: state from `followedByUserAt` under every spelling of the channel, never `bookmarkedAt`.
         assertTrue(follow.contains("database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(channelId))"))

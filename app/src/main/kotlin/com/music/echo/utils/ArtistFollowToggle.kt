@@ -36,7 +36,12 @@ suspend fun MusicDatabase.toggleArtistFollow(
         db.withTransaction {
             val rows = artistEntitiesByIdsInTransaction(ArtistSyncPolicy.aliasIds(artistId))
             val plan = ArtistSyncPolicy.followTapPlan(rows, artistId, shownFollowed, hasFallback = fallback != null)
-                ?: return@withTransaction
+            if (plan == null) {
+                // Row 716: a tap dropped because the stored state is no longer what the button showed still reaches
+                // app.log (no names or ids, regla 4).
+                Timber.i("ARTIST_FOLLOW_TAP intent=%s outcome=ignored", if (shownFollowed == true) "unfollow" else "follow")
+                return@withTransaction
+            }
             plan.toggle.forEach { update(it.toggleLike(db::confirmArtistUnsubscribed)) }
             if (plan.insertFallback && fallback != null) insert(fallback.toggleLike(db::confirmArtistUnsubscribed))
             toggled = true

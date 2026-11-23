@@ -125,6 +125,22 @@ class ArtistFollowTapCommitTest {
     }
 
     @Test
+    fun `a dropped tap is logged, and every surface compares the shown state in the transaction`() {
+        val toggle = main("utils/ArtistFollowToggle.kt")
+        assertTrue(
+            toggle.contains("Timber.i(\"ARTIST_FOLLOW_TAP intent=%s outcome=ignored\", if (shownFollowed == true) \"unfollow\" else \"follow\")"),
+        )
+        val menu = main("ui/menu/YouTubeArtistMenu.kt")
+        assertTrue("one tap at a time", menu.contains("if (followInFlight.compareAndSet(false, true)) {"))
+        assertTrue(menu.contains("shownFollowed = shownFollowed,"))
+        assertTrue(menu.contains("followInFlight.set(false)"))
+        assertTrue(
+            main("ui/newui/PlayerArtistFollow.kt")
+                .contains("toggleArtistFollow(channelId, ArtistEntity(id = channelId, name = name), shownFollowed = shownFollowed)"),
+        )
+    }
+
+    @Test
     fun `every artist follow tap in the app goes through the shared toggle`() {
         val offenders = File(root, "app/src/main/kotlin").walkTopDown()
             .filter { it.isFile && it.extension == "kt" }

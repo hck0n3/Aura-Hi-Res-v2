@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -62,6 +63,7 @@ fun YouTubeArtistMenu(
     // Same definition as the artist page (ArtistViewModel.isSubscribed): any spelling of the channel id counts.
     val isSubscribed by database.isAnyArtistFollowed(iad1tya.echo.music.utils.ArtistSyncPolicy.aliasIds(artist.id))
         .collectAsState(initial = false)
+    val followInFlight = remember(artist.id) { java.util.concurrent.atomic.AtomicBoolean(false) }
     val listenTogetherManager = LocalListenTogetherManager.current
     val isGuest = listenTogetherManager?.isInRoom == true && !listenTogetherManager.isHost
     val isPinned by database.speedDialDao.isPinned(artist.id).collectAsState(initial = false)
@@ -155,16 +157,26 @@ fun YouTubeArtistMenu(
                         },
                         onClick = {
                             // Application scope: the menu can close right after the tap and the tap must still land.
-                            context.applicationScope.launch(Dispatchers.IO) {
-                                database.toggleArtistFollow(
-                                    artist.id,
-                                    ArtistEntity(
-                                        id = artist.id,
-                                        name = artist.title,
-                                        channelId = artist.channelId,
-                                        thumbnailUrl = artist.thumbnail,
-                                    ),
-                                )
+                            // Row 716: one tap at a time, and only against the state shown (checked in the toggle's
+                            // own transaction).
+                            val shownFollowed = isSubscribed
+                            if (followInFlight.compareAndSet(false, true)) {
+                                context.applicationScope.launch(Dispatchers.IO) {
+                                    try {
+                                        database.toggleArtistFollow(
+                                            artist.id,
+                                            ArtistEntity(
+                                                id = artist.id,
+                                                name = artist.title,
+                                                channelId = artist.channelId,
+                                                thumbnailUrl = artist.thumbnail,
+                                            ),
+                                            shownFollowed = shownFollowed,
+                                        )
+                                    } finally {
+                                        followInFlight.set(false)
+                                    }
+                                }
                             }
                         }
                     ),

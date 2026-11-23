@@ -127,6 +127,7 @@ internal suspend fun MusicDatabase.isPlayerArtistFollowed(channelId: String): Bo
 /** Toggles [channelId] only when [PlayerArtistFollow.shouldToggle] agrees with the state the user saw. */
 internal suspend fun MusicDatabase.toggleFollowIfStillShown(channelId: String, name: String, shownFollowed: Boolean) {
     if (PlayerArtistFollow.shouldToggle(shownFollowed, isPlayerArtistFollowed(channelId))) {
-        toggleArtistFollow(channelId, ArtistEntity(id = channelId, name = name))
+        // Row 716: compared again inside the toggle's transaction, so a write landing between the two reads is seen.
+        toggleArtistFollow(channelId, ArtistEntity(id = channelId, name = name), shownFollowed = shownFollowed)
     }
 }
