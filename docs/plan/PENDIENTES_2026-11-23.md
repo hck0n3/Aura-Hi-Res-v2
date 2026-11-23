@@ -122,3 +122,14 @@ Los arreglos que no necesitan decisión (paquetes D1-D7) ya están en marcha. Re
 11. Veto del PLAY fantasma: está apagado; encenderlo exige probar en el coche que el botón del volante funciona tras restaurar la cola (fila 27).
 12. Portada animada: buscar CANVAS_ALBUM_RETRY found=true y CANVAS_MEMO hit en el álbum reportado, y el lienzo horizontal a pantalla completa (filas 578, 598, 644).
 13. Icono en el launcher Samsung, y búsqueda que aparecía desde abajo: decir pantalla y consulta si vuelve a pasar (filas 618, 633).
+
+## I. Despliegue de los Workers (2026-11-23, delegado por el dueño)
+
+| Worker | Versión anterior (para volver atrás) | Versión nueva | Qué trae | Comprobado |
+|---|---|---|---|---|
+| `aura-rooms` | `9a2b965d-1a7e-4590-b15d-97f27d61b48c` | `c9a6df00-72a9-4f56-bb7b-544a4c1893d4` | Arranque a la vez (filas 742-743): ancla en `capturedAtServerTime`, barrera con hora de inicio, `hostPlaying` opcional | `npm test` 22/22; en vivo: un cliente antiguo (sin `hostPlaying` ni `client_capabilities`) crea sala, otro se une y recibe `sync_playback` + `buffer_wait` **sin** `syncStart` (comportamiento de antes) |
+| `aura-sync` | `980446d9-b259-485b-99ec-56c6c83a1b14` | `65740453-2d40-496b-8507-8c11ad9eeef7` | «Ahora suena» por aparato (filas 745-746) | `npm test` 17/17; en vivo: dos aparatos con `hello` → `hello_ok` con 2 aparatos y el `now` de uno llega al otro |
+
+Volver atrás (si algo falla): en `docs/worker/rooms` o `docs/worker/sync`,
+`npx wrangler rollback <versión anterior>` (o en el panel de Cloudflare ▸ Workers ▸ el worker ▸ Deployments ▸ Rollback).
+El token vive solo como Network secret del entorno (`api.cloudflare.com`), nunca en el repositorio.
