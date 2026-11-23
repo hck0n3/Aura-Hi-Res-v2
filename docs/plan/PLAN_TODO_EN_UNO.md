@@ -4,17 +4,17 @@ Orden pedido por el dueño. Cada fase sale primero como **beta privada** (canal 
 publica para todos con su orden. Todo cambio de código va con la skill `cirujano` (un hallazgo, un commit; plan y
 revisión con ojos frescos en los cambios de riesgo). Nada llega a `main`, tags estables ni pull requests sin su orden.
 
-## Fase 0 — Arreglos (en curso, rama `claude/compassionate-gates-1dotj5`)
+## Fase 0 — Arreglos (fusionados en la rama `claude/compassionate-gates-1dotj5`; Unit tests en verde sobre 4eed4b3, run 45204806734)
 
 | Área | Estado |
 |---|---|
 | Cola infinita: nunca repite lo que sonó ni lo que puso el usuario (4 huecos + 2 rondas de revisión) | Hecho, 2278 tests en verde |
-| Suscripciones a artistas que el usuario no hizo (restaurar, Spotify, Tidal/Deezer, aviso al activar, «Preguntar siempre») | Hecho; arreglos de la revisión en curso |
+| Suscripciones a artistas que el usuario no hizo (restaurar, Spotify, Tidal/Deezer, aviso al activar, «Preguntar siempre») | Hecho; rondas de revisión fusionadas (b977350, e2d88d7; filas 700, 711, 716) |
 | Restauración desde la nube que cerraba la app (fila 19) | Hecho |
-| Escuchar juntos: 10 arreglos de sincronización | Hecho; segunda ronda (bucles, duración, carreras) en curso |
-| Sincronización entre aparatos: 4 arreglos urgentes de pérdida de datos | Hecho; revisión en curso |
-| Toques: botones que piden varios toques o hacen otra cosa (Cast, mini barra, menús, borrar al deslizar) | En curso |
-| Textos legales: términos v3, privacidad ES/EN, README | Escritos; faltan los datos del dueño (nombre legal, ciudad, plazos) y pegar los textos de `license/` |
+| Escuchar juntos: 10 arreglos de sincronización | Hecho; segunda ronda fusionada (b48f01d, fila 669) |
+| Sincronización entre aparatos: 4 arreglos urgentes de pérdida de datos | Hecho (18cf76b); revisiones fusionadas (1f447c7, ca43503, b587f9b) |
+| Toques: botones que piden varios toques o hacen otra cosa (Cast, mini barra, menús, borrar al deslizar) | Hecho (89eda66, fb87d0d, c6741e4, 6c8d4f4, 7677ee3, 287c4b1; guardián 4c87e4c) |
+| Textos legales: términos v3, privacidad ES/EN, README | Hecho: términos v3 sin nombre personal (fed97f4) y sin reembolsos (a12fa78). Falta solo que el dueño aplique en `license/` (zona con candado) los textos de `docs/legal/CAMBIOS_PANTALLA_PAGO.md` (198b159) |
 
 ## Fase 1 — Pantallas grandes, plegables y lo que sale cortado
 1. Capa única `AuraWindowInfo` (ancho del panel, altura compacta, postura, bisagra); quitar las 5 medidas distintas.

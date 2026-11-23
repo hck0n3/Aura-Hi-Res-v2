@@ -1063,7 +1063,7 @@ class MainActivity : ComponentActivity() {
                 // In a wide window the capsule is on every route (Spotify's is), except the screens that own the
                 // whole window. Phones keep `shouldShowNavigationBar`.
                 val navBarShown = if (auraWideBottom) {
-                    !inOnboarding && currentRoute != "update" && currentRoute != "listen_together/chat" &&
+                    !inOnboarding && currentRoute != "update" &&
                         currentRoute != "ambient_mode" && currentRoute != "login" && currentRoute != "spotify_login"
                 } else {
                     shouldShowNavigationBar
@@ -2202,7 +2202,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
-                            if (!showRail && currentRoute != "update" && currentRoute != "listen_together/chat" && currentRoute != "ambient_mode") {
+                            if (!showRail && currentRoute != "update" && currentRoute != "ambient_mode") {
                                 // This Box lives in the Scaffold's bottomBar slot, which measures it LOOSE: it is only as big
                                 // as its children. On a phone the player host is `fillMaxSize` so it was always the window; in
                                 // the wide split the host is `width(widePaneWidth)`, the Box collapsed to ~one pane + capsule
@@ -2392,7 +2392,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             } else {
-                                if (currentRoute != "update" && currentRoute != "listen_together/chat" && currentRoute != "ambient_mode") {
+                                if (currentRoute != "update" && currentRoute != "ambient_mode") {
                                     // Two-pane: on a genuinely wide screen the persistent right NowPlayingSidePanel
                                     // is the now-playing surface, so fade the redundant bottom mini-player out while
                                     // it's collapsed — alpha follows the sheet progress (0 = invisible when collapsed,

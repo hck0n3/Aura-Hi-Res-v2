@@ -528,7 +528,9 @@ val ExportedVideoIdsKey = stringPreferencesKey("exportedVideoIds")
  */
 val ExportedFileUrisKey = stringPreferencesKey("exportedFileUris")
 /**
- * Row 694: how many entries [ExportedSongIdsKey], [ExportedVideoIdsKey] and [ExportedFileUrisKey] keep. Past it the
+ * Row 694: how many entries [ExportedSongIdsKey], [ExportedVideoIdsKey] and [ExportedFileUrisKey] keep. AudioExportService
+ * stores them newest first; LocalSongScanner puts the device videos it finds for the first time BEHIND the listed
+ * entries, so a scan never pushes an export out (row 777). Past the cap the
  * OLDEST export silently leaves «Exportadas» and stops playing offline (its uri is gone), so it was raised from 1000.
  * Cost, all in the settings DataStore that every edit rewrites: ~12 B per id and ~175 B per SAF uri entry, i.e. about
  * 1 MB only for someone who really has 5000 exported files (tens of GB of MP3s); nothing for everybody else.
