@@ -201,6 +201,7 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 56 | `settings/about` | `AboutScreen` | `:478` | sí |
 | 56b | `settings/feedback` | `FeedbackScreen` | NavigationBuilder | sí (Ajustes / Acerca de) |
 | 57 | `settings/terms` | `TermsScreen` | `:482` | sí (Acerca de) |
+| 57b | `settings/privacy_policy` | `legal/TermsScreens.kt` `PrivacyPolicyScreen` (fila 774) | NavigationBuilder | sí (Privacidad / Acerca de) |
 | 58 | `settings/logs` | `LogsScreen` | `:486` | sí |
 | 59 | `update` | `UpdateScreen` | `:490` | sí |
 | 60 | `login` | `LoginScreen` | `:494` | sí |
@@ -2883,6 +2884,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/PrivacySettings
 | Pausar historial de búsquedas (grupo «Historial de búsqueda») | Ajustes > Privacidad | PrivacySettings.kt:190 | conmutador | rara | siempre |
 | Borrar historial de búsquedas | Ajustes > Privacidad | PrivacySettings.kt:210 | destructiva | rara | siempre; pide confirmación |
 | Desactivar captura de pantalla — desc. «Cuando esta opción está activada, las capturas de pantalla y la vista de la aplicación en Recientes estará deshabilitada.» (grupo «Otros») | Ajustes > Privacidad | PrivacySettings.kt:223 | conmutador | rara | siempre |
+| **Política de privacidad** (grupo propio, NUEVO fila 774) — desc. «Qué datos salen de tu dispositivo, a dónde van y cómo pedir que se borren» → `settings/privacy_policy` | Ajustes > Privacidad | PrivacySettings.kt | navegación | rara | siempre |
 | Atrás (tap) / Ir al inicio (mantener) | Ajustes > Privacidad | PrivacySettings.kt:254 | navegación | constante | siempre |
 
 ---
@@ -3128,6 +3130,7 @@ Pantalla mayoritariamente informativa: tarjetas de funciones sin interacción sa
 | Privacidad, control y estabilidad (hardcoded) | Ajustes > Acerca de | AboutScreen.kt:248 | informativo | rara | siempre |
 | Información legal (hardcoded) — tarjeta contenedora | Ajustes > Acerca de | AboutScreen.kt:253 | informativo | rara | siempre |
 | Términos y condiciones / Información legal — desc. «Los términos que aceptaste al empezar a usar la app…» | Ajustes > Acerca de | AboutScreen.kt:254 (fila en 273) | navegación (`settings/terms`) | rara | siempre |
+| **Política de privacidad** — desc. «Qué datos salen de tu dispositivo, a dónde van y cómo pedir que se borren» (NUEVO, fila 774) | Ajustes > Acerca de (tarjeta «Información legal», debajo de los términos) | AboutScreen.kt (`settings/privacy_policy`) | navegación | rara | siempre |
 | Motor de audio Superpowered (hardcoded) — «El ecualizador y el Volumen Seguro usan el SDK de audio de Superpowered…» | Ajustes > Acerca de | AboutScreen.kt:326 | informativo | rara | siempre |
 
 ### 23.1 Términos y condiciones — `settings/terms`
@@ -3138,6 +3141,15 @@ Archivo: `app/src/main/kotlin/com/music/echo/legal/TermsScreens.kt`
 |---|---|---|---|---|---|
 | Atrás (tap) / Ir al inicio (mantener) | Ajustes > Acerca de > Términos | TermsScreens.kt:258 | navegación | constante | siempre |
 | «Aceptados el %s (términos v%d)» (pie de página) | Ajustes > Acerca de > Términos | TermsScreens.kt:291 | informativo | rara | solo si `acceptedAt > 0` |
+
+### 23.2 Política de privacidad — `settings/privacy_policy` (NUEVO, fila 774)
+
+Archivo: `app/src/main/kotlin/com/music/echo/legal/TermsScreens.kt` (`PrivacyPolicyScreen`, el mismo lector que los términos)
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Título «Política de privacidad» + texto completo, solo lectura (sin botón de aceptar ni pie) — `assets/legal/PRIVACIDAD.md` con la app en español, `assets/legal/PRIVACY_POLICY.md` en cualquier otro idioma; copias exactas de los archivos de la raíz (`PrivacyPolicyAssetTest`). Las tablas se leen fila a fila (celdas separadas por «·») | Ajustes > Privacidad / Acerca de > Política de privacidad | TermsScreens.kt (`PrivacyPolicyScreen`, `LegalReaderScreen`) | informativo | rara | siempre |
+| Atrás | Ajustes > … > Política de privacidad | TermsScreens.kt (`LegalReaderScreen`) | navegación | constante | siempre |
 
 ---
 

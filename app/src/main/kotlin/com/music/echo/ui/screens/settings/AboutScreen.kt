@@ -340,6 +340,14 @@ fun AboutScreen(
                     LegalTermsRow(skin = skin, onClick = { navController.navigate("settings/terms") })
                     AboutDivider(skin)
                     AboutFeatureRow(
+                        icon = painterResource(R.drawable.security),
+                        title = stringResource(R.string.privacy_policy_title),
+                        subtitle = stringResource(R.string.privacy_policy_entry_desc),
+                        skin = skin,
+                        onClick = { navController.navigate("settings/privacy_policy") },
+                    )
+                    AboutDivider(skin)
+                    AboutFeatureRow(
                         icon = painterResource(R.drawable.bug_report),
                         title = stringResource(R.string.feedback_title),
                         subtitle = stringResource(R.string.feedback_settings_desc, "aurahires@gmail.com"),
