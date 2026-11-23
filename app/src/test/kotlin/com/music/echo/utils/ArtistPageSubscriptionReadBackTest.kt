@@ -69,4 +69,18 @@ class ArtistPageSubscriptionReadBackTest {
         val yt = File(root, "innertube/src/main/kotlin/com/music/innertube/YouTube.kt").readText()
         assertFalse("row 700: the subscribe-button read is back", yt.contains("fun artistSubscribed("))
     }
+
+    @Test
+    fun `the page's follow button toggles once per tap and only against what it showed`() {
+        val tap = main("viewmodels/ArtistViewModel.kt")
+            .substringAfter("fun toggleSubscription() {").substringBefore("\n    }\n")
+        assertTrue("row 700: state shown read at tap time", tap.contains("val shownFollowed = isSubscribed.value"))
+        assertTrue("row 700: one tap at a time", tap.contains("if (!toggleInFlight.compareAndSet(false, true)) return"))
+        assertTrue(
+            "row 700: a tap against a state the button did not show toggles",
+            tap.contains("database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artistId)).first() != shownFollowed"),
+        )
+        assertTrue("row 700: the guard is released", tap.contains("finally {\n                toggleInFlight.set(false)"))
+        assertTrue("the shared tap is still the one used", tap.contains("database.toggleArtistFollow("))
+    }
 }

@@ -145,16 +145,29 @@ class ArtistViewModel @Inject constructor(
      */
     fun toggleSubscription() {
         val pageArtist = artistPage?.artist
+        // Row 700: one tap at a time, and only against the state the button showed — a second tap that
+        // lands before the first one's write is dropped instead of toggling straight back.
+        val shownFollowed = isSubscribed.value
+        if (!toggleInFlight.compareAndSet(false, true)) return
         viewModelScope.launch(Dispatchers.IO) {
-            // Shared with the artist menus (utils/ArtistFollowToggle.kt): one definition of the tap.
-            database.toggleArtistFollow(
-                artistId,
-                pageArtist?.let {
-                    ArtistEntity(id = it.id, name = it.title, channelId = it.channelId, thumbnailUrl = it.thumbnail)
-                },
-            )
+            try {
+                if (database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artistId)).first() != shownFollowed) {
+                    return@launch
+                }
+                // Shared with the artist menus (utils/ArtistFollowToggle.kt): one definition of the tap.
+                database.toggleArtistFollow(
+                    artistId,
+                    pageArtist?.let {
+                        ArtistEntity(id = it.id, name = it.title, channelId = it.channelId, thumbnailUrl = it.thumbnail)
+                    },
+                )
+            } finally {
+                toggleInFlight.set(false)
+            }
         }
     }
+
+    private val toggleInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
 
     // TOMBSTONE (row 700, owner 2026-11-23, «el peor error»): `reconcileRemoteSubscription` (row 487) is
     // gone. Opening an artist page asked the account's subscribe button and, on a `subscribed = true`,
