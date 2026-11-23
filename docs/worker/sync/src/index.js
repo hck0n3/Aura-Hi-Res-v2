@@ -17,6 +17,12 @@ import { mergeShuffle, MAX_CONTEXTS } from "./merge.js";
 const MAX_MESSAGE_BYTES = 128 * 1024;
 const MAX_NOW_BYTES = 24 * 1024;
 const MAX_DEVICES = 8;
+// «Now playing» is kept PER DEVICE (rows 745/662): with one shared value, a device that published its paused queue hid the device that
+// really plays until its next heartbeat (≤ 20 s). `hello_ok.nows` hands out the entries of the last NOW_RECENT_MS; `hello_ok.now` stays
+// the single best one for apps that only know that field.
+const NOW_RECENT_MS = 10 * 60_000; // the window the task named for «recent»; chosen, not measured
+const NOW_FRESH_MS = 70_000; // a playing device heartbeats every 20 s: the app's RemotePlayback.FRESH_MS
+const MAX_NOW_ENTRIES = 16;
 // Library registers (row 536): likes, dislikes and playlists, one last-writer-wins register per item.
 // Bumped whenever the library protocol changes. The app asks for it in `hello_ok` and says so when the deployed Worker is older.
 const LIB_VERSION = 2;
@@ -138,8 +144,10 @@ export class SyncRoom {
       kind: String(msg.device?.kind || "phone").slice(0, 12),
       joinedAt: Date.now(),
     });
-    const now = (await this.ctx.storage.get("now")) || null;
-    send(ws, { t: "hello_ok", serverTime: Date.now(), devices: this.devices(), now, lib: LIB_VERSION });
+    const nows = await this.loadNows();
+    const serverTime = Date.now();
+    const recent = Object.values(nows).filter((n) => !n.stale && serverTime - (n.at || 0) <= NOW_RECENT_MS);
+    send(ws, { t: "hello_ok", serverTime, devices: this.devices(), now: pickNow(nows, serverTime), nows: recent, lib: LIB_VERSION });
     this.broadcastDevices(null, ws);
   }
 
@@ -180,9 +188,25 @@ export class SyncRoom {
     if (!state || typeof state !== "object") return;
     const text = JSON.stringify(state);
     if (text.length > MAX_NOW_BYTES) return;
-    const value = { ...state, deviceId: me.id, deviceName: me.name, at: Date.now() };
-    await this.ctx.storage.put("now", value);
-    this.broadcast({ t: "now", from: me.id, state: value }, ws);
+    const at = Date.now();
+    const nows = await this.loadNows();
+    const playing = state.playing === true;
+    const playedAt = playing ? at : nows[me.id]?.playedAt || 0;
+    // A paused report from a device that has not played lately, while another device plays, is not what the user listens to (a queue
+    // restored or mirrored there, row 662). It is kept for that device but neither handed out nor broadcast: it cannot hide the one that plays.
+    const stale = !playing && at - playedAt > NOW_RECENT_MS && Object.values(nows).some((n) => n.deviceId !== me.id && freshPlaying(n, at));
+    nows[me.id] = { ...state, deviceId: me.id, deviceName: me.name, at, playedAt, stale };
+    const keep = Object.values(nows).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, MAX_NOW_ENTRIES);
+    await this.ctx.storage.put("nows", Object.fromEntries(keep.map((n) => [n.deviceId, n])));
+    if (!stale) this.broadcast({ t: "now", from: me.id, state: nows[me.id] }, ws);
+  }
+
+  /** deviceId → its last «now». A room written by the previous version has only the single `now`: it becomes the first entry. */
+  async loadNows() {
+    const nows = await this.ctx.storage.get("nows");
+    if (nows) return nows;
+    const legacy = await this.ctx.storage.get("now");
+    return legacy?.deviceId ? { [legacy.deviceId]: { ...legacy, playedAt: legacy.playing === true ? legacy.at || 0 : 0 } } : {};
   }
 
   /**
@@ -271,6 +295,8 @@ export class SyncRoom {
       return;
     }
     send(dest, { t: "cmd", from: me.id, fromName: me.name, cmd, args: msg.args && typeof msg.args === "object" ? msg.args : {} });
+    // The sender learns the order reached the device's open connection (an older app ignores this message).
+    send(ws, { t: "cmd_ok", to: target, cmd });
   }
 
   /**
@@ -313,6 +339,17 @@ export class SyncRoom {
     const oldest = [...all.entries()].sort((a, b) => (a[1].updatedAt || 0) - (b[1].updatedAt || 0)).slice(0, all.size - MAX_CONTEXTS);
     await this.ctx.storage.delete(oldest.map(([k]) => k));
   }
+}
+
+function freshPlaying(n, at) {
+  return !n.stale && n.playing === true && at - (n.at || 0) <= NOW_FRESH_MS;
+}
+
+/** The one «now» for an app that knows a single one: the newest device that plays, else the newest report. */
+function pickNow(nows, at) {
+  const all = Object.values(nows).filter((n) => !n.stale);
+  const newest = (list) => list.reduce((best, n) => (!best || (n.at || 0) > (best.at || 0) ? n : best), null);
+  return newest(all.filter((n) => freshPlaying(n, at))) || newest(all);
 }
 
 function send(ws, payload) {

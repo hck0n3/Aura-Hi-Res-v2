@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { mergeShuffle } from "../src/merge.js";
+import { SyncRoom } from "../src/index.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const group = createHash("sha256").update("secret-one").digest("hex");
@@ -133,6 +134,84 @@ test("now-playing is stored, shown to a device that joins, and commands are rout
   a.send({ t: "library", what: "likes" });
   const ping = await b.next((m) => m.t === "library");
   assert.equal(ping.what, "likes");
+  for (const x of [a, b]) x.ws.close(1000, "bye");
+});
+
+const item = (id) => ({ id, t: "T", a: "A", c: "" });
+
+test("«now» is kept per device: a paused queue on a device that has not played does not hide the one that plays", async () => {
+  const g = createHash("sha256").update("now-per-device").digest("hex");
+  const a = await connect(g, phone);
+  await a.next((m) => m.t === "hello_ok");
+  const b = await connect(g, tablet);
+  await b.next((m) => m.t === "hello_ok");
+  const pc = await connect(g, { id: "pc-00000001", name: "PC", kind: "pc" });
+  await pc.next((m) => m.t === "hello_ok");
+
+  a.send({ t: "now", state: { items: [item("x1")], index: 0, positionMs: 1000, playing: true } });
+  assert.equal((await pc.next((m) => m.t === "now")).state.deviceId, "phone-0001");
+  // the tablet reconnects and publishes the queue it holds, paused, never played here: the room keeps it but tells nobody
+  b.send({ t: "now", state: { items: [item("old")], index: 0, positionMs: 0, playing: false } });
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(pc.inbox.some((m) => m.t === "now" && m.from === "tablet-0001"), false, "a stale paused report is not broadcast");
+
+  // a device that joins now sees the phone, in `now` (older apps) and in `nows`
+  const late = await connect(g, { id: "late-00000001", name: "Late", kind: "phone" });
+  const hello = await late.next((m) => m.t === "hello_ok");
+  assert.equal(hello.now.deviceId, "phone-0001");
+  assert.equal(hello.now.playing, true);
+  assert.deepEqual(hello.nows.map((n) => n.deviceId), ["phone-0001"]);
+  for (const x of [a, b, pc, late]) x.ws.close(1000, "bye");
+});
+
+test("«now»: a device that was playing and pauses is still told to the others, and the newest PLAYING one is handed out", async () => {
+  const g = createHash("sha256").update("now-pause-reaches").digest("hex");
+  const a = await connect(g, phone);
+  await a.next((m) => m.t === "hello_ok");
+  const b = await connect(g, tablet);
+  await b.next((m) => m.t === "hello_ok");
+
+  b.send({ t: "now", state: { items: [item("t1")], index: 0, positionMs: 0, playing: true } });
+  await a.next((m) => m.t === "now" && m.from === "tablet-0001" && m.state.playing === true);
+  a.send({ t: "now", state: { items: [item("p1")], index: 0, positionMs: 0, playing: true } });
+  await b.next((m) => m.t === "now" && m.from === "phone-0001" && m.state.playing === true);
+  // the phone pauses after playing: that is news for the others
+  a.send({ t: "now", state: { items: [item("p1")], index: 0, positionMs: 500, playing: false } });
+  const paused = await b.next((m) => m.t === "now" && m.from === "phone-0001" && m.state.playing === false);
+  assert.equal(paused.state.stale, false);
+
+  const late = await connect(g, { id: "late-00000002", name: "Late", kind: "phone" });
+  const hello = await late.next((m) => m.t === "hello_ok");
+  assert.equal(hello.now.deviceId, "tablet-0001", "the device that plays wins over a newer paused report");
+  assert.deepEqual(hello.nows.map((n) => n.deviceId).sort(), ["phone-0001", "tablet-0001"]);
+  for (const x of [a, b, late]) x.ws.close(1000, "bye");
+});
+
+test("«now»: a room written by the previous version (one shared `now`) still hands it out", async () => {
+  const at = Date.now();
+  const stored = new Map([["now", { items: [item("legacy")], index: 0, playing: true, deviceId: "phone-0001", deviceName: "Fold", at }]]);
+  const room = new SyncRoom({ storage: { get: async (k) => stored.get(k) }, getWebSockets: () => [] }, {});
+  const nows = await room.loadNows();
+  assert.deepEqual(Object.keys(nows), ["phone-0001"]);
+  assert.equal(nows["phone-0001"].playedAt, at, "it was playing: it counts as played then");
+  stored.clear();
+  assert.deepEqual(await room.loadNows(), {}, "an empty room has none");
+});
+
+test("a routed command is acknowledged to its sender with cmd_ok", async () => {
+  const g = createHash("sha256").update("cmd-ack").digest("hex");
+  const a = await connect(g, phone);
+  await a.next((m) => m.t === "hello_ok");
+  const b = await connect(g, tablet);
+  await b.next((m) => m.t === "hello_ok");
+  b.send({ t: "cmd", to: "phone-0001", cmd: "pause" });
+  await a.next((m) => m.t === "cmd" && m.cmd === "pause");
+  const ok = await b.next((m) => m.t === "cmd_ok");
+  assert.equal(ok.to, "phone-0001");
+  assert.equal(ok.cmd, "pause");
+  b.send({ t: "cmd", to: "nobody-00001", cmd: "pause" });
+  await b.next((m) => m.t === "cmd_fail");
+  assert.equal(b.inbox.some((m) => m.t === "cmd_ok"), false, "no ack for an order that went nowhere");
   for (const x of [a, b]) x.ws.close(1000, "bye");
 });
 
