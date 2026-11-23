@@ -76,6 +76,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -159,6 +160,8 @@ import iad1tya.echo.music.extensions.metadata
 import iad1tya.echo.music.extensions.togglePlayPause
 import iad1tya.echo.music.extensions.toggleRepeatMode
 import iad1tya.echo.music.listentogether.RoomRole
+import iad1tya.echo.music.applicationScope
+import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.playback.AudioExportService
 import iad1tya.echo.music.playback.PendingDeferredDownloads
@@ -867,6 +870,31 @@ private fun AuraPlayerShape(
     // be destroyed and recreated by a rotation and the open dialog would vanish mid-gesture.
     var showChoosePlaylistDialog by rememberSaveable { mutableStateOf(false) }
     var showSelectArtistDialog by rememberSaveable { mutableStateOf(false) }
+    // Owner 2026-11-22: the same chooser, opened from «Suscribirme» with several artists, subscribes instead of navigating.
+    var selectArtistToFollow by rememberSaveable { mutableStateOf(false) }
+    // The channel each artist of THIS song resolved to on a tap, so its chip then reads that channel's state.
+    val followChannelIds = remember(mediaMetadata?.id) { mutableStateMapOf<String, String>() }
+    val followInFlight = remember { mutableSetOf<String>() }
+    val followArtistFromPlayer: (MediaMetadata.Artist, Boolean) -> Unit = { artist, shownFollowed ->
+        val key = PlayerArtistFollow.key(artist)
+        if (followInFlight.add(key)) {
+            val notFound = context.getString(R.string.external_link_not_found)
+            val appContext = context.applicationContext
+            // Application scope: the player can fold away right after the tap, and the tap must still land.
+            context.applicationScope.launch(Dispatchers.Main) {
+                try {
+                    val channelId = database.followArtistFromPlayer(artist, followChannelIds[key], shownFollowed)
+                    if (channelId != null) {
+                        followChannelIds[key] = channelId
+                    } else {
+                        Toast.makeText(appContext, notFound, Toast.LENGTH_SHORT).show()
+                    }
+                } finally {
+                    followInFlight.remove(key)
+                }
+            }
+        }
+    }
     var showDownloadOrExportDialog by rememberSaveable { mutableStateOf(false) }
     val downloadChooserMeta = mediaMetadata
     // Row 348 (C2 audit, UI_INVENTORY §20.1): «Exportar como MP3» OFF means the download button just
@@ -898,7 +926,40 @@ private fun AuraPlayerShape(
             deferOfflineWhileLiveVideo = videoMode,
         )
     }
-    if (showSelectArtistDialog) {
+    if (showSelectArtistDialog && selectArtistToFollow) {
+        val artists = mediaMetadata?.artists.orEmpty().filter { it.name.isNotBlank() }.distinctBy { it.id to it.name }
+        // Stays open: each row shows its own «Suscrito» and flips in place, so several can be followed in one visit.
+        ListDialog(onDismiss = { showSelectArtistDialog = false; selectArtistToFollow = false }) {
+            items(items = artists, key = { "${it.id}_${it.name}" }) { artist ->
+                val followed by rememberPlayerArtistFollowed(
+                    database,
+                    followChannelIds[PlayerArtistFollow.key(artist)] ?: artist.id?.takeIf { PlayerArtistFollow.isChannelId(it) },
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = artist.name,
+                        style = AuraType.MenuLabel,
+                        color = AuraPalette.OnGround,
+                        maxLines = 1,
+                        overflow = AuraDefaultOverflow,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    AuraChip(
+                        text = stringResource(if (followed) R.string.subscribed else R.string.subscribe),
+                        selected = followed,
+                        onClick = { followArtistFromPlayer(artist, followed) },
+                        firstTap = true,
+                    )
+                }
+            }
+        }
+    } else if (showSelectArtistDialog) {
         val artists = mediaMetadata?.artists.orEmpty().filter { it.name.isNotBlank() }.distinctBy { it.id to it.name }
         ListDialog(onDismiss = { showSelectArtistDialog = false }) {
             items(items = artists, key = { "${it.id}_${it.name}" }) { artist ->
@@ -1611,9 +1672,10 @@ private fun AuraPlayerShape(
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut(),
                         ) {
-                            Row(
+                            // Wraps instead of a Row: with «Suscribirme» there are up to four chips, more than a phone's width,
+                            // and a Row would squeeze the last one out of sight.
+                            androidx.compose.foundation.layout.FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 // El álbum solo cuando hay uno que resolver: un chip que no lleva a
@@ -1638,6 +1700,33 @@ private fun AuraPlayerShape(
                                     },
                                     firstTap = true,
                                 )
+                                // Owner 2026-11-22: «Suscribirme» from the player, the same tap as the artist page's button.
+                                // One artist toggles here and the row stays open to show «Suscrito»; several open the chooser.
+                                val followable = meta.artists.filter { it.name.isNotBlank() }.distinctBy { it.id to it.name }
+                                if (followable.size == 1) {
+                                    val artist = followable.single()
+                                    val followed by rememberPlayerArtistFollowed(
+                                        database,
+                                        followChannelIds[PlayerArtistFollow.key(artist)] ?: artist.id?.takeIf { PlayerArtistFollow.isChannelId(it) },
+                                    )
+                                    AuraChip(
+                                        text = stringResource(if (followed) R.string.subscribed else R.string.subscribe),
+                                        selected = followed,
+                                        onClick = { followArtistFromPlayer(artist, followed) },
+                                        firstTap = true,
+                                    )
+                                } else if (followable.isNotEmpty()) {
+                                    AuraChip(
+                                        text = stringResource(R.string.subscribe),
+                                        selected = false,
+                                        onClick = {
+                                            showArtistActions = false
+                                            selectArtistToFollow = true
+                                            showSelectArtistDialog = true
+                                        },
+                                        firstTap = true,
+                                    )
+                                }
                                 // Owner 2026-10-18: while a song plays FROM A PLAYLIST, a third door leads back to that list.
                                 // Only for a real playlist context (`PL:` yours, `OL:` a followed one) — an album, a radio or
                                 // a request would be a chip that leads nowhere.
