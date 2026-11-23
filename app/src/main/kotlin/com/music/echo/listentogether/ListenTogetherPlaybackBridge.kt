@@ -159,10 +159,41 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      */
     private var syncUserTempo: Float? = null
 
+    /** Ends the current speed trim once it has closed its gap ([SyncCorrection.trimDurationMs]). Main thread only. */
+    private var trimEnd: kotlinx.coroutines.Job? = null
+
+    /** The scope [start] was given; the trim's end is scheduled on it. */
+    private var bridgeScope: CoroutineScope? = null
+
+    /** The speed this device had when it entered the room, given back when it leaves ([lockTempoInRoom]). Main thread only. */
+    private var tempoBeforeRoom: Float? = null
+
     /** True while the guest is executing the host's last command; guards the publish loops. */
     private val remoteDepth = java.util.concurrent.atomic.AtomicInteger(0)
 
     private val applyingRemote: Boolean get() = remoteDepth.get() > 0
+
+    /**
+     * Row 744 (P2-6): how many of the room's own player calls are running RIGHT NOW on the main thread. Main thread only.
+     *
+     * [remoteDepth] spans a whole apply, suspension points included, so a pause the user made on the main thread between two of
+     * its hops was taken for the room's own and not remembered as [pausedLocally] — the next apply undid it. The player listener
+     * judges by this counter instead: it runs on the main thread, and media3 calls it back synchronously from inside the call
+     * that caused it (the same contract MusicService.applyingShuffleOrder relies on), so a callback seen while this is above
+     * zero is the room's doing and anything else is the user's.
+     */
+    private var applyingOnMain = 0
+
+    /** Runs the room's player calls on the main thread, counted in [applyingOnMain]. */
+    private suspend fun <T> remoteOnMain(block: suspend () -> T): T =
+        withContext(Dispatchers.Main.immediate) {
+            applyingOnMain++
+            try {
+                block()
+            } finally {
+                applyingOnMain--
+            }
+        }
 
     @Volatile
     private var pausedLocally = false
@@ -228,6 +259,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     fun start(scope: CoroutineScope) {
         if (started) return
         started = true
+        bridgeScope = scope
         Timber.tag(TAG).i("Playback bridge started")
         scope.launch { followPlayer() }
         scope.launch { watchRoomForGuests() }
@@ -241,6 +273,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { publishQueueAsHost() }
         scope.launch { answerBufferBarrier() }
         scope.launch { holdForSynchronizedStart() }
+        scope.launch { lockTempoInRoom() }
     }
 
     /**
@@ -271,6 +304,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         if (player.playWhenReady) pausedLocally = false
         isPlayingNow.value = player.isPlaying
         timelineRevision.value++
+        // A room joined before this player existed, or a rebuilt player, plays at the room's speed too.
+        if (session.state.value.inRoom) lockRoomTempo(player)
         Timber.tag(TAG).i("Listening to the service player")
     }
 
@@ -281,13 +316,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         ) {
             playIntent.value = playWhenReady
             val state = session.state.value
-            if (!applyingRemote) pausedLocally = !playWhenReady && state.inRoom && !state.isHost
+            val roomsOwnCall = applyingOnMain > 0
+            if (!roomsOwnCall) pausedLocally = !playWhenReady && state.inRoom && !state.isHost
             if (!playWhenReady) return
             // Guest-side resume: the local player started playing while we are a guest and the apply
             // loop did NOT cause it — ask the server where the room is. This is what Metrolist's and
             // SimpMusic's managers do (`requestSync` on guest play), and what makes "guests may
             // pause, and stay paused" possible at all.
-            if (!state.inRoom || state.isHost || applyingRemote) return
+            if (!state.inRoom || state.isHost || roomsOwnCall) return
             Timber.tag(TAG).i("Guest resumed — asking the server where the room is")
             session.requestSync()
             if (state.isPlaying || state.currentTrack == null) return
@@ -297,9 +333,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 if (player !== listeningTo || !player.playWhenReady) return@post
                 if (!now.inRoom || now.isHost || now.isPlaying || now.currentTrack == null) return@post
                 remoteDepth.incrementAndGet()
+                applyingOnMain++
                 try {
                     player.pause()
                 } finally {
+                    applyingOnMain--
                     remoteDepth.decrementAndGet()
                 }
             }
@@ -326,6 +364,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             timeline: androidx.media3.common.Timeline,
             reason: Int,
         ) {
+            timelineRevision.value++
+        }
+
+        /** Shuffle changes the order the host publishes ([hostQueueOrder]) without touching the timeline. */
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             timelineRevision.value++
         }
 
@@ -436,7 +479,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         // Row 616: when the room moved to a track this device ALREADY has loaded further down its own list (the host
                         // pressed next, or the song ended), jump to it in place: ExoPlayer has been pre-buffering it, so it starts at
                         // once instead of being torn down and resolved again (1-3 s later than the host, then a visible catch-up jump).
-                        val reused = !sameTrack && onMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally && hold == null) }
+                        val reused = !sameTrack && remoteOnMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally && hold == null) }
                         if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing && !pausedLocally && hold == null)
                     }
                     applyTransport(service, playing && !pausedLocally, position, track, anchorServerTime)
@@ -569,11 +612,44 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      * diga.
      */
     private fun restoreUserTempo(player: Player? = null) {
+        trimEnd?.cancel()
+        trimEnd = null
         val tempo = syncUserTempo ?: return
         syncUserTempo = null
         val target = player ?: runCatching { serviceFlow.value?.player }.getOrNull() ?: return
         if (target.playbackParameters.speed != tempo) {
             target.playbackParameters = target.playbackParameters.withSpeed(tempo)
+        }
+    }
+
+    /**
+     * Row 744 (P2-2): inside a room every device plays at [ROOM_TEMPO]. The protocol, shared with Metrolist, carries no tempo:
+     * a host at 1.25× drifted from its own anchor and republished every 15 s, and a guest at 1.25× ran ahead of the room and
+     * jumped back on every heartbeat. The speed the user had is given back when the room ends; «Tempo y tono» shows why its
+     * speed control is gone meanwhile. Event-driven: runs only when the device enters or leaves a room.
+     */
+    private suspend fun lockTempoInRoom() {
+        session.state
+            .map { it.inRoom }
+            .distinctUntilChanged()
+            .collect { inRoom -> onMain { if (inRoom) lockRoomTempo(listeningTo) else unlockRoomTempo(listeningTo) } }
+    }
+
+    private fun lockRoomTempo(player: Player?) {
+        if (player == null) return
+        if (tempoBeforeRoom == null) tempoBeforeRoom = syncUserTempo ?: player.playbackParameters.speed
+        if (player.playbackParameters.speed != ROOM_TEMPO) player.playbackParameters = player.playbackParameters.withSpeed(ROOM_TEMPO)
+    }
+
+    private fun unlockRoomTempo(player: Player?) {
+        val tempo = tempoBeforeRoom ?: return
+        tempoBeforeRoom = null
+        // The room's trim is over with the room: nothing may set the room's speed back after this.
+        trimEnd?.cancel()
+        trimEnd = null
+        syncUserTempo = null
+        if (player != null && player.playbackParameters.speed != tempo) {
+            player.playbackParameters = player.playbackParameters.withSpeed(tempo)
         }
     }
 
@@ -583,25 +659,25 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         position: Long,
         roomTrack: TrackInfo?,
         anchorServerTime: Long,
-    ): Boolean = withContext(Dispatchers.Main.immediate) {
+    ): Boolean = remoteOnMain {
         // A synchronized start (W2) holds this device paused until its start time, whoever asks: [holdForSynchronizedStart] starts it.
         val isPlaying = roomPlaying && !syncStartHolds(session.state.value.syncStart, roomTrack?.id)
         // True only when this call jumped the playhead (SyncAction.Resync): see [realignGuestWhenAudioIsReady].
         var seeked = false
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
-        val player = runCatching { service.player }.getOrNull() ?: return@withContext false
+        val player = runCatching { service.player }.getOrNull() ?: return@remoteOnMain false
         val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
         val corrected = capToTrack(session.positionAt(position, isPlaying, anchorServerTime), roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
             val previous = player.previousMediaItemIndex
             val cameFromRoomTrack = previous != androidx.media3.common.C.INDEX_UNSET && player.getMediaItemAt(previous).mediaId == roomTrack.id
-            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@withContext false
+            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@remoteOnMain false
             val attempt = roomTrack.id to anchorServerTime
-            if (mismatchReload == attempt) return@withContext false
+            if (mismatchReload == attempt) return@remoteOnMain false
             mismatchReload = attempt
             playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
-            return@withContext false
+            return@remoteOnMain false
         }
         if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) mismatchReload = null
         // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
@@ -617,21 +693,23 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // Solo mientras SUENA: con la reproducción parada no hay nada que converger, y tocar la
         // velocidad de un reproductor en pausa no alinea nada.
         if (isPlaying) {
-            // Cuando NO estamos corrigiendo, la velocidad del reproductor es la que el usuario
-            // eligió — se vuelve a leer aquí para que un cambio suyo a mitad de sala se recoja solo,
-            // en vez de que se lo pisemos con el valor que capturamos al entrar.
-            val userTempo = syncUserTempo ?: player.playbackParameters.speed
+            // Inside a room the base speed is always [ROOM_TEMPO] (row 744, [lockTempoInRoom]): the protocol carries no
+            // tempo, so a guest at 1.25× ran ahead of the room and jumped back on every heartbeat.
+            val userTempo = ROOM_TEMPO
             // El anfitrión ya publicó lo que OYE, así que aquí se compara contra lo que oigo yo:
             // resto el retardo de mi propia salida. Ver [OutputLatency] — así los dos extremos se
             // compensan solos y el caso "los dos por Bluetooth" no sobrecorrige.
+            val errorMs = OutputLatency.syncErrorMs(
+                myPositionMs = player.currentPosition,
+                hostPositionMs = corrected,
+                myLatencyMs = outputLatencyMs(service),
+            )
             val action = SyncCorrection.correct(
-                errorMs = OutputLatency.syncErrorMs(
-                    myPositionMs = player.currentPosition,
-                    hostPositionMs = corrected,
-                    myLatencyMs = outputLatencyMs(service),
-                ),
+                errorMs = errorMs,
                 targetMs = corrected,
             )
+            trimEnd?.cancel()
+            trimEnd = null
             if (action is SyncAction.Resync) {
                 player.seekTo(action.positionMs)
                 seeked = true
@@ -645,6 +723,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // el estirado sea inaudible en vez de desafinar la canción.
             if (player.playbackParameters.speed != target) {
                 player.playbackParameters = player.playbackParameters.withSpeed(target)
+            }
+            if (action is SyncAction.Trim) {
+                // Back to the normal speed once the gap is closed, not 15 s later at the next heartbeat (row 744).
+                val closeMs = SyncCorrection.trimDurationMs(errorMs, action.speed)
+                trimEnd = bridgeScope?.launch(Dispatchers.Main.immediate) {
+                    delay(closeMs)
+                    restoreUserTempo()
+                }
             }
         } else {
             restoreUserTempo(player)
@@ -683,9 +769,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
 
         // Dispatchers.Main is mandatory, not tidiness: Media3 throws if the player is touched off
         // the main thread, and this collector runs on the bridge scope (Default).
-        withContext(Dispatchers.Main.immediate) {
+        remoteOnMain {
             val items = ordered.map { it.toRoomMediaItem() }
-            val player = runCatching { service.player }.getOrNull() ?: return@withContext
+            val player = runCatching { service.player }.getOrNull() ?: return@remoteOnMain
             // La cola de la sala la manda el ANFITRIÓN, así que el servicio tiene que saber que la suya
             // ya no es la que estaba puesta antes. Si no, a cinco canciones del final paginaba la cola
             // anterior del invitado DENTRO de la sala — canciones que el anfitrión nunca puso. Es el mismo
@@ -766,9 +852,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      */
     private suspend fun publishCurrentStateOnJoin() {
         session.state
-            .map { it.inRoom && it.isHost }
+            // Row 744 (P1-8): and again after every `reconnected` — what the host did while its socket was down never reached
+            // the room (a send with no socket is dropped). One emission when a cold-start resume makes this device host.
+            .map { (it.inRoom && it.isHost) to it.reconnectRevision }
             .distinctUntilChanged()
-            .collect { isHosting ->
+            .collect { (isHosting, _) ->
                 if (isHosting) {
                     publishSnapshot()
                 } else {
@@ -866,7 +954,16 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // The room cannot carry a 4000-song radio; the window AROUND the cursor is what the
             // guests actually need to follow along.
             val cursor = player.currentMediaItemIndex
-            hostQueueWindow(count, cursor, HOST_QUEUE_WINDOW) { i -> player.getMediaItemAt(i).mediaId }
+            // In the order the host will PLAY it (row 744): with shuffle on, media3 follows its shuffle order, not the timeline's.
+            val timeline = player.currentTimeline
+            val shuffle = player.shuffleModeEnabled
+            hostQueueOrder(
+                count = count,
+                cursor = cursor,
+                window = HOST_QUEUE_WINDOW,
+                next = { i -> timeline.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },
+                previous = { i -> timeline.getPreviousWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },
+            ) { i -> player.getMediaItemAt(i).mediaId }
                 .mapNotNull { i -> player.getMediaItemAt(i).let { item -> item.toQueueTrackInfo() } }
         }.getOrDefault(emptyList())
 
@@ -1253,6 +1350,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         const val TRACK_END_MARGIN_MS = 500L
 
         const val TRACK_END_HANDOFF_MS = 2_000L
+
+        /** Every device's speed inside a room: the protocol shared with Metrolist carries no tempo. */
+        const val ROOM_TEMPO = 1f
     }
 }
 
@@ -1294,6 +1394,40 @@ internal fun hostQueueWindow(count: Int, cursor: Int, window: Int, idAt: (Int) -
     val currentId = idAt(cursor)
     val earlierCopy = (cursor - 1 downTo start).firstOrNull { idAt(it) == currentId }
     return (earlierCopy?.plus(1) ?: start) until end
+}
+
+/**
+ * Row 744 (P1-1/P1-2): [hostQueueWindow] in the order the host will PLAY its timeline. [next]/[previous] are the timeline's own walk
+ * (`getNextWindowIndex`/`getPreviousWindowIndex` with repeat off, so -1 at either end); with shuffle on that is the shuffle order, and
+ * publishing the timeline order instead made every guest load a different next song than the host's. Same window as
+ * [hostQueueWindow]: [window] songs before the cursor, the cursor and [window] − 1 after it, starting after any earlier copy of the
+ * current song. Without shuffle the walk is i ± 1 and the result is exactly [hostQueueWindow].
+ */
+internal fun hostQueueOrder(
+    count: Int,
+    cursor: Int,
+    window: Int,
+    next: (Int) -> Int,
+    previous: (Int) -> Int,
+    idAt: (Int) -> String,
+): List<Int> {
+    if (cursor !in 0 until count) return emptyList()
+    val before = ArrayList<Int>()
+    var i = previous(cursor)
+    while (i in 0 until count && before.size < window) {
+        before.add(i)
+        i = previous(i)
+    }
+    before.reverse()
+    val currentId = idAt(cursor)
+    val earlierCopy = before.indexOfLast { idAt(it) == currentId }
+    val after = ArrayList<Int>()
+    i = next(cursor)
+    while (i in 0 until count && after.size < window - 1) {
+        after.add(i)
+        i = next(i)
+    }
+    return before.drop(earlierCopy + 1) + cursor + after
 }
 
 /**

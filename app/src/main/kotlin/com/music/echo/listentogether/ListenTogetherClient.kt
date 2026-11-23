@@ -80,6 +80,9 @@ sealed interface ListenTogetherEvent {
         val reason: String?,
         val willRetry: Boolean,
     ) : ListenTogetherEvent
+
+    /** The room a held token would resume refused the socket before any handshake (Aura's rooms: it no longer exists). Final. */
+    data class ResumeRefused(val reason: String) : ListenTogetherEvent
 }
 
 /**
@@ -159,10 +162,33 @@ class ListenTogetherClient(
     private var connectionJob: Job? = null
     private var handshake: CompletableDeferred<ServerCapabilities>? = null
 
+    @Volatile
     private var sessionToken: String? = null
+
+    /**
+     * True once the server has accepted [sessionToken] in this process: it minted it, or answered its `reconnect`. A token read back
+     * from disk ([resumeWith]) is not, so it gets the plain attempt budget, not the room's window: the room behind it may be long
+     * gone (row 744).
+     */
+    @Volatile
+    private var tokenConfirmed = false
+
+    /**
+     * False on a new socket until its `reconnect` (if any) is on the wire. A room message sent earlier would reach the server from a
+     * socket that is not in the room yet, and the error it earns would read as the refusal of the resume (row 744).
+     */
+    @Volatile
+    private var roomMessagesOpen = false
     private var pingSequence = 0L
+
+    /** [elapsedRealtime] of the last frame the current socket received, whatever it was: the liveness watch reads it. */
+    @Volatile
+    private var lastInboundAt = 0L
     private var reconnectDelay = INITIAL_RECONNECT_DELAY
     private var reconnectAttempts = 0
+
+    /** [elapsedRealtime] when the current run of reconnect attempts began; null while connected. See [ConnectionPolicy.shouldGiveUp]. */
+    private var droppedAt: Long? = null
     /** Set when the server tells us retrying cannot help — see [MessageTypes.ERROR] handling. */
     private var fatal = false
 
@@ -192,6 +218,7 @@ class ListenTogetherClient(
         // limit would look implemented and quietly never fire.
         reconnectAttempts = 0
         reconnectDelay = INITIAL_RECONNECT_DELAY
+        droppedAt = null
         fatal = false
         startConnection()
     }
@@ -209,6 +236,7 @@ class ListenTogetherClient(
                     throw e
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Connection error")
+                    if (endResumeIfRoomIsGone(e)) return@launch
                 }
                 // Reached on every close, clean or not — openAndRun returns when the reader stops.
                 scheduleReconnect()
@@ -225,6 +253,7 @@ class ListenTogetherClient(
     ): Boolean {
         val live = session ?: return false
         if (!live.isActive) return false
+        if (!roomMessagesOpen && msgType != MessageTypes.CLIENT_CAPABILITIES && msgType != MessageTypes.RECONNECT) return false
         return runCatching {
             val bytes = codec.encode(msgType, payload)
             live.send(if (usingText) Frame.Text(bytes.decodeToString()) else Frame.Binary(true, bytes))
@@ -239,10 +268,56 @@ class ListenTogetherClient(
     fun disconnect() {
         Timber.tag(TAG).i("Disconnecting by request")
         sessionToken = null
+        tokenConfirmed = false
         roomTarget = null
         reconnectAttempts = 0
         closeCurrentSocket(connectionJob)
         connectionJob = null
+    }
+
+    /**
+     * Row 744 (P1-12): hands over the session token a previous process persisted, so the next socket resumes that room with
+     * `reconnect`. Nothing happens when this process already holds a token (its own is the newer one). Aura's rooms also need
+     * the room's own socket to go to; without its code the token is not used, since a resume sent on any other socket is refused.
+     */
+    fun resumeWith(
+        token: String,
+        roomCode: String,
+    ) {
+        if (sessionToken != null || token.isBlank()) return
+        if (auraRooms()) {
+            if (roomCode.isBlank()) return
+            if (roomTarget == null) roomTarget = RoomTarget.Join(roomCode.trim().uppercase())
+        }
+        sessionToken = token
+        tokenConfirmed = false
+    }
+
+    /**
+     * Forgets the session token and leaves the socket alone: the room it would resume is over — left, or the server refused the
+     * resume. Without this a later drop would replay it, and keep retrying as if still in a room (row 744).
+     */
+    fun forgetSessionToken() {
+        sessionToken = null
+        tokenConfirmed = false
+    }
+
+    /**
+     * Row 744: Aura's rooms answer the upgrade to a room that no longer exists with HTTP 404 (400 for a malformed code), before any
+     * handshake, so the server's `no_such_room` never arrives. For a held token that is the final answer to the resume: retrying
+     * would only repeat it for the whole room window, and the token would be replayed again on every app start.
+     */
+    private suspend fun endResumeIfRoomIsGone(error: Exception): Boolean {
+        if (!auraRooms() || roomTarget !is RoomTarget.Join || sessionToken == null) return false
+        val status = ConnectionPolicy.refusedUpgradeStatus(error) ?: return false
+        if (!ConnectionPolicy.roomIsGone(status)) return false
+        Timber.tag(TAG).w("The room refused the upgrade (HTTP %d) — it is gone, not resuming", status)
+        sessionToken = null
+        tokenConfirmed = false
+        roomTarget = null
+        droppedAt = null
+        _events.emit(ListenTogetherEvent.ResumeRefused("The room no longer exists"))
+        return true
     }
 
     /**
@@ -301,7 +376,9 @@ class ListenTogetherClient(
         // The URL is never logged: a custom server URL is user data (regla 4 del registro — nada
         // de lo que el usuario tecleó va al app.log que comparte desde Ajustes).
         val live = client.webSocketSession(url)
+        roomMessagesOpen = false
         session = live
+        lastInboundAt = elapsedRealtime()
         serverClock.reset()
         val pending = CompletableDeferred<ServerCapabilities>()
         handshake = pending
@@ -338,12 +415,14 @@ class ListenTogetherClient(
                     Timber.tag(TAG).i("Resuming with stored session token")
                     send(MessageTypes.RECONNECT, ReconnectPayload(sessionToken = token))
                 }
+                roomMessagesOpen = true
 
                 // A completed handshake is what "connected" means, so the budget refills here and
                 // not merely when the socket opens — a server that accepts TCP but never answers
                 // must not buy itself unlimited retries.
                 reconnectDelay = INITIAL_RECONNECT_DELAY
                 reconnectAttempts = 0
+                droppedAt = null
                 _events.emit(
                     ListenTogetherEvent.Connected(
                         serverVersion = caps.serverVersion,
@@ -352,7 +431,17 @@ class ListenTogetherClient(
                     ),
                 )
 
-                val pinger = launch { pingLoop() }
+                val pinger =
+                    launch {
+                        pingLoop(
+                            onDead = {
+                                // Row 744 (P1-9): a half-open socket never ends its read loop by itself. Ending it here takes
+                                // the normal path down: the reader stops, this socket closes and scheduleReconnect runs.
+                                reader.cancel()
+                                runCatching { live.cancel() }
+                            },
+                        )
+                    }
                 reader.join()
                 pinger.cancel()
             }
@@ -373,6 +462,7 @@ class ListenTogetherClient(
 
     private suspend fun readFrames(live: DefaultClientWebSocketSession) {
         for (frame in live.incoming) {
+            lastInboundAt = elapsedRealtime()
             // Metrolist's server writes BinaryMessage exclusively and Aura's rooms Text exclusively;
             // anything else is not ours.
             val bytes =
@@ -432,10 +522,16 @@ class ListenTogetherClient(
             MessageTypes.ROOM_CREATED ->
                 (payload as? RoomCreatedPayload)?.let {
                     sessionToken = it.sessionToken
+                    tokenConfirmed = true
                     // A drop after this must come back to THIS room (Aura's rooms are one socket per room).
                     if (roomTarget != null) roomTarget = RoomTarget.Join(it.roomCode)
                 }
-            MessageTypes.JOIN_APPROVED -> (payload as? JoinApprovedPayload)?.let { sessionToken = it.sessionToken }
+            MessageTypes.JOIN_APPROVED ->
+                (payload as? JoinApprovedPayload)?.let {
+                    sessionToken = it.sessionToken
+                    tokenConfirmed = true
+                }
+            MessageTypes.RECONNECTED -> if (sessionToken != null) tokenConfirmed = true
 
             MessageTypes.ERROR -> {
                 val error = payload as? ErrorPayload
@@ -460,18 +556,32 @@ class ListenTogetherClient(
      * during the first seconds would otherwise seek against a barely-calibrated clock. After that
      * the interval opens up — the server's read deadline is 60s and any message refreshes it, so
      * [PING_INTERVAL] is also what keeps an idle room's socket alive.
+     *
+     * It is also the liveness watch (row 744, P1-9), with no timer of its own: after each steady-cadence ping, if nothing at all
+     * came back during the interval, the ping counts as unanswered, and [ConnectionPolicy.MAX_UNANSWERED_PINGS] in a row call
+     * [onDead]. The calibration pings are not judged: one second is shorter than a slow network's round trip.
      */
-    private suspend fun pingLoop() {
+    private suspend fun pingLoop(onDead: () -> Unit) {
         var sent = 0
+        var unanswered = 0
         while (true) {
+            val sentAt = elapsedRealtime()
             val ok =
                 send(
                     MessageTypes.PING,
-                    PingPayload(clientTime = elapsedRealtime(), sequence = ++pingSequence),
+                    PingPayload(clientTime = sentAt, sequence = ++pingSequence),
                 )
             if (!ok) return
             sent++
+            val steady = sent > CALIBRATION_PINGS
             delay(if (sent < CALIBRATION_PINGS) CALIBRATION_PING_INTERVAL else PING_INTERVAL)
+            if (!steady) continue
+            unanswered = ConnectionPolicy.unansweredAfter(unanswered, heardSincePing = lastInboundAt >= sentAt)
+            if (ConnectionPolicy.socketLooksDead(unanswered)) {
+                Timber.tag(TAG).w("No answer to %d pings in a row — the socket is half-open, reconnecting", unanswered)
+                onDead()
+                return
+            }
         }
     }
 
@@ -481,15 +591,22 @@ class ListenTogetherClient(
             return
         }
 
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            Timber.tag(TAG).w("Gave up after %d reconnection attempts", MAX_RECONNECT_ATTEMPTS)
+        val now = elapsedRealtime()
+        val dropped = droppedAt ?: now.also { droppedAt = it }
+        // Row 744 (P2-9): inside a room (a token the server accepted in this process) the attempts are not counted, only the time since
+        // the drop.
+        val inRoom = sessionToken != null && tokenConfirmed
+        if (ConnectionPolicy.shouldGiveUp(inRoom, reconnectAttempts, MAX_RECONNECT_ATTEMPTS, dropped, now)) {
+            Timber.tag(TAG).w("Gave up after %d reconnection attempts", reconnectAttempts)
+            droppedAt = null
             // The token is dropped with the attempts: a later connect() is a fresh join, not a
             // resume, and replaying a token the server may already have expired would be answered
             // with an error rather than a room.
             sessionToken = null
+            tokenConfirmed = false
             _events.emit(
                 ListenTogetherEvent.Disconnected(
-                    reason = "Could not reconnect after $MAX_RECONNECT_ATTEMPTS attempts",
+                    reason = "Could not reconnect after $reconnectAttempts attempts",
                     willRetry = false,
                 ),
             )
@@ -497,7 +614,11 @@ class ListenTogetherClient(
         }
 
         reconnectAttempts++
-        Timber.tag(TAG).i("Reconnecting in %s (attempt %d of %d)", reconnectDelay, reconnectAttempts, MAX_RECONNECT_ATTEMPTS)
+        if (inRoom) {
+            Timber.tag(TAG).i("Reconnecting to the room in %s (attempt %d)", reconnectDelay, reconnectAttempts)
+        } else {
+            Timber.tag(TAG).i("Reconnecting in %s (attempt %d of %d)", reconnectDelay, reconnectAttempts, MAX_RECONNECT_ATTEMPTS)
+        }
         _events.emit(ListenTogetherEvent.Disconnected("Connection lost", willRetry = true))
         delay(reconnectDelay)
         reconnectDelay = (reconnectDelay * 2).coerceAtMost(MAX_RECONNECT_DELAY)
@@ -546,6 +667,8 @@ class ListenTogetherClient(
          *
          * Counted attempts, not elapsed time: the budget refills only on a COMPLETED handshake, so
          * a server that accepts the socket and then goes quiet still exhausts it.
+         *
+         * Only outside a room: with a session token held, [ConnectionPolicy.ROOM_RESUME_WINDOW_MS] decides instead (row 744).
          */
         private const val MAX_RECONNECT_ATTEMPTS = 5
 

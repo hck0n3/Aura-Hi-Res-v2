@@ -975,6 +975,13 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
                         valueText = { "x$it" },
                         modifier = Modifier.padding(bottom = 12.dp),
                     )
+                } else {
+                    // Row 744: hidden in a room because every device plays at 1.0× there; say so instead of vanishing.
+                    Text(
+                        text = stringResource(R.string.listen_together_tempo_locked),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
                 }
                 ValueAdjuster(
                     icon = R.drawable.discover_tune,
