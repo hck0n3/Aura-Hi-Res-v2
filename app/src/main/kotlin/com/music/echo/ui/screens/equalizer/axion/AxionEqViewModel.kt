@@ -175,6 +175,13 @@ class AxionEqViewModel @Inject constructor(
      */
     fun reEnableAutoEq() {
         if (_autoEqBands.value.isEmpty()) return
+        // The bands come back with the headroom AutoEq computed for them, not on top of whatever preamp was
+        // set while the stage was OFF. Bands stored before autoeq_preamp existed keep the current preamp.
+        if (prefs.contains("autoeq_preamp")) {
+            _preamp.value = prefs.getFloat("autoeq_preamp", _preamp.value)
+                .coerceIn(EqConstants.PREAMP_MIN, EqConstants.PREAMP_MAX)
+            prefs.edit().putFloat("preampDb", _preamp.value).apply()
+        }
         setAutoEqActive(true)
         if (_enabled.value) applyToService()
     }
@@ -488,6 +495,7 @@ class AxionEqViewModel @Inject constructor(
             persistAutoEqBands()
             prefs.edit().apply {
                 putFloat("preampDb", _preamp.value)
+                putFloat("autoeq_preamp", _preamp.value)
                 putBoolean("enabled", true)
             }.apply()
             setAutoEqActive(true)

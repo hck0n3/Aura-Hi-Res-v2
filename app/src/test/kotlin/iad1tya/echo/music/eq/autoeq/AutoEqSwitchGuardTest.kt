@@ -38,6 +38,17 @@ class AutoEqSwitchGuardTest {
         assertFalse(body.contains("setEnabled("))
     }
 
+    @Test fun `ON restores the preamp AutoEq computed for the stored bands`() {
+        val batch = viewModel.substringAfter("fun applyProfileBatch(").substringBefore("\n    }")
+        val autoEqBranch = batch.substringAfter("if (isAutoEq) {").substringBefore("} else {")
+        assertTrue(autoEqBranch.contains("putFloat(\"autoeq_preamp\", _preamp.value)"))
+        val body = viewModel.substringAfter("fun reEnableAutoEq() {").substringBefore("\n    }")
+        val restore = body.indexOf("prefs.getFloat(\"autoeq_preamp\", _preamp.value)")
+        assertTrue(restore >= 0)
+        assertTrue(body.indexOf("prefs.edit().putFloat(\"preampDb\", _preamp.value).apply()") > restore)
+        assertTrue(body.indexOf("applyToService()") > restore)
+    }
+
     @Test fun `prefs listener keeps the Auto-EQ state and preamp in step across instances, read-only`() {
         val body = viewModel
             .substringAfter("private val enabledSync = SharedPreferences.OnSharedPreferenceChangeListener { p, key ->")
