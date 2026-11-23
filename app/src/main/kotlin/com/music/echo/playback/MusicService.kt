@@ -836,7 +836,7 @@ class MusicService :
     @Volatile private var spatialProfileNameHint: String = SpatialAudioProfile.WIDE_SURROUND.name
     @Volatile private var tidalEnabledHint: Boolean = true
     // Mastering toggles (owner directive 2026-09-13). Defaults mirror the preference keys.
-    @Volatile private var glueCompressorHint: Boolean = true
+    @Volatile private var glueCompressorHint: Boolean = iad1tya.echo.music.constants.GlueCompressorDefault
     @Volatile private var outputDitherHint: Boolean = true
     @Volatile private var speakerBassProtectHint: Boolean = false
     // PLAN A3: 32-bit float processing for 16-bit decoder output (Opus/AAC). Read by the audio sink on
@@ -2058,11 +2058,12 @@ class MusicService :
      * Brings the EQ preamp down to the house level ([EqConstants.DEFAULT_PREAMP_DB]) when the user turns
      * Safe Volume OFF. It used to force 0.0 dB — see the owner report in the body.
      *
-     * WHY: the preamp is output make-up applied AFTER the limiter, so while Safe Volume is on it is
-     * safe — the limiter catches whatever it pushes past full scale. Turn Safe Volume off and that
-     * safety net disappears while the boost stays, so the very next loud master clips. Anyone who
-     * raised the preamp to compensate for Safe Volume's level drop gets distortion the moment they
-     * switch to bit-perfect playback, with nothing on screen linking the two settings.
+     * WHY: the preamp is the FRONT gain of the native chain (`frontGain` in SuperpoweredBridge.cpp),
+     * applied BEFORE the bands and the -3 dB limiter, which catches whatever it pushes past full scale.
+     * The limiter keeps running while the chain does, but Safe Volume's levelling — which pulls loud
+     * masters down before they reach it — goes away while the boost stays, so the very next loud master
+     * drives the limiter much harder. Anyone who raised the preamp to compensate for Safe Volume's level
+     * drop gets that the moment they switch it off, with nothing on screen linking the two settings.
      *
      * Only ever called on a real ON -> OFF transition (see the collector), never at startup, so a user
      * who deliberately runs with Safe Volume off keeps whatever preamp they set.
@@ -2920,7 +2921,7 @@ class MusicService :
         // MASTERING toggles (glue compressor / output dither / phone-speaker sub-bass protection).
         scope.launch {
             combine(
-                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: true },
+                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: iad1tya.echo.music.constants.GlueCompressorDefault },
                 dataStore.data.map { it[iad1tya.echo.music.constants.OutputDitherEnabledKey] ?: true },
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false },
             ) { compressor, dither, speaker -> Triple(compressor, dither, speaker) }
@@ -3055,24 +3056,26 @@ class MusicService :
                 eqProfileRepository.activeProfile,
                 eqProfileRepository.unsavedProfile,
             ) { active, unsaved -> (unsaved ?: active) != null }.distinctUntilChanged(),
-            // The mastering compressor and speaker protection process PCM too: while either is ON, offload
-            // must be refused or its switch would be a placebo on the offloaded (still encoded) stream.
+            // The mastering compressor, speaker protection and stereo width process PCM too: while any is ON,
+            // offload must be refused or its switch would be a placebo on the offloaded (still encoded)
+            // stream. Spatial and the Tidal signature are kept apart (row 714): EqBypass.toneStages bypasses
+            // them while the EQ is off, so they only count through AudioOffloadGate.eqToneStagesLive.
             combine(
                 dataStore.data.map { it[SpatialAudioEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged(),
-                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: true }.distinctUntilChanged(),
+                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: iad1tya.echo.music.constants.GlueCompressorDefault }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f }.distinctUntilChanged(),
-            ) { spatial, tidal, compressor, speaker, width -> spatial || tidal || compressor || speaker || width }
+            ) { spatial, tidal, compressor, speaker, width -> (spatial to tidal) to (compressor || speaker || width) }
                 // Emparejado con la sala en vez de como sexta fuente: `combine` se queda sin
                 // sobrecargas en cinco, y el par mantiene el bloque de arriba tal cual estaba.
                 .let { dsp ->
                     combine(
                         dsp,
                         listenTogetherManager.session.state.map { it.inRoom }.distinctUntilChanged(),
-                    ) { anyDsp, inRoom -> anyDsp to inRoom }
+                    ) { (tone, mastering), inRoom -> Triple(tone, mastering, inRoom) }
                 },
-        ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, (spatialOrTidal, inRoom) ->
+        ) { offloadPref, (crossfadeKey, perfMode), safeVolume, eqActive, (tone, mastering, inRoom) ->
             AudioOffloadGate.allowOffload(
                 AudioOffloadGate.Inputs(
                     userWantsOffload = offloadPref,
@@ -3080,8 +3083,9 @@ class MusicService :
                     highPerformanceMode = perfMode,
                     safeVolumeEnabled = safeVolume,
                     equalizerActive = eqActive,
-                    spatialEnabled = spatialOrTidal,
+                    spatialEnabled = AudioOffloadGate.eqToneStagesLive(eqActive, tone.first, tone.second),
                     listenTogetherActive = inRoom,
+                    masteringActive = mastering,
                 ),
             )
         }.distinctUntilChanged()

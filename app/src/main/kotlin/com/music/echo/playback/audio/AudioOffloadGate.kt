@@ -1,5 +1,7 @@
 package iad1tya.echo.music.playback.audio
 
+import iad1tya.echo.music.eq.audio.EqBypass
+
 /**
  * The decision "may this playback use the AudioTrack OFFLOAD path?", as a pure function.
  *
@@ -68,7 +70,11 @@ object AudioOffloadGate {
          * was applied from the EQ screen without touching any switch.
          */
         val equalizerActive: Boolean,
-        /** `SpatialAudioEnabledKey` (default OFF): live Superpowered HRTF / crossfeed / speaker-width stage. */
+        /**
+         * Spatial audio or the Tidal signature is LIVE. Both live inside the equalizer: with its master
+         * switch off `EqBypass.toneStages` publishes them in bypass, so the stored switches alone are not a
+         * veto — feed this through [eqToneStagesLive] (row 714).
+         */
         val spatialEnabled: Boolean = false,
         /**
          * El usuario está en una sala de Escuchar juntos.
@@ -82,6 +88,12 @@ object AudioOffloadGate {
          * UNA al entrar, y devuelve el offload al salir.
          */
         val listenTogetherActive: Boolean = false,
+        /**
+         * A mastering stage of Ajustes ▸ Sonido is on: glue compressor, phone-speaker bass protection or a
+         * stereo width other than 100 %. They process PCM whatever the equalizer switch says
+         * (`EqBypass` leaves them out on purpose), so each one vetoes on its own (row 714).
+         */
+        val masteringActive: Boolean = false,
     )
 
     /** Why offload is impossible right now, independently of the user's own switch. */
@@ -91,6 +103,7 @@ object AudioOffloadGate {
         EQUALIZER,
         SPATIAL,
         LISTEN_TOGETHER,
+        MASTERING,
     }
 
     /**
@@ -116,8 +129,25 @@ object AudioOffloadGate {
         // El último del orden a propósito: añadirlo antes cambiaría el motivo que ya se muestra hoy
         // para una configuración que no ha cambiado.
         inputs.listenTogetherActive -> BlockReason.LISTEN_TOGETHER
+        // Appended after the others for the same reason: an unchanged configuration keeps its reason.
+        inputs.masteringActive -> BlockReason.MASTERING
         else -> null
     }
+
+    /**
+     * Whether spatial audio / the Tidal signature actually reach the samples: the SAME policy the audio
+     * processor publishes ([EqBypass.toneStages]), so the gate cannot veto for a stage that is bypassed.
+     */
+    fun eqToneStagesLive(
+        equalizerActive: Boolean,
+        spatialEnabled: Boolean,
+        tidalSignatureEnabled: Boolean,
+    ): Boolean =
+        EqBypass.toneStages(
+            masterEqOn = equalizerActive,
+            spatialEnabled = spatialEnabled,
+            tidalSignatureEnabled = tidalSignatureEnabled,
+        ).let { it.spatial || it.tidalSignature }
 
     /** The final answer handed to the players: the user asked for it AND nothing needs the samples. */
     fun allowOffload(inputs: Inputs): Boolean =

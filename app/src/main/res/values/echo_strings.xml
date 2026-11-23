@@ -429,6 +429,8 @@
     <string name="audio_offload_disabled_by_safe_volume">Disabled because Safe Volume is active</string>
     <string name="audio_offload_disabled_by_equalizer">Disabled because the equalizer is active</string>
     <string name="audio_offload_disabled_by_spatial">Disabled because spatial audio is active</string>
+    <string name="audio_offload_disabled_by_listen_together">Disabled while you are in a Listen Together room</string>
+    <string name="audio_offload_disabled_by_mastering">Disabled because the soft compressor, phone speaker protection or a changed stereo width is active</string>
 
     <!-- Google Cast -->
     <string name="google_cast">Google Cast</string>

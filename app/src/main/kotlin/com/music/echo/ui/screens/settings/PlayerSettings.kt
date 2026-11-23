@@ -35,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import iad1tya.echo.music.BuildConfig
+import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.AudioOffload
@@ -173,13 +174,57 @@ fun PlayerSettings(
         key = iad1tya.echo.music.constants.SpatialAudioEnabledKey,
         defaultValue = false
     )
+    // Row 714: the rest of what the service gate reads, with the service's own defaults. Without them the
+    // switch looked available while the engine still refused offload (Tidal signature, mastering, a room).
+    val (tidalSignatureEnabled, _) = rememberPreference(
+        key = iad1tya.echo.music.constants.TidalSimulationEnabledKey,
+        defaultValue = true
+    )
+    val (glueCompressorEnabled, _) = rememberPreference(
+        key = iad1tya.echo.music.constants.GlueCompressorEnabledKey,
+        defaultValue = iad1tya.echo.music.constants.GlueCompressorDefault,
+    )
+    val (speakerBassProtectEnabled, _) = rememberPreference(
+        key = iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey,
+        defaultValue = false
+    )
+    val (stereoWidth, _) = rememberPreference(
+        key = iad1tya.echo.music.constants.StereoWidthKey,
+        defaultValue = 1f
+    )
+    val listenTogetherRoom = LocalListenTogetherManager.current?.roomState?.collectAsState()?.value
+    val inListenTogetherRoom = listenTogetherRoom?.inRoom == true
 
-    val offloadBlockedReason: String? = when {
-        crossfadeEnabled && !highPerformanceMode -> stringResource(R.string.audio_offload_disabled_by_crossfade)
-        safeVolumeEnabled -> stringResource(R.string.audio_offload_disabled_by_safe_volume)
-        eqActive -> stringResource(R.string.audio_offload_disabled_by_equalizer)
-        spatialEnabled -> stringResource(R.string.audio_offload_disabled_by_spatial)
-        else -> null
+    // The SAME decision as the service (AudioOffloadGate), not a copy of it: a duplicated `when` had already
+    // drifted (it knew nothing of Tidal, mastering or Listen Together).
+    val offloadBlock = iad1tya.echo.music.playback.audio.AudioOffloadGate.blockReason(
+        iad1tya.echo.music.playback.audio.AudioOffloadGate.Inputs(
+            userWantsOffload = audioOffload,
+            crossfadeEnabled = crossfadeEnabled,
+            highPerformanceMode = highPerformanceMode,
+            safeVolumeEnabled = safeVolumeEnabled,
+            equalizerActive = eqActive,
+            spatialEnabled = iad1tya.echo.music.playback.audio.AudioOffloadGate.eqToneStagesLive(
+                eqActive, spatialEnabled, tidalSignatureEnabled,
+            ),
+            listenTogetherActive = inListenTogetherRoom,
+            masteringActive = glueCompressorEnabled || speakerBassProtectEnabled || stereoWidth != 1f,
+        ),
+    )
+    val offloadBlockedReason: String? = when (offloadBlock) {
+        iad1tya.echo.music.playback.audio.AudioOffloadGate.BlockReason.CROSSFADE ->
+            stringResource(R.string.audio_offload_disabled_by_crossfade)
+        iad1tya.echo.music.playback.audio.AudioOffloadGate.BlockReason.SAFE_VOLUME ->
+            stringResource(R.string.audio_offload_disabled_by_safe_volume)
+        iad1tya.echo.music.playback.audio.AudioOffloadGate.BlockReason.EQUALIZER ->
+            stringResource(R.string.audio_offload_disabled_by_equalizer)
+        iad1tya.echo.music.playback.audio.AudioOffloadGate.BlockReason.SPATIAL ->
+            stringResource(R.string.audio_offload_disabled_by_spatial)
+        iad1tya.echo.music.playback.audio.AudioOffloadGate.BlockReason.LISTEN_TOGETHER ->
+            stringResource(R.string.audio_offload_disabled_by_listen_together)
+        iad1tya.echo.music.playback.audio.AudioOffloadGate.BlockReason.MASTERING ->
+            stringResource(R.string.audio_offload_disabled_by_mastering)
+        null -> null
     }
 
 
