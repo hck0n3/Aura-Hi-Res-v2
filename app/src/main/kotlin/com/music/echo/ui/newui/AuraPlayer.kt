@@ -884,7 +884,7 @@ private fun AuraPlayerShape(
             // Application scope: the player can fold away right after the tap, and the tap must still land.
             context.applicationScope.launch(Dispatchers.Main) {
                 try {
-                    val channelId = database.followArtistFromPlayer(artist, followChannelIds[key], shownFollowed)
+                    val channelId = database.toggleFollowFromPlayer(artist, followChannelIds[key], shownFollowed)
                     if (channelId != null) {
                         followChannelIds[key] = channelId
                     } else {

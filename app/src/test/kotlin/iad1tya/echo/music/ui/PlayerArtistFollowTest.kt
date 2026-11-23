@@ -79,7 +79,7 @@ class PlayerArtistFollowTest {
     fun `the chip and the chooser rows are first-tap safe and the tap outlives the player`() {
         val player = main("ui/newui/AuraPlayer.kt")
         assertTrue(player.contains("context.applicationScope.launch(Dispatchers.Main) {"))
-        assertTrue(player.contains("database.followArtistFromPlayer(artist, followChannelIds[key], shownFollowed)"))
+        assertTrue(player.contains("database.toggleFollowFromPlayer(artist, followChannelIds[key], shownFollowed)"))
         assertTrue("one tap at a time per artist", player.contains("if (followInFlight.add(key)) {"))
         assertEquals(
             "the single-artist chip and each chooser row",

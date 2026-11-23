@@ -61,7 +61,7 @@ internal fun rememberPlayerArtistFollowed(database: MusicDatabase, channelId: St
  * Resolves the channel of [artist] ([knownChannelId] from an earlier tap, else its own id, else an exact-name search), then
  * toggles it when [PlayerArtistFollow.shouldToggle] agrees. Returns the channel id, or null when there is none to subscribe to.
  */
-internal suspend fun MusicDatabase.followArtistFromPlayer(
+internal suspend fun MusicDatabase.toggleFollowFromPlayer(
     artist: MediaMetadata.Artist,
     knownChannelId: String?,
     shownFollowed: Boolean,
