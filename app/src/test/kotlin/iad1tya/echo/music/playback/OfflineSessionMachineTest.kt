@@ -213,4 +213,51 @@ class OfflineSessionMachineTest {
         assertFalse(m.stallHasEvidence(systemHasNetwork = true, nowMs = 10))
         assertFalse(m.hasEvidence())
     }
+
+    // ---- after the hard cap (row 717) ---------------------------------------------------------------------
+
+    private val reentry = 600_000L
+    private fun machineWithReentry() = OfflineSessionMachine(window, maxAge, reentry)
+
+    /** A session that ended by the cap, two failures at 0 and 1: expired at [expiredAt]. */
+    private val expiredAt = maxAge + 1
+
+    private fun expired(): OfflineSessionMachine = machineWithReentry().also {
+        it.twoFailures()
+        assertTrue(it.expireIfDue(systemHasNetwork = true, nowMs = expiredAt))
+    }
+
+    /** C4: the cap is no proof the network works — one connectivity failure on the same network, soon after, comes back. */
+    @Test
+    fun `right after the hard cap one failure on the same network brings it back`() {
+        val m = expired()
+        assertTrue("a timed-out session still has something to clear", m.hasEvidence())
+        assertEquals(
+            OfflineSessionReason.AFTER_EXPIRY,
+            m.onConnectivityFailure("probe", systemHasNetwork = true, epoch = 1, nowMs = expiredAt + 5_000),
+        )
+        assertTrue(m.active)
+    }
+
+    @Test
+    fun `the re-entry needs the same network, the window, and no proof since`() {
+        assertNull("another network", expired().onConnectivityFailure("p", systemHasNetwork = true, epoch = 2, nowMs = expiredAt + 1))
+        assertNull("too late", expired().onConnectivityFailure("p", systemHasNetwork = true, epoch = 1, nowMs = expiredAt + reentry))
+        val worked = expired()
+        worked.onNetworkWorked()
+        assertFalse(worked.hasEvidence())
+        assertNull("the network worked since", worked.onConnectivityFailure("p", systemHasNetwork = true, epoch = 1, nowMs = expiredAt + 1))
+        val changed = expired()
+        changed.onNetworkChanged()
+        assertNull("the network changed since", changed.onConnectivityFailure("p", systemHasNetwork = true, epoch = 1, nowMs = expiredAt + 1))
+    }
+
+    @Test
+    fun `without the re-entry window the cap behaves as before`() {
+        val m = machine()
+        m.twoFailures()
+        assertTrue(m.expireIfDue(systemHasNetwork = true, nowMs = expiredAt))
+        assertFalse(m.hasEvidence())
+        assertNull(m.onConnectivityFailure("p", systemHasNetwork = true, epoch = 1, nowMs = expiredAt + 1))
+    }
 }
