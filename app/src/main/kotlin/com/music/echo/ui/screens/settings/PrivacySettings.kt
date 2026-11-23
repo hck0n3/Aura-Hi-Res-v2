@@ -245,6 +245,20 @@ fun PrivacySettings(
                 )
             )
         )
+
+        Spacer(modifier = Modifier.height(27.dp))
+
+        Material3SettingsGroup(
+            title = stringResource(R.string.privacy_policy_title),
+            items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.security),
+                    title = { Text(stringResource(R.string.privacy_policy_title)) },
+                    description = { Text(stringResource(R.string.privacy_policy_entry_desc)) },
+                    onClick = { navController.navigate("settings/privacy_policy") }
+                )
+            )
+        )
         Spacer(modifier = Modifier.height(16.dp))
     }
 

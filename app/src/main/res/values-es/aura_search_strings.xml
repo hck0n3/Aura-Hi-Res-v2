@@ -26,4 +26,5 @@
     <string name="aura_pane_added_next">Se reproducirá a continuación</string>
     <string name="aura_pane_added_queue">Añadido a la cola</string>
     <string name="aura_pane_dislike_done">No se recomendará más</string>
+    <string name="aura_trending_loading_item">Cargando %1$s...</string>
 </resources>

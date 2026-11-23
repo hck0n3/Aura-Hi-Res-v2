@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -64,7 +65,8 @@ fun WelcomeDialog(
 ) {
     val skin = rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
-    val pages = remember {
+    val soundLimiterBullet = stringResource(R.string.welcome_sound_limiter_bullet)
+    val pages = remember(soundLimiterBullet) {
         listOf(
             WelcomeTourPage(
                 iconRes = R.drawable.music_note,
@@ -102,7 +104,7 @@ fun WelcomeDialog(
                         "Sonido",
                         listOf(
                             "EQ de 10 bandas + paramétrico, Auto-EQ de auriculares y Volumen Seguro",
-                            "Limitador y margen automático opcional; sin «mejoras» inventadas sobre Opus",
+                            soundLimiterBullet,
                         ),
                     ),
                     WelcomeBulletGroup(

@@ -201,6 +201,7 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 56 | `settings/about` | `AboutScreen` | `:478` | sí |
 | 56b | `settings/feedback` | `FeedbackScreen` | NavigationBuilder | sí (Ajustes / Acerca de) |
 | 57 | `settings/terms` | `TermsScreen` | `:482` | sí (Acerca de) |
+| 57b | `settings/privacy_policy` | `legal/TermsScreens.kt` `PrivacyPolicyScreen` (fila 774) | NavigationBuilder | sí (Privacidad / Acerca de) |
 | 58 | `settings/logs` | `LogsScreen` | `:486` | sí |
 | 59 | `update` | `UpdateScreen` | `:490` | sí |
 | 60 | `login` | `LoginScreen` | `:494` | sí |
@@ -279,6 +280,7 @@ Se muestra en la primera ejecución **y en cada actualización** (`MainActivity.
 | «¡Bienvenido a AURA HI-RES» + «Tu música, tu sonido, tu estilo.» + chip de versión | Bienvenida > cabecera | `ui/screens/WelcomeDialog.kt:184-251` | informativo | rara | siempre que se muestre |
 | «Todo lo que puedes hacer» + **15 filas de características** (Música ilimitada, Audio de alta calidad, Transiciones suaves, Ecualizador a tu medida, Letras sincronizadas, Aleatorio que no repite, Descubrimiento con IA, Tu biblioteca de siempre, Migra desde otros servicios, Sin conexión y ahorro de datos, Reconocer canción y buscar por voz, Escuchar juntos, Video/fondos animados y temas, En el coche/la tele/pantalla de inicio, Podcasts y música local) | Bienvenida > cuerpo | `ui/screens/WelcomeDialog.kt:75-165` | informativo | rara | siempre |
 | **«Cerrar»** | Bienvenida | `ui/screens/WelcomeDialog.kt:167-177` · efecto `MainActivity.kt:1756-1769` | acción primaria | rara | siempre; en la PRIMERA ejecución encadena con `onboarding_artists` |
+| Viñeta «Limitador y margen automático opcional; sin «mejoras» inventadas sobre Opus» (grupo «Sonido» del recorrido) — desde la fila 773 es `R.string.welcome_sound_limiter_bullet` (es + en, mismo texto en español); el resto del recorrido sigue escrito en el código | Bienvenida > «Qué puede hacer Aura» | `ui/screens/WelcomeDialog.kt` | informativo | rara | siempre |
 
 ### `BackgroundReliabilityDialog` — batería y arranque automático — **RETIRADO 2026-11-23 (fila 677)**
 **Ya no existe:** el dueño pidió quitar el aviso automático al arrancar (el de una vez y el semanal tras una matanza del fabricante). Las dos acciones siguen en Ajustes ▸ Contenido («Evitar que el sistema cierre la app» y «Ajustes del sistema de la app») y en Ajustes ▸ Sincronizar dispositivos. Tabla conservada como histórico.
@@ -1258,6 +1260,7 @@ la app entera de golpe.
 | Toque en la portada de la fila (`onThumbnailClick`) | «Añadir música» | `ui/component/Items.kt:487` / `:1133` | acción secundaria | ocasional | **solo lo usa la hoja «Añadir música»**, donde alterna la previsualización |
 | **Deslizar fila a la derecha → «Reproducir a continuación»** *(+ toast)* | Todas las listas de canciones | `ui/component/Items.kt:1732-1736` | acción primaria | ocasional | **solo si «Deslizar canción» está ON (OFF por defecto)** |
 | **Deslizar fila a la izquierda → «Añadir a la cola»** *(+ toast)* | Todas las listas de canciones | `ui/component/Items.kt:1738-1742` | acción primaria | ocasional | igual |
+| (Interfaz nueva) Los mismos dos deslizamientos en las filas Aura (`AuraSwipeSongBox`): derecha = «Reproducir a continuación», izquierda = «Añadir a la cola» — umbral **100 dp** desde la fila 773 (antes 300 px: la distancia cambiaba con la densidad de la pantalla) | Listas de canciones de la interfaz nueva | `ui/newui/AuraContent.kt` (`AuraSwipeSongBox`) | acción primaria | ocasional | igual («Deslizar canción», OFF por defecto) |
 | Botón ▶ sobre la portada del álbum | Rejilla de álbumes | `ui/component/Items.kt:807-819` (def. `:1679-1706`) | acción primaria | diaria | solo si el álbum no está sonando |
 | Botón ▶ sobre la portada del álbum online | Rejilla online | `ui/component/Items.kt:1243-1261` | acción primaria | diaria | solo si es álbum y no está sonando |
 | Botón ▶ **decorativo** (sin acción) | Tarjetas de canción y de miniatura local | `ui/component/Items.kt:584`, `:1238`, `:1485-1508`, `:1510-1533` | informativo | constante | ⚠️ no es pulsable; el toque lo captura la tarjeta |
@@ -1422,6 +1425,7 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 | **«#rank» + «X.XM plays»** *(hardcoded, en inglés)* | Sugerencias > filas | `ui/screens/search/suggestions/TabNewsSuggestion.kt:319-329` | informativo | constante | ⚠️ **cifras fabricadas, ver §23** |
 | **«Previous» / «Next»** *(en inglés)* + **«%1$d de %2$d»** | Sugerencias > paginador | `ui/screens/search/suggestions/TabNewsSuggestion.kt:351-357` | navegación | ocasional | siempre |
 | **«Álbumes populares»** *(hardcoded)* + tarjeta → `album/{id}` + **«Más»** | Sugerencias > Álbumes | `ui/screens/search/suggestions/TabNewsSuggestion.kt:424`, `:170-177` | navegación | diaria | solo con datos |
+| (Interfaz nueva, `AuraSearchTabs`) Toast «Cargando {nombre}...» al tocar una canción, álbum o artista de las estanterías de tendencias — desde la fila 773 es `R.string.aura_trending_loading_item` (es «Cargando %1$s...», en «Loading %1$s...»); el de `TabNewsSuggestion.kt` sigue escrito en el código | Buscar > tendencias | `ui/newui/AuraSearchTabs.kt` (4 toasts) | informativo | diaria | al tocar |
 | **«Trending Artists»** *(hardcoded, en inglés)* + círculo → `artist/{id}` | Sugerencias > Artistas | `ui/screens/search/suggestions/TabNewsSuggestion.kt:372`, `:186-189` | navegación | diaria | solo con datos |
 | **«Trending Music Videos»** *(en inglés)* + **«More»** + tarjeta → reproducir | Sugerencias > Vídeos | `ui/screens/search/suggestions/TabNewsSuggestion.kt:516`, `:198-205` | acción primaria | diaria | solo con datos |
 | **«No suggestions available at the moment.»** *(en inglés)* + **«Actualizar»** | Sugerencias > vacío | `ui/screens/search/suggestions/TabNewsSuggestion.kt:218`, `:223-225` | acción primaria | rara | si todo falla |
@@ -1879,7 +1883,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Aún no hay novedades | Novedades > estado vacío | app/src/main/kotlin/com/music/echo/ui/screens/library/ReleaseRadarScreen.kt:117-120 | informativo | ocasional | solo si `releases.isEmpty()` — sin botón |
 | Estás al día (2026-11-23, fila 674) | Novedades > estado vacío (esta pantalla y la pestaña Novedades, `AuraNovedadesScreen`) | `ReleaseRadarScreen.kt` (`caughtUp`), `ui/newui/AuraNovedadesScreen.kt` (`radarCaughtUp`) | informativo | ocasional | en lugar de «Aún no hay novedades» cuando el radar ya tuvo estrenos y todos están vistos y escuchados o pasaron de 60 días; la pestaña conserva «Reintentar» |
 | Fila de estreno → `album/{playId}` | Novedades > lista | app/src/main/kotlin/com/music/echo/ui/screens/library/ReleaseRadarScreen.kt:128-141 (nav :137-139) | navegación | diaria | la fila es clicable siempre, pero solo navega si `playId` no está en blanco |
-| Título + "Artista · Año" (formato hardcoded) | Novedades > fila | app/src/main/kotlin/com/music/echo/ui/screens/library/ReleaseRadarScreen.kt:154-168 (:162) | informativo | constante | siempre |
+| Título + "Tipo · Artista · Año" — el tipo (Sencillo/EP/Álbum) es el MISMO texto que las tarjetas de Novedades (`novedadesTypeLabel(auraContentKind(…))` con `NovedadesShelves.typeHint(item.type)`, filas 653/710/773); es la pantalla a la que lleva la notificación del radar | Novedades > fila | app/src/main/kotlin/com/music/echo/ui/screens/library/ReleaseRadarScreen.kt (`typeLabel`) | informativo | constante | siempre |
 | Reproducir (solo icono) — reproduce el estreno completo | Novedades > fila | app/src/main/kotlin/com/music/echo/ui/screens/library/ReleaseRadarScreen.kt:176-204 (cD :202) | acción primaria | diaria | solo si `item.playId.isNotBlank()` |
 
 ---
@@ -2666,9 +2670,9 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SoundSettings.k
 |---|---|---|---|---|---|
 | Ecualizador — desc. «Activa o desactiva el procesamiento de audio profesional» | Ajustes > Sonido | SoundSettings.kt:69 | navegación | ocasional | siempre |
 | Auto-EQ (por auricular) (hardcoded) — desc. «Busca tu modelo y aplica su perfil AutoEq» (hardcoded) | Ajustes > Sonido | SoundSettings.kt:75 | navegación | rara | siempre |
-| Volumen seguro (hardcoded) — desc. «Iguala el volumen entre temas: baja los muy fuertes y sube los silenciosos (hasta +12 dB), con un limitador suave. Activado por defecto.» (hardcoded; fila 713) | Ajustes > Sonido | SoundSettings.kt:125 | conmutador | ocasional | siempre (por defecto ON) |
+| Volumen seguro — desc. «Iguala el volumen entre temas: baja los muy fuertes y sube los silenciosos (hasta +12 dB), con un limitador suave. Activado por defecto.» (fila 713; desde la fila 773 en `res/values*/sound_texts_strings.xml`, es + en, mismo texto en español) | Ajustes > Sonido | SoundSettings.kt:125 | conmutador | ocasional | siempre (por defecto ON) |
 | ~~Simulador Tidal~~ — **movido (fila 358)**: era el mismo interruptor que «Firma de sonido Tidal» del Ecualizador (misma clave `TidalSimulationEnabledKey`, depende del interruptor del EQ). Sigue en Ajustes > Sonido > Ecualizador > Efectos y en la búsqueda de Ajustes. | — | — | — | — | — |
-| Compresor suave (pegamento) (hardcoded) — desc. «Compresión 2:1 por encima de −12 dB, sin ganancia de compensación: baja un poco los pasajes fuertes para unir la mezcla. Apagado por defecto.» (hardcoded) | Ajustes > Sonido > Masterización | SoundSettings.kt:196 | conmutador | rara | siempre (por defecto **OFF**, `GlueCompressorDefault`; fila 712) |
+| Compresor suave (pegamento) — desc. «Compresión 2:1 por encima de −12 dB, sin ganancia de compensación: baja un poco los pasajes fuertes para unir la mezcla. Apagado por defecto.» (desde la fila 773 en `res/values*/sound_texts_strings.xml`, es + en, mismo texto en español) | Ajustes > Sonido > Masterización | SoundSettings.kt:196 | conmutador | rara | siempre (por defecto **OFF**, `GlueCompressorDefault`; fila 712) |
 | Dither de salida (hardcoded) — desc. **cambia con «Procesado en 32 bits»**: apagado, explica que actúa cuando la salida es de 16 bits (lo normal con Opus/AAC/MP3) y que el Hi-Res en gama media/alta ya sale en 32 bits; encendido, que solo actúa cuando la salida vuelve a 16 bits (tempo/tono, Escuchar juntos, gama baja). **Sigue visible y activo en los dos estados** — no es un control inerte: el dither sigue actuando en esos casos (plan A3, fila 336) | Ajustes > Sonido > Masterización | SoundSettings.kt:177 | conmutador | rara | siempre (por defecto ON) |
 | **Procesado en 32 bits (experimental)** (hardcoded, NUEVO plan A3) — desc. «El ecualizador y la salida trabajan en coma flotante de 32 bits también con audio de 16 bits (Opus, AAC, MP3)… Se aplica desde la siguiente canción. Vuelve a 16 bits si cambias tempo o tono y en Escuchar juntos. Sin efecto en equipos de gama baja…» | Ajustes > Sonido > Masterización | SoundSettings.kt:204 | conmutador | rara | siempre (por defecto **OFF**, `Float32ProcessingDefault`; fila 336) |
 | Proteger el altavoz del teléfono (hardcoded) | Ajustes > Sonido > Masterización | SoundSettings.kt:225 | conmutador | rara | siempre (por defecto OFF, fila 325) |
@@ -2925,6 +2929,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/PrivacySettings
 | Pausar historial de búsquedas (grupo «Historial de búsqueda») | Ajustes > Privacidad | PrivacySettings.kt:190 | conmutador | rara | siempre |
 | Borrar historial de búsquedas | Ajustes > Privacidad | PrivacySettings.kt:210 | destructiva | rara | siempre; pide confirmación |
 | Desactivar captura de pantalla — desc. «Cuando esta opción está activada, las capturas de pantalla y la vista de la aplicación en Recientes estará deshabilitada.» (grupo «Otros») | Ajustes > Privacidad | PrivacySettings.kt:223 | conmutador | rara | siempre |
+| **Política de privacidad** (grupo propio, NUEVO fila 774) — desc. «Qué datos salen de tu dispositivo, a dónde van y cómo pedir que se borren» → `settings/privacy_policy` | Ajustes > Privacidad | PrivacySettings.kt | navegación | rara | siempre |
 | Atrás (tap) / Ir al inicio (mantener) | Ajustes > Privacidad | PrivacySettings.kt:254 | navegación | constante | siempre |
 
 ---
@@ -3170,6 +3175,7 @@ Pantalla mayoritariamente informativa: tarjetas de funciones sin interacción sa
 | Privacidad, control y estabilidad (hardcoded) | Ajustes > Acerca de | AboutScreen.kt:248 | informativo | rara | siempre |
 | Información legal (hardcoded) — tarjeta contenedora | Ajustes > Acerca de | AboutScreen.kt:253 | informativo | rara | siempre |
 | Términos y condiciones / Información legal — desc. «Los términos que aceptaste al empezar a usar la app…» | Ajustes > Acerca de | AboutScreen.kt:254 (fila en 273) | navegación (`settings/terms`) | rara | siempre |
+| **Política de privacidad** — desc. «Qué datos salen de tu dispositivo, a dónde van y cómo pedir que se borren» (NUEVO, fila 774) | Ajustes > Acerca de (tarjeta «Información legal», debajo de los términos) | AboutScreen.kt (`settings/privacy_policy`) | navegación | rara | siempre |
 | Motor de audio Superpowered (hardcoded) — «El ecualizador y el Volumen Seguro usan el SDK de audio de Superpowered…» | Ajustes > Acerca de | AboutScreen.kt:326 | informativo | rara | siempre |
 
 ### 23.1 Términos y condiciones — `settings/terms`
@@ -3180,6 +3186,15 @@ Archivo: `app/src/main/kotlin/com/music/echo/legal/TermsScreens.kt`
 |---|---|---|---|---|---|
 | Atrás (tap) / Ir al inicio (mantener) | Ajustes > Acerca de > Términos | TermsScreens.kt:258 | navegación | constante | siempre |
 | «Aceptados el %s (términos v%d)» (pie de página) | Ajustes > Acerca de > Términos | TermsScreens.kt:291 | informativo | rara | solo si `acceptedAt > 0` |
+
+### 23.2 Política de privacidad — `settings/privacy_policy` (NUEVO, fila 774)
+
+Archivo: `app/src/main/kotlin/com/music/echo/legal/TermsScreens.kt` (`PrivacyPolicyScreen`, el mismo lector que los términos)
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Título «Política de privacidad» + texto completo, solo lectura (sin botón de aceptar ni pie) — `assets/legal/PRIVACIDAD.md` con la app en español, `assets/legal/PRIVACY_POLICY.md` en cualquier otro idioma; copias exactas de los archivos de la raíz (`PrivacyPolicyAssetTest`). Las tablas se leen fila a fila (celdas separadas por «·») | Ajustes > Privacidad / Acerca de > Política de privacidad | TermsScreens.kt (`PrivacyPolicyScreen`, `LegalReaderScreen`) | informativo | rara | siempre |
+| Atrás | Ajustes > … > Política de privacidad | TermsScreens.kt (`LegalReaderScreen`) | navegación | constante | siempre |
 
 ---
 
@@ -4279,6 +4294,7 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Elemento | Dónde | Archivo | Tipo | Frecuencia | Condición |
 |---|---|---|---|---|---|
 | **Descargar** (hoja con sin conexión · MP3 · vídeo; en colecciones «Todas (N)» o «Elegir canciones…») | Álbum/EP/single (fila de acciones bajo la portada), lista propia, lista online, reproductor y menús de canción (fila «Exportar») | `ui/newui/AuraDownloadSheet.kt` | acción primaria | diaria | MP3 y vídeo solo con «Exportar como MP3» activo; vídeo solo si hay canciones con vídeo musical |
+| Descripción de la opción de vídeo (`export_as_video_desc`) — «MP4 para uso personal (hasta 1080p) — aparece en Vídeos exportados» (en: «MP4 for personal use…»). **Fila 774:** antes decía «MP4 para redes sociales», que contradecía la cláusula 7.3 de los términos (uso personal y privado) | Hoja Descargar / elegir formato de exportación | `ui/newui/AuraDownloadSheet.kt`, `ui/utils/ExportFormatChooser.kt` | informativo | ocasional | con la opción de vídeo disponible |
 
 ## Anexo 2026-10-21: lo que CAMBIÓ de sitio o de tamaño (no se quitó ni se ocultó nada)
 

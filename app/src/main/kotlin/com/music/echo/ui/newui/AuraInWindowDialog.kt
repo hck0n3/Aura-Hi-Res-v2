@@ -162,12 +162,19 @@ private fun AuraInWindowDialogPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .background(auraFloatingScrimColor())
-                .pointerInput(Unit) {
-                    detectTapGestures {
-                        focusManager.clearFocus()
-                        if (currentDismissOnOutsideTap) currentOnDismiss()
-                    }
-                },
+                // Fading out, the scrim must not eat the next tap meant for the screen under it.
+                .then(
+                    if (visible) {
+                        Modifier.pointerInput(Unit) {
+                            detectTapGestures {
+                                focusManager.clearFocus()
+                                if (currentDismissOnOutsideTap) currentOnDismiss()
+                            }
+                        }
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
           // KEYBOARD (owner report 2026-09-14: "se estiran hasta abajo cuando se abre el teclado"): the
           // IME inset used to be padding INSIDE the panel, so the card grew down to the keyboard. It is
@@ -227,8 +234,8 @@ private fun AuraInWindowDialogPanel(
                         )
                         // Clip BEFORE the glass (audit P4 — an interior clip leaves square corners).
                         .clip(shape)
-                        // A tap on the panel must not reach the scrim's dismiss detector.
-                        .pointerInput(Unit) { detectTapGestures { } }
+                        // A tap on the panel must not reach the scrim's dismiss detector (nor, fading out, eat the next one).
+                        .then(if (visible) Modifier.pointerInput(Unit) { detectTapGestures { } } else Modifier)
                         .then(
                             when {
                                 // PORTED: a sibling of the haze source — the glass renders, so this is

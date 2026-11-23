@@ -1627,7 +1627,8 @@ fun AuraEmpty(
  *
  * **Preference-gated, exactly as today.** The classic rows wrap themselves in `SwipeToSongBox` only
  * when [SwipeToSongKey] is on (default OFF, toggled from Ajustes › Apariencia); this wrapper reads the
- * SAME key and is inert when it is off. The threshold (300 px), the two actions
+ * SAME key and is inert when it is off. The threshold is 100 dp (the classic 300 px at xxhdpi, now the
+ * same finger distance on every screen density); the two actions
  * (`playerConnection.playNext` / `addToQueue`) and the two toasts (`R.string.play_next` /
  * `R.string.add_to_queue`) are the classic ones — only the drawn background is re-skinned, because
  * `SwipeToSongBox` paints `MaterialTheme.colorScheme.surface` behind the row, which would put an
@@ -1650,7 +1651,7 @@ fun AuraSwipeSongBox(
     val player = LocalPlayerConnection.current
     val scope = rememberCoroutineScope()
     val offset = remember { mutableFloatStateOf(0f) }
-    val threshold = 300f
+    val threshold = with(LocalDensity.current) { 100.dp.toPx() }
 
     val dragState = rememberDraggableState { delta ->
         offset.floatValue = (offset.floatValue + delta).coerceIn(-threshold, threshold)

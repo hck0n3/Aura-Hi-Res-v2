@@ -266,9 +266,56 @@ fun TermsScreen(
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     val markdown = rememberTermsMarkdown()
-    val listState = rememberLazyListState()
     val acceptedVersion by rememberPreference(TermsAcceptedVersionKey, defaultValue = 0)
     val acceptedAt by rememberPreference(TermsAcceptedAtKey, defaultValue = 0L)
+
+    LegalReaderScreen(
+        navController = navController,
+        scrollBehavior = scrollBehavior,
+        title = stringResource(R.string.terms_title),
+        markdown = markdown,
+        footer = if (acceptedAt > 0L) {
+            stringResource(
+                R.string.terms_accepted_on,
+                DateFormat.getDateInstance().format(Date(acceptedAt)),
+                acceptedVersion,
+            )
+        } else {
+            null
+        },
+    )
+}
+
+/**
+ * Read-only privacy policy for Ajustes ▸ Privacidad and Ajustes ▸ Acerca de (registry row 774): the same reader as
+ * the terms, with the Spanish policy for a Spanish app language and the English translation otherwise.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PrivacyPolicyScreen(
+    navController: NavController,
+    scrollBehavior: TopAppBarScrollBehavior,
+) {
+    val language = LocalContext.current.resources.configuration.locales[0].language
+    LegalReaderScreen(
+        navController = navController,
+        scrollBehavior = scrollBehavior,
+        title = stringResource(R.string.privacy_policy_title),
+        markdown = rememberTermsMarkdown(PrivacyPolicyInfo.assetFor(language)),
+        footer = null,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LegalReaderScreen(
+    navController: NavController,
+    scrollBehavior: TopAppBarScrollBehavior,
+    title: String,
+    markdown: String,
+    footer: String?,
+) {
+    val listState = rememberLazyListState()
 
     MaterialTheme(colorScheme = TermsAuraScheme) {
         Scaffold(
@@ -281,7 +328,7 @@ fun TermsScreen(
                 LargeTopAppBar(
                     title = {
                         Text(
-                            text = stringResource(R.string.terms_title),
+                            text = title,
                             style = AuraType.SheetTitle,
                             color = AuraPalette.OnGround,
                             maxLines = 1,
@@ -332,28 +379,20 @@ fun TermsScreen(
                     end = 16.dp,
                     bottom = 24.dp,
                 ),
-                footer = if (acceptedAt > 0L) {
-                    stringResource(
-                        R.string.terms_accepted_on,
-                        DateFormat.getDateInstance().format(Date(acceptedAt)),
-                        acceptedVersion,
-                    )
-                } else {
-                    null
-                },
+                footer = footer,
             )
         }
     }
 }
 
-/** Loads the full terms markdown from the app asset (IO thread, cached across recompositions). */
+/** Loads a full legal markdown from the app assets (IO thread, cached across recompositions); the terms by default. */
 @Composable
-private fun rememberTermsMarkdown(): String {
+private fun rememberTermsMarkdown(assetPath: String = TermsInfo.ASSET_PATH): String {
     val context = LocalContext.current
-    val markdown by produceState(initialValue = "") {
+    val markdown by produceState(initialValue = "", assetPath) {
         value = withContext(Dispatchers.IO) {
             runCatching {
-                context.assets.open(TermsInfo.ASSET_PATH).bufferedReader().use { it.readText() }
+                context.assets.open(assetPath).bufferedReader().use { it.readText() }
             }.getOrDefault("")
         }
     }
@@ -453,6 +492,22 @@ private fun TermsLine(raw: String) {
                 color = AuraPalette.OnGroundMuted,
             )
         }
+        // Privacy policy tables (row 774; the terms have none): the separator row is a rule and every other row
+        // reads as one entry with its cells joined.
+        line.startsWith("|") -> if (line.all { it in "|-: " }) {
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                thickness = 0.5.dp,
+                color = AuraPalette.SurfaceLine,
+            )
+        } else {
+            Text(
+                text = parseInlineBold(line.trim('|').split('|').joinToString("  ·  ") { it.trim() }),
+                style = AuraType.RowSubtitle,
+                color = AuraPalette.OnGroundMuted,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+        }
         else -> Text(
             text = parseInlineBold(line),
             style = AuraType.RowSubtitle,
@@ -461,9 +516,9 @@ private fun TermsLine(raw: String) {
     }
 }
 
-/** Renders `**bold**` spans of a single line; everything else passes through verbatim. */
+/** Renders `**bold**` spans of a single line after [stripInlineMarkdown]; everything else passes through verbatim. */
 private fun parseInlineBold(text: String): AnnotatedString = buildAnnotatedString {
-    var rest = text
+    var rest = stripInlineMarkdown(text)
     while (true) {
         val start = rest.indexOf("**")
         val end = if (start >= 0) rest.indexOf("**", start + 2) else -1

@@ -559,6 +559,10 @@ fun NavGraphBuilder.navigationBuilder(
         iad1tya.echo.music.legal.TermsScreen(navController, scrollBehavior)
     }
 
+    composable("settings/privacy_policy") {
+        iad1tya.echo.music.legal.PrivacyPolicyScreen(navController, scrollBehavior)
+    }
+
     composable("settings/logs") {
         LogsScreen(navController, scrollBehavior)
     }

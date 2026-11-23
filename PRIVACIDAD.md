@@ -28,7 +28,7 @@ Lo borras todo borrando los datos de la aplicación o desinstalándola. Lo que y
 
 ## 2. Lo que reciben nuestros servicios
 
-Operamos cuatro servicios en línea sobre la infraestructura de Cloudflare: el servidor de licencias (que también atiende las funciones de IA), los Servicios Aura, la sincronización entre dispositivos y las salas de Escuchar juntos.
+Operamos cuatro servicios en línea sobre la infraestructura de Cloudflare: el servidor de licencias (que también atiende las funciones de IA), los Servicios Aura, la sincronización entre dispositivos y las salas de Aura de Escuchar juntos (si las apagas, Escuchar juntos usa un servidor de terceros: apartado 3).
 
 | Servicio | Qué recibe | Cuándo | Cuánto tiempo se conserva |
 |---|---|---|---|
@@ -39,7 +39,7 @@ Operamos cuatro servicios en línea sobre la infraestructura de Cloudflare: el s
 | Servicios Aura: **registro de diagnóstico** | El registro técnico de la aplicación. No incluye títulos, artistas, nombres de listas, cuentas, correos ni claves; sí puede incluir identificadores de canciones y de listas. Una huella de tu IP para limitar envíos. | Solo cuando pulsas **"Enviar registro"**. | **7 días**. |
 | Servicios Aura: **segunda opinión de IA de la cola** (**desactivada por defecto**) | Título y artista de lo que suena y de las canciones candidatas dudosas, hasta cuatro estilos, el idioma y si es música cristiana. Tu IP. | Solo si la activas. | El contenido no se guarda. La IP, un máximo de 48 horas. |
 | **Sincronización entre dispositivos** (se activa sola al activar la licencia **con el correo de la compra**, o al emparejar con un código; se apaga en Ajustes ▸ Sincronizar dispositivos) | Tus me gusta y no me gusta, los nombres de tus listas y el título, artista y portada de sus canciones; los nombres de tus dispositivos; lo que está sonando (título, artista, portada y posición). Tu grupo se identifica con una huella cifrada (SHA-256) de tu clave y tu correo, o de tu código. **No** guarda cuentas, cookies, el correo ni la clave. | Mientras está activa. | Mientras exista tu grupo. Puedes pedirnos que lo borremos. |
-| **Escuchar juntos** | El nombre que elijas, el código de la sala y los datos de las canciones que suenan en ella (identificador, título, artista). | Solo cuando creas una sala o te unes a una. | Una sala vacía se borra a los **5 minutos**. |
+| **Escuchar juntos: salas de Aura** (**activadas por defecto**; se apagan con «Salas de Aura» en los ajustes de Escuchar juntos) | El nombre que elijas, el código de la sala y los datos de las canciones que suenan en ella y en la cola del anfitrión (identificador, título, artista, álbum, duración y portada). | Solo cuando creas una sala o te unes a una con las salas de Aura activadas. | Una sala vacía se borra a los **5 minutos**. |
 | **Reconocimiento de canciones** (relé) | Una firma de audio calculada a partir del micrófono. | Solo mientras usas el reconocimiento, y solo si la conexión directa con Shazam falla. | Se reenvía a Shazam; no la guardamos. |
 
 ## 3. Lo que reciben terceros
@@ -61,6 +61,7 @@ Estos terceros reciben las peticiones y las tratan según **sus propias** polít
 - **iTunes (Apple), Apple Music y otros proveedores de metadatos y portadas animadas:** nombres de canción, artista y álbum.
 - **Wikipedia:** el nombre del artista, cuando ves su información.
 - **Shazam:** la firma de audio del reconocimiento de canciones, solo mientras lo usas.
+- **Escuchar juntos con las salas de Aura apagadas:** las salas van al servidor público compartido que también usan otras aplicaciones (Metrolist, SimpMusic), `metroserverx.meowery.eu`, que **no operamos nosotros**, o al servidor que escribas tú en los ajustes. Al crear una sala o unirte a una, ese servidor recibe el nombre que elijas, el código de la sala y los datos de las canciones que suenan en ella y en la cola del anfitrión (identificador, título, artista, álbum, duración y portada), y los trata según sus propias condiciones; no sabemos cuánto tiempo los conserva.
 - **Tu propio proveedor de IA:** si configuras tu propia clave, el texto de tus peticiones de IA va a ese proveedor en lugar de a nuestro servidor.
 
 **Integraciones opcionales (no envían nada hasta que las activas):** Last.fm (scrobbling e importación de gustos), ListenBrainz, importación desde Spotify, SponsorBlock, AutoEQ, podcasts y similares. Cada una envía solo lo que necesita (por ejemplo, la canción que suena, un modelo de auriculares o un término de búsqueda). Al iniciar sesión en YouTube, Spotify o Last.fm, tus credenciales van directamente a ese servicio.

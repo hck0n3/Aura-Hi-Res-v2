@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="privacy_policy_title">Política de privacidad</string>
+    <string name="privacy_policy_entry_desc">Qué datos salen de tu dispositivo, a dónde van y cómo pedir que se borren</string>
+</resources>

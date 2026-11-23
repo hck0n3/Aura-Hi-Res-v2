@@ -786,7 +786,7 @@
     <string name="export_as_mp3_desc">Archivo de audio con etiquetas y portada</string>
     <string name="export_vs_download_hint">Exportar escribe un archivo en tu carpeta. Descargar solo lo deja offline dentro de la app.</string>
     <string name="export_as_video">Como vídeo</string>
-    <string name="export_as_video_desc">MP4 para redes sociales (hasta 1080p) — aparece en Vídeos exportados</string>
+    <string name="export_as_video_desc">MP4 para uso personal (hasta 1080p) — aparece en Vídeos exportados</string>
     <string name="export_video_unavailable">Esta pista no tiene vídeo para exportar</string>
     <string name="export_video_probing">Comprobando si hay un stream de vídeo…</string>
     <string name="export_video_probe_failed">No se encontró un stream de vídeo para esta pista</string>

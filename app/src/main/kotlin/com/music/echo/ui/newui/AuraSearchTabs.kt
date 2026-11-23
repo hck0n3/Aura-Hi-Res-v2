@@ -392,7 +392,7 @@ fun AuraTrendingTab(
                         onTrack = { track ->
                             Toast.makeText(
                                 context,
-                                "Cargando ${track.title}...",
+                                context.getString(R.string.aura_trending_loading_item, track.title),
                                 Toast.LENGTH_SHORT,
                             ).show()
                             viewModel.playTrack(track, playerConnection)
@@ -412,7 +412,7 @@ fun AuraTrendingTab(
                         onTrack = { track ->
                             Toast.makeText(
                                 context,
-                                "Cargando ${track.title}...",
+                                context.getString(R.string.aura_trending_loading_item, track.title),
                                 Toast.LENGTH_SHORT,
                             ).show()
                             viewModel.playTrack(track, playerConnection)
@@ -431,7 +431,7 @@ fun AuraTrendingTab(
                         onAlbum = { album ->
                             Toast.makeText(
                                 context,
-                                "Cargando ${album.title}...",
+                                context.getString(R.string.aura_trending_loading_item, album.title),
                                 Toast.LENGTH_SHORT,
                             ).show()
                             viewModel.navigateToAlbum(album, navController)
@@ -449,7 +449,7 @@ fun AuraTrendingTab(
                         onArtist = { artist ->
                             Toast.makeText(
                                 context,
-                                "Cargando ${artist.name}...",
+                                context.getString(R.string.aura_trending_loading_item, artist.name),
                                 Toast.LENGTH_SHORT,
                             ).show()
                             viewModel.navigateToArtist(artist, navController)

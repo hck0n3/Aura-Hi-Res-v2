@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ajustes ▸ Sonido and the welcome tour (registry row 773). -->
+    <string name="sound_safe_volume_title">Safe volume</string>
+    <string name="sound_safe_volume_desc">Evens out the volume between tracks: turns very loud ones down and quiet ones up (up to +12 dB), with a soft limiter. On by default.</string>
+    <string name="sound_glue_compressor_title">Soft compressor (glue)</string>
+    <string name="sound_glue_compressor_desc">2:1 compression above −12 dB, with no make-up gain: gently lowers the loud passages to glue the mix together. Off by default.</string>
+    <string name="welcome_sound_limiter_bullet">Optional limiter and automatic headroom; no made-up “enhancements” on top of Opus</string>
+</resources>

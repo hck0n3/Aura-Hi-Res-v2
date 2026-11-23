@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- In-app privacy policy reader (registry row 774). -->
+    <string name="privacy_policy_title">Privacy policy</string>
+    <string name="privacy_policy_entry_desc">What data leaves your device, where it goes and how to have it deleted</string>
+</resources>

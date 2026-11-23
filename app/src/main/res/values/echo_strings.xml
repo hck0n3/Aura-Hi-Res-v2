@@ -482,7 +482,7 @@
     <string name="export_as_mp3">As MP3</string>
     <string name="export_as_mp3_desc">Audio file with tags and cover</string>
     <string name="export_as_video">As video</string>
-    <string name="export_as_video_desc">MP4 for social networks (up to 1080p) — appears under Exported videos</string>
+    <string name="export_as_video_desc">MP4 for personal use (up to 1080p) — appears under Exported videos</string>
     <string name="export_video_unavailable">This track has no video to export</string>
     <string name="export_video_probing">Checking if a video stream is available…</string>
     <string name="export_video_probe_failed">Could not find a video stream for this track</string>
