@@ -66,8 +66,9 @@ val SpotifyAutoSyncSourceIdsKey = stringPreferencesKey("spotifyAutoSyncSourceIds
 // biblioteca propia.
 val SpotifyLinkedPlaylistIdsKey = stringPreferencesKey("spotifyLinkedPlaylistIds")
 // Scheduled YouTube Music sync: how often to re-sync everything (days; 0 = off).
-// Default for a missing key is [iad1tya.echo.music.utils.YtmAutoSyncWorker.DEFAULT_FREQ_DAYS] (3):
-// the whole library mirrors the account in the background without a daily battery hit.
+// Row 678: written explicitly once per install by [GoogleSyncDefaultsV1AppliedKey] (fresh install 0).
+// A missing key still reads [iad1tya.echo.music.utils.YtmAutoSyncWorker.DEFAULT_FREQ_DAYS] (3), the
+// value every install ran on before that write.
 val YtmAutoSyncFreqDaysKey = intPreferencesKey("ytmAutoSyncFreqDays")
 // Last time a YouTube Music full sync actually completed (epoch millis; 0 = never). Surfaced in the sync
 // screen so a scheduled sync that silently no-ops (e.g. an expired session) is visible, not a placebo.
@@ -85,11 +86,10 @@ val YtmLastSyncKey = longPreferencesKey("ytmLastSyncEpochMs")
 val YtmUploadSyncKey = booleanPreferencesKey("ytmUploadSync")
 // One-time (V1, FRESH key — a set flag or a versionCode bump alone will not re-run a migration) that
 // decides the value of [YtmUploadSyncKey] exactly once, on the first launch that sees it:
-//   - FRESH install (firstInstallTime == lastUpdateTime): ON. This is the owner's explicit request —
+//   - FRESH install (firstInstallTime == lastUpdateTime): OFF since row 678 (owner 2026-11-23: Google
+//     account sync off by default for new installs). It used to be ON, by the owner's earlier request
 //     "que ahora las playlist que haga no pregunte si las quiero sincronizar con youtube music, que
-//     eso ya lo haga por default" — and it is honest for someone setting the app up now: the sync
-//     screen is right there, it is the first thing a new user configures, and nothing has been
-//     uploaded behind their back yet.
+//     eso ya lo haga por default"; installs that already got that ON keep it.
 //   - RESTORED install (a device-to-device transfer, a cloud backup, `adb restore`): OFF, same as an
 //     update. `firstInstallTime == lastUpdateTime` is TRUE here too — the APK really is the first one
 //     on the new phone — so this used to be misread as FRESH and switched account writes ON for
@@ -101,6 +101,11 @@ val YtmUploadSyncKey = booleanPreferencesKey("ytmUploadSync")
 // Both cases end with an explicit stored value, so the owner keeps his default and no existing
 // customer is enrolled into remote writes by the act of updating.
 val YtmUploadOptInV1AppliedKey = booleanPreferencesKey("ytm_upload_opt_in_v1_applied")
+// Row 678 (owner 2026-11-23): one-time, FRESH key. Writes an EXPLICIT [YtmSyncKey] and
+// [YtmAutoSyncFreqDaysKey] once per install: a fresh install gets download sync OFF and no automatic
+// sync (0); every other install gets the value it was already running on (true / 3 days) where it had
+// never been written, so nobody's behaviour changes silently. A value the user chose is never touched.
+val GoogleSyncDefaultsV1AppliedKey = booleanPreferencesKey("google_sync_defaults_v1_applied")
 // Set once [iad1tya.echo.music.utils.InstallOrigin] has been established for this install and any
 // restore clean-up has run. It lives in the DataStore ON PURPOSE: the backup rules exclude
 // `datastore/settings.preferences_pb`, so a database restored onto another phone arrives WITHOUT this
