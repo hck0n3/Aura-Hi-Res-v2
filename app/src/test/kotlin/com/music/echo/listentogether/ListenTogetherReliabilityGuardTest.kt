@@ -25,6 +25,13 @@ class ListenTogetherReliabilityGuardTest {
     }
 
     @Test
+    fun theHostPublishesItsQueueInPlaybackOrder() {
+        assertTrue(bridge.contains("next = { i -> timeline.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },"))
+        assertTrue(bridge.contains("previous = { i -> timeline.getPreviousWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },"))
+        assertTrue("toggling shuffle republishes the queue", bridge.contains("override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {"))
+    }
+
+    @Test
     fun everyDevicePlaysAtOneXInsideARoomAndGetsItsSpeedBackAfter() {
         assertTrue(bridge.contains("const val ROOM_TEMPO = 1f"))
         assertTrue("the guest's base speed is the room's", bridge.contains("val userTempo = ROOM_TEMPO"))

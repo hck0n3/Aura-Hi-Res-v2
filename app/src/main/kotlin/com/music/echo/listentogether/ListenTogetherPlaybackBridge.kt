@@ -332,6 +332,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             timelineRevision.value++
         }
 
+        /** Shuffle changes the order the host publishes ([hostQueueOrder]) without touching the timeline. */
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            timelineRevision.value++
+        }
+
         /**
          * Publishes a seek.
          *
@@ -900,7 +905,16 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // The room cannot carry a 4000-song radio; the window AROUND the cursor is what the
             // guests actually need to follow along.
             val cursor = player.currentMediaItemIndex
-            hostQueueWindow(count, cursor, HOST_QUEUE_WINDOW) { i -> player.getMediaItemAt(i).mediaId }
+            // In the order the host will PLAY it (row 744): with shuffle on, media3 follows its shuffle order, not the timeline's.
+            val timeline = player.currentTimeline
+            val shuffle = player.shuffleModeEnabled
+            hostQueueOrder(
+                count = count,
+                cursor = cursor,
+                window = HOST_QUEUE_WINDOW,
+                next = { i -> timeline.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },
+                previous = { i -> timeline.getPreviousWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },
+            ) { i -> player.getMediaItemAt(i).mediaId }
                 .mapNotNull { i -> player.getMediaItemAt(i).let { item -> item.toQueueTrackInfo() } }
         }.getOrDefault(emptyList())
 
@@ -1203,6 +1217,40 @@ internal fun hostQueueWindow(count: Int, cursor: Int, window: Int, idAt: (Int) -
     val currentId = idAt(cursor)
     val earlierCopy = (cursor - 1 downTo start).firstOrNull { idAt(it) == currentId }
     return (earlierCopy?.plus(1) ?: start) until end
+}
+
+/**
+ * Row 744 (P1-1/P1-2): [hostQueueWindow] in the order the host will PLAY its timeline. [next]/[previous] are the timeline's own walk
+ * (`getNextWindowIndex`/`getPreviousWindowIndex` with repeat off, so -1 at either end); with shuffle on that is the shuffle order, and
+ * publishing the timeline order instead made every guest load a different next song than the host's. Same window as
+ * [hostQueueWindow]: [window] songs before the cursor, the cursor and [window] − 1 after it, starting after any earlier copy of the
+ * current song. Without shuffle the walk is i ± 1 and the result is exactly [hostQueueWindow].
+ */
+internal fun hostQueueOrder(
+    count: Int,
+    cursor: Int,
+    window: Int,
+    next: (Int) -> Int,
+    previous: (Int) -> Int,
+    idAt: (Int) -> String,
+): List<Int> {
+    if (cursor !in 0 until count) return emptyList()
+    val before = ArrayList<Int>()
+    var i = previous(cursor)
+    while (i in 0 until count && before.size < window) {
+        before.add(i)
+        i = previous(i)
+    }
+    before.reverse()
+    val currentId = idAt(cursor)
+    val earlierCopy = before.indexOfLast { idAt(it) == currentId }
+    val after = ArrayList<Int>()
+    i = next(cursor)
+    while (i in 0 until count && after.size < window - 1) {
+        after.add(i)
+        i = next(i)
+    }
+    return before.drop(earlierCopy + 1) + cursor + after
 }
 
 /**
