@@ -809,6 +809,9 @@ constructor(
                     startIndex = resolved.startIndex,
                 )
             }
+            // Review P2: the grant given when the selection arrived (onControllerSelectedItem) can expire while a slow branch
+            // (a YouTube playlist, a search) resolves; renewed now, as media3 is about to set these items and play them here.
+            if (resolved.mediaItems.isNotEmpty()) iad1tya.echo.music.devicesync.RemotePlayback.grantLocalStart()
             resolved
         }
 
