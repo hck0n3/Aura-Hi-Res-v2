@@ -401,16 +401,17 @@ constructor(
         val videoTracks = snapshot.tracks.filter { it.isVideo }
         if (videoTracks.isNotEmpty()) {
             context.dataStore.edit { prefs ->
-                val currentVideoIds = prefs[ExportedVideoIdsKey].orEmpty()
-                    .split(',')
-                    .map { it.trim() }
-                    .filter { it.isNotEmpty() }
-                    .toMutableSet()
-                val currentUrisMap = parseExportedFileUriMap(prefs[ExportedFileUrisKey].orEmpty()).toMutableMap()
-                videoTracks.forEach { vt ->
-                    currentVideoIds.add(vt.id)
-                    currentUrisMap[vt.id] = vt.id
-                }
+                val currentVideoIds = newestFirstIds(
+                    existing = prefs[ExportedVideoIdsKey].orEmpty()
+                        .split(',')
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() },
+                    scanned = videoTracks.map { it.id },
+                )
+                val currentUrisMap = newestFirstUris(
+                    existing = parseExportedFileUriMap(prefs[ExportedFileUrisKey].orEmpty()),
+                    scanned = videoTracks.associate { it.id to it.id },
+                )
                 prefs[ExportedVideoIdsKey] = currentVideoIds.take(ExportedEntriesCap).joinToString(",")
                 prefs[ExportedFileUrisKey] = currentUrisMap.entries.take(ExportedEntriesCap).joinToString("\u001E") { "${it.key}\u001F${it.value}" }
             }
