@@ -35,8 +35,10 @@ Opciones al lanzarlo:
 Cada escenario es una clase de `smoketest/src/main/java/iad1tya/echo/music/smoketest/`. Las pruebas manejan la app
 **desde fuera** (como un usuario): UI Automator para la pantalla, un `MediaController` conectado a la sesión de
 medios de la app (la misma puerta que usan la notificación, el Bluetooth y Android Auto) para saber qué suena, y
-comandos de `adb` para el aparato. Los textos se leen de los recursos de la propia app, así que no dependen del
-idioma del emulador.
+comandos de `adb` para el aparato. Los textos se leen de los recursos de la propia app **en los dos idiomas en que
+puede estar pintándolos**: el español LATAM (`es-419`) que la app fija en una instalación nueva (`App.kt`, se aplica
+desde el segundo arranque en frío) y el idioma del emulador (inglés, el del primer arranque). Si el idioma por
+defecto de la app cambia, `test_smoke_tools.py` falla antes de gastar un emulador.
 
 | # | Escenario | Clase | Pasa si… |
 |---|---|---|---|

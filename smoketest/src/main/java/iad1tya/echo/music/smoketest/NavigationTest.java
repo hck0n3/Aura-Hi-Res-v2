@@ -21,7 +21,7 @@ public class NavigationTest {
 
         // Library: its hub shows the «Local» tile.
         aura.openTab(aura.libraryLabel());
-        String local = aura.appString("filter_local", "Local");
+        AuraDevice.UiLabel local = aura.appString("filter_local", "Local");
         aura.waitFor(() -> aura.device.findObject(By.text(AuraDevice.exactly(local))), 15_000, "Library hub");
         aura.capture("02-library");
         back(aura, "Library");
@@ -48,7 +48,7 @@ public class NavigationTest {
 
     private static void openSettings(AuraDevice aura) {
         aura.openTab(aura.homeLabel());
-        String account = aura.appString("account", "Account");
+        AuraDevice.UiLabel account = aura.appString("account", "Account");
         UiObject2 cog = aura.waitFor(
                 () -> aura.device.findObject(By.desc(AuraDevice.containing(account))), 15_000, "account/settings button");
         cog.click();
@@ -63,7 +63,7 @@ public class NavigationTest {
         }
         if (entry == null) aura.fail("«Ajustes» not found in the account sheet");
         entry.click();
-        String appearance = aura.appString("appearance", "Appearance");
+        AuraDevice.UiLabel appearance = aura.appString("appearance", "Appearance");
         aura.waitFor(() -> aura.device.findObject(By.text(AuraDevice.containing(appearance))), 15_000, "Settings list");
         aura.assertHealthy("Settings");
     }

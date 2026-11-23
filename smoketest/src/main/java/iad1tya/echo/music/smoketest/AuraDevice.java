@@ -4,6 +4,7 @@ import android.app.Instrumentation;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.database.Cursor;
 import android.graphics.Rect;
@@ -22,13 +23,19 @@ import androidx.test.uiautomator.Until;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
  * Drives the app under test from OUTSIDE its process (the smoke module is self-instrumenting): UI Automator for the
- * screen, shell commands for the device, the app's own resources for every label so the run does not depend on the
- * emulator's language. It never calls app code: what it checks is what a user would see.
+ * screen, shell commands for the device, the app's own resources for every label. A label matches the app's string
+ * in BOTH the language the app forces on a fresh install (es-419, see {@link #APP_SEED_LANGUAGE}) and the emulator's
+ * own language (what the very first start shows, before the seed reaches the next cold start). It never calls app
+ * code: what it checks is what a user would see.
  */
 final class AuraDevice {
     static final String TAG = "AuraSmoke";
@@ -44,6 +51,13 @@ final class AuraDevice {
     /** The file the workflow pushes into /sdcard/Music (scripts/emulator_smoke/smoke_tools.py TONE_NAME). */
     static final String TONE_FILE = "aura_smoke_tone.wav";
     static final Pattern TONE_ROW = Pattern.compile("(?is).*aura.?smoke.?tone.*");
+
+    /**
+     * The UI language a fresh install stores (App.kt applySeedDefaults and applyLyricsEsLatamAutoTranslateV1 write
+     * AppLanguageKey = "es-419"; MainActivity.attachBaseContext applies it from the next cold start on). Pinned by
+     * scripts/emulator_smoke/test_smoke_tools.py AppLiteralsTest.
+     */
+    static final String APP_SEED_LANGUAGE = "es-419";
 
     final Instrumentation instrumentation;
     final UiDevice device;
@@ -114,26 +128,103 @@ final class AuraDevice {
 
     // ── Labels from the app's own resources ───────────────────────────────────────────────────────────
 
-    /** The app's string in the device's language; `fallback` only when the resource cannot be found. */
-    String appString(String name, String fallback) {
+    /**
+     * One on-screen label in every language the app may be rendering it in. The app resolves its strings through
+     * a context whose Configuration only overrides the locale (Utils.kt localeAwareContext); the variants are
+     * resolved the same way, so the resource folder Android picks for es-419 is the one the app picks.
+     */
+    static final class UiLabel {
+        final List<String> variants;
+
+        UiLabel(Set<String> variants) {
+            this.variants = new ArrayList<>(variants);
+        }
+
+        static UiLabel of(String text) {
+            Set<String> one = new LinkedHashSet<>();
+            one.add(text);
+            return new UiLabel(one);
+        }
+
+        boolean isEmpty() {
+            for (String v : variants) if (!v.isEmpty()) return false;
+            return true;
+        }
+
+        /** A non-capturing alternation of the quoted variants. */
+        String regex() {
+            StringBuilder sb = new StringBuilder("(?:");
+            for (int i = 0; i < variants.size(); i++) {
+                if (i > 0) sb.append('|');
+                sb.append(Pattern.quote(variants.get(i)));
+            }
+            return sb.append(')').toString();
+        }
+
+        @Override
+        public String toString() {
+            return String.join(" / ", variants);
+        }
+    }
+
+    /** The app's string as es-419 and as the device's language; `fallback` only when the resource cannot be found. */
+    UiLabel appString(String name, String fallback) {
+        Set<String> found = new LinkedHashSet<>();
+        for (Locale locale : new Locale[] {Locale.forLanguageTag(APP_SEED_LANGUAGE), null}) {
+            String text = appStringIn(name, locale);
+            if (text != null) found.add(text);
+        }
+        if (found.isEmpty()) {
+            Log.w(TAG, "string " + name + " not found, using fallback");
+            found.add(fallback);
+        }
+        return new UiLabel(found);
+    }
+
+    /** `locale == null`: the device's own configuration. */
+    private String appStringIn(String name, Locale locale) {
         try {
-            Resources res = context.getPackageManager().getResourcesForApplication(target);
+            Context app = context.createPackageContext(target, 0);
+            Resources res = withLocale(app, locale).getResources();
             for (String pkg : new String[] {target, NAMESPACE}) {
                 int id = res.getIdentifier(name, "string", pkg);
                 if (id != 0) return res.getString(id);
             }
         } catch (PackageManager.NameNotFoundException | Resources.NotFoundException e) {
-            Log.w(TAG, "string " + name + " not found, using fallback", e);
+            Log.w(TAG, "string " + name + " not resolved for " + locale, e);
         }
-        return fallback;
+        return null;
+    }
+
+    /** A framework string (android.R.string.*) as the app shows it: es-419 and the device's language. */
+    UiLabel frameworkString(int id) {
+        Set<String> found = new LinkedHashSet<>();
+        found.add(withLocale(context, Locale.forLanguageTag(APP_SEED_LANGUAGE)).getResources().getString(id));
+        found.add(Resources.getSystem().getString(id));
+        return new UiLabel(found);
+    }
+
+    private static Context withLocale(Context base, Locale locale) {
+        if (locale == null) return base;
+        Configuration cfg = new Configuration();
+        cfg.setLocale(locale);
+        return base.createConfigurationContext(cfg);
     }
 
     static Pattern exactly(String text) {
-        return Pattern.compile("\\s*" + Pattern.quote(text) + "\\s*");
+        return exactly(UiLabel.of(text));
+    }
+
+    static Pattern exactly(UiLabel label) {
+        return Pattern.compile("\\s*" + label.regex() + "\\s*");
     }
 
     static Pattern containing(String text) {
-        return Pattern.compile("(?is).*" + Pattern.quote(text) + ".*");
+        return containing(UiLabel.of(text));
+    }
+
+    static Pattern containing(UiLabel label) {
+        return Pattern.compile("(?is).*" + label.regex() + ".*");
     }
 
     // ── Launching and the first-run flow ─────────────────────────────────────────────────────────────
@@ -151,11 +242,11 @@ final class AuraDevice {
         shell("am start -W -n " + target + "/" + LAUNCHER_ALIAS);
     }
 
-    String homeLabel() {
+    UiLabel homeLabel() {
         return appString("home", "Home");
     }
 
-    String libraryLabel() {
+    UiLabel libraryLabel() {
         return appString("filter_library", "Library");
     }
 
@@ -165,8 +256,8 @@ final class AuraDevice {
      * (the links prompt waits 4 s after the tour closes).
      */
     void settleOnHome(long timeoutMs) {
-        String later = appString("open_links_prompt_later", "Later");
-        Pattern steps = Pattern.compile("\\s*(Omitir|Siguiente: YouTube Music|Comenzar|" + Pattern.quote(later) + ")\\s*");
+        UiLabel later = appString("open_links_prompt_later", "Later");
+        Pattern steps = Pattern.compile("\\s*(Omitir|Siguiente: YouTube Music|Comenzar|" + later.regex() + ")\\s*");
         long deadline = SystemClock.uptimeMillis() + timeoutMs;
         long quietSince = SystemClock.uptimeMillis();
         while (SystemClock.uptimeMillis() < deadline) {
@@ -194,7 +285,7 @@ final class AuraDevice {
     // ── Bottom bar ───────────────────────────────────────────────────────────────────────────────────
 
     /** The bottom-bar cell with this label: the LOWEST on-screen match, and only inside the bottom quarter. */
-    UiObject2 navCell(String label) {
+    UiObject2 navCell(UiLabel label) {
         UiObject2 best = lowest(device.findObjects(By.text(exactly(label))));
         if (best == null) return null;
         Rect r = bounds(best);
@@ -205,7 +296,7 @@ final class AuraDevice {
      * Taps a bottom-bar cell and waits until the bar reports it selected. The selected cell is looked for anywhere on
      * screen: a screen that opens the keyboard (Search) pushes the bar up out of the bottom quarter.
      */
-    void openTab(String label) {
+    void openTab(UiLabel label) {
         UiObject2 cell = waitFor(() -> navCell(label), 15_000, "bottom bar cell '" + label + "'");
         cell.click();
         long deadline = SystemClock.uptimeMillis() + 10_000;
@@ -262,8 +353,8 @@ final class AuraDevice {
      */
     void openLocalSongs() {
         openTab(libraryLabel());
-        String local = appString("filter_local", "Local");
-        String emptyScan = appString("local_songs_empty_scan_action", "Scan device");
+        UiLabel local = appString("filter_local", "Local");
+        UiLabel emptyScan = appString("local_songs_empty_scan_action", "Scan device");
         UiObject2 found = waitFor(() -> {
             UiObject2 onLocal = device.findObject(By.text(TONE_ROW));
             if (onLocal == null) onLocal = device.findObject(By.text(exactly(emptyScan)));
@@ -281,7 +372,7 @@ final class AuraDevice {
      * The scan is the user path: empty state «Scan device» → scan sheet → its primary «Scan device».
      */
     UiObject2 scanUntilToneListed() {
-        String emptyScan = appString("local_songs_empty_scan_action", "Scan device");
+        UiLabel emptyScan = appString("local_songs_empty_scan_action", "Scan device");
         long deadline = SystemClock.uptimeMillis() + 20_000;
         UiObject2 emptyButton = null;
         while (SystemClock.uptimeMillis() < deadline) {
@@ -298,13 +389,13 @@ final class AuraDevice {
         Rect emptyBounds = bounds(emptyButton);
         emptyButton.click();
 
-        String sheetTitle = appString("local_songs_scan_title", "");
+        UiLabel sheetTitle = appString("local_songs_scan_title", "");
         if (!sheetTitle.isEmpty()) {
             waitFor(() -> device.findObject(By.text(exactly(sheetTitle))), 10_000, "scan sheet '" + sheetTitle + "'");
         } else {
             SystemClock.sleep(2_000);
         }
-        String scanLabel = appString("scan_device", "Scan device");
+        UiLabel scanLabel = appString("scan_device", "Scan device");
         UiObject2 primary = null;
         for (int attempt = 0; attempt < 5 && primary == null; attempt++) {
             for (UiObject2 candidate : device.findObjects(By.text(exactly(scanLabel)))) {
@@ -322,7 +413,7 @@ final class AuraDevice {
         primary.click();
 
         long scanDeadline = SystemClock.uptimeMillis() + 90_000;
-        String scanning = appString("scanning_device", "Scanning");
+        UiLabel scanning = appString("scanning_device", "Scanning");
         SystemClock.sleep(2_000);
         while (SystemClock.uptimeMillis() < scanDeadline
                 && device.findObject(By.text(containing(scanning))) != null) {
@@ -333,7 +424,7 @@ final class AuraDevice {
         UiObject2 row = device.wait(Until.findObject(By.text(TONE_ROW)), 20_000);
         if (row == null) {
             // The back also left Local (sheet already gone): open it again and look once more.
-            String local = appString("filter_local", "Local");
+            UiLabel local = appString("filter_local", "Local");
             UiObject2 tile = device.findObject(By.text(exactly(local)));
             if (tile != null) tile.click();
             row = waitFor(() -> device.findObject(By.text(TONE_ROW)), 20_000, "the scanned tone in the Local list");

@@ -1,6 +1,5 @@
 package iad1tya.echo.music.smoketest;
 
-import android.content.res.Resources;
 import android.os.SystemClock;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -28,11 +27,11 @@ public class UpdateSurvivalTest {
         aura.settleOnHome(180_000);
         aura.openTab(aura.libraryLabel());
         // The '+' lives on the hub and on the Playlists chip; the chip is the explicit place to create one.
-        String chip = aura.appString("filter_playlists", "Playlists");
+        AuraDevice.UiLabel chip = aura.appString("filter_playlists", "Playlists");
         UiObject2 playlists = aura.device.findObject(By.text(AuraDevice.exactly(chip)));
         if (playlists != null) playlists.click();
 
-        String create = aura.appString("create_playlist", "Create playlist");
+        AuraDevice.UiLabel create = aura.appString("create_playlist", "Create playlist");
         UiObject2 fab = aura.waitFor(
                 () -> aura.device.findObject(By.desc(AuraDevice.exactly(create))), 15_000, "the Library '+' button");
         fab.click();
@@ -43,7 +42,8 @@ public class UpdateSurvivalTest {
                 () -> aura.device.findObject(By.clazz("android.widget.EditText")), 10_000, "the playlist name field");
         field.setText(PLAYLIST);
         SystemClock.sleep(500);
-        String ok = Resources.getSystem().getString(android.R.string.ok);
+        // TextFieldDialog renders stringResource(android.R.string.ok) in the app's language (es-419 after the seed).
+        AuraDevice.UiLabel ok = aura.frameworkString(android.R.string.ok);
         UiObject2 okButton = aura.waitFor(
                 () -> aura.device.findObject(By.text(AuraDevice.exactly(ok))), 10_000, "the dialog's '" + ok + "'");
         okButton.click();
@@ -61,7 +61,7 @@ public class UpdateSurvivalTest {
         aura.launchCold();
         aura.settleOnHome(180_000);
         aura.openTab(aura.libraryLabel());
-        String chip = aura.appString("filter_playlists", "Playlists");
+        AuraDevice.UiLabel chip = aura.appString("filter_playlists", "Playlists");
         UiObject2 playlists = aura.device.findObject(By.text(AuraDevice.exactly(chip)));
         if (playlists != null) playlists.click();
         aura.waitFor(

@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 import tempfile
 import unittest
@@ -142,6 +143,22 @@ class AppLiteralsTest(unittest.TestCase):
                      "local_songs_empty_scan_action", "local_songs_scan_title", "scan_device", "scanning_device",
                      "open_links_prompt_later", "create_playlist", "filter_playlists"]:
             self.assertIn('<string name="%s">' % name, text, name)
+
+    def test_labels_are_looked_up_in_the_language_the_app_seeds(self):
+        # A fresh install stores AppLanguageKey = es-419 and MainActivity applies it from the next cold start, so the
+        # emulator (en-US) and the app disagree on every label: AuraDevice must look them up in that same language.
+        app = _read("app", "src", "main", "kotlin", "com", "music", "echo", "App.kt")
+        seeds = re.findall(r'p\[iad1tya\.echo\.music\.constants\.AppLanguageKey\] = "([^"]+)"', app)
+        self.assertGreaterEqual(len(seeds), 2, "applySeedDefaults + applyLyricsEsLatamAutoTranslateV1")
+        self.assertEqual(set(seeds), {"es-419"})
+        main = _read("app", "src", "main", "kotlin", "com", "music", "echo", "MainActivity.kt")
+        self.assertIn("super.attachBaseContext(localeAwareContext(newBase))", main)
+        device = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest", "AuraDevice.java")
+        self.assertIn('static final String APP_SEED_LANGUAGE = "%s";' % seeds[0], device)
+        survival = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest",
+                         "UpdateSurvivalTest.java")
+        self.assertIn("aura.frameworkString(android.R.string.ok)", survival)
+        self.assertNotIn("Resources.getSystem()", survival)
 
 
 if __name__ == "__main__":
