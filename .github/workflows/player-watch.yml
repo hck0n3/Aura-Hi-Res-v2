@@ -32,14 +32,14 @@ jobs:
       - name: Was this player already announced?
         id: seen
         if: steps.watch.outputs.covered == 'false' || inputs.force == true
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .player-seen
           key: player-announced-${{ steps.watch.outputs.hash }}${{ inputs.force == true && format('-test-{0}', github.run_id) || '' }}
 
       - name: Keep the downloaded player for 14 days
         if: steps.watch.outputs.covered == 'false' && steps.seen.outputs.cache-hit != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: player-${{ steps.watch.outputs.hash }}
           path: player-${{ steps.watch.outputs.hash }}.js
@@ -70,7 +70,7 @@ jobs:
 
       - name: Save the memory
         if: (steps.watch.outputs.covered == 'false' || inputs.force == true) && steps.seen.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .player-seen
           key: player-announced-${{ steps.watch.outputs.hash }}${{ inputs.force == true && format('-test-{0}', github.run_id) || '' }}
