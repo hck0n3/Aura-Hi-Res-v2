@@ -166,8 +166,8 @@ class SmartQueueNoRepeatGuardTest {
 
         // 30 s tick, shutdown/reboot and onDestroy: each save comes BEFORE the «Cola persistente» gate.
         assertTrue(service.contains("saveNoRepeatMemory()\n                if (dataStore.getNonBlocking(PersistentQueueKey, true) && queueDirty) {"))
-        assertTrue(service.contains("runCatching { saveNoRepeatMemory(synchronous = true) }\n                    if (!dataStore.get(PersistentQueueKey, true)) return"))
-        assertTrue(service.contains("runCatching { saveNoRepeatMemory(synchronous = true) }\n        if (dataStore.get(PersistentQueueKey, true)) {"))
+        assertTrue(service.contains("runCatching { saveNoRepeatMemory(synchronous = true) }\n                    if (!dataStore.getNonBlocking(PersistentQueueKey, true)) return"))
+        assertTrue(service.contains("runCatching { saveNoRepeatMemory(synchronous = true) }\n        if (dataStore.getNonBlocking(PersistentQueueKey, true)) {"))
         assertFalse("the memory is not written inside the queue save", body(service, "private fun saveQueueToDisk(").contains("PERSISTENT_NO_REPEAT_FILE"))
     }
 

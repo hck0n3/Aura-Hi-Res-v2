@@ -1925,7 +1925,7 @@ class MusicService :
             if (echoRoute) lastRouteConnectedAtMs = System.currentTimeMillis()
 
             if (hasPlaybackRoute) {
-                val settingResume = dataStore.get(ResumeOnBluetoothConnectKey, false)
+                val settingResume = dataStore.getNonBlocking(ResumeOnBluetoothConnectKey, false)
                 val autoNoisyResume = autoSession && pausedByNoisy &&
                     System.currentTimeMillis() - pausedByNoisyAtMs <= 45_000L
                 // A pause the user chose is never undone by a device connecting (registry 422).
@@ -1989,8 +1989,9 @@ class MusicService :
                 Intent.ACTION_SHUTDOWN,
                 Intent.ACTION_REBOOT,
                 -> {
+                    // Registry 764: main thread; the process snapshot is exact (blocking read only before its first emission).
                     runCatching { saveNoRepeatMemory(synchronous = true) }
-                    if (!dataStore.get(PersistentQueueKey, true)) return
+                    if (!dataStore.getNonBlocking(PersistentQueueKey, true)) return
                     runCatching { saveQueueToDisk(synchronous = true) }
                     runCatching { savePlaybackPositionToDiskSynchronous() }
                 }
@@ -3175,7 +3176,9 @@ class MusicService :
             everPlayedIds()
             everPlayedKeys()
         }
-        if (dataStore.get(PersistentQueueKey, true)) {
+        // Registry 764: not persistentQueueHint — its collector has not emitted yet here, and a default of true would
+        // restore a queue the user turned off. The snapshot is exact (blocking read only before its first emission).
+        if (dataStore.getNonBlocking(PersistentQueueKey, true)) {
             val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
             if (queueFile.exists()) {
                 runCatching {
@@ -7879,7 +7882,7 @@ class MusicService :
             // Stop the periodic wake-ups while paused/idle and save the position once so nothing is lost.
             periodicPersistJob?.cancel()
             periodicPersistJob = null
-            if (dataStore.get(PersistentQueueKey, true)) {
+            if (persistentQueueHint) {
                 // Same dirty split every other writer uses. This was the one UNGATED position write left:
                 // pause right after a queue mutation and the position file described a timeline the queue
                 // file did not have yet — and while PAUSED nothing else flushes for up to 30 s, so a kill
@@ -8023,7 +8026,7 @@ class MusicService :
                 }
                 podcast?.let { (id, pos, dur) -> runCatching { podcastProgressStore.save(id, pos, dur) } }
                 // Persist queue position every other tick (~10s) so a mid-song kill resumes in place.
-                if (tick % 2 == 0 && dataStore.get(PersistentQueueKey, true)) {
+                if (tick % 2 == 0 && persistentQueueHint) {
                     val ok = withContext(Dispatchers.Main) { player.isPlaying && player.mediaItemCount > 0 }
                     if (ok) {
                         // COHERENCE: while queueDirty the queue FILE still describes the OLD timeline, so a
@@ -8096,7 +8099,7 @@ class MusicService :
         }
 
         
-        if (dataStore.get(PersistentQueueKey, true) && !isSilenceSkipping) {
+        if (persistentQueueHint && !isSilenceSkipping) {
             // Full triple-graph serialization ONLY when the queue content actually changed (queueDirty =
             // any timeline mutation). Plain state flips (BUFFERING→READY fires ≥1× per song) re-wrote the
             // ENTIRE queue to flash each time — on big radio queues that was megabytes per song of pure
@@ -8321,7 +8324,7 @@ class MusicService :
         }
 
 
-        if (dataStore.get(PersistentQueueKey, true)) {
+        if (persistentQueueHint) {
             saveQueueToDisk()
         }
     }
@@ -8448,7 +8451,7 @@ class MusicService :
         }
 
         
-        if (dataStore.get(PersistentQueueKey, true)) {
+        if (persistentQueueHint) {
             saveQueueToDisk()
         }
     }
@@ -11456,8 +11459,9 @@ class MusicService :
         }
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         castConnectionHandler?.release()
+        // Registry 764: same exact non-blocking read as the shutdown receiver.
         runCatching { saveNoRepeatMemory(synchronous = true) }
-        if (dataStore.get(PersistentQueueKey, true)) {
+        if (dataStore.getNonBlocking(PersistentQueueKey, true)) {
             saveQueueToDisk(synchronous = true)
         }
         if (discordRpc?.isRpcRunning() == true) {
