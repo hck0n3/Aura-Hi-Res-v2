@@ -6898,6 +6898,16 @@ class MusicService :
         )
         queueTitle = title
         rememberQueuedItems(items)
+        // Registry 765 (row 656's pending note): the previous collection's seeds and style steering must not drive this
+        // queue's continuation either — the same reset adoptExternalQueue does. With an empty pool the continuation seeds
+        // from the song playing, which belongs to the new queue.
+        radioSeedPool = emptyList()
+        radioSeedTitle = null
+        radioAnchorId = null
+        radioAnchorMetadata = null
+        contextProfile = null
+        contextSteerActive = false
+        exactStyle.resetForNewQueue()
     }
 
     /**
