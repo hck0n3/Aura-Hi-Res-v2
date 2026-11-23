@@ -341,7 +341,7 @@ fun AddToPlaylistDialog(
                             } else {
                                 onDismiss()
                                 database.addSongToPlaylist(playlist, songIds!!)
-                                confirmAddedToPlaylist(context, playlist.playlist.name)
+                                if (songIds!!.isNotEmpty()) confirmAddedToPlaylist(context, playlist.playlist.name)
 
                                 playlist.playlist.browseId?.let { plist ->
                                     songIds?.forEach {

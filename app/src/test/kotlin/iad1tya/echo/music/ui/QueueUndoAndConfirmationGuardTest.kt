@@ -70,7 +70,8 @@ class QueueUndoAndConfirmationGuardTest {
     @Test
     fun `adding to a list confirms with the list's name, only when something was added`() {
         val dialog = main("ui/menu/AddToPlaylistDialog.kt")
-        assertTrue(dialog.contains("database.addSongToPlaylist(playlist, songIds!!)\n                                confirmAddedToPlaylist(context, playlist.playlist.name)"))
+        // Several callers hand back an empty list when they have nothing to add (offline, unresolved song): no «Añadido».
+        assertTrue(dialog.contains("database.addSongToPlaylist(playlist, songIds!!)\n                                if (songIds!!.isNotEmpty()) confirmAddedToPlaylist(context, playlist.playlist.name)"))
         assertTrue(dialog.contains("if (addedIds.isNotEmpty()) confirmAddedToPlaylist(context, playlist.playlist.name)"))
         assertTrue(Regex("""confirmAddedToPlaylist\(context, playlist\.playlist\.name\)""").findAll(dialog).count() == 3)
         val online = main("ui/menu/AddToPlaylistDialogOnline.kt")
