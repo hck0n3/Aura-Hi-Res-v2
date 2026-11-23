@@ -25,4 +25,20 @@ class ListPerformanceGuardTest {
         assertTrue(tick.contains("val download by downloadFlow.collectAsState(initial = null)"))
         assertFalse(tick.contains("getDownload(songId).collectAsState("))
     }
+
+    @Test
+    fun `home load-more is single-flight and appends a continuation only once`() {
+        val loadMore = main("viewmodels/HomeViewModel.kt")
+            .substringAfter("fun loadMoreYouTubeItems(continuation: String?) {")
+            .substringBefore("fun toggleChip(")
+        // The flag is taken on the caller thread, before the coroutine starts.
+        val claim = loadMore.indexOf("if (!_isLoadingMore.compareAndSet(expect = false, update = true)) return")
+        assertTrue(claim >= 0)
+        assertTrue(claim < loadMore.indexOf("viewModelScope.launch(Dispatchers.IO)"))
+        // A stale continuation (already appended, or a page that was replaced) is ignored before and after the fetch.
+        assertTrue(loadMore.contains("if (continuation == null || homePage.value?.continuation != continuation) return"))
+        assertTrue(loadMore.contains("if (homePage.value?.continuation != continuation) return@launch"))
+        assertTrue(loadMore.substringAfter("} finally {").trimStart().startsWith("_isLoadingMore.value = false"))
+        assertFalse(loadMore.contains("_isLoadingMore.value = true"))
+    }
 }
