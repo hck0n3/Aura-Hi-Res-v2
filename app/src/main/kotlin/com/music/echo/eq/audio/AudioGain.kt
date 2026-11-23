@@ -81,10 +81,14 @@ fun loudnessMakeupDb(
 const val DEFAULT_UNKNOWN_LOUDNESS_DB: Double = 7.0
 
 /**
- * The loudness value (dB vs reference) to normalize a track by: the real [loudnessDb] if present, else
- * [perceptualLoudnessDb], else the once-[measuredLoudnessDb] (measured at playback for metadata-less
- * tracks and cached), else [DEFAULT_UNKNOWN_LOUDNESS_DB]. Ensures EVERY track is normalized (none plays
- * at its raw, un-leveled volume), and a track WE measured levels to the same reference as metadata ones.
+ * The loudness value (dB vs reference) to normalize a track by: the real [loudnessDb] if present (for a
+ * local file, its ReplayGain tag — rows 724-725), else [perceptualLoudnessDb], else [measuredLoudnessDb],
+ * else [DEFAULT_UNKNOWN_LOUDNESS_DB]. Ensures EVERY track is normalized (none plays at its raw, un-leveled
+ * volume).
+ *
+ * [measuredLoudnessDb] is the `format.measuredLoudnessDb` column. Nothing in the app measures loudness
+ * (the playback-time measurer, `NormalizationGainAudioProcessor`, is an inert stub, and its dead reader in
+ * MusicService was removed — row 791), so it is normally null; a value already stored there is still read.
  */
 fun effectiveLoudnessDb(
     loudnessDb: Double?,
@@ -103,20 +107,6 @@ fun isPlayingLoudnessFrozen(playingId: String?, lockedId: String?): Boolean =
 
 /** Linear amplitude multiplier for a dB gain (e.g. -6 dB → 0.501, +6 dB → 1.995). */
 fun dbToLinear(db: Double): Float = 10.0.pow(db / 20.0).toFloat()
-
-/**
- * Attenuate Safe Volume gain when the EQ preamp is positive so boosted masters do not saturate the
- * limiter (raspy voice at high preamp + Safe Volume ON).
- */
-fun safeVolumeGainWithEqPreamp(
-    baseGainLinear: Float,
-    preampDb: Double,
-    preampFactor: Double = 0.75,
-): Float {
-    if (baseGainLinear <= 1f || preampDb <= 0.0) return baseGainLinear
-    val trim = dbToLinear(kotlin.math.max(0.0, preampDb) * preampFactor)
-    return (baseGainLinear / trim).coerceIn(0f, baseGainLinear)
-}
 
 /**
  * Makeup (dB, >= 0) that cancels the EQ's *auto*-headroom attenuation downstream, so boosting bands
