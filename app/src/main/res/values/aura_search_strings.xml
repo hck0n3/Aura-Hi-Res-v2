@@ -29,4 +29,5 @@
     <string name="aura_pane_added_next">Will play next</string>
     <string name="aura_pane_added_queue">Added to queue</string>
     <string name="aura_pane_dislike_done">Will not be recommended</string>
+    <string name="aura_trending_loading_item">Loading %1$s...</string>
 </resources>
