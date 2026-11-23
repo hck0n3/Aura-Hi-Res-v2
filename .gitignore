@@ -274,3 +274,6 @@ Aura-Hi-Res-v2-NOSUB*.zip
 .settings/
 .factorypath
 .aider*
+
+# Python bytecode from local script tests
+__pycache__/
