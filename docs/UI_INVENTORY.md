@@ -320,19 +320,20 @@ Con `-Pnosub=true` la puerta se salta entera (`license/LicenseGate.kt:21-24`).
 |---|---|---|---|---|---|
 | «Verificando licencia…» | Carga a pantalla completa | `license/LicenseScreens.kt:187` | informativo | rara | primera ejecución, sin estado cacheado |
 | «Bienvenido» / «Tu prueba terminó» *(subtítulo)* | Activación | `license/LicenseScreens.kt:200` | informativo | rara | según sea `FIRST_RUN` o `DEMO_EXPIRED` |
-| «Prueba gratis 3 días o activa tu suscripción.» / «Tu demo de 3 días terminó…» | Activación | `license/LicenseScreens.kt:204` / `:202` | informativo | rara | igual |
+| «Prueba gratis 3 días, sin tarjeta y sin cobros automáticos. Después…» / «Tu demo de 3 días terminó. Para seguir usando Aura…» | Activación | `license/LicenseScreens.kt:265` / `:263` | informativo | rara | igual |
 | **«Ya me suscribí»** | Activación | `license/LicenseScreens.kt:207` | acción primaria | rara | siempre en esta pantalla |
 | **«Probar gratis (3 días)»** | Activación | `license/LicenseScreens.kt:210-214` | acción primaria | rara | **solo en `FIRST_RUN`** |
 | «Activar suscripción» + explicación | Alta de suscripción | `license/LicenseScreens.kt:282-283` | informativo | rara | siempre |
 | **Clave de licencia** *(campo, teclado en mayúsculas)* | Alta de suscripción | `license/LicenseScreens.kt:290-291` | acción primaria | rara | siempre |
 | **«Activar»** / «Verificando…» | Alta de suscripción | `license/LicenseScreens.kt:302-307` | acción primaria | rara | habilitado solo con la clave escrita |
-| **«Suscribirme por $3.74/mes»** *(abre Gumroad en Chrome Custom Tab)* | Alta de suscripción | `license/LicenseScreens.kt:309-313` | acción primaria | rara | siempre |
+| **«Suscribirme: US$3.74 al mes + impuestos»** *(abre Gumroad en Chrome Custom Tab)* | Alta de suscripción | `license/LicenseScreens.kt:309-313` | acción primaria | rara | siempre |
+| «Se renueva sola cada mes hasta que la canceles (en Gumroad o escribiendo a aurahires@gmail.com)… No hay reembolsos.» *(nota bajo el botón)* | Alta de suscripción | `license/LicenseScreens.kt:419` | informativo | rara | siempre |
 | **«Volver»** | Alta de suscripción | `license/LicenseScreens.kt:323` | navegación | rara | siempre |
 | «Licencia detectada, activando…» | Alta de suscripción | `license/LicenseScreens.kt:272` | informativo | rara | al volver a la app con una clave en el portapapeles |
 | Mensajes de error: cancelada/vencida, clave en otro equipo, clave inválida, sin conexión | Alta de suscripción | `license/LicenseScreens.kt:243`, `:247`, `:251`, `:255` | informativo | rara | según el resultado |
-| «Suscripción vencida» + **«Renovar en Gumroad»** + **«Ya pagué, reintentar»** | Renovación | `license/LicenseScreens.kt:335`, `:342`, `:344-358` | acción primaria | rara | solo `SUBSCRIPTION_EXPIRED` |
+| «Suscripción vencida» + «Tu suscripción mensual no está activa. Renuévala para seguir usando Aura…» (`:439`) + **«Renovar en Gumroad»** + **«Ya pagué, reintentar»** | Renovación | `license/LicenseScreens.kt:335`, `:342`, `:344-358` | acción primaria | rara | solo `SUBSCRIPTION_EXPIRED` |
 | «Conéctate a internet» + **«Reintentar»** | Sin conexión | `license/LicenseScreens.kt:365-368` | acción primaria | rara | solo `NEEDS_CONNECTION` |
-| «Suscripción en otro equipo» + **«Reintentar»** + **«Suscribirme ($3.74/mes)»** | Equipo bloqueado | `license/LicenseScreens.kt:376-386` | acción primaria | rara | solo `DEVICE_BLOCKED` |
+| «Suscripción en otro equipo» + **«Reintentar»** + **«Suscribirme (US$3.74 al mes, renovación automática)»** | Equipo bloqueado | `license/LicenseScreens.kt:376-386` | acción primaria | rara | solo `DEVICE_BLOCKED` |
 
 ## 1.12 Onboarding (4 pasos, todo hardcoded en español)
 
@@ -2459,7 +2460,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/license/LicenseScreens.kt` (invocad
 |---|---|---|---|---|---|
 | Clave de licencia (campo de texto) (hardcoded) | Ajustes > Suscripción Pro | LicenseScreens.kt:285 | acción secundaria | rara | siempre (dentro de la sub-pantalla) |
 | Activar / «Verificando…» (hardcoded) | Ajustes > Suscripción Pro | LicenseScreens.kt:302 | acción primaria | rara | habilitado solo si `!loading && key.isNotBlank()` |
-| Suscribirme por $X/mes (hardcoded) | Ajustes > Suscripción Pro | LicenseScreens.kt:309 | acción primaria | rara | siempre |
+| Suscribirme: US$3.74 al mes + impuestos (hardcoded) | Ajustes > Suscripción Pro | LicenseScreens.kt:309 | acción primaria | rara | siempre |
 | Volver (hardcoded) | Ajustes > Suscripción Pro | LicenseScreens.kt:323 | navegación | rara | siempre |
 | Autodetección de clave desde el portapapeles al volver a la app | Ajustes > Suscripción Pro | LicenseScreens.kt:264 | acción automática (informativo) | rara | ON_RESUME y clave detectada distinta a la ya probada |
 

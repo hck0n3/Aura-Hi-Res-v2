@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -67,7 +68,7 @@ import kotlinx.coroutines.launch
  * so the price a paying customer saw depended on which screen they happened to reach. Anything that
  * shows the price must read this constant, and it must match the actual Gumroad product.
  */
-const val SUBSCRIPTION_PRICE = "$3.74"
+const val SUBSCRIPTION_PRICE = "US$3.74"
 
 private const val GUMROAD_URL = "https://toberto.gumroad.com/l/JR-MUSIC-PRO-OFFICIAL"
 
@@ -211,7 +212,7 @@ private fun SecondaryOutlinedButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.fillMaxWidth().height(height),
+        modifier = Modifier.fillMaxWidth().heightIn(min = height),
         shape = AuraShapes.Card,
         border = BorderStroke(1.dp, AuraPalette.SurfaceLine),
         colors = ButtonDefaults.outlinedButtonColors(
@@ -223,6 +224,7 @@ private fun SecondaryOutlinedButton(
             text,
             fontWeight = if (semiBold) FontWeight.SemiBold else FontWeight.Bold,
             fontSize = 16.sp,
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -258,9 +260,9 @@ fun ActivationPromptScreen(
     LicenseScaffold(
         subtitle = if (demoExpired) "Tu prueba terminó" else "Bienvenido",
         hint = if (demoExpired) {
-            "Tu demo de 3 días terminó. Suscríbete para seguir disfrutando de toda la música."
+            "Tu demo de 3 días terminó. Para seguir usando Aura necesitas una suscripción mensual. El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial."
         } else {
-            "Prueba gratis 3 días o activa tu suscripción."
+            "Prueba gratis 3 días, sin tarjeta y sin cobros automáticos. Después, para seguir usando Aura necesitas una suscripción mensual."
         },
     ) {
         PrimaryButton("Ya me suscribí", onClick = onHaveSubscription)
@@ -407,14 +409,14 @@ fun SubscriptionEntryScreen(
         }
         Spacer(Modifier.height(12.dp))
         SecondaryOutlinedButton(
-            text = "Suscribirme por $SUBSCRIPTION_PRICE/mes",
+            text = "Suscribirme: $SUBSCRIPTION_PRICE al mes + impuestos",
             height = 48.dp,
             semiBold = true,
             onClick = { openGumroad(context) },
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Al suscribirte recibes tu licencia para seguir disfrutando de la experiencia.",
+            text = "Se renueva sola cada mes hasta que la canceles (en Gumroad o escribiendo a aurahires@gmail.com). El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial. No hay reembolsos.",
             color = AuraPalette.OnGroundMuted,
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
@@ -434,7 +436,7 @@ fun RenewScreen(onActivated: () -> Unit) {
 
     LicenseScaffold(
         subtitle = "Suscripción vencida",
-        hint = "Tu suscripción mensual no está activa. Renueva el pago para seguir escuchando.",
+        hint = "Tu suscripción mensual no está activa. Renuévala para seguir usando Aura. El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial.",
     ) {
         status?.let {
             StatusCard(it, Color(0xFFFFB74D))
@@ -483,7 +485,7 @@ fun DeviceBlockedScreen(onRetry: () -> Unit, onEnterEmail: () -> Unit = {}) {
         SecondaryOutlinedButton("Reintentar", onClick = onRetry)
         Spacer(Modifier.height(12.dp))
         SecondaryOutlinedButton(
-            text = "Suscribirme ($SUBSCRIPTION_PRICE/mes)",
+            text = "Suscribirme ($SUBSCRIPTION_PRICE al mes, renovación automática)",
             height = 48.dp,
             semiBold = true,
             onClick = { openGumroad(context) },
