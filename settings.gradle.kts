@@ -34,6 +34,10 @@ include(":artistvideo")
 include(":applecanvas")
 include(":paxsenixlyrics")
 include(":unison")
+// Emulator smoke tests (docs/QA_EMULATOR.md): only when a build asks for them, so no other build ever configures it.
+if (providers.gradleProperty("auraEmulatorSmoke").orNull == "true") {
+    include(":smoketest")
+}
 
 
 // Use a local copy of NewPipe Extractor by uncommenting the lines below.

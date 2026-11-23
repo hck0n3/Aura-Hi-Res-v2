@@ -1,0 +1,148 @@
+import os
+import sqlite3
+import tempfile
+import unittest
+import wave
+
+import smoke_tools as st
+
+PKG = "iad1tya.aura.music.dev.debug"
+
+
+class ToneTest(unittest.TestCase):
+    def test_tone_is_a_mono_16bit_wav_of_the_asked_length(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, st.TONE_NAME)
+            frames = st.write_tone(path, seconds=2, rate=8000)
+            with wave.open(path) as w:
+                self.assertEqual(w.getnchannels(), 1)
+                self.assertEqual(w.getsampwidth(), 2)
+                self.assertEqual(w.getframerate(), 8000)
+                self.assertEqual(w.getnframes(), frames)
+                self.assertEqual(frames, 16000)
+                self.assertNotEqual(w.readframes(100), b"\x00" * 200)
+
+
+class InstrumentTest(unittest.TestCase):
+    def test_ok_line_passes(self):
+        out = "INSTRUMENTATION_STATUS_CODE: 1\n.\nTime: 12.3\n\nOK (1 test)\n\n"
+        self.assertEqual(st.instrument_passed(out), (True, "OK (1)"))
+        self.assertTrue(st.instrument_passed("Time: 1\n\nOK (3 tests)\n")[0])
+
+    def test_zero_tests_is_a_failure_not_a_pass(self):
+        passed, reason = st.instrument_passed("Time: 0.01\n\nOK (0 tests)\n")
+        self.assertFalse(passed)
+        self.assertIn("zero tests", reason)
+
+    def test_failures_crashes_and_unfinished_runs_fail(self):
+        self.assertFalse(st.instrument_passed("FAILURES!!!\nTests run: 1,  Failures: 1\n")[0])
+        self.assertFalse(st.instrument_passed("INSTRUMENTATION_RESULT: shortMsg=Process crashed.\n")[0])
+        self.assertFalse(st.instrument_passed("INSTRUMENTATION_FAILED: x/y\n")[0])
+        self.assertFalse(st.instrument_passed("INSTRUMENTATION_STATUS: test=a\n")[0])
+
+
+class LogcatTest(unittest.TestCase):
+    def test_finds_app_crashes_and_anrs_only(self):
+        text = "\n".join([
+            "11-23 12:00:00.000  100  100 E AndroidRuntime: FATAL EXCEPTION: main",
+            "11-23 12:00:00.000  100  100 E AndroidRuntime: Process: %s, PID: 100" % PKG,
+            "11-23 12:00:01.000  200  200 E AndroidRuntime: Process: com.android.systemui, PID: 200",
+            "11-23 12:00:02.000  300  300 E ActivityManager: ANR in %s (%s/iad1tya.echo.music.MainActivity)" % (PKG, PKG),
+            "11-23 12:00:03.000  300  300 E ActivityManager: ANR in com.android.systemui",
+            "11-23 12:00:04.000  400  400 E AndroidRuntime: Process: %s:crash, PID: 400" % PKG,
+            "11-23 12:00:05.000  500  500 F DEBUG   : pid: 500, tid: 500, name: x  >>> %s <<<" % PKG,
+            "11-23 12:00:06.000  600  600 E AndroidRuntime: Process: %s.other, PID: 600" % PKG,
+        ])
+        hits = st.crash_lines(text, PKG)
+        self.assertEqual(len(hits), 4)
+        self.assertFalse(any("systemui" in h for h in hits))
+        self.assertFalse(any(".other" in h for h in hits))
+
+    def test_clean_logcat_has_no_hits(self):
+        self.assertEqual(st.crash_lines("I ActivityManager: Start proc 1:%s/u0a1" % PKG, PKG), [])
+
+
+class DbTest(unittest.TestCase):
+    def _db(self, d, names, version=45):
+        con = sqlite3.connect(os.path.join(d, "song.db"))
+        con.execute("CREATE TABLE playlist (id TEXT PRIMARY KEY, name TEXT NOT NULL)")
+        for i, n in enumerate(names):
+            con.execute("INSERT INTO playlist VALUES (?, ?)", ("LP%d" % i, n))
+        con.execute("PRAGMA user_version = %d" % version)
+        con.commit()
+        con.close()
+
+    def test_reports_the_playlist_and_version(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._db(d, ["Aura smoke playlist", "Other"])
+            with open(os.path.join(d, "song.db-shm"), "wb") as f:
+                f.write(b"stale")
+            r = st.db_report(d, "Aura smoke playlist")
+            self.assertTrue(r["ok"])
+            self.assertEqual(r["user_version"], 45)
+            self.assertEqual(r["playlists"], 2)
+            self.assertFalse(os.path.exists(os.path.join(d, "song.db-shm")))
+
+    def test_expected_version_must_match(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._db(d, ["Aura smoke playlist"], version=44)
+            self.assertFalse(st.db_report(d, "Aura smoke playlist", expect_version=45)["ok"])
+            self.assertTrue(st.db_report(d, "Aura smoke playlist", expect_version=44)["ok"])
+
+    def test_room_version_is_read_from_the_real_database_class(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(here, "..", "..", "app", "src", "main", "kotlin", "com", "music", "echo", "db", "MusicDatabase.kt")
+        with open(path, encoding="utf-8") as f:
+            version = st.room_version(f.read())
+        self.assertIsNotNone(version)
+        self.assertGreaterEqual(version, 45)
+        self.assertIsNone(st.room_version("val x = 1"))
+
+    def test_missing_playlist_or_database_is_not_ok(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertFalse(st.db_report(d, "x")["ok"])
+            self._db(d, ["Other"])
+            self.assertFalse(st.db_report(d, "Aura smoke playlist")["ok"])
+
+
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+
+
+def _read(*parts):
+    with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
+        return f.read()
+
+
+class AppLiteralsTest(unittest.TestCase):
+    """What the smoke APK (smoketest/) looks for in the app. Fails here, in seconds, instead of on the emulator."""
+
+    def test_package_and_components(self):
+        gradle = _read("app", "build.gradle.kts")
+        self.assertIn('"iad1tya.aura.music.dev"', gradle)
+        self.assertIn('applicationIdSuffix = ".debug"', gradle)
+        manifest = _read("app", "src", "main", "AndroidManifest.xml")
+        self.assertIn('android:name=".MainActivityAlias"', manifest)
+        self.assertIn('android:name=".playback.MusicService"', manifest)
+        self.assertRegex(manifest, r'android:name="\.MainActivity"\s+android:exported="true"')
+        self.assertIn('namespace = "iad1tya.echo.music"', gradle)
+
+    def test_hard_coded_first_run_and_settings_texts(self):
+        screens = ("app", "src", "main", "kotlin", "com", "music", "echo", "ui", "screens")
+        self.assertIn('Text("Omitir")', _read(*screens, "OnboardingArtistsScreen.kt"))
+        self.assertIn('Text("Omitir")', _read(*screens, "OnboardingGenresScreen.kt"))
+        self.assertIn('Text("Siguiente: YouTube Music")', _read(*screens, "OnboardingSpotifyScreen.kt"))
+        self.assertIn('Text("Comenzar")', _read(*screens, "OnboardingYouTubeScreen.kt"))
+        self.assertIn('"Omitir"', _read(*screens, "WelcomeDialog.kt"))
+        self.assertIn('Text("Ajustes")', _read(*screens, "SettingDialoge.kt"))
+
+    def test_string_resources_exist(self):
+        values = os.path.join(ROOT, "app", "src", "main", "res", "values")
+        text = "".join(_read("app", "src", "main", "res", "values", n) for n in sorted(os.listdir(values)) if n.endswith(".xml"))
+        for name in ["home", "filter_library", "search", "tab_novedades", "account", "appearance", "filter_local",
+                     "local_songs_empty_scan_action", "local_songs_scan_title", "scan_device", "scanning_device",
+                     "open_links_prompt_later", "create_playlist", "filter_playlists"]:
+            self.assertIn('<string name="%s">' % name, text, name)
+
+
+if __name__ == "__main__":
+    unittest.main()
