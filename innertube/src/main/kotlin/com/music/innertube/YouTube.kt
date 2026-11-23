@@ -361,7 +361,10 @@ object YouTube {
                     ?.mapNotNull(NewReleaseAlbumPage::fromMusicTwoRowItemRenderer)
                     .orEmpty(),
                 description = description,
-                descriptionRuns = descriptionRuns
+                descriptionRuns = descriptionRuns,
+                typeText = AlbumPage.getTypeText(
+                    response.contents.twoColumnBrowseResultsRenderer.tabs.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()?.musicResponsiveHeaderRenderer,
+                ),
             )
         }
     }

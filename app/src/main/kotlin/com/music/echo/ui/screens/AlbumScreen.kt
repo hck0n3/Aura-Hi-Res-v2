@@ -175,6 +175,7 @@ fun AlbumScreen(
     val hasFailed by viewModel.hasFailed.collectAsState()
     val notFound by viewModel.notFound.collectAsState()
     val radarType by viewModel.radarType.collectAsState()
+    val youTubeType by viewModel.youTubeType.collectAsState()
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
     // DATA SAVER: hide video songs (heavier streams) and turn the album canvas off while the switch
     // is ON; both user prefs stay persisted and come back untouched when it goes OFF.
@@ -364,7 +365,7 @@ fun AlbumScreen(
                             append(
                                 stringResource(
                                     iad1tya.echo.music.ui.newui.albumTypeLabelRes(
-                                        iad1tya.echo.music.ui.newui.albumReleaseType(albumWithSongs, radarType),
+                                        iad1tya.echo.music.ui.newui.albumReleaseType(albumWithSongs, radarType, youTubeType),
                                     ),
                                 ),
                             )
@@ -702,7 +703,7 @@ fun AlbumScreen(
 
                     val staticDescription = iad1tya.echo.music.ui.newui.albumStaticDescription(
                         albumWithSongs,
-                        iad1tya.echo.music.ui.newui.albumReleaseType(albumWithSongs, radarType),
+                        iad1tya.echo.music.ui.newui.albumReleaseType(albumWithSongs, radarType, youTubeType),
                     )
 
                     Column(

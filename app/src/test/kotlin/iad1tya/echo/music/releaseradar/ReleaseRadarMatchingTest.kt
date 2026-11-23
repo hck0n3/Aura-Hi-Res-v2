@@ -63,6 +63,38 @@ class ReleaseRadarMatchingTest {
         // Card order (auraContentKind): a «Single» title beats a stored EP.
         assertEquals(m.TYPE_SINGLE, m.albumPageType(m.TYPE_EP, 4, "Song (Single)"))
     }
+    @Test fun youTubeHeaderTypeReadsKnownEnglishAndSpanishWordsOnly() {
+        val m = ReleaseRadarMatching
+        // Header subtitle first run (AlbumPage.typeText), as sent for hl=en / hl=es.
+        assertEquals(m.TYPE_SINGLE, m.youTubeHeaderType("Single"))
+        assertEquals(m.TYPE_SINGLE, m.youTubeHeaderType("Sencillo"))
+        assertEquals(m.TYPE_SINGLE, m.youTubeHeaderType(" single "))
+        assertEquals(m.TYPE_EP, m.youTubeHeaderType("EP"))
+        // An album, another language, a bare year or nothing: no type, today's logic decides.
+        assertEquals(null, m.youTubeHeaderType("Album"))
+        assertEquals(null, m.youTubeHeaderType("Álbum"))
+        assertEquals(null, m.youTubeHeaderType("Singolo"))
+        assertEquals(null, m.youTubeHeaderType("2024"))
+        assertEquals(null, m.youTubeHeaderType(null))
+    }
+    @Test fun youTubeHeaderTypeFillsOnlyTheRadarGapOnThePage() {
+        val m = ReleaseRadarMatching
+        val single = m.youTubeHeaderType("Single")
+        val ep = m.youTubeHeaderType("EP")
+        // YouTube-only release (no type, or the old «Release»), 2-6 tracks, no word in the title.
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(null, 3, "Record", single))
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(m.TYPE_UNKNOWN, 2, "Record", single))
+        assertEquals(m.TYPE_EP, m.albumPageType(null, 5, "Record", ep))
+        assertEquals(m.TYPE_EP, m.albumPageType(m.TYPE_UNKNOWN, 6, "Record", ep))
+        assertEquals(m.TYPE_ALBUM, m.albumPageType(null, 5, "Record", m.youTubeHeaderType("Album")))
+        // The radar's own type (Spotify) and the title words still win.
+        assertEquals(m.TYPE_ALBUM, m.albumPageType(m.TYPE_ALBUM, 3, "Record", single))
+        assertEquals(m.TYPE_ALBUM, m.albumPageType(m.TYPE_COMPILATION, 3, "Record", ep))
+        assertEquals(m.TYPE_EP, m.albumPageType(m.TYPE_EP, 4, "Record", single))
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(null, 4, "Song (Single)", ep))
+        // One track is a single whatever YouTube says.
+        assertEquals(m.TYPE_SINGLE, m.albumPageType(null, 1, "Record", ep))
+    }
     @Test fun windowFiltersOld() {
         val ref = LocalDate.of(2026, 6, 12)
         assertTrue(ReleaseRadarMatching.isWithinWindow(LocalDate.of(2026, 6, 10), ref, days = 7))

@@ -19,6 +19,8 @@ data class AlbumPage(
     val releasesForYou: List<AlbumItem> = emptyList(),
     val description: String? = null,
     val descriptionRuns: List<com.music.innertube.models.Run>? = null,
+    /** The header subtitle's first run: the release type as YouTube words it in the request's `hl` («Single», «EP», «Album»…). */
+    val typeText: String? = null,
 ) {
     companion object {
         fun getPlaylistId(response: BrowseResponse): String? {
@@ -40,6 +42,9 @@ data class AlbumPage(
             val title = getHeader(response)?.subtitle ?: response.header?.musicDetailHeaderRenderer?.subtitle
             return title?.runs?.lastOrNull()?.text?.toIntOrNull()
         }
+
+        fun getTypeText(header: MusicResponsiveHeaderRenderer?): String? =
+            header?.subtitle?.runs?.firstOrNull()?.text
 
         fun getThumbnail(response: BrowseResponse): String? {
             return response.background?.musicThumbnailRenderer?.getThumbnailUrl() ?: response.header?.musicDetailHeaderRenderer?.thumbnail

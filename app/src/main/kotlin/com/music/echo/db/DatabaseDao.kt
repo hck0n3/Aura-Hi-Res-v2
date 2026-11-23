@@ -2427,6 +2427,10 @@ interface DatabaseDao {
     @Query("UPDATE release_radar SET type = 'single' WHERE playId = :albumId AND type != 'single'")
     suspend fun markRadarReleaseSingle(albumId: String)
 
+    /** Row 726: YouTube's album-page type fills a radar row that has none (`Release`); a known type is never changed. */
+    @Query("UPDATE release_radar SET type = :type WHERE playId = :albumId AND type = 'Release'")
+    suspend fun fillRadarReleaseType(albumId: String, type: String)
+
     /** Releases first seen on/after [since] (the current Friday weekly-window start), newest first. */
     @Query("SELECT * FROM release_radar WHERE fetchedAt >= :since ORDER BY releaseDate DESC")
     fun releasesSince(since: LocalDateTime): Flow<List<ReleaseRadarItem>>
