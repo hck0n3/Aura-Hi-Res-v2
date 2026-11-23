@@ -1830,6 +1830,44 @@ class MusicService :
         }
     }
 
+    /** One INFO line per AudioTrack media3 opens, on every player (`AudioTrackDiagnostics`): no song or user data. */
+    private val audioTrackDiagnosticsListener = object : AnalyticsListener {
+        override fun onAudioTrackInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            audioTrackConfig: androidx.media3.exoplayer.audio.AudioSink.AudioTrackConfig,
+        ) {
+            Timber.tag(TAG).i(
+                iad1tya.echo.music.playback.audio.AudioTrackDiagnostics.line(
+                    encoding = audioTrackConfig.encoding,
+                    sampleRate = audioTrackConfig.sampleRate,
+                    channelConfig = audioTrackConfig.channelConfig,
+                    offload = audioTrackConfig.offload,
+                    deviceType = routedOutputDeviceType(),
+                ),
+            )
+        }
+    }
+
+    /**
+     * The output for the AUDIO_TRACK line: the device picked in [setPreferredAudioDevice] while it is connected,
+     * else the platform's media route (API 33+). Null when neither is known.
+     */
+    private fun routedOutputDeviceType(): Int? = runCatching {
+        val preferred = preferredDeviceId?.let { id ->
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull { it.id == id }
+        }
+        when {
+            preferred != null -> preferred.type
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> audioManager.getAudioDevicesForAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build(),
+            ).firstOrNull()?.type
+            else -> null
+        }
+    }.getOrNull()
+
 
     internal var currentMediaIdRetryCount = mutableMapOf<String, Int>()
     internal val MAX_RETRY_PER_SONG = 3
@@ -3534,6 +3572,7 @@ class MusicService :
                 // play/pause button to "paused" until the swap landed. (Bug A-1)
                 if (!isSecondary) addListener(this@MusicService)
                 addAnalyticsListener(PlaybackStatsListener(false, this@MusicService))
+                addAnalyticsListener(audioTrackDiagnosticsListener)
                 // Debug-only video-swap latency probe (see videoSwapDebugListener). Registered on every
                 // player instance so it survives the crossfade publish of a new main player; it only logs
                 // while a measurement window is armed (videoSwapT0 != 0) and is absent on release builds.
