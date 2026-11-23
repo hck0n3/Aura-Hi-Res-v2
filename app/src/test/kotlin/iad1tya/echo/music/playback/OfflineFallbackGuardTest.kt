@@ -87,7 +87,7 @@ class OfflineFallbackGuardTest {
     /** Order: only a real CONNECTIVITY failure feeds the session, before the bounded retry. */
     @Test
     fun `connectivity failures with evidence continue with the offline queue`() {
-        val networkSession = onPlayerError.indexOf("PlaybackErrorClassifier.isConnectivityFailure(error) && noteOfflineConnectivityFailure() -> {")
+        val networkSession = onPlayerError.indexOf("PlaybackErrorClassifier.isConnectivityFailure(error) && noteOfflineConnectivityFailure(mediaId) -> {")
         val boundedRetry = onPlayerError.indexOf("PlaybackErrorClassifier.isNetworkRelatedError(error) -> {")
         val offline = onPlayerError.indexOf("!isNetworkConnected.value -> {")
         assertTrue(networkSession in 1 until offline)
@@ -95,12 +95,18 @@ class OfflineFallbackGuardTest {
         assertTrue(onPlayerError.substring(networkSession, offline).contains("continueWithOfflineQueue(stopIfNothing = false)"))
     }
 
-    /** C5: a YouTube-side "no stream" (resolver timeout, cipher, 429) is the unavailable-song verdict as before, never evidence. */
+    /**
+     * C5: a YouTube-side "no stream" (resolver timeout, cipher, 429) is the unavailable-song verdict as before, never
+     * evidence. Review 2026-11-23 (3): a "no stream" whose every client failed for lack of internet is NOT that verdict —
+     * the branch steps aside and it takes the connectivity branches.
+     */
     @Test
     fun `a no-stream failure never feeds the offline session`() {
-        val noStream = onPlayerError.substring(
-            onPlayerError.indexOf("PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value -> {"),
-        ).substringBefore("PlaybackErrorClassifier.isAudioRendererError(error) -> {")
+        val verdict = "PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value &&"
+        val verdictAt = onPlayerError.indexOf(verdict)
+        assertTrue(verdictAt > 0)
+        val noStream = onPlayerError.substring(verdictAt).substringBefore("PlaybackErrorClassifier.isAudioRendererError(error) -> {")
+        assertTrue(noStream.substringBefore("-> {").contains("!PlaybackErrorClassifier.isConnectivityFailure(error)"))
         assertFalse(noStream.contains("noteOffline"))
         assertFalse(onPlayerError.contains("offline_no_stream"))
         assertFalse("evidence is connectivity only", service.contains("validationLost"))
@@ -143,20 +149,26 @@ class OfflineFallbackGuardTest {
     @Test
     fun `every sign of a working network ends the session`() {
         assertTrue(service.contains("if (validated && PlaybackOfflineSession.onNetworkChanged()) onOfflineSessionExited(\"validated\")"))
-        assertTrue(service.contains("NetworkState.capsEpoch.collect {"))
+        // (b) The counters' current value at collection is not an event: a cold start with no network keeps its session.
+        assertTrue(service.contains("NetworkState.capsEpoch.drop(1).collect {"))
+        assertTrue(service.contains("NetworkState.epoch.drop(1).collect {"))
         assertTrue(service.contains("if (PlaybackOfflineSession.onNetworkChanged()) onOfflineSessionExited(\"network_back\")"))
         val state = main("utils/NetworkState.kt")
         assertTrue("capsEpoch is bumped AFTER validated is re-read", state.contains("refresh()\n                _capsEpoch.update { it + 1 }"))
         // A network item that plays — a cached URL included — proves the internet works.
         val ready = service.substring(service.indexOf("private fun maybeEndOfflineSessionOnReady() {")).substringBefore("\n    }\n")
-        assertTrue(ready.contains("if (offlinePlayableSource(mediaId, exportedUris) != null) return@launch"))
+        // (2) + (f): clears the failures with no session too; O(1) when there is nothing to clear; cache work on IO.
+        assertTrue(ready.contains("if (!PlaybackOfflineSession.hasEvidence()) return"))
+        assertTrue(ready.contains("withContext(Dispatchers.IO) {"))
+        assertTrue(ready.contains("offlinePlayableSource(mediaId, exportedUris) != null"))
+        assertTrue(ready.contains("if (playsOffline) return@launch"))
         assertTrue(ready.contains("if (PlaybackOfflineSession.onNetworkWorked()) onOfflineSessionExited(\"network_item_ready\")"))
         // Hard cap: ONE timer, armed with the evidence, never a loop.
         val cap = service.substring(service.indexOf("private fun armOfflineSessionExpiry() {")).substringBefore("\n    }\n")
         assertTrue(cap.contains("offlineSessionExpiryJob?.cancel()"))
         assertTrue(cap.contains("if (PlaybackOfflineSession.expireIfDue(hasLiveInternetConnection())) onOfflineSessionExited(\"expired\")"))
         assertFalse(cap.contains("while"))
-        assertTrue(service.substring(service.indexOf("private fun noteOfflineConnectivityFailure(): Boolean {")).substringBefore("\n    }\n").contains("armOfflineSessionExpiry()"))
+        assertTrue(service.substring(service.indexOf("private fun noteOfflineConnectivityFailure(mediaId: String?): Boolean {")).substringBefore("\n    }\n").contains("armOfflineSessionExpiry()"))
     }
 
     /** C6 + «Reintentar en línea»: the switch turned off and the user end it at once. */
@@ -256,5 +268,39 @@ class OfflineFallbackGuardTest {
         val end = onPlayerError.indexOf("handleGenericIOError(mediaId)")
         assertTrue(start in 1 until end)
         assertFalse(onPlayerError.substring(start, end).contains("performAggressiveCacheClear"))
+    }
+
+    /** (3) YTPlayerUtils: every client failure is tallied per call, and only the "all clients failed" dead end reads it. */
+    @Test
+    fun `the resolver carries a lack of internet out of the all-clients-failed dead end`() {
+        val ytp = main("utils/YTPlayerUtils.kt")
+        assertTrue(ytp.contains("val clientFailures = ClientFailureTally()"))
+        assertTrue("per call, never a shared object field", !ytp.contains("private val clientFailures"))
+        for (client in listOf("VIDEO_CLIENT.clientName", "MAIN_CLIENT.clientName", "gateClient.clientName", "client.clientName")) {
+            assertTrue(client, ytp.contains("logClientFailure($client, videoId, it); clientFailures.record(it)"))
+        }
+        val deadEnd = ytp.substring(ytp.indexOf("if (streamPlayerResponse == null) {")).substringBefore("\n        }\n")
+        assertTrue(deadEnd.contains("val noInternet = clientFailures.allConnectivity()"))
+        assertTrue(deadEnd.contains("cause = noInternet,"))
+        assertTrue(ytp.contains("PlaybackErrorClassifier.isConnectivityCause(error)"))
+    }
+
+    /** (1) Never a stall skip while a resolution is in flight (a fresh resolve after a retry, the probe). */
+    @Test
+    fun `the stall watchdog leaves a resolution in flight alone`() {
+        val watchdog = service.substring(service.indexOf("private fun updateOfflineStallWatchdog() {")).substringBefore("\n    }\n")
+        val inFlight = watchdog.indexOf("if (audioStreamResolveInFlight.get() > 0) return@launch")
+        assertTrue(inFlight > 0)
+        assertTrue(inFlight < watchdog.indexOf("PlaybackOfflineSession.stallHasEvidence("))
+    }
+
+    /** (d) + (e) */
+    @Test
+    fun `a new item gets its own stale retry and an unblocked network is a network change`() {
+        val transition = service.substring(service.indexOf("override fun onMediaItemTransition(")).substringBefore("\n    }\n")
+        assertTrue(transition.contains("if (trackChanged) staleRejectionRetryId = null"))
+        val state = main("utils/NetworkState.kt")
+        assertTrue(state.contains("override fun onBlockedStatusChanged(network: Network, blocked: Boolean) {"))
+        assertTrue(state.contains("if (!blocked) _epoch.update { it + 1 }"))
     }
 }

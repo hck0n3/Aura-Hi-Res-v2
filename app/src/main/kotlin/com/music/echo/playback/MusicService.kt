@@ -230,6 +230,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
@@ -2547,14 +2548,15 @@ class MusicService :
             }
         }
         scope.launch {
-            iad1tya.echo.music.utils.NetworkState.capsEpoch.collect {
+            iad1tya.echo.music.utils.NetworkState.capsEpoch.drop(1).collect {
                 if (iad1tya.echo.music.utils.NetworkState.validated.value && PlaybackOfflineSession.onNetworkChanged()) {
                     onOfflineSessionExited("validated")
                 }
             }
         }
         scope.launch {
-            iad1tya.echo.music.utils.NetworkState.epoch.collect {
+            // drop(1): the counter's current value at collection (a cold start with no network) is not a network change.
+            iad1tya.echo.music.utils.NetworkState.epoch.drop(1).collect {
                 if (PlaybackOfflineSession.onNetworkChanged()) onOfflineSessionExited("network_back")
             }
         }
@@ -3899,13 +3901,15 @@ class MusicService :
     }
 
     /**
-     * Main thread. A playback error with a real connectivity cause (PlaybackErrorClassifier.isConnectivityFailure). True
-     * when the session is on after it — one failure alone never starts it while a network exists.
+     * Main thread. A playback error with a real connectivity cause (PlaybackErrorClassifier.isConnectivityFailure) on
+     * [mediaId]. True when the session is on after it — one failure alone never starts it while a network exists, and the
+     * retry of the same song is not a second one.
      */
-    private fun noteOfflineConnectivityFailure(): Boolean {
+    private fun noteOfflineConnectivityFailure(mediaId: String?): Boolean {
         if (!offlineSessionAllowed()) return false
         onOfflineSessionEntered(
             PlaybackOfflineSession.onConnectivityFailure(
+                itemId = mediaId,
                 systemHasNetwork = hasLiveInternetConnection(),
                 epoch = iad1tya.echo.music.utils.NetworkState.epoch.value,
             ),
@@ -3943,27 +3947,31 @@ class MusicService :
 
     /**
      * Main thread, on STATE_READY. A NETWORK item that plays (a probe, a cached URL, a song resolved before the session)
-     * proves the internet works: the session ends. An item that plays offline proves nothing and keeps it.
+     * proves the internet works: the session ends, and failures still counting toward one are cleared even with no session.
+     * An item that plays offline proves nothing and keeps them. O(1) when there is nothing to clear; the cache lookups run
+     * on IO.
      */
     private fun maybeEndOfflineSessionOnReady() {
-        if (!PlaybackOfflineSession.isActive) return
+        if (!PlaybackOfflineSession.hasEvidence()) return
         val mediaId = player.currentMediaItem?.mediaId ?: return
         scope.launch {
-            val exportedUris = runCatching {
+            val playsOffline = runCatching {
                 withContext(Dispatchers.IO) {
-                    parseExportedFileUriMap(dataStore.data.first()[ExportedFileUrisKey].orEmpty())
+                    val exportedUris = parseExportedFileUriMap(dataStore.data.first()[ExportedFileUrisKey].orEmpty())
+                    offlinePlayableSource(mediaId, exportedUris) != null
                 }
-            }.getOrDefault(emptyMap())
+            }.getOrDefault(true)
             if (player.currentMediaItem?.mediaId != mediaId || player.playbackState != Player.STATE_READY) return@launch
-            if (offlinePlayableSource(mediaId, exportedUris) != null) return@launch
+            if (playsOffline) return@launch
             if (PlaybackOfflineSession.onNetworkWorked()) onOfflineSessionExited("network_item_ready")
         }
     }
 
     /**
      * ONE timer per BUFFERING episode with playWhenReady (no polling). When it fires still buffering on a song that needs
-     * the network, and there is INDEPENDENT proof the network is the problem (no network now, or — with the session off —
-     * a connectivity failure a moment ago), the queue goes on with the next offline song. With the session ON the
+     * the network, no resolution is in flight, and there is INDEPENDENT proof the network is the problem (no network now,
+     * or — with the session off — two qualifying connectivity failures a moment ago), the queue goes on with the next
+     * offline song. With the session ON the
      * buffering network item is the probe: it is left alone, however slow (cold PoToken / player JS on a low-end phone).
      */
     private fun updateOfflineStallWatchdog() {
@@ -3991,6 +3999,8 @@ class MusicService :
                 }
             }.getOrDefault(emptyMap())
             if (isPlayableOffline(mediaId, exportedUris)) return@launch
+            // A resolution in flight (a fresh resolve after a retry cleared the URL, the probe) is not a stall: leave it.
+            if (audioStreamResolveInFlight.get() > 0) return@launch
             val systemHasNetwork = hasLiveInternetConnection()
             val evidence = PlaybackOfflineSession.stallHasEvidence(systemHasNetwork)
             Timber.tag(TAG).i("OFFLINE_STALL id=%s evidence=%b", iad1tya.echo.music.utils.LogRedaction.forLog(mediaId), evidence)
@@ -6534,6 +6544,8 @@ class MusicService :
         val previousMediaId = currentPlayingMediaId
         currentPlayingMediaId = mediaItem?.mediaId
         val trackChanged = previousMediaId != mediaItem?.mediaId
+        // A stale offline refusal earns one re-prepare per item: a new item starts with its own.
+        if (trackChanged) staleRejectionRetryId = null
         // Review C4 (rule 7): a song change of an unprepared device-sync mirror is another device's, nothing was heard here. None of
         // what follows (style learning, preload, SponsorBlock, video prefetch, no-repeat and shuffle memory, radio pre-seed,
         // pagination) may run; only the listen session of what played here before is closed.
@@ -8585,7 +8597,10 @@ class MusicService :
 
 
         when {
-            PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value -> {
+            PlaybackErrorClassifier.isNoStreamError(error) && isNetworkConnected.value &&
+                // Every client failed for lack of internet (YTPlayerUtils carries the cause): not an unavailable song —
+                // it takes the connectivity branches below (two-failure rule, then the offline queue).
+                !PlaybackErrorClassifier.isConnectivityFailure(error) -> {
                 // UNRESOLVABLE SONG dead-end (fix #3): the song genuinely can't be served by any client
                 // AND we ARE online (so it's not just the network being down). Surface the reason and SKIP
                 // past it (regardless of the AutoSkipNextOnErrorKey toggle) — never silently pause forever,
@@ -8683,7 +8698,7 @@ class MusicService :
 
             // A failure with a real connectivity cause that, with the evidence so far, puts the player in its offline session
             // (or one while it already is): the queue goes on with what plays offline instead of retrying the network song.
-            PlaybackErrorClassifier.isConnectivityFailure(error) && noteOfflineConnectivityFailure() -> {
+            PlaybackErrorClassifier.isConnectivityFailure(error) && noteOfflineConnectivityFailure(mediaId) -> {
                 logErrorBranch("offline_network", mediaId, error)
                 continueWithOfflineQueue(stopIfNothing = false)
                 return

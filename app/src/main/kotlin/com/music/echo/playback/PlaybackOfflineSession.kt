@@ -21,7 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * Entering needs proof that the DEVICE has no internet: the system reports no network at all (checked live), or TWO
  * connectivity failures (no DNS / could not connect / no route / ENETUNREACH, see PlaybackErrorClassifier.isConnectivityFailure)
- * within [PlaybackOfflineSession.PROBE_AFTER_MS], or a stall backed by one of those. Being active is never evidence by
+ * on two different items within [PlaybackOfflineSession.PROBE_AFTER_MS] (a network change or a network song that plays
+ * clears them, session or not), or a stall backed by one of those. Being active is never evidence by
  * itself, and a YouTube-side failure (timeout of the resolver, cipher, 429) never counts.
  *
  * Leaving: any new network (onAvailable); a capabilities change with the network VALIDATED; a network item reaching READY or
@@ -44,6 +45,7 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
 
     private var consecutiveFailures = 0
     private var lastFailureAtMs: Long? = null
+    private var lastFailureItemId: String? = null
     private var lastEvidenceAtMs: Long? = null
     private var epochAtEvidence = Long.MIN_VALUE
 
@@ -61,13 +63,27 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
         return reason
     }
 
+    private fun clearFailures() {
+        consecutiveFailures = 0
+        lastFailureAtMs = null
+        lastFailureItemId = null
+    }
+
+    /** Something worth clearing: a session, or failures still counting toward one. */
+    fun hasEvidence(): Boolean = active || consecutiveFailures > 0
+
     /**
-     * A playback error with a real connectivity cause in its chain. Returns the reason when this call started the session,
-     * null otherwise. One failure never starts it while a network exists: a second one, close to the first, is needed.
+     * A playback error with a real connectivity cause in its chain, for [itemId]. Returns the reason when this call started
+     * the session, null otherwise. One failure never starts it while a network exists: a second one, close to the first and
+     * on a DIFFERENT item, is needed — the automatic retry of the same song a few seconds later is the same evidence again.
      */
-    fun onConnectivityFailure(systemHasNetwork: Boolean, epoch: Long, nowMs: Long): OfflineSessionReason? {
-        if (!recentFailure(nowMs)) consecutiveFailures = 0
-        consecutiveFailures++
+    fun onConnectivityFailure(itemId: String?, systemHasNetwork: Boolean, epoch: Long, nowMs: Long): OfflineSessionReason? {
+        if (!recentFailure(nowMs)) {
+            consecutiveFailures = 0
+            lastFailureItemId = null
+        }
+        if (consecutiveFailures == 0 || itemId == null || itemId != lastFailureItemId) consecutiveFailures++
+        lastFailureItemId = itemId
         lastFailureAtMs = nowMs
         recordEvidence(epoch, nowMs)
         if (active) return null
@@ -87,11 +103,12 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
 
     /**
      * A long BUFFERING is blamed on the network only with independent proof: no network now, or — while the session is OFF —
-     * a connectivity failure a moment ago. While the session is ON, the network item that buffers is the probe (or one the
-     * resolver let through): a slow probe (cold PoToken / player JS on a low-end phone) must be allowed to finish.
+     * two qualifying connectivity failures a moment ago (never a single one: an isolated refusal of one googlevideo node, or
+     * a wifi→data switch, followed by a slow fresh resolve on a low-end phone, is not "no internet"). While the session is ON,
+     * the network item that buffers is the probe (or one the resolver let through) and must be allowed to finish.
      */
     fun stallHasEvidence(systemHasNetwork: Boolean, nowMs: Long): Boolean =
-        !systemHasNetwork || (!active && recentFailure(nowMs))
+        !systemHasNetwork || (!active && consecutiveFailures >= 2 && recentFailure(nowMs))
 
     /** A stall the caller confirmed with [stallHasEvidence]. Never refreshes the evidence: a stall proves nothing new. */
     fun onStall(systemHasNetwork: Boolean, epoch: Long, nowMs: Long): OfflineSessionReason? = when {
@@ -107,13 +124,19 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
 
     /** The network demonstrably works: a fresh resolve, or a network item reached READY. True when it ended the session. */
     fun onNetworkWorked(): Boolean {
-        consecutiveFailures = 0
-        lastFailureAtMs = null
+        clearFailures()
         return exit()
     }
 
-    /** A new default network appeared, or the network reported VALIDATED: whatever the evidence was, it is void now. */
-    fun onNetworkChanged(): Boolean = exit()
+    /**
+     * A new default network appeared, or the network reported VALIDATED: whatever the evidence was, it is void now — the
+     * failures counted on the old network too, with or without a session (a failure on a dying wifi plus one on the fresh
+     * mobile data is not a streak).
+     */
+    fun onNetworkChanged(): Boolean {
+        clearFailures()
+        return exit()
+    }
 
     /** The switch was turned off, or the user asked to retry online. */
     fun forceExit(): Boolean = exit()
@@ -140,8 +163,7 @@ internal class OfflineSessionMachine(private val probeAfterMs: Long, private val
         if (!active) return false
         active = false
         reason = null
-        consecutiveFailures = 0
-        lastFailureAtMs = null
+        clearFailures()
         lastEvidenceAtMs = null
         epochAtEvidence = Long.MIN_VALUE
         return true
@@ -180,8 +202,10 @@ internal object PlaybackOfflineSession {
         result
     }
 
-    fun onConnectivityFailure(systemHasNetwork: Boolean, epoch: Long): OfflineSessionReason? =
-        locked { it.onConnectivityFailure(systemHasNetwork, epoch, now()) }
+    fun onConnectivityFailure(itemId: String?, systemHasNetwork: Boolean, epoch: Long): OfflineSessionReason? =
+        locked { it.onConnectivityFailure(itemId, systemHasNetwork, epoch, now()) }
+
+    fun hasEvidence(): Boolean = locked { it.hasEvidence() }
 
     fun onNoNetwork(epoch: Long): OfflineSessionReason? = locked { it.onNoNetwork(epoch, now()) }
 
