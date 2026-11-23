@@ -707,6 +707,15 @@ class MusicService :
     internal var mirrorUnprepared = false
 
     /**
+     * Review C4: right now the player only SHOWS another device's playback — an unprepared mirror, remote mode on, and no take-over
+     * or order to play here in flight. Its song changes are the other device's: nothing may be preloaded or recorded for them.
+     */
+    private val onlyShowingMirror: Boolean
+        get() = mirrorUnprepared && player.playbackState == Player.STATE_IDLE &&
+            iad1tya.echo.music.devicesync.RemotePlayback.active &&
+            !iad1tya.echo.music.devicesync.RemotePlayback.localStartGranted()
+
+    /**
      * Review C1: another device is now shown and controlled from here (DeviceSyncEngine.evaluateRemote). Nothing armed for THIS
      * player may start it later: play-when-ready is dropped (an ENDED queue keeps it true) and the end-of-queue radio auto-resume
      * (resumeAfterSeed / advanceIntoRadioRequested and its watchdog) is cancelled, so a seed that lands afterwards only appends.
@@ -4449,6 +4458,8 @@ class MusicService :
                 // branch above.
                 dropQualityPin()
                 if (isRestore && !prepareRestore) player.stop()
+                // Review C4: decided BEFORE the items land, so the transition setMediaItems fires is already seen as a mirror's (or not).
+                mirrorUnprepared = isRestore && !prepareRestore
                 player.setMediaItems(
                     initialStatus.items,
                     safeIndex,
@@ -4500,7 +4511,7 @@ class MusicService :
             // list is still playing (minutes or hours of slack) means the profile is complete when it is
             // needed. Bounded: GenreCache.enrich skips known artists, caps at 15 lookups, caches definitive
             // misses forever and honours the network preference — a list it has already studied costs zero.
-            if (keepGenreLaneHint && radioSeedPool.size > 1) {
+            if (keepGenreLaneHint && radioSeedPool.size > 1 && !(isRestore && !prepareRestore)) {
                 val studyNames = iad1tya.echo.music.reco.ContextPattern.studyArtists(
                     radioSeedPool.mapNotNull { it.artists.firstOrNull()?.name },
                     CONTEXT_STUDY_ARTISTS,
@@ -6421,6 +6432,16 @@ class MusicService :
         val previousMediaId = currentPlayingMediaId
         currentPlayingMediaId = mediaItem?.mediaId
         val trackChanged = previousMediaId != mediaItem?.mediaId
+        // Review C4 (rule 7): a song change of an unprepared device-sync mirror is another device's, nothing was heard here. None of
+        // what follows (style learning, preload, SponsorBlock, video prefetch, no-repeat and shuffle memory, radio pre-seed,
+        // pagination) may run; only the listen session of what played here before is closed.
+        if (onlyShowingMirror) {
+            if (trackChanged) {
+                metricsSessionJob?.cancel()
+                endMetricsSession()
+            }
+            return
+        }
         // Fila 356, punto 3 — the exact-style gate learns from quick skips / full listens (no I/O).
         exactStyleOnTransition(mediaItem, reason)
         // Metrics session net (SimpMusic sendBackToGoogle): a new track means the previous listen is
@@ -11324,6 +11345,8 @@ class MusicService :
     private var preloadJob: kotlinx.coroutines.Job? = null
 
     private fun preloadUpcomingItems() {
+        // Review C4: the IDLE mirror of another device downloads nothing (rule 7).
+        if (onlyShowingMirror) return
         // Capture player state HERE on the player/callback thread (cheap, in-memory). The DataStore reads
         // (disk I/O via runBlocking) are moved INTO the coroutine below so onMediaItemTransition is never
         // blocked by a blocking disk read on the callback thread (jank / contributes to mid-song stalls).
