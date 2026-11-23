@@ -135,7 +135,10 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.set_listenbrainz_token), "Scrobbling", "settings/lastfm"),
             // --- Sonido / Rendimiento extras (these screens use hardcoded Spanish titles) ---
             Triple("Auto-EQ (por auricular)", "Ecualizador", "settings/sound/autoeq"),
-            Triple("Volumen seguro", "Sonido y ecualización", "settings/sound"),
+            Triple(stringResource(R.string.sound_safe_volume_title), "Sonido y ecualización", "settings/sound"),
+            Triple(stringResource(R.string.sound_safe_volume_desc), "Sonido y ecualización", "settings/sound"),
+            Triple(stringResource(R.string.sound_glue_compressor_title), "Sonido y ecualización", "settings/sound"),
+            Triple(stringResource(R.string.sound_glue_compressor_desc), "Sonido y ecualización", "settings/sound"),
             // Fila 358: the Tidal switch now lives only inside the equalizer.
             Triple("Firma de sonido Tidal", "Ecualizador", "settings/equalizer"),
             Triple("Modo alto rendimiento", "Rendimiento", "settings/performance"),
@@ -473,6 +476,8 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.misc), "Privacidad", "settings/privacy"),
             Triple(stringResource(R.string.disable_screenshot), "Privacidad", "settings/privacy"),
             Triple(stringResource(R.string.disable_screenshot_desc), "Privacidad", "settings/privacy"),
+            Triple(stringResource(R.string.privacy_policy_title), "Privacidad", "settings/privacy"),
+            Triple(stringResource(R.string.privacy_policy_entry_desc), "Privacidad", "settings/privacy"),
             // --- Copia y restauracion (settings/backup_restore) : 2 ---
             // --- Acerca de (settings/about) : 1 ---
             Triple(stringResource(R.string.feedback_title), "Reportar y sugerir", "settings/feedback"),
