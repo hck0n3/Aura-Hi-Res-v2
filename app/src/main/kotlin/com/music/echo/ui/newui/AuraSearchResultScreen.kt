@@ -440,7 +440,12 @@ fun AuraSearchResultScreen(
                                     span = { GridItemSpan(maxLineSpan) },
                                     contentType = "aura_results_empty_filtered",
                                 ) {
-                                    AuraEmpty(text = stringResource(R.string.no_results_found))
+                                    // P22A: next step = the «Todo» chip's own action.
+                                    AuraEmpty(
+                                        text = stringResource(R.string.no_results_found),
+                                        actionLabel = stringResource(R.string.empty_action_show_all_results),
+                                        onAction = { viewModel.filter.value = null },
+                                    )
                                 }
                             }
                         }
@@ -576,7 +581,12 @@ fun AuraSearchResultScreen(
 
                             if (itemsPage?.items?.isEmpty() == true) {
                                 item(key = "aura_results_empty_filtered", contentType = "aura_results_empty_filtered") {
-                                    AuraEmpty(text = stringResource(R.string.no_results_found))
+                                    // P22A: next step = the «Todo» chip's own action.
+                                    AuraEmpty(
+                                        text = stringResource(R.string.no_results_found),
+                                        actionLabel = stringResource(R.string.empty_action_show_all_results),
+                                        onAction = { viewModel.filter.value = null },
+                                    )
                                 }
                             }
                         }

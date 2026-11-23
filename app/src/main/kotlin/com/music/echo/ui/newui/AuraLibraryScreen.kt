@@ -223,7 +223,12 @@ fun AuraLibraryScreen(navController: NavController) {
                             onOpenFilter = { filterType = it },
                         )
                         LibraryFilter.PLAYLISTS ->
-                            AuraLibraryPlaylistsTab(navController, searchOpen, toggleSearch)
+                            AuraLibraryPlaylistsTab(
+                                navController,
+                                searchOpen,
+                                toggleSearch,
+                                onCreatePlaylist = { showCreatePlaylistDialog = true },
+                            )
 
                         LibraryFilter.SONGS ->
                             AuraLibrarySongsTab(navController, searchOpen, toggleSearch)

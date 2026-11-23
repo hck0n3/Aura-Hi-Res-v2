@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="empty_action_search_music">Buscar música</string>
+    <string name="empty_action_show_all_results">Ver todos los resultados</string>
+</resources>

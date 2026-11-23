@@ -2332,6 +2332,19 @@ Comportamiento visible que el rediseño debe preservar:
 |---|---|---|---|---|---|
 | (icono + texto de estado vacío; SIN ningún botón) | Estados vacíos de 8 pantallas | app/src/main/kotlin/com/music/echo/ui/component/EmptyPlaceholder.kt:22-49 | informativo | rara | según pantalla |
 
+### 17.5.4b `AuraEmpty` (interfaz nueva) — siguiente paso de los estados vacíos (P22A, fila 732)
+
+`AuraEmpty` (`ui/newui/AuraContent.kt`) acepta `actionLabel` + `onAction`: una ficha seleccionada (la misma que «Sincronizar» de Artistas) que solo ejecuta acciones que ya existían. Los textos de los vacíos no cambian.
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| **«Buscar música»** (= la pestaña «Buscar» de la barra, `navigateToTab`) | Biblioteca > Álbumes > vacío | `ui/newui/AuraLibraryTabs.kt` (`aura_albums_empty`) | navegación | rara | solo si `albums.isEmpty()` |
+| **«Crear lista de reproducción»** (= el `CreatePlaylistDialog` del menú «+») | Biblioteca > Listas > vacío | `ui/newui/AuraLibraryTabs.kt` (`aura_playlists_empty`, `onCreatePlaylist`) ← `ui/newui/AuraLibraryScreen.kt` | acción primaria | rara | solo sin listas y sin texto en la búsqueda (buscando sin resultados: solo el texto, como antes) |
+| **«Ver todos los resultados»** (= la ficha «Todo») | Búsqueda > resultados con filtro > vacío (lista y cuadrícula) | `ui/newui/AuraSearchResultScreen.kt` (`aura_results_empty_filtered` ×2) | acción primaria | ocasional | solo con un filtro activo sin resultados; sin filtro sigue siendo solo «No se han encontrado resultados» |
+| **«Buscar música»** (= la pestaña «Buscar», `navigateToTab`) | Descargadas / Me gusta > vacío | `ui/newui/AuraDownloadsScreen.kt` (`emptyActionLabel`) → `ui/newui/AuraCollectionScreens.kt` (`aura_coll_empty`) | navegación | rara | solo en Descargadas y Me gusta (Exportadas, Vídeos exportados, Mi top y En caché, sin botón) |
+| «Letras no encontradas» + **«Buscar letra»** | ver §7.2 | `ui/player/InlineLyricsView.kt` | acción primaria | ocasional | ver §7.2 |
+| Novedades «Estás al día» | sin cambio (fila 674) | `ui/newui/AuraNovedadesScreen.kt` | informativo | ocasional | ya decía el siguiente paso |
+
 ### 17.5.5 `DraggableScrollBarOverlay.kt`
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |

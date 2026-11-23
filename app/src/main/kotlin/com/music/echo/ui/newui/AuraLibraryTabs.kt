@@ -87,6 +87,8 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.navigateToTab
+import iad1tya.echo.music.ui.screens.Screens
 import iad1tya.echo.music.constants.AlbumFilter
 import iad1tya.echo.music.constants.AlbumFilterKey
 import iad1tya.echo.music.constants.AlbumSortDescendingKey
@@ -1315,6 +1317,9 @@ fun AuraLibraryAlbumsTab(
                         emptyText = stringResource(R.string.library_album_empty),
                     ),
                     modifier = Modifier.animateItem(),
+                    // P22A: next step = the bottom bar's own «Buscar» (navigateToTab).
+                    actionLabel = stringResource(R.string.empty_action_search_music),
+                    onAction = { navController.navigateToTab(Screens.Search.route) },
                 )
             }
         }
@@ -1495,6 +1500,8 @@ fun AuraLibraryPlaylistsTab(
     navController: NavController,
     searchOpen: Boolean,
     onToggleSearch: () -> Unit,
+    /** Opens the screen's «Crear lista» dialog (the floating «+» menu's own action). Null: the empty state has no button. */
+    onCreatePlaylist: (() -> Unit)? = null,
     viewModel: LibraryPlaylistsViewModel = hiltViewModel(),
 ) {
     val menuState = LocalMenuState.current
@@ -1653,6 +1660,13 @@ fun AuraLibraryPlaylistsTab(
                         )
                     },
                     modifier = Modifier.animateItem(),
+                    // P22A: with no list yet, the next step is the «+» menu's own «Crear lista» dialog.
+                    actionLabel = if (playlistSearchQuery.isBlank() && onCreatePlaylist != null) {
+                        stringResource(R.string.create_playlist)
+                    } else {
+                        null
+                    },
+                    onAction = onCreatePlaylist,
                 )
             }
         }

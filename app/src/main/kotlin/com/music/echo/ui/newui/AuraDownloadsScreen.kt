@@ -44,6 +44,8 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.R
 import iad1tya.echo.music.LocalPlayerConnection
+import iad1tya.echo.music.navigateToTab
+import iad1tya.echo.music.ui.screens.Screens
 import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.constants.SongSortDescendingKey
 import iad1tya.echo.music.constants.SongSortType
@@ -232,6 +234,13 @@ fun AuraAutoPlaylistScreen(
         aboutText = stringResource(R.string.aura_auto_playlist_about, playlist),
         onBack = { navController.navigateUp() },
         emptyText = emptyText,
+        // P22A: nothing downloaded / liked yet → the bottom bar's own «Buscar» (navigateToTab).
+        emptyActionLabel = if (playlistType == PlaylistType.DOWNLOAD || playlistType == PlaylistType.LIKE) {
+            stringResource(R.string.empty_action_search_music)
+        } else {
+            null
+        },
+        onEmptyAction = { navController.navigateToTab(Screens.Search.route) },
         useVideoCount = isExportedVideos,
         videoPosterLayout = isExportedVideos,
         onHeaderMenu = {
