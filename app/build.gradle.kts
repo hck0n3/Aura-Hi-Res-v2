@@ -589,6 +589,7 @@ dependencies {
     implementation(libs.androidx.adaptive.layout)
     implementation(libs.androidx.adaptive.navigation)
     implementation(libs.palette)
+    implementation(libs.documentfile)
     implementation(libs.materialKolor)
 
     implementation(libs.appcompat)
