@@ -915,6 +915,8 @@ val OpenRouterApiKey = stringPreferencesKey("openRouterApiKey")
 val AiProviderKey = stringPreferencesKey("aiProvider")
 val OpenRouterBaseUrlKey = stringPreferencesKey("openRouterBaseUrl")
 val OpenRouterModelKey = stringPreferencesKey("openRouterModel")
+/** Model used while [OpenRouterModelKey] is unset; one value for the screens and the background worker (registry 765). */
+const val DefaultOpenRouterModel = "google/gemini-2.5-flash-lite"
 val TranslateModeKey = stringPreferencesKey("translateMode")
 val TranslateLanguageKey = stringPreferencesKey("translateLanguage")
 val DeeplApiKey = stringPreferencesKey("deeplApiKey")
@@ -1370,3 +1372,6 @@ val ShareUseSongLinkKey = booleanPreferencesKey("share_use_song_link")
 
 // One-shot first-run prompt asking to make Aura the default app for YouTube Music / music links.
 val OpenLinksPromptShownKey = booleanPreferencesKey("open_links_default_prompt_shown")
+
+// One-shot (registry 765): Listen Together durations stored in milliseconds were repaired (RoomDurationRepair).
+val RoomDurationRepairDoneKey = booleanPreferencesKey("room_duration_repair_done")

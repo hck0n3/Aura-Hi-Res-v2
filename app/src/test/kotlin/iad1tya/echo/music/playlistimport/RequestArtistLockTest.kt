@@ -153,4 +153,20 @@ class RequestArtistLockTest {
         val adopt = service.substringAfter("fun adoptDirectQueue(").substringBefore("fun adoptExternalQueue(")
         assertTrue(adopt.contains("radioOriginContextId = contextId"))
     }
+
+    @Test
+    fun `both adopt functions reset the previous queue's seeds and steering`() {
+        // Row 765: adoptDirectQueue cleared the request id but kept the old collection's seeds, anchor and style target.
+        val service = main("playback/MusicService.kt")
+        val direct = service.substringAfter("fun adoptDirectQueue(").substringBefore("fun adoptExternalQueue(")
+        val external = service.substringAfter("fun adoptExternalQueue(").substringBefore("override fun onTimelineChanged(")
+        for ((name, body) in listOf("adoptDirectQueue" to direct, "adoptExternalQueue" to external)) {
+            for (reset in listOf(
+                "radioSeedPool = emptyList()", "radioSeedTitle = null", "radioAnchorId = null", "radioAnchorMetadata = null",
+                "contextProfile = null", "contextSteerActive = false", "exactStyle.resetForNewQueue()",
+            )) {
+                assertTrue("$name lost $reset", body.contains(reset))
+            }
+        }
+    }
 }

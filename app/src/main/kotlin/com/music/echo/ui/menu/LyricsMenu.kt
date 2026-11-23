@@ -76,6 +76,7 @@ import iad1tya.echo.music.constants.TranslateLanguageKey
 import iad1tya.echo.music.constants.TranslateModeKey
 import iad1tya.echo.music.constants.OpenRouterBaseUrlKey
 import iad1tya.echo.music.constants.OpenRouterModelKey
+import iad1tya.echo.music.constants.DefaultOpenRouterModel
 import iad1tya.echo.music.constants.DeeplFormalityKey
 import iad1tya.echo.music.lyrics.LyricsTranslationHelper
 import iad1tya.echo.music.utils.rememberPreference
@@ -105,7 +106,7 @@ fun LyricsMenu(
     val translateLanguage by rememberPreference(TranslateLanguageKey, "es-419")
     val translateMode by rememberPreference(TranslateModeKey, "Literal")
     val openRouterBaseUrl by rememberPreference(OpenRouterBaseUrlKey, "https://openrouter.ai/api/v1/chat/completions")
-    val openRouterModel by rememberPreference(OpenRouterModelKey, "google/gemini-2.5-flash-lite")
+    val openRouterModel by rememberPreference(OpenRouterModelKey, DefaultOpenRouterModel)
     val deeplFormality by rememberPreference(DeeplFormalityKey, "default")
 
     // Owner directive 2026-08-29 (registry #192): lyric translation must work WITHOUT any user API key —

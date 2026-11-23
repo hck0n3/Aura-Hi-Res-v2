@@ -2013,7 +2013,7 @@ class MusicService :
             if (echoRoute) lastRouteConnectedAtMs = System.currentTimeMillis()
 
             if (hasPlaybackRoute) {
-                val settingResume = dataStore.get(ResumeOnBluetoothConnectKey, false)
+                val settingResume = dataStore.getNonBlocking(ResumeOnBluetoothConnectKey, false)
                 val autoNoisyResume = autoSession && pausedByNoisy &&
                     System.currentTimeMillis() - pausedByNoisyAtMs <= 45_000L
                 // A pause the user chose is never undone by a device connecting (registry 422).
@@ -2077,8 +2077,9 @@ class MusicService :
                 Intent.ACTION_SHUTDOWN,
                 Intent.ACTION_REBOOT,
                 -> {
+                    // Registry 764: main thread; the process snapshot is exact (blocking read only before its first emission).
                     runCatching { saveNoRepeatMemory(synchronous = true) }
-                    if (!dataStore.get(PersistentQueueKey, true)) return
+                    if (!dataStore.getNonBlocking(PersistentQueueKey, true)) return
                     runCatching { saveQueueToDisk(synchronous = true) }
                     runCatching { savePlaybackPositionToDiskSynchronous() }
                 }
@@ -3263,7 +3264,11 @@ class MusicService :
             everPlayedIds()
             everPlayedKeys()
         }
-        if (dataStore.get(PersistentQueueKey, true)) {
+        // Registry 765: one-time repair of Listen Together durations stored in milliseconds (flag-gated, off main).
+        scope.launch(Dispatchers.IO) { runCatching { iad1tya.echo.music.listentogether.RoomDurationRepair.runOnce(this@MusicService, database) } }
+        // Registry 764: not persistentQueueHint — its collector has not emitted yet here, and a default of true would
+        // restore a queue the user turned off. The snapshot is exact (blocking read only before its first emission).
+        if (dataStore.getNonBlocking(PersistentQueueKey, true)) {
             val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
             if (queueFile.exists()) {
                 runCatching {
@@ -3813,7 +3818,7 @@ class MusicService :
         }
     }
 
-    internal fun skipOnError() {
+    internal fun skipOnError(wasPlayWhenReady: Boolean = player.playWhenReady) {
         // ONE per failure, not two. With `+= 2` against MAX_CONSECUTIVE_ERR = 5 the real budget was 2 skips,
         // so THREE unresolvable songs in a row hard-paused playback. On a slower device — where resolves
         // routinely hit the 30s timeout and surface as "song unavailable" — that is exactly the reported
@@ -3824,8 +3829,9 @@ class MusicService :
         if (consecutivePlaybackErr <= MAX_CONSECUTIVE_ERR && nextWindowIndex != C.INDEX_UNSET) {
             player.seekTo(nextWindowIndex, C.TIME_UNSET)
             player.prepare()
-            
-            if (castConnectionHandler?.isCasting?.value != true) {
+
+            // Registry 763: a paused or restored queue whose item fails is skipped but stays paused.
+            if (ErrorSkipPolicy.shouldResumeAfterErrorSkip(wasPlayWhenReady, castConnectionHandler?.isCasting?.value == true)) {
                 Timber.tag(TAG).i("START_CAUSE=error_skip")
                 player.play()
             }
@@ -6988,6 +6994,16 @@ class MusicService :
         )
         queueTitle = title
         rememberQueuedItems(items)
+        // Registry 765 (row 656's pending note): the previous collection's seeds and style steering must not drive this
+        // queue's continuation either — the same reset adoptExternalQueue does. With an empty pool the continuation seeds
+        // from the song playing, which belongs to the new queue.
+        radioSeedPool = emptyList()
+        radioSeedTitle = null
+        radioAnchorId = null
+        radioAnchorMetadata = null
+        contextProfile = null
+        contextSteerActive = false
+        exactStyle.resetForNewQueue()
     }
 
     /**
@@ -7972,7 +7988,7 @@ class MusicService :
             // Stop the periodic wake-ups while paused/idle and save the position once so nothing is lost.
             periodicPersistJob?.cancel()
             periodicPersistJob = null
-            if (dataStore.get(PersistentQueueKey, true)) {
+            if (persistentQueueHint) {
                 // Same dirty split every other writer uses. This was the one UNGATED position write left:
                 // pause right after a queue mutation and the position file described a timeline the queue
                 // file did not have yet — and while PAUSED nothing else flushes for up to 30 s, so a kill
@@ -8116,7 +8132,7 @@ class MusicService :
                 }
                 podcast?.let { (id, pos, dur) -> runCatching { podcastProgressStore.save(id, pos, dur) } }
                 // Persist queue position every other tick (~10s) so a mid-song kill resumes in place.
-                if (tick % 2 == 0 && dataStore.get(PersistentQueueKey, true)) {
+                if (tick % 2 == 0 && persistentQueueHint) {
                     val ok = withContext(Dispatchers.Main) { player.isPlaying && player.mediaItemCount > 0 }
                     if (ok) {
                         // COHERENCE: while queueDirty the queue FILE still describes the OLD timeline, so a
@@ -8189,7 +8205,7 @@ class MusicService :
         }
 
         
-        if (dataStore.get(PersistentQueueKey, true) && !isSilenceSkipping) {
+        if (persistentQueueHint && !isSilenceSkipping) {
             // Full triple-graph serialization ONLY when the queue content actually changed (queueDirty =
             // any timeline mutation). Plain state flips (BUFFERING→READY fires ≥1× per song) re-wrote the
             // ENTIRE queue to flash each time — on big radio queues that was megabytes per song of pure
@@ -8414,7 +8430,7 @@ class MusicService :
         }
 
 
-        if (dataStore.get(PersistentQueueKey, true)) {
+        if (persistentQueueHint) {
             saveQueueToDisk()
         }
     }
@@ -8541,7 +8557,7 @@ class MusicService :
         }
 
         
-        if (dataStore.get(PersistentQueueKey, true)) {
+        if (persistentQueueHint) {
             saveQueueToDisk()
         }
     }
@@ -9117,6 +9133,8 @@ class MusicService :
             return
         }
 
+        // Registry 763: the user's play intent, read before any handling below can pause or re-prepare.
+        val wasPlayWhenReady = player.playWhenReady
         val mediaId = player.currentMediaItem?.mediaId
         Timber.tag(TAG).w(error, "Player error occurred for ${iad1tya.echo.music.utils.LogRedaction.forLog(mediaId)}: errorCode=${error.errorCode}, message=${error.message}")
         reportException(error)
@@ -9408,7 +9426,7 @@ class MusicService :
         if (dataStore.get(AutoSkipNextOnErrorKey, false)) {
             Timber.tag(TAG).d("Auto-skipping to next track due to unrecoverable error")
             logErrorBranch("auto_skip", mediaId, error)
-            skipOnError()
+            skipOnError(wasPlayWhenReady)
         } else {
             Timber.tag(TAG).d("Stopping playback due to unrecoverable error")
             logErrorBranch("stop", mediaId, error)
@@ -11550,8 +11568,9 @@ class MusicService :
         }
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
         castConnectionHandler?.release()
+        // Registry 764: same exact non-blocking read as the shutdown receiver.
         runCatching { saveNoRepeatMemory(synchronous = true) }
-        if (dataStore.get(PersistentQueueKey, true)) {
+        if (dataStore.getNonBlocking(PersistentQueueKey, true)) {
             saveQueueToDisk(synchronous = true)
         }
         if (discordRpc?.isRpcRunning() == true) {
