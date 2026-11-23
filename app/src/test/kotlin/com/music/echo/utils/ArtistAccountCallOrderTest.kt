@@ -135,4 +135,19 @@ class ArtistAccountCallOrderTest {
         assertTrue("row 107 write-back kept", settle.contains("liveCallHonouredTheUnfollow(call.subscribing, confirmedByAccount = true)"))
         assertTrue(settle.contains("call.onLiveUnsubscribeConfirmed(call.artist.id, queuedAt)"))
     }
+
+    @Test
+    fun `the search pane's subscribe tile is the artist page's tap`() {
+        val pane = main("ui/newui/AuraSearchDetailPane.kt")
+        val artist = pane.substringAfter("private fun PaneYtArtist(").substringBefore("\n}\n")
+        assertTrue("alias-aware state", artist.contains("env.database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id))"))
+        assertTrue("one tap at a time", artist.contains("if (followInFlight.compareAndSet(false, true)) {"))
+        assertTrue(
+            "only against what the tile showed",
+            artist.contains("isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id)).first() == shownFollowed"),
+        )
+        assertTrue(artist.contains("env.database.toggleArtistFollow("))
+        assertFalse("a second, alias-blind toggle came back", artist.contains(".toggleLike("))
+        assertFalse(artist.contains("libraryArtist?.artist?.followedByUserAt"))
+    }
 }

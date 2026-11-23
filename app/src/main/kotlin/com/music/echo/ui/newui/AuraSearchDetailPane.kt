@@ -105,10 +105,14 @@ import iad1tya.echo.music.utils.LibraryPinKind
 import iad1tya.echo.music.utils.LibraryPins
 import iad1tya.echo.music.utils.LibraryPinsStore
 import iad1tya.echo.music.utils.ShareLinks
+import iad1tya.echo.music.applicationScope
+import iad1tya.echo.music.utils.ArtistSyncPolicy
+import iad1tya.echo.music.utils.toggleArtistFollow
 import iad1tya.echo.music.utils.rememberLibraryPins
 import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -1055,8 +1059,10 @@ private fun PaneYtArtist(env: PaneEnv, pick: AuraSearchPick, item: ArtistItem, l
     val load = rememberPaneLoad("artist:${item.id}") { YouTube.artist(item.id) }
     val page: ArtistPage? = load.state.valueOrNull()
     val artist = page?.artist ?: item
-    val libraryArtist by env.database.artist(artist.id).collectAsState(initial = null)
-    val subscribed = libraryArtist?.artist?.followedByUserAt != null
+    // Row 711: every spelling of the channel id, like the artist page (ArtistViewModel.isSubscribed).
+    val subscribed by remember(artist.id) { env.database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id)) }
+        .collectAsState(initial = false)
+    val followInFlight = remember(artist.id) { java.util.concurrent.atomic.AtomicBoolean(false) }
     val sections = remember(page, env.hideVideos) {
         page?.sections.orEmpty()
             .map { s -> s.copy(items = s.items.distinctBy { it.id }.filterNot { env.hideVideos && it is SongItem && it.isVideoSong }) }
@@ -1091,19 +1097,26 @@ private fun PaneYtArtist(env: PaneEnv, pick: AuraSearchPick, item: ArtistItem, l
                 icon = if (subscribed) AuraIcons.Check else AuraIcons.Plus,
                 label = subscribeLabel,
             ) {
-                env.database.query {
-                    val current = libraryArtist
-                    if (current != null) {
-                        update(current.artist.toggleLike(env.database::confirmArtistUnsubscribed))
-                    } else {
-                        insert(
-                            ArtistEntity(
-                                id = artist.id,
-                                name = artist.title,
-                                channelId = artist.channelId,
-                                thumbnailUrl = artist.thumbnail,
-                            ).toggleLike(env.database::confirmArtistUnsubscribed),
-                        )
+                // Row 711: the same tap as the artist page (alias-aware toggleArtistFollow), one at a time, and only
+                // while Room still says what the tile showed.
+                val shownFollowed = subscribed
+                if (followInFlight.compareAndSet(false, true)) {
+                    env.context.applicationScope.launch(Dispatchers.IO) {
+                        try {
+                            if (env.database.isAnyArtistFollowed(ArtistSyncPolicy.aliasIds(artist.id)).first() == shownFollowed) {
+                                env.database.toggleArtistFollow(
+                                    artist.id,
+                                    ArtistEntity(
+                                        id = artist.id,
+                                        name = artist.title,
+                                        channelId = artist.channelId,
+                                        thumbnailUrl = artist.thumbnail,
+                                    ),
+                                )
+                            }
+                        } finally {
+                            followInFlight.set(false)
+                        }
                     }
                 }
             },
