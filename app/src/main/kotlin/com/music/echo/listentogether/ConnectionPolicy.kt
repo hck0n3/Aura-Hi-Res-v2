@@ -13,4 +13,25 @@ internal object ConnectionPolicy {
     fun unansweredAfter(previous: Int, heardSincePing: Boolean): Int = if (heardSincePing) 0 else previous + 1
 
     fun socketLooksDead(unansweredPings: Int): Boolean = unansweredPings >= MAX_UNANSWERED_PINGS
+
+    /**
+     * Row 744 (P2-9): how long a client that holds a room's session token keeps trying to get back to it after the socket drops.
+     * Five attempts (1+2+4+8+16 s) were spent in about 31 s, so a phone in Doze with a long-paused room lost the room — and its
+     * token — on the first network blackout. Ten minutes is twice the time Aura's rooms keep a room nobody is connected to
+     * (`EMPTY_ROOM_MS`, 5 min, docs/worker/rooms); the delay between attempts still doubles up to one minute, so it is about a
+     * dozen attempts in all.
+     */
+    const val ROOM_RESUME_WINDOW_MS = 10 * 60_000L
+
+    /**
+     * Whether a dropped connection stops retrying. Inside a room ([inRoom], a session token is held) only the time since the drop
+     * counts, so the attempts are not used up while the network is simply away; outside a room the attempt budget stays.
+     */
+    fun shouldGiveUp(
+        inRoom: Boolean,
+        attempts: Int,
+        maxAttempts: Int,
+        droppedAtMs: Long,
+        nowMs: Long,
+    ): Boolean = if (inRoom) nowMs - droppedAtMs >= ROOM_RESUME_WINDOW_MS else attempts >= maxAttempts
 }

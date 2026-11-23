@@ -167,6 +167,9 @@ class ListenTogetherClient(
     private var lastInboundAt = 0L
     private var reconnectDelay = INITIAL_RECONNECT_DELAY
     private var reconnectAttempts = 0
+
+    /** [elapsedRealtime] when the current run of reconnect attempts began; null while connected. See [ConnectionPolicy.shouldGiveUp]. */
+    private var droppedAt: Long? = null
     /** Set when the server tells us retrying cannot help — see [MessageTypes.ERROR] handling. */
     private var fatal = false
 
@@ -196,6 +199,7 @@ class ListenTogetherClient(
         // limit would look implemented and quietly never fire.
         reconnectAttempts = 0
         reconnectDelay = INITIAL_RECONNECT_DELAY
+        droppedAt = null
         fatal = false
         startConnection()
     }
@@ -348,6 +352,7 @@ class ListenTogetherClient(
                 // must not buy itself unlimited retries.
                 reconnectDelay = INITIAL_RECONNECT_DELAY
                 reconnectAttempts = 0
+                droppedAt = null
                 _events.emit(
                     ListenTogetherEvent.Connected(
                         serverVersion = caps.serverVersion,
@@ -510,15 +515,20 @@ class ListenTogetherClient(
             return
         }
 
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            Timber.tag(TAG).w("Gave up after %d reconnection attempts", MAX_RECONNECT_ATTEMPTS)
+        val now = elapsedRealtime()
+        val dropped = droppedAt ?: now.also { droppedAt = it }
+        // Row 744 (P2-9): inside a room (a token is held) the attempts are not counted, only the time since the drop.
+        val inRoom = sessionToken != null
+        if (ConnectionPolicy.shouldGiveUp(inRoom, reconnectAttempts, MAX_RECONNECT_ATTEMPTS, dropped, now)) {
+            Timber.tag(TAG).w("Gave up after %d reconnection attempts", reconnectAttempts)
+            droppedAt = null
             // The token is dropped with the attempts: a later connect() is a fresh join, not a
             // resume, and replaying a token the server may already have expired would be answered
             // with an error rather than a room.
             sessionToken = null
             _events.emit(
                 ListenTogetherEvent.Disconnected(
-                    reason = "Could not reconnect after $MAX_RECONNECT_ATTEMPTS attempts",
+                    reason = "Could not reconnect after $reconnectAttempts attempts",
                     willRetry = false,
                 ),
             )
@@ -526,7 +536,11 @@ class ListenTogetherClient(
         }
 
         reconnectAttempts++
-        Timber.tag(TAG).i("Reconnecting in %s (attempt %d of %d)", reconnectDelay, reconnectAttempts, MAX_RECONNECT_ATTEMPTS)
+        if (inRoom) {
+            Timber.tag(TAG).i("Reconnecting to the room in %s (attempt %d)", reconnectDelay, reconnectAttempts)
+        } else {
+            Timber.tag(TAG).i("Reconnecting in %s (attempt %d of %d)", reconnectDelay, reconnectAttempts, MAX_RECONNECT_ATTEMPTS)
+        }
         _events.emit(ListenTogetherEvent.Disconnected("Connection lost", willRetry = true))
         delay(reconnectDelay)
         reconnectDelay = (reconnectDelay * 2).coerceAtMost(MAX_RECONNECT_DELAY)
@@ -575,6 +589,8 @@ class ListenTogetherClient(
          *
          * Counted attempts, not elapsed time: the budget refills only on a COMPLETED handshake, so
          * a server that accepts the socket and then goes quiet still exhausts it.
+         *
+         * Only outside a room: with a session token held, [ConnectionPolicy.ROOM_RESUME_WINDOW_MS] decides instead (row 744).
          */
         private const val MAX_RECONNECT_ATTEMPTS = 5
 

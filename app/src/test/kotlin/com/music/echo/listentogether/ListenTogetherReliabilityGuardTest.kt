@@ -36,6 +36,13 @@ class ListenTogetherReliabilityGuardTest {
     }
 
     @Test
+    fun insideARoomReconnectingIsBoundedByTimeNotByAttempts() {
+        assertTrue(client.contains("val inRoom = sessionToken != null"))
+        assertTrue(client.contains("if (ConnectionPolicy.shouldGiveUp(inRoom, reconnectAttempts, MAX_RECONNECT_ATTEMPTS, dropped, now)) {"))
+        assertTrue("a completed handshake starts the next drop's window afresh", client.contains("droppedAt = null"))
+    }
+
+    @Test
     fun theHostPublishesItsQueueInPlaybackOrder() {
         assertTrue(bridge.contains("next = { i -> timeline.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },"))
         assertTrue(bridge.contains("previous = { i -> timeline.getPreviousWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },"))
