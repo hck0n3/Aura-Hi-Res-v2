@@ -86,6 +86,17 @@ object SyncCorrection {
     }
 
     /**
+     * How long [speed] must stay applied to close [errorMs]: a trim closes |speed − 1| ms of gap per ms played. The guest
+     * returns to its normal speed after this, not at the next heartbeat: [CONVERGE_SECONDS] is 10 s but the heartbeat comes
+     * every 15 s, and a trim left on that long closed 1.5× the gap and overshot to the other side (row 744).
+     */
+    fun trimDurationMs(errorMs: Long, speed: Float): Long {
+        val rate = abs(speed - 1f)
+        if (rate <= 0f) return 0L
+        return (abs(errorMs) / rate).toLong()
+    }
+
+    /**
      * La velocidad que hay que pedirle al reproductor, respetando el tempo que el usuario haya
      * elegido a mano en «Tempo y tono».
      *

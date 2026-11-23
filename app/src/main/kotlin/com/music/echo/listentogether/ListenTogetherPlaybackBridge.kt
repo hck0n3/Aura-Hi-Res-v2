@@ -157,6 +157,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      */
     private var syncUserTempo: Float? = null
 
+    /** Ends the current speed trim once it has closed its gap ([SyncCorrection.trimDurationMs]). Main thread only. */
+    private var trimEnd: kotlinx.coroutines.Job? = null
+
+    /** The scope [start] was given; the trim's end is scheduled on it. */
+    private var bridgeScope: CoroutineScope? = null
+
     /** True while the guest is executing the host's last command; guards the publish loops. */
     private val remoteDepth = java.util.concurrent.atomic.AtomicInteger(0)
 
@@ -219,6 +225,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     fun start(scope: CoroutineScope) {
         if (started) return
         started = true
+        bridgeScope = scope
         Timber.tag(TAG).i("Playback bridge started")
         scope.launch { followPlayer() }
         scope.launch { watchRoomForGuests() }
@@ -554,6 +561,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      * diga.
      */
     private fun restoreUserTempo(player: Player? = null) {
+        trimEnd?.cancel()
+        trimEnd = null
         val tempo = syncUserTempo ?: return
         syncUserTempo = null
         val target = player ?: runCatching { serviceFlow.value?.player }.getOrNull() ?: return
@@ -607,14 +616,17 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // El anfitrión ya publicó lo que OYE, así que aquí se compara contra lo que oigo yo:
             // resto el retardo de mi propia salida. Ver [OutputLatency] — así los dos extremos se
             // compensan solos y el caso "los dos por Bluetooth" no sobrecorrige.
+            val errorMs = OutputLatency.syncErrorMs(
+                myPositionMs = player.currentPosition,
+                hostPositionMs = corrected,
+                myLatencyMs = outputLatencyMs(service),
+            )
             val action = SyncCorrection.correct(
-                errorMs = OutputLatency.syncErrorMs(
-                    myPositionMs = player.currentPosition,
-                    hostPositionMs = corrected,
-                    myLatencyMs = outputLatencyMs(service),
-                ),
+                errorMs = errorMs,
                 targetMs = corrected,
             )
+            trimEnd?.cancel()
+            trimEnd = null
             if (action is SyncAction.Resync) {
                 player.seekTo(action.positionMs)
                 seeked = true
@@ -628,6 +640,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // el estirado sea inaudible en vez de desafinar la canción.
             if (player.playbackParameters.speed != target) {
                 player.playbackParameters = player.playbackParameters.withSpeed(target)
+            }
+            if (action is SyncAction.Trim) {
+                // Back to the normal speed once the gap is closed, not 15 s later at the next heartbeat (row 744).
+                val closeMs = SyncCorrection.trimDurationMs(errorMs, action.speed)
+                trimEnd = bridgeScope?.launch(Dispatchers.Main.immediate) {
+                    delay(closeMs)
+                    restoreUserTempo()
+                }
             }
         } else {
             restoreUserTempo(player)
