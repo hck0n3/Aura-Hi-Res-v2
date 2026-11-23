@@ -16,6 +16,12 @@ on:
         description: 'Regenerar los gradle.lockfile y subirlos a esta rama (nunca main)'
         type: boolean
         default: false
+      emulator_smoke:
+        # Runs .github/workflows/emulator-smoke.yml (debug -Pnosub build on a GitHub emulator; artifacts only, no
+        # release). Lives here because GitHub only dispatches workflow files that exist on the default branch.
+        description: 'Ejecutar las pruebas en emulador (emulator-smoke.yml) en esta rama'
+        type: boolean
+        default: false
   push:
     branches:
       - 'test/**'
@@ -89,8 +95,14 @@ jobs:
           git commit -m "Regenerate dependency lockfiles (CI, --write-locks)"
           git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"
 
+  emulator-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.emulator_smoke && !inputs.write_locks
+    permissions:
+      contents: read
+    uses: ./.github/workflows/emulator-smoke.yml
+
   test-build:
-    if: github.event_name != 'workflow_dispatch' || !inputs.write_locks
+    if: github.event_name != 'workflow_dispatch' || (!inputs.write_locks && !inputs.emulator_smoke)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code

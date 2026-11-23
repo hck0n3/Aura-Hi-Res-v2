@@ -10,6 +10,15 @@ name: Emulator smoke (debug, no release)
 # - No crea releases, no publica nada y no avisa a nadie: solo sube artefactos (registros, capturas, resultados).
 
 on:
+  # Also callable from test-build.yml (input emulator_smoke): GitHub only dispatches workflows that already exist on
+  # the default branch, and this one lives on the work branch until the owner merges it.
+  workflow_call:
+    inputs:
+      previous_ref: { type: string, default: '' }
+      api_level: { type: string, default: '35' }
+      run_update: { type: boolean, default: true }
+      run_streaming: { type: boolean, default: true }
+      stream_video_id: { type: string, default: '_KZEkEb_dvA' }
   workflow_dispatch:
     inputs:
       previous_ref:
