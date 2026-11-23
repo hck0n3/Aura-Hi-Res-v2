@@ -49,6 +49,7 @@ import iad1tya.echo.music.ui.newui.AuraSpacing
 import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.rememberNewUiEnabled
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
+import iad1tya.echo.music.ui.utils.rememberSettingsJumpAnchor
 import iad1tya.echo.music.ui.utils.scrollToOnHighlight
 import iad1tya.echo.music.ui.utils.tvFocusableItem
 
@@ -207,7 +208,8 @@ fun Material3SettingsGroup(
                 // the screen already passes, resource or hardcoded literal.
                 style = if (skin.enabled) AuraType.MenuGroupLabel else MaterialTheme.typography.labelLarge,
                 color = if (skin.enabled) skin.inkFaint else MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(
+                // Settings-search jump target (P22D): identity unless a search result was just tapped.
+                modifier = rememberSettingsJumpAnchor(settingsJumpWash(skin)).padding(
                     bottom = if (skin.enabled) (if (compact) 5.dp else 7.dp) else if (compact) 4.dp else 8.dp,
                     top = if (skin.enabled) (if (compact) 9.dp else 15.dp) else if (compact) 4.dp else 8.dp
                 )
@@ -293,6 +295,8 @@ private fun Material3SettingsItemRow(
 ) {
     Row(
         modifier = Modifier
+            // Settings-search jump target (P22D): identity unless a search result was just tapped.
+            .then(rememberSettingsJumpAnchor(settingsJumpWash(skin)))
             .fillMaxWidth()
             .tvFocusableItem(rememberIsTvOrCar())
             .clickable(
@@ -471,6 +475,12 @@ private fun Material3SettingsItemRow(
         }
     }
 }
+
+
+/** The wash a settings-search jump flashes on its row: the row's own accent, translucent. */
+@Composable
+private fun settingsJumpWash(skin: AuraSettingsSkin): Color =
+    (if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary).copy(alpha = 0.22f)
 
 
 data class Material3SettingsItem(

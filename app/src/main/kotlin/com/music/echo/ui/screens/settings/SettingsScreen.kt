@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +52,7 @@ import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.ui.screens.Screens
+import iad1tya.echo.music.ui.utils.SettingsSearchJump
 import iad1tya.echo.music.license.SubscriptionEntryScreen
 import iad1tya.echo.music.license.LicenseManager
 import iad1tya.echo.music.license.LicenseLogic
@@ -111,6 +113,7 @@ fun SettingsScreen(
     val newUiSubtitle = "Apágala y vuelve a la clásica"
     val (newUiEnabled, onNewUiEnabledChange) = rememberPreference(NewUiEnabledKey, defaultValue = true)
     val noResultsText = stringResource(R.string.settings_search_no_results, searchQuery)
+    val view = LocalView.current
 
     val scrollState = rememberScrollState()
     Column(
@@ -339,8 +342,8 @@ fun SettingsScreen(
         }
 
         // Indexed sub-settings: while searching, surface every individual setting (adapted from upstream
-        // e244ac9). Each result navigates to its PARENT screen — the scroll-to-highlight refinement is not
-        // ported (it would require editing every settings screen). See SearchableSettings.kt.
+        // e244ac9). Each result opens its screen scrolled to that row and flashes it (P22D,
+        // SettingsSearchJump); a row that is not on screen degrades to opening the screen at the top.
         val finalItemsList = if (searchQuery.isNotEmpty()) {
             val matchedSubSettings = getAllSearchableSettings()
                 .filter { it.first.lowercase().contains(searchLower) }
@@ -349,7 +352,7 @@ fun SettingsScreen(
                         icon = painterResource(R.drawable.search),
                         title = { Text(title) },
                         description = { Text(parentTitle) },
-                        onClick = { navController.navigate(route) }
+                        onClick = { SettingsSearchJump.navigate(navController, view, route, title) }
                     )
                 }
             itemsList + matchedSubSettings

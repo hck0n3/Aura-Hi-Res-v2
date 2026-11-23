@@ -2415,7 +2415,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SettingsScreen.
 | Estadísticas | Ajustes | SettingsScreen.kt:289 | navegación | ocasional | siempre |
 | Registros — desc. «Consulta, copia y comparte los registros de la app y el último informe de fallos» | Ajustes | SettingsScreen.kt:298 | navegación | rara | siempre |
 | Acerca de | Ajustes | SettingsScreen.kt:308 | navegación | rara | siempre |
-| Resultados de sub-ajustes indexados (una fila por coincidencia, ~400 entradas) | Ajustes (búsqueda) | SettingsScreen.kt:326 | navegación | ocasional | solo si `searchQuery.isNotEmpty()` |
+| Resultados de sub-ajustes indexados (una fila por coincidencia, ~400 entradas) — abre la pantalla desplazada hasta esa fila y la ilumina ~1,5 s (fila 735, `ui/utils/SettingsSearchJump.kt`) | Ajustes (búsqueda) | SettingsScreen.kt:355 | navegación | ocasional | solo si `searchQuery.isNotEmpty()` |
 | «No se encontraron ajustes para "%1$s"» | Ajustes (búsqueda) | SettingsScreen.kt:340 | informativo | rara | solo si lista vacía y hay consulta |
 | Atrás (flecha barra superior) | Ajustes | SettingsScreen.kt:369 | navegación | constante | siempre |
 
@@ -3359,7 +3359,13 @@ Reparto por ruta de destino (todas existen en `NavigationBuilder.kt`, ninguna ro
 | `settings/appearance/liquidglass` | 1 |
 | `settings/about` | 1 |
 
-Nota: el resultado navega a la **pantalla padre**, no a la fila concreta (el «scroll-to-highlight» de upstream no se portó — comentado en `SearchableSettings.kt:14-16`). 31 entradas apuntan a `settings/integrations/listen_together`, pantalla que **no tiene acceso desde el menú de Ajustes** (ver MUERTO).
+Nota (actualizada 2026-11-23, fila 735): el resultado abre la pantalla **desplazada hasta la fila concreta**
+y la ilumina ~1,5 s (`ui/utils/SettingsSearchJump.kt`; la clave es el título de la entrada, el mismo texto que
+pinta la pantalla). Vale igual en la interfaz nueva (`AuraSettingsScreen`) y en la clásica (`SettingsScreen`). El
+destello solo lo llevan las filas y cabeceras de `Material3SettingsGroup`; en pantallas hechas con otros
+componentes (Tema, Ajustes de Escuchar juntos, Sincronizar dispositivos, Servicios Aura) solo se desplaza. Si el
+texto no está en pantalla (cuerpo de un diálogo, fila oculta por un ajuste o fuera de una lista perezosa) la
+pantalla se abre arriba, como antes. 31 entradas apuntan a `settings/integrations/listen_together`, pantalla que **no tiene acceso desde el menú de Ajustes** (ver MUERTO).
 
 ---
 

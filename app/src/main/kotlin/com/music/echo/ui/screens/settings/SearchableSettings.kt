@@ -11,9 +11,10 @@ import iad1tya.echo.music.R
 // resources the fork's settings screens actually reference, so every entry compiles and routes to a
 // real, registered screen.
 //
-// NOTE: the upstream "scroll-to-highlight the exact row" refinement is intentionally NOT ported here
-// -- it would require editing every destination settings screen (out of scope), so a result navigates
-// to its parent screen instead of the individual row.
+// JUMP KEY (P22D): a result opens its screen scrolled to the row and flashes it. The key that finds the
+// row is the entry's TITLE -- the same string the destination renders -- so the GHOST-ENTRY RULE below is
+// also what makes the jump land. See ui/utils/SettingsSearchJump.kt; a title not on screen degrades to
+// opening the screen at the top.
 // GHOST-ENTRY RULE (0.6.14x anti-placebo pass): a row here is a PROMISE that the text is visible on
 // the destination screen. If a control is deleted, its row MUST go too, or the user searches it, finds
 // it, navigates -- and it is not there. Removed on that basis: last_fm_send_likes (the switch is
