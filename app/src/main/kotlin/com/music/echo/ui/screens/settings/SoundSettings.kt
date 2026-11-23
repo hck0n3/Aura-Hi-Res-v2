@@ -84,9 +84,13 @@ fun SoundSettings(
         // inside the equalizer, which it depends on (EqBypass.toneStages) — it lives there now, once.
         val (safeVolume, onSafeVolumeChange) = rememberPreference(SafeVolumeEnabledKey, defaultValue = true)
         // ── Masterización (owner directive 2026-09-13): every stage is a user toggle ──
-        // Every toggle defaults ON (owner directive 2026-09-14: "todos los toggles activados por default").
+        // Every toggle defaulted ON (owner directive 2026-09-14: "todos los toggles activados por default").
+        // Exception, like row 325: the glue compressor defaults OFF (owner order 2026-11-23, row 712). Same
+        // constant MusicService reads, so the switch never shows a state the DSP is not in
+        // (GlueCompressorDefaultParityTest).
         val (glueCompressor, onGlueCompressorChange) = rememberPreference(
-            iad1tya.echo.music.constants.GlueCompressorEnabledKey, defaultValue = true
+            iad1tya.echo.music.constants.GlueCompressorEnabledKey,
+            defaultValue = iad1tya.echo.music.constants.GlueCompressorDefault,
         )
         val (outputDither, onOutputDitherChange) = rememberPreference(
             iad1tya.echo.music.constants.OutputDitherEnabledKey, defaultValue = true
@@ -191,7 +195,7 @@ fun SoundSettings(
                     icon = painterResource(R.drawable.volume_up),
                     title = { Text("Compresor suave (pegamento)") },
                     description = {
-                        Text("Compresión 2:1 muy sutil antes del limitador: une la mezcla y da pegada sin subir el volumen.")
+                        Text("Compresión 2:1 por encima de −12 dB, sin ganancia de compensación: baja un poco los pasajes fuertes para unir la mezcla. Apagado por defecto.")
                     },
                     trailingContent = {
                         Switch(

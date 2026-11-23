@@ -1318,8 +1318,16 @@ val AudioDefaults20260913AppliedKey = booleanPreferencesKey("audio_defaults_2026
 /** One-shot (owner directive 2026-09-25): EQ preamp +2.5 dB, enabled, for everyone on this update. */
 val PreampDefault25DbAppliedKey = booleanPreferencesKey("preamp_default_25db_applied")
 
-/** Mastering: gentle 2:1 glue compressor before the limiter. Default OFF (user opt-in). */
+/**
+ * Mastering: gentle 2:1 glue compressor before the limiter. Default OFF (user opt-in). MusicService (the
+ * hint, the mastering collector and the offload gate) and SoundSettings (the switch) MUST all read
+ * [GlueCompressorDefault]: two literals that drift apart make the switch lie (the row 325 lesson).
+ * Guarded by `GlueCompressorDefaultParityTest`.
+ */
 val GlueCompressorEnabledKey = booleanPreferencesKey("mastering_glue_compressor_enabled")
+
+/** The ONE default of [GlueCompressorEnabledKey]. */
+const val GlueCompressorDefault = false
 
 /** Mastering: TPDF dither + noise shaping on the 16-bit output. Default ON (inaudible, cleaner quiet passages). */
 val OutputDitherEnabledKey = booleanPreferencesKey("mastering_output_dither_enabled")

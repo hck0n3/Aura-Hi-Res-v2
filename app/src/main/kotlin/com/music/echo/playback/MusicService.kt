@@ -835,7 +835,7 @@ class MusicService :
     @Volatile private var spatialProfileNameHint: String = SpatialAudioProfile.WIDE_SURROUND.name
     @Volatile private var tidalEnabledHint: Boolean = true
     // Mastering toggles (owner directive 2026-09-13). Defaults mirror the preference keys.
-    @Volatile private var glueCompressorHint: Boolean = true
+    @Volatile private var glueCompressorHint: Boolean = iad1tya.echo.music.constants.GlueCompressorDefault
     @Volatile private var outputDitherHint: Boolean = true
     @Volatile private var speakerBassProtectHint: Boolean = false
     // PLAN A3: 32-bit float processing for 16-bit decoder output (Opus/AAC). Read by the audio sink on
@@ -2919,7 +2919,7 @@ class MusicService :
         // MASTERING toggles (glue compressor / output dither / phone-speaker sub-bass protection).
         scope.launch {
             combine(
-                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: true },
+                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: iad1tya.echo.music.constants.GlueCompressorDefault },
                 dataStore.data.map { it[iad1tya.echo.music.constants.OutputDitherEnabledKey] ?: true },
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false },
             ) { compressor, dither, speaker -> Triple(compressor, dither, speaker) }
@@ -3059,7 +3059,7 @@ class MusicService :
             combine(
                 dataStore.data.map { it[SpatialAudioEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged(),
-                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: true }.distinctUntilChanged(),
+                dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: iad1tya.echo.music.constants.GlueCompressorDefault }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f }.distinctUntilChanged(),
             ) { spatial, tidal, compressor, speaker, width -> spatial || tidal || compressor || speaker || width }
