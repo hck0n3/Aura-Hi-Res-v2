@@ -585,6 +585,9 @@ fun Queue(
                 queueWindows[currentWindowIndex].uid
             } else null
         }
+        LaunchedEffect(queueWindows) {
+            iad1tya.echo.music.ui.utils.QueueWindowKeys.retainOnly(queueWindows.map { it.uid })
+        }
 
         val reorderableState = rememberReorderableLazyListState(
             lazyListState = lazyListState,
@@ -1152,7 +1155,7 @@ fun Queue(
 
                     itemsIndexed(
                         items = mutableQueueWindows,
-                        key = { _, item -> item.uid.hashCode() },
+                        key = { _, item -> iad1tya.echo.music.ui.utils.QueueWindowKeys.keyOf(item.uid) },
                     ) { index, window ->
                         // A tag-less MediaItem (e.g. added by an external controller through media3's
                         // default onAddMediaItems) has no metadata: skip the row instead of crashing
@@ -1160,7 +1163,7 @@ fun Queue(
                         val meta = window.mediaItem.metadata ?: return@itemsIndexed
                         ReorderableItem(
                             state = reorderableState,
-                            key = window.uid.hashCode(),
+                            key = iad1tya.echo.music.ui.utils.QueueWindowKeys.keyOf(window.uid),
                         ) {
                             val currentItem by rememberUpdatedState(window)
                             val isActive = window.uid == currentPlayingUid
