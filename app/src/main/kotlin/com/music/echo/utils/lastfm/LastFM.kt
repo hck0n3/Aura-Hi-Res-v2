@@ -19,6 +19,14 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import java.security.MessageDigest
 
+/**
+ * Registry row 760: the message of a Last.fm write rejected with an error body that does not parse.
+ * ScrobbleManager logs this exception at ERROR, which AppLogger persists to the shared app.log, so it
+ * carries the method and the body LENGTH only — never the body, which may echo request data.
+ */
+internal fun lastFmUnparseableErrorMessage(method: String, body: String): String =
+    "$method failed: unparseable error response (${body.length} chars)"
+
 object LastFM {
     var sessionKey: String? = null
 
@@ -154,7 +162,7 @@ object LastFM {
             throw if (parsed != null) {
                 LastFmException(parsed.error, parsed.message)
             } else {
-                LastFmException(-1, "$method failed: $responseText")
+                LastFmException(-1, lastFmUnparseableErrorMessage(method, responseText))
             }
         }
         if (!status.isSuccess()) {

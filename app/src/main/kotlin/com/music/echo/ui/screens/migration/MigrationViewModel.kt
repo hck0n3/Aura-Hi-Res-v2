@@ -771,7 +771,10 @@ class MigrationViewModel @Inject constructor(
                 )
                 // One artist that fails to match NEVER sinks the rest — the engine's non-negotiable
                 // principle, applied to this path too.
-                if (runCatching { bookmarkArtist(artist) }.getOrDefault(false)) {
+                val bookmarked = runCatching { bookmarkArtist(artist) }
+                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                    .getOrDefault(false)
+                if (bookmarked) {
                     added++
                 } else if (artist.name.isNotBlank()) {
                     failures += ImportFailureRow(

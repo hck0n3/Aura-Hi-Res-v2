@@ -226,9 +226,14 @@ class LibraryUploadSync @Inject constructor(
     }.getOrDefault(false)
 
     /**
-     * Artists an import followed only in Aura — awaiting the user's confirmation or kept in Aura only.
-     * The subscribe step skips them. Ids the user has since unfollowed, or that the account already
-     * has, are dropped from both sets. Null when the preferences cannot be read.
+     * Artists an import followed in Aura only, which the subscribe step must skip: the ones awaiting the
+     * user's «Suscribir» / «Solo en Aura» choice ([ImportFollowsAwaitingConfirmKey]) plus the ones kept in
+     * Aura only ([ImportFollowsLocalOnlyKey]). An import never subscribes the account itself (registry #646).
+     * The first call on a device ([ImportFollowsPendingHeldV1Key] unset) also moves every follow that was
+     * already pending into the awaiting set. Ids the user has since unfollowed, or that the account already
+     * has, are dropped from both sets, and a local-only id whose follow is gone is dropped from that set.
+     * Null when the preferences or the pending follows cannot be read: the subscribe step then holds
+     * every follow back.
      */
     suspend fun importFollowsHeldBack(): Set<String>? = withContext(Dispatchers.IO) {
         var prefs = runCatching { context.dataStore.data.first() }.getOrNull() ?: return@withContext null

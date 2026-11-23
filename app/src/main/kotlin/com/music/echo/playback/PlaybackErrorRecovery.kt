@@ -192,7 +192,6 @@ import iad1tya.echo.music.utils.NetworkConnectivityObserver
 import iad1tya.echo.music.utils.ScrobbleManager
 import iad1tya.echo.music.utils.ShareLinks
 import iad1tya.echo.music.utils.SyncUtils
-import iad1tya.echo.music.utils.YTPlayerUtils
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.exportedFileUriExists
 import iad1tya.echo.music.utils.get
@@ -276,14 +275,6 @@ internal fun MusicService.performAggressiveCacheClear(mediaId: String) {
         Timber.tag(TAG).d("Cleared player cache for $mediaId")
     } catch (e: Exception) {
         Timber.tag(TAG).e(e, "Failed to clear player cache for $mediaId")
-    }
-
-
-    try {
-        YTPlayerUtils.forceRefreshForVideo(mediaId)
-        Timber.tag(TAG).d("Cleared decryption caches for $mediaId")
-    } catch (e: Exception) {
-        Timber.tag(TAG).e(e, "Failed to clear decryption caches for $mediaId")
     }
 }
 
@@ -439,13 +430,6 @@ internal fun MusicService.handleExpiredUrlError(mediaId: String?) {
 
     songUrlCache.remove(mediaId)
     Timber.tag(TAG).d("Cleared cached URL for $mediaId")
-
-    
-    try {
-        YTPlayerUtils.forceRefreshForVideo(mediaId)
-    } catch (e: Exception) {
-        Timber.tag(TAG).e(e, "Failed to clear decryption caches")
-    }
 
     retryJob?.cancel()
     retryJob = scope.launch {
