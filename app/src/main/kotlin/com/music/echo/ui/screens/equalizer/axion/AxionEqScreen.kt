@@ -988,7 +988,7 @@ private fun ColumnScope.EqMainContent(
             Material3SettingsItem(
                 icon = painterResource(R.drawable.tune),
                 title = { Text("Firma de sonido Tidal") },
-                description = { Text("Simulación de audio de alta fidelidad con calibración de armónicos cálidos y escenario sonoro expansivo.") },
+                description = { Text("Curva suave fija: +1 dB de sub-grave (60 Hz), −0,5 dB a 250 Hz, +0,5 dB de presencia (3 kHz) y +1,5 dB de aire (12 kHz). Solo con el ecualizador activado.") },
                 trailingContent = {
                     Switch(
                         checked = tidalSimulation,

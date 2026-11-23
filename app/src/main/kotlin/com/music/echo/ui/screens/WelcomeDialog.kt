@@ -102,7 +102,7 @@ fun WelcomeDialog(
                         "Sonido",
                         listOf(
                             "EQ de 10 bandas + paramétrico, Auto-EQ de auriculares y Volumen Seguro",
-                            "Limitador con margen automático; sin «mejoras» inventadas sobre Opus",
+                            "Limitador y margen automático opcional; sin «mejoras» inventadas sobre Opus",
                         ),
                     ),
                     WelcomeBulletGroup(
