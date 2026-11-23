@@ -72,4 +72,13 @@ class EqFftMeterLoopTest {
         assertTrue(loop.contains("settled = eqFftMeterSettled(playing, smoothed, peakOut)"))
         assertFalse(loop.contains("while (isActive) {\n            withFrameNanos"))
     }
+
+    /** Row 770 (F-007 pattern): the crossfade swaps the ExoPlayer; the meter's listener follows the live one. */
+    @Test
+    fun `the meter listener re-attaches when the service swaps the player`() {
+        assertTrue(screen.contains("playerConnection?.service?.playerFlow"))
+        assertTrue(screen.contains("DisposableEffect(playerConnection, livePlayer) {"))
+        assertTrue(screen.contains("val player = livePlayer ?: playerConnection?.player"))
+        assertFalse(screen.contains("DisposableEffect(playerConnection) {\n        val player = playerConnection?.player"))
+    }
 }

@@ -761,8 +761,14 @@ private fun ColumnScope.EqMainContent(
         mutableIntStateOf(playerConnection?.player?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET)
     }
     var meterPlaying by remember { mutableStateOf(false) }
-    DisposableEffect(playerConnection) {
-        val player = playerConnection?.player
+    // Row 770 (same idea as F-007): the crossfade swaps the service's ExoPlayer on every song, so a listener attached
+    // once went stale after the first crossfade. Follow the service's playerFlow and move the listener to the live one.
+    val livePlayer by remember(playerConnection) {
+        playerConnection?.service?.playerFlow
+            ?: kotlinx.coroutines.flow.MutableStateFlow<androidx.media3.exoplayer.ExoPlayer?>(null)
+    }.collectAsState()
+    DisposableEffect(playerConnection, livePlayer) {
+        val player = livePlayer ?: playerConnection?.player
         if (player == null) {
             audioSessionId = C.AUDIO_SESSION_ID_UNSET
             meterPlaying = false
