@@ -161,6 +161,10 @@ class ListenTogetherClient(
 
     private var sessionToken: String? = null
     private var pingSequence = 0L
+
+    /** [elapsedRealtime] of the last frame the current socket received, whatever it was: the liveness watch reads it. */
+    @Volatile
+    private var lastInboundAt = 0L
     private var reconnectDelay = INITIAL_RECONNECT_DELAY
     private var reconnectAttempts = 0
     /** Set when the server tells us retrying cannot help — see [MessageTypes.ERROR] handling. */
@@ -302,6 +306,7 @@ class ListenTogetherClient(
         // de lo que el usuario tecleó va al app.log que comparte desde Ajustes).
         val live = client.webSocketSession(url)
         session = live
+        lastInboundAt = elapsedRealtime()
         serverClock.reset()
         val pending = CompletableDeferred<ServerCapabilities>()
         handshake = pending
@@ -351,7 +356,17 @@ class ListenTogetherClient(
                     ),
                 )
 
-                val pinger = launch { pingLoop() }
+                val pinger =
+                    launch {
+                        pingLoop(
+                            onDead = {
+                                // Row 744 (P1-9): a half-open socket never ends its read loop by itself. Ending it here takes
+                                // the normal path down: the reader stops, this socket closes and scheduleReconnect runs.
+                                reader.cancel()
+                                runCatching { live.cancel() }
+                            },
+                        )
+                    }
                 reader.join()
                 pinger.cancel()
             }
@@ -372,6 +387,7 @@ class ListenTogetherClient(
 
     private suspend fun readFrames(live: DefaultClientWebSocketSession) {
         for (frame in live.incoming) {
+            lastInboundAt = elapsedRealtime()
             // Metrolist's server writes BinaryMessage exclusively and Aura's rooms Text exclusively;
             // anything else is not ours.
             val bytes =
@@ -459,18 +475,32 @@ class ListenTogetherClient(
      * during the first seconds would otherwise seek against a barely-calibrated clock. After that
      * the interval opens up — the server's read deadline is 60s and any message refreshes it, so
      * [PING_INTERVAL] is also what keeps an idle room's socket alive.
+     *
+     * It is also the liveness watch (row 744, P1-9), with no timer of its own: after each steady-cadence ping, if nothing at all
+     * came back during the interval, the ping counts as unanswered, and [ConnectionPolicy.MAX_UNANSWERED_PINGS] in a row call
+     * [onDead]. The calibration pings are not judged: one second is shorter than a slow network's round trip.
      */
-    private suspend fun pingLoop() {
+    private suspend fun pingLoop(onDead: () -> Unit) {
         var sent = 0
+        var unanswered = 0
         while (true) {
+            val sentAt = elapsedRealtime()
             val ok =
                 send(
                     MessageTypes.PING,
-                    PingPayload(clientTime = elapsedRealtime(), sequence = ++pingSequence),
+                    PingPayload(clientTime = sentAt, sequence = ++pingSequence),
                 )
             if (!ok) return
             sent++
+            val steady = sent > CALIBRATION_PINGS
             delay(if (sent < CALIBRATION_PINGS) CALIBRATION_PING_INTERVAL else PING_INTERVAL)
+            if (!steady) continue
+            unanswered = ConnectionPolicy.unansweredAfter(unanswered, heardSincePing = lastInboundAt >= sentAt)
+            if (ConnectionPolicy.socketLooksDead(unanswered)) {
+                Timber.tag(TAG).w("No answer to %d pings in a row — the socket is half-open, reconnecting", unanswered)
+                onDead()
+                return
+            }
         }
     }
 

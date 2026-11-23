@@ -24,6 +24,17 @@ class ListenTogetherReliabilityGuardTest {
         assertTrue(bridge.contains("delay(closeMs)"))
     }
 
+    private val client by lazy { text("app/src/main/kotlin/com/music/echo/listentogether/ListenTogetherClient.kt") }
+
+    @Test
+    fun aHalfOpenSocketIsDetectedByThePingLoopAndReconnected() {
+        val readLoop = client.substringAfter("for (frame in live.incoming) {").substringBefore("// Metrolist's server")
+        assertTrue("every frame refreshes the liveness clock", readLoop.contains("lastInboundAt = elapsedRealtime()"))
+        assertTrue(client.contains("unanswered = ConnectionPolicy.unansweredAfter(unanswered, heardSincePing = lastInboundAt >= sentAt)"))
+        assertTrue(client.contains("if (ConnectionPolicy.socketLooksDead(unanswered)) {"))
+        assertTrue("a dead socket ends the read loop, which schedules the reconnect", client.contains("reader.cancel()"))
+    }
+
     @Test
     fun theHostPublishesItsQueueInPlaybackOrder() {
         assertTrue(bridge.contains("next = { i -> timeline.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },"))
