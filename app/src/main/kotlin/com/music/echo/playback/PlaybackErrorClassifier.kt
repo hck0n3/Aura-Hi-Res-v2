@@ -133,7 +133,16 @@ object PlaybackErrorClassifier {
             return false
         }
         if (isOfflineRejection(error)) return false
-        var cause: Throwable? = error.cause
+        return error.cause?.let { isConnectivityCause(it) } == true
+    }
+
+    /**
+     * The cause test of [isConnectivityFailure], for any throwable and its chain: no DNS, could not connect, no route,
+     * ENETUNREACH. Also used by the stream resolver to tell "every client failed because the device has no internet" from
+     * "the clients answered and refused".
+     */
+    fun isConnectivityCause(error: Throwable): Boolean {
+        var cause: Throwable? = error
         while (cause != null) {
             if (cause is java.net.UnknownHostException ||
                 cause is java.net.ConnectException ||

@@ -290,6 +290,34 @@ class PlaybackErrorClassifierTest {
         assertFalse(PlaybackErrorClassifier.isConnectivityFailure(offlineRejection(OfflineRejectionException.Kind.NO_NETWORK)))
     }
 
+    /**
+     * Review 2026-11-23 (3): with the network connected but no internet, every client fails and the resolver ends in its
+     * "all clients failed" dead end. When every failure was a connectivity cause it rides along as the cause, so the player
+     * sees a CONNECTIVITY failure (two-failure rule, then the offline queue) and not an unavailable song.
+     */
+    @Test
+    fun aNoStreamWhoseClientsAllLackedInternetIsAConnectivityFailure() {
+        val noInternet = YTPlayerUtils.StreamResolutionException("No hay ninguna fuente", cause = java.net.UnknownHostException("youtubei.googleapis.com"))
+        val mapped = playbackError(PlaybackErrorClassifier.ERROR_CODE_NO_STREAM, message = "No hay ninguna fuente", cause = noInternet)
+        val top = playbackError(PlaybackException.ERROR_CODE_IO_UNSPECIFIED, cause = java.io.IOException("Unexpected", mapped))
+        assertTrue(PlaybackErrorClassifier.isNoStreamError(top))
+        assertTrue(PlaybackErrorClassifier.isConnectivityFailure(top))
+        assertFalse("never marks the song unavailable", PlaybackErrorClassifier.isContentLevelNoStream(top))
+
+        val refused = YTPlayerUtils.StreamResolutionException("La canción tardó demasiado en resolverse")
+        val plain = playbackError(PlaybackException.ERROR_CODE_IO_UNSPECIFIED, cause = java.io.IOException("Unexpected", playbackError(PlaybackErrorClassifier.ERROR_CODE_NO_STREAM, cause = refused)))
+        assertTrue(PlaybackErrorClassifier.isNoStreamError(plain))
+        assertFalse("a YouTube-side dead end stays an unavailable song", PlaybackErrorClassifier.isConnectivityFailure(plain))
+    }
+
+    @Test
+    fun connectivityCauseWalksAnyThrowable() {
+        assertTrue(PlaybackErrorClassifier.isConnectivityCause(java.io.IOException("wrap", java.net.ConnectException())))
+        assertTrue(PlaybackErrorClassifier.isConnectivityCause(java.net.UnknownHostException("h")))
+        assertFalse(PlaybackErrorClassifier.isConnectivityCause(java.net.SocketTimeoutException()))
+        assertFalse(PlaybackErrorClassifier.isConnectivityCause(java.io.IOException("HTTP 403")))
+    }
+
     // ------------------------------------------------------- offline rejection
 
     private fun offlineRejection(kind: OfflineRejectionException.Kind): PlaybackException {
