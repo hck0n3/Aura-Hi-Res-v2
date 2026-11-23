@@ -53,6 +53,14 @@ object ReleaseRadarRetention {
      *  and the kept row (seen flag included) is what stops a retired release from coming back as new. */
     fun ytPruneThreshold(today: LocalDate): LocalDate = LocalDate.of(today.year, 1, 1)
 
+    /**
+     * Row 756: a Spotify token that cannot be refreshed skips the YouTube fallback only on the FIRST pass in a row
+     * (the transient case). When it fails again on the next pass (expired or revoked `sp_dc`, a changed token
+     * endpoint) the fallback runs, or no new release would reach Novedades until every Spotify row aged out (60 days).
+     * Rows it stores are replaced by Spotify's once the token works again ([upgradeYtRows]).
+     */
+    fun skipFallbackOnTokenFailure(failedLastPass: Boolean): Boolean = !failedLastPass
+
     // ── Review of row 674: bounded YouTube lookups, and Spotify rows replacing fallback rows ──────────────────
 
     /** A release the table does not hold is searched on YouTube on every pass only while it is this young (the old

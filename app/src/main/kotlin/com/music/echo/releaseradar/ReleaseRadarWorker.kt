@@ -105,8 +105,10 @@ class ReleaseRadarWorker(
             // Whether an empty result is a trustworthy "no releases" vs a transient fetch failure.
             // Guards the one-time replacement below so a flaky network never nukes a good list down to empty.
             val emptyIsTrusted: Boolean
+            val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
 
             if (ensureSpotifyToken()) {
+                if (prefs.getBoolean(SPOTIFY_TOKEN_FAILED_KEY, false)) prefs.edit().remove(SPOTIFY_TOKEN_FAILED_KEY).apply()
                 val gathered = gatherSpotify(database, today, windowStart, known)
                 items = gathered.items
                 emptyIsTrusted = gathered.feedOk
@@ -114,15 +116,22 @@ class ReleaseRadarWorker(
                 // Review of row 674: a Spotify session exists but its token could not be refreshed (transient). The
                 // YouTube fallback would now store a whole year of releases dated 1 January with guessed types next
                 // to the good Spotify rows, and keep them for 60 days. Nothing is written this pass.
-                items = emptyList()
-                emptyIsTrusted = false
+                // Row 756: only once in a row — a refresh that keeps failing must not freeze Novedades for 60 days.
+                val failedLastPass = prefs.getBoolean(SPOTIFY_TOKEN_FAILED_KEY, false)
+                prefs.edit().putBoolean(SPOTIFY_TOKEN_FAILED_KEY, true).apply()
+                if (ReleaseRadarRetention.skipFallbackOnTokenFailure(failedLastPass)) {
+                    items = emptyList()
+                    emptyIsTrusted = false
+                } else {
+                    items = gatherYouTubeFallback(database, today)
+                    emptyIsTrusted = items.isNotEmpty()
+                }
             } else {
                 // FALLBACK: Spotify not connected → YouTube-only (release YEAR, no exact dates).
                 items = gatherYouTubeFallback(database, today)
                 emptyIsTrusted = items.isNotEmpty()
             }
 
-            val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
             val upgrade = ReleaseRadarRetention.upgradeYtRows(known.values, items)
             var migratedNow = false
             // One transaction: a screen reading the table never sees it empty between the clear and the insert
@@ -592,6 +601,9 @@ class ReleaseRadarWorker(
 
         /** Releases already searched on YouTube ("epochDay:dedupeKey", see [ReleaseRadarRetention.readLookups]). */
         private const val LOOKED_UP_KEY = "release_radar_looked_up"
+
+        /** The previous pass could not refresh the Spotify token ([ReleaseRadarRetention.skipFallbackOnTokenFailure]). */
+        private const val SPOTIFY_TOKEN_FAILED_KEY = "release_radar_spotify_token_failed"
 
         /** Set once the radar has stored a release: an empty Novedades then says «Estás al día» (row 674). */
         private const val HAD_RELEASES_KEY = "release_radar_had_releases"
