@@ -5620,7 +5620,7 @@ class MusicService :
 
     internal suspend fun tasteProfile(): iad1tya.echo.music.reco.TasteProfile? {
         val now = System.currentTimeMillis()
-        cachedTaste?.let { if (now - cachedTasteAt < 5 * 60_000L) return it }
+        cachedTaste?.let { if (now - cachedTasteAt < 5 * 60_000L && cachedTasteAt > iad1tya.echo.music.reco.QuickSkipLog.clearedAtMs) return it }
         return runCatching {
             val events = withContext(Dispatchers.IO) { database.recentEventsWithSong(3000).first() }
             val library = withContext(Dispatchers.IO) {
@@ -5644,8 +5644,14 @@ class MusicService :
                     dataStore.get(iad1tya.echo.music.constants.LastFMUsernameKey, "").isNotBlank()
                 ) iad1tya.echo.music.reco.LastFmTasteSource.cached(this@MusicService) else emptyMap()
             }
+            val quickSkips = withContext(Dispatchers.IO) {
+                runCatching { iad1tya.echo.music.reco.QuickSkipLog.read(this@MusicService) }.getOrDefault(emptyList())
+            }
+            val dislikedSongs = withContext(Dispatchers.IO) {
+                runCatching { disliked.songs.toList().chunked(900).flatMap { database.getSongsByIds(it) } }.getOrDefault(emptyList())
+            }
             withContext(Dispatchers.Default) {
-                iad1tya.echo.music.reco.AffinityEngine.buildProfile(events, disliked, artistGenres = genres, onboardingGenres = onboarding, librarySongs = library, followedArtists = followed, externalArtistWeights = lastfm)
+                iad1tya.echo.music.reco.AffinityEngine.buildProfile(events, disliked, artistGenres = genres, onboardingGenres = onboarding, librarySongs = library, followedArtists = followed, externalArtistWeights = lastfm, quickSkips = quickSkips, dislikedSongs = dislikedSongs)
             }.also {
                 cachedTaste = it
                 cachedTasteAt = now
@@ -11789,6 +11795,46 @@ class MusicService :
     ) {
         if (reason == Player.DISCONTINUITY_REASON_SEEK) {
             scheduleCrossfade()
+            recordQuickSkip(oldPosition, newPosition)
+        }
+    }
+
+    /**
+     * Row 720 — the user's own skip to the next song before the history threshold, for the taste model
+     * ([iad1tya.echo.music.reco.QuickSkipLog]). Only field reads here; the small file is written on IO, once per skip.
+     */
+    private fun recordQuickSkip(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo) {
+        val old = oldPosition.mediaItem ?: return
+        val m = old.metadata ?: return
+        val durationMs = if (m.duration > 0) m.duration * 1000L else 0L
+        val facts = iad1tya.echo.music.reco.QuickSkipLog.SeekFacts(
+            toAnotherSong = newPosition.mediaItem?.mediaId.let { it != null && it != old.mediaId },
+            toNextInOrder = player.previousMediaItemIndex == oldPosition.mediaItemIndex,
+            listenedMs = oldPosition.positionMs,
+            durationMs = durationMs,
+            historyThresholdMs = historyDurationMsHint.toLong(),
+            // An error chain, a non-music auto-skip, a failed song, the skip of a «No me gusta» and the offline
+            // session's own moves are the app's, not a judgement on the song.
+            appMovedOn = consecutivePlaybackErr > 0 || consecutiveNoMusicSkips > 0 || player.playerError != null ||
+                old.mediaId in recentlyFailedSongs || old.mediaId in dislikeHandledHere || PlaybackOfflineSession.isActive,
+            historyPaused = pauseListenHistoryHint,
+            listenTogetherGuest = ::listenTogetherManager.isInitialized &&
+                listenTogetherManager.isInRoom && !listenTogetherManager.isHost,
+            castingOrMirror = castConnectionHandler?.isCasting?.value == true || onlyShowingMirror,
+            musicRequestQueue = iad1tya.echo.music.reco.QuickSkipLog.isMusicRequestContext(radioOriginContextId),
+        )
+        if (!iad1tya.echo.music.reco.QuickSkipLog.isUserQuickSkip(facts)) return
+        val artist = m.artists.firstOrNull()
+        val entry = iad1tya.echo.music.reco.QuickSkipLog.Entry(
+            songId = old.mediaId,
+            artistId = artist?.id,
+            artistName = artist?.name,
+            atMs = System.currentTimeMillis(),
+            listenedMs = oldPosition.positionMs,
+            durationMs = durationMs,
+        )
+        scope.launch(Dispatchers.IO) {
+            runCatching { iad1tya.echo.music.reco.QuickSkipLog.record(this@MusicService, entry) }
         }
     }
 

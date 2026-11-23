@@ -82,6 +82,7 @@ import iad1tya.echo.music.models.rememberResolvedAlbum
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import iad1tya.echo.music.ui.component.ListDialog
+import iad1tya.echo.music.applicationScope
 import iad1tya.echo.music.ui.component.LocalBottomSheetPageState
 import iad1tya.echo.music.ui.component.Material3MenuGroup
 import iad1tya.echo.music.ui.component.Material3MenuItemData
@@ -412,8 +413,14 @@ fun YouTubeSongMenu(
                             )
                         },
                         onClick = {
-                            coroutineScope.launch {
-                                iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.id)
+                            val primary = song.artists.firstOrNull()
+                            // Row 721: «menos parecido» reaches the artist too (Home + radio read it). Never the smart
+                            // queue's 30-day skip memory: that one rejects the artist outright (row 525). One edit on the
+                            // process scope: the menu's own scope dies with the sheet a moment after this click.
+                            val artistKey = iad1tya.echo.music.reco.SoftDislikeRank.artistKey(primary?.id, primary?.name)
+                            context.applicationScope.launch {
+                                iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context)
+                                    .softDislikeSongAndArtist(song.id, artistKey)
                             }
                             android.widget.Toast.makeText(
                                 context,

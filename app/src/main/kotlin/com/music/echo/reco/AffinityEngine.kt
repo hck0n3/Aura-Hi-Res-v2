@@ -59,6 +59,15 @@ object AffinityEngine {
      *  gives artist names, not YouTube ids, so it never touches maxArtistWeight (computed from byId). */
     private const val LASTFM_KEY_CAP = 2.0
 
+    /** Row 720 — the most quick skips ([QuickSkipLog]) may take from one artist id/name: what a library import may
+     *  give it, so a burst of skips while hunting for a song cannot bury an artist the user otherwise plays. */
+    private const val QUICK_SKIP_KEY_CAP = LIBRARY_KEY_CAP
+
+    /** Row 721 — what one «No me gusta» on a song takes from its primary artist: a fresh play skipped at second 0
+     *  ([SKIP_PIVOT] mapped like any play, no hour boost); capped per key like the quick skips. Less, never AVOID. */
+    internal const val DISLIKED_SONG_ARTIST_WEIGHT = SKIP_PIVOT / (1.0 - SKIP_PIVOT)
+    private const val DISLIKED_SONG_KEY_CAP = LIBRARY_KEY_CAP
+
     suspend fun buildProfile(
         events: List<EventWithSong>,
         disliked: DislikeStore.Disliked,
@@ -81,6 +90,11 @@ object AffinityEngine {
         // capped, so it seeds cold-start / cross-app taste but never outranks real local plays. Empty by default
         // (Last.fm off/absent) => zero behavior change.
         externalArtistWeights: Map<String, Double> = emptyMap(),
+        // Row 720: the quick skips the history never recorded ([QuickSkipLog]). Empty => zero behavior change.
+        quickSkips: List<QuickSkipLog.Entry> = emptyList(),
+        // Row 721: the stored rows of the songs in disliked.songs, so a song's «No me gusta» also lowers its primary
+        // artist a little. Empty => zero behavior change.
+        dislikedSongs: List<Song> = emptyList(),
     ): TasteProfile {
         val byId = HashMap<String, Double>()
         val byName = HashMap<String, Double>()
@@ -159,6 +173,41 @@ object AffinityEngine {
             }
         }
 
+        // Row 720: a quick skip counts against its primary artist exactly as the play the history never recorded
+        // would have ([quickSkipWeight]), capped per key. A marked song or artist feeds nothing, as above (row 285).
+        if (quickSkips.isNotEmpty()) {
+            val skipById = HashMap<String, Double>()
+            val skipByName = HashMap<String, Double>()
+            quickSkips.forEach { s ->
+                if (s.songId in disliked.songs) return@forEach
+                val id = s.artistId?.takeIf { it.isNotBlank() }
+                val name = s.artistName?.takeIf { it.isNotBlank() }
+                if (id != null && isDislikedArtist(id, name.orEmpty())) return@forEach
+                val w = quickSkipWeight(s, now, nowHour)
+                if (w >= 0.0) return@forEach
+                id?.let { skipById.merge(it, -w, Double::plus) }
+                name?.let { skipByName.merge(it.lowercase(), -w, Double::plus) }
+            }
+            skipById.forEach { (k, v) -> byId.merge(k, -min(v, QUICK_SKIP_KEY_CAP), Double::plus) }
+            skipByName.forEach { (k, v) -> byName.merge(k, -min(v, QUICK_SKIP_KEY_CAP), Double::plus) }
+        }
+
+        // Row 721: a disliked song lowers its primary artist by a bounded amount (the song itself stays AVOID in [score]).
+        // An artist that is itself marked keeps the hard path (removed below, AVOID by name).
+        if (dislikedSongs.isNotEmpty()) {
+            val dislikeById = HashMap<String, Double>()
+            val dislikeByName = HashMap<String, Double>()
+            dislikedSongs.distinctBy { it.song.id }.forEach { s ->
+                if (s.song.id !in disliked.songs) return@forEach
+                val a = s.artists.firstOrNull() ?: return@forEach
+                if (isDislikedArtist(a.id, a.name)) return@forEach
+                dislikeById.merge(a.id, DISLIKED_SONG_ARTIST_WEIGHT, Double::plus)
+                if (a.name.isNotBlank()) dislikeByName.merge(a.name.lowercase(), DISLIKED_SONG_ARTIST_WEIGHT, Double::plus)
+            }
+            dislikeById.forEach { (k, v) -> byId.merge(k, -min(v, DISLIKED_SONG_KEY_CAP), Double::plus) }
+            dislikeByName.forEach { (k, v) -> byName.merge(k, -min(v, DISLIKED_SONG_KEY_CAP), Double::plus) }
+        }
+
         // B4: seed taste from the saved/imported library. A song you saved but never played is a real
         // (if weaker) taste signal — so the AI works from the whole imported library, even on a fresh install
         // where there's no in-app play history yet. Liked songs weigh a bit more than plain imported ones.
@@ -230,6 +279,20 @@ object AffinityEngine {
             byId, byName, lane, genre, artistGenres, disliked, maxW, maxG,
             dislikedArtistNames = dislikedArtistNames,
         )
+    }
+
+    /**
+     * Row 720 — what one quick skip weighs: the same recency decay, time-of-day boost and completion → quality mapping
+     * as a play in [buildProfile], never above zero (a skip never ADDS taste). Unknown duration = nothing heard.
+     */
+    internal fun quickSkipWeight(entry: QuickSkipLog.Entry, now: Long, nowHour: Int): Double {
+        val ageDays = ((now - entry.atMs) / 86_400_000.0).coerceAtLeast(0.0)
+        val decay = exp(-ln(2.0) * ageDays / HALF_LIFE_DAYS)
+        val hour = runCatching { Instant.ofEpochMilli(entry.atMs).atZone(ZoneId.systemDefault()).hour }.getOrDefault(nowHour)
+        val timeBoost = if (circularHourDistance(hour, nowHour) <= 3) 1.25 else 1.0
+        val completion = if (entry.durationMs > 0) (entry.listenedMs.toDouble() / entry.durationMs).coerceIn(0.0, 1.0) else 0.0
+        val quality = (completion - SKIP_PIVOT) / (1.0 - SKIP_PIVOT)
+        return (decay * quality * timeBoost).coerceAtMost(0.0)
     }
 
     /** Smallest distance between two hours on a 24h clock (0..12). */
@@ -308,6 +371,10 @@ class TasteProfile internal constructor(
         if (name.trim().lowercase() in dislikedArtistNames) return false
         return (artistWeightByName[name.lowercase()] ?: 0.0) > 0.0
     }
+
+    /** Row 721 — what «Menos de esto» takes from a Home candidate ([SoftDislikeRank]); 0 when nothing of it was marked. */
+    fun softPenalty(songId: String?, artistIds: List<String?>, artistNames: List<String>): Double =
+        if (SoftDislikeRank.matches(disliked, songId, artistIds, artistNames)) SoftDislikeRank.HOME_PENALTY else 0.0
 
     /** Affinity for the artist's real genre (Latin, Rock, Hip-Hop...), when known via GenreCache. */
     private fun genreScore(artistNames: List<String>): Double {

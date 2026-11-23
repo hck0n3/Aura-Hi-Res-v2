@@ -240,10 +240,14 @@ class HomeViewModel @Inject constructor(
                 context.dataStore.get(iad1tya.echo.music.constants.UseLastFmTasteKey, false) &&
                 context.dataStore.get(iad1tya.echo.music.constants.LastFMUsernameKey, "").isNotBlank()
             ) iad1tya.echo.music.reco.LastFmTasteSource.cached(context) else emptyMap()
+            val quickSkips = runCatching { iad1tya.echo.music.reco.QuickSkipLog.read(context) }.getOrDefault(emptyList())
+            val dislikedSongs = runCatching {
+                disliked.songs.toList().chunked(900).flatMap { database.getSongsByIds(it) }
+            }.getOrDefault(emptyList())
             // buildProfile is CPU-bound (genre/lane scans over events + library) — run it on Default (not the
             // IO dispatcher this is called on) to free IO threads, matching MusicService.tasteProfile().
             tasteProfile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                iad1tya.echo.music.reco.AffinityEngine.buildProfile(events, disliked, artistGenres = genres, onboardingGenres = onboarding, librarySongs = library, followedArtists = followed, externalArtistWeights = lastfm)
+                iad1tya.echo.music.reco.AffinityEngine.buildProfile(events, disliked, artistGenres = genres, onboardingGenres = onboarding, librarySongs = library, followedArtists = followed, externalArtistWeights = lastfm, quickSkips = quickSkips, dislikedSongs = dislikedSongs)
             }
         }
         // Learn the real genres of your FOLLOWED artists too (not just played ones), so a followed artist's
@@ -289,7 +293,9 @@ class HomeViewModel @Inject constructor(
         val rnd = java.util.Random()
         // Precompute the key ONCE per item — rnd inside the comparator would be inconsistent between
         // comparisons and crash TimSort ("Comparison method violates its general contract").
-        val scored = map { it to (p.score(it) + rnd.nextDouble() * 0.08) }.sortedByDescending { it.second }
+        val scored = map {
+            it to (p.score(it) - p.softPenalty(it.id, it.artists.map { a -> a.id }, it.artists.map { a -> a.name }) + rnd.nextDouble() * 0.08)
+        }.sortedByDescending { it.second }
         // Diversity re-rank (MMR-lite): keep taste order but greedily spread artists so a shelf doesn't tunnel
         // into a single artist/genre (filter-bubble). Each already-placed artist adds a penalty to its next
         // song. O(n^2) — only worth it for shelf-sized lists; large lists keep the plain taste sort.
@@ -319,8 +325,10 @@ class HomeViewModel @Inject constructor(
     private fun tasteScoreYt(item: com.music.innertube.models.YTItem): Double {
         val p = tasteProfile ?: return 0.0
         return when (item) {
-            is com.music.innertube.models.SongItem -> p.scoreNames(item.artists.map { it.name }, item.title)
-            is com.music.innertube.models.AlbumItem -> p.scoreNames(item.artists?.map { it.name } ?: emptyList(), item.title)
+            is com.music.innertube.models.SongItem -> p.scoreNames(item.artists.map { it.name }, item.title) -
+                p.softPenalty(item.id, item.artists.map { it.id }, item.artists.map { it.name })
+            is com.music.innertube.models.AlbumItem -> p.scoreNames(item.artists?.map { it.name } ?: emptyList(), item.title) -
+                p.softPenalty(null, item.artists?.map { it.id } ?: emptyList(), item.artists?.map { it.name } ?: emptyList())
             else -> 0.0
         }
     }
