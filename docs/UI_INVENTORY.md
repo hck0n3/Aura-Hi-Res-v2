@@ -4243,6 +4243,7 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Elemento | Dónde | Archivo | Tipo | Frecuencia | Condición |
 |---|---|---|---|---|---|
 | **Descargar** (hoja con sin conexión · MP3 · vídeo; en colecciones «Todas (N)» o «Elegir canciones…») | Álbum/EP/single (fila de acciones bajo la portada), lista propia, lista online, reproductor y menús de canción (fila «Exportar») | `ui/newui/AuraDownloadSheet.kt` | acción primaria | diaria | MP3 y vídeo solo con «Exportar como MP3» activo; vídeo solo si hay canciones con vídeo musical |
+| Descripción de la opción de vídeo (`export_as_video_desc`) — «MP4 para uso personal (hasta 1080p) — aparece en Vídeos exportados» (en: «MP4 for personal use…»). **Fila 774:** antes decía «MP4 para redes sociales», que contradecía la cláusula 7.3 de los términos (uso personal y privado) | Hoja Descargar / elegir formato de exportación | `ui/newui/AuraDownloadSheet.kt`, `ui/utils/ExportFormatChooser.kt` | informativo | ocasional | con la opción de vídeo disponible |
 
 ## Anexo 2026-10-21: lo que CAMBIÓ de sitio o de tamaño (no se quitó ni se ocultó nada)
 
