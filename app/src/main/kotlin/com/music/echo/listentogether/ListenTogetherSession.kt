@@ -106,6 +106,8 @@ data class ListenTogetherState(
     val pendingJoinCode: String? = null,
     /** Set once and cleared by the UI, so a transient failure cannot wedge the screen. */
     val error: String? = null,
+    /** Bumped by every `reconnected`: the host republishes its state after it, since what it did while offline never reached the room. */
+    val reconnectRevision: Int = 0,
 ) {
     val inRoom: Boolean get() = roomCode != null
     val isConnected: Boolean get() = connection is ConnectionState.Connected
@@ -154,6 +156,12 @@ class ListenTogetherSession(
     val clockReadyCount: StateFlow<Int> = _clockReadyCount.asStateFlow()
 
     private var pump: Job? = null
+
+    /**
+     * True from a socket that sent `reconnect` with a stored token until the server's answer: `reconnected` (or any other room
+     * message) confirms the room, an error refuses it. Only touched from the event pump, one event at a time.
+     */
+    private var resumePending = false
 
     /**
      * A create/join that arrived with no live socket. The old client queued the very same thing as
@@ -267,6 +275,8 @@ class ListenTogetherSession(
         launch {
             client.send(MessageTypes.LEAVE_ROOM, LeaveRoomPayload())
             tokenStore?.clear()
+            // The room is over for this device: a later drop must not replay its token (row 744).
+            client.forgetSessionToken()
             if (client.isAuraRooms) {
                 // One socket per room: leaving ends it, and forgets the room so nothing tries to go back.
                 delay(300)
@@ -426,6 +436,7 @@ class ListenTogetherSession(
     private fun onEvent(event: ListenTogetherEvent) {
         when (event) {
             is ListenTogetherEvent.Connected -> {
+                resumePending = event.resumed
                 _state.update { it.copy(connection = ConnectionState.Connected(event.serverVersion)) }
                 flushQueuedRoomAction()
             }
@@ -451,7 +462,31 @@ class ListenTogetherSession(
         type: String,
         payload: Any?,
     ) {
+        // Anything but an error after a resume means the server still has us in the room.
+        if (type != MessageTypes.ERROR) resumePending = false
         when (type) {
+            MessageTypes.RECONNECTED -> {
+                // Row 744 (P1-8): the server took the stored token back. Its state is the room NOW: a guest re-applies it (the bridge
+                // follows this state), and the bumped revision makes a host republish what it did while it was offline.
+                val p = payload as? ReconnectedPayload ?: return
+                val room = p.state
+                _state.update {
+                    it.copy(
+                        roomCode = p.roomCode.ifBlank { room?.roomCode.orEmpty() }.ifBlank { null } ?: it.roomCode,
+                        selfUserId = p.userId.ifBlank { it.selfUserId },
+                        isHost = p.isHost,
+                        pendingJoinCode = null,
+                        members = room?.users?.takeIf { u -> u.isNotEmpty() }?.map { u -> u.toMember() } ?: it.members,
+                        currentTrack = room?.currentTrack ?: it.currentTrack,
+                        isPlaying = room?.isPlaying ?: it.isPlaying,
+                        position = room?.position ?: it.position,
+                        queue = room?.queue?.ifEmpty { null } ?: it.queue,
+                        lastActionServerTime = room?.lastUpdate?.takeIf { t -> t > 0L } ?: it.lastActionServerTime,
+                        reconnectRevision = it.reconnectRevision + 1,
+                    )
+                }
+            }
+
             MessageTypes.ROOM_CREATED -> {
                 val p = payload as? RoomCreatedPayload ?: return
                 tokenStore?.save(p.sessionToken, p.roomCode)
@@ -633,6 +668,23 @@ class ListenTogetherSession(
                 // alarming banner up for something the user cannot act on.
                 if (p.code != "rate_limited") {
                     Timber.tag(TAG).w("Server error %s: %s", p.code, p.message)
+                    if (resumePending) {
+                        // Row 744: the answer to the stored token's `reconnect` — the room is gone or the token expired. Forget
+                        // both, or every later drop (and every app start) would keep trying to go back to a room that refused us.
+                        resumePending = false
+                        tokenStore?.clear()
+                        client.forgetSessionToken()
+                        sentAnchor.set(null)
+                        val aura = client.isAuraRooms
+                        // Aura's rooms are one socket per room: this one leads nowhere now.
+                        if (aura) client.disconnect()
+                        _state.value =
+                            ListenTogetherState(
+                                connection = if (aura) ConnectionState.Connected(AURA_ROOMS_VERSION) else _state.value.connection,
+                                error = p.message.ifBlank { p.code },
+                            )
+                        return
+                    }
                     // An error while waiting to be let in ends that wait — most often a bad code.
                     _state.update {
                         it.copy(pendingJoinCode = null, error = p.message.ifBlank { p.code })

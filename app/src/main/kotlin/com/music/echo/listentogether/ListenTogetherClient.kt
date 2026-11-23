@@ -159,6 +159,7 @@ class ListenTogetherClient(
     private var connectionJob: Job? = null
     private var handshake: CompletableDeferred<ServerCapabilities>? = null
 
+    @Volatile
     private var sessionToken: String? = null
     private var pingSequence = 0L
 
@@ -251,6 +252,14 @@ class ListenTogetherClient(
         reconnectAttempts = 0
         closeCurrentSocket(connectionJob)
         connectionJob = null
+    }
+
+    /**
+     * Forgets the session token and leaves the socket alone: the room it would resume is over — left, or the server refused the
+     * resume. Without this a later drop would replay it, and keep retrying as if still in a room (row 744).
+     */
+    fun forgetSessionToken() {
+        sessionToken = null
     }
 
     /**

@@ -810,9 +810,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
      */
     private suspend fun publishCurrentStateOnJoin() {
         session.state
-            .map { it.inRoom && it.isHost }
+            // Row 744 (P1-8): and again after every `reconnected` — what the host did while its socket was down never reached
+            // the room (a send with no socket is dropped). One emission when a cold-start resume makes this device host.
+            .map { (it.inRoom && it.isHost) to it.reconnectRevision }
             .distinctUntilChanged()
-            .collect { isHosting ->
+            .collect { (isHosting, _) ->
                 if (isHosting) {
                     publishSnapshot()
                 } else {

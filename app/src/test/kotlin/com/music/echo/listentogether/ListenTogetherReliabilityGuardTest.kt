@@ -43,6 +43,13 @@ class ListenTogetherReliabilityGuardTest {
     }
 
     @Test
+    fun theHostRepublishesAfterEveryReconnect() {
+        assertTrue(bridge.contains(".map { (it.inRoom && it.isHost) to it.reconnectRevision }"))
+        val session = text("app/src/main/kotlin/com/music/echo/listentogether/ListenTogetherSession.kt")
+        assertTrue("leaving forgets the token the client would replay", session.contains("client.forgetSessionToken()"))
+    }
+
+    @Test
     fun theHostPublishesItsQueueInPlaybackOrder() {
         assertTrue(bridge.contains("next = { i -> timeline.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },"))
         assertTrue(bridge.contains("previous = { i -> timeline.getPreviousWindowIndex(i, Player.REPEAT_MODE_OFF, shuffle) },"))
