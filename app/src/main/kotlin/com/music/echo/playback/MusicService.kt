@@ -3858,6 +3858,7 @@ class MusicService :
             staleRejectionRetryId = mediaId
             logErrorBranch("offline_rejection_stale_${kind.name.lowercase()}", mediaId, error)
             // prepare() keeps playWhenReady: a paused player stays paused.
+            if (player.playWhenReady) Timber.tag(TAG).i("START_CAUSE=offline_stale_retry")
             player.prepare()
             return
         }
