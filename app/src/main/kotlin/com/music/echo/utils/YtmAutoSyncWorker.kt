@@ -15,6 +15,8 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey
+import iad1tya.echo.music.constants.YtmSyncKey
+import iad1tya.echo.music.constants.YtmUploadSyncKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -59,13 +61,29 @@ class YtmAutoSyncWorker(
                 Timber.tag(TAG).w("Scheduled YTM sync skipped: not signed in")
                 return@withContext Result.success()
             }
-            val sync = EntryPointAccessors
-                .fromApplication(ctx, YtmAutoSyncEntryPoint::class.java)
-                .syncUtils()
-            // performFullSyncSuspend stamps the real completion time itself (only when it actually runs to
-            // completion while logged in), so we don't fake a "just now" here on a no-op.
-            sync.performFullSyncSuspend()
-            Timber.tag(TAG).i("Scheduled YTM sync finished")
+            // Row 678: the pull follows the download switch (YtmSyncKey), the push the upload switch (YtmUploadSyncKey).
+            // With the download on, the full sync's upload pass already gates the bulk upload on YtmUploadSyncKey
+            // (LibraryUploadSync.runUploadPassLocked); with it off, only the push runs, and only if it is on.
+            val downloadOn = ctx.dataStore.get(YtmSyncKey, true)
+            val uploadOn = ctx.dataStore.get(YtmUploadSyncKey, false)
+            if (!downloadOn && !uploadOn) {
+                Timber.tag(TAG).i("Scheduled YTM sync skipped: download and upload sync are off")
+                return@withContext Result.success()
+            }
+            if (downloadOn) {
+                val sync = EntryPointAccessors
+                    .fromApplication(ctx, YtmAutoSyncEntryPoint::class.java)
+                    .syncUtils()
+                // performFullSyncSuspend stamps the real completion time itself (only when it actually runs to
+                // completion while logged in), so we don't fake a "just now" here on a no-op.
+                sync.performFullSyncSuspend()
+            } else {
+                EntryPointAccessors
+                    .fromApplication(ctx, YtmSyncWorker.YtmSyncEntryPoint::class.java)
+                    .libraryUploadSync()
+                    .runUploadPass()
+            }
+            Timber.tag(TAG).i("Scheduled YTM sync finished download=%b upload=%b", downloadOn, uploadOn)
             Result.success()
         } catch (e: CancellationException) {
             throw e

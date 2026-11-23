@@ -69,6 +69,11 @@ class GoogleSyncDefaultsTest {
             "the scheduled worker must no-op when the cadence is off",
             worker.indexOf("DEFAULT_FREQ_DAYS) <= 0") in 1 until worker.indexOf("performFullSyncSuspend()"),
         )
+        // The pull follows the download switch, the push the upload switch.
+        assertTrue(worker.contains("val downloadOn = ctx.dataStore.get(YtmSyncKey, true)"))
+        assertTrue(worker.contains("val uploadOn = ctx.dataStore.get(YtmUploadSyncKey, false)"))
+        assertTrue(worker.contains("if (!downloadOn && !uploadOn) {"))
+        assertTrue("the full sync (the pull) only with the download on", worker.indexOf("if (downloadOn) {") in 1 until worker.indexOf("performFullSyncSuspend()"))
         assertTrue(src("utils/YtmAutoSyncWorker.kt").contains("if (freqDays <= 0) {\n                wm.cancelUniqueWork(WORK_NAME)"))
 
         // A «library» notice from another of the user's devices pulls from YouTube: it honours the switch too.
