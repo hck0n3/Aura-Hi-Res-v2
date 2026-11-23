@@ -409,6 +409,11 @@ data class ClientCapabilities(
     @ProtoNumber(1) val supportsProtobuf: Boolean = false,
     @ProtoNumber(2) val supportsCompression: Boolean = false,
     @ProtoNumber(3) val clientVersion: String = "",
+    /**
+     * Aura-rooms extension (see [PlaybackActionPayload.hostPlaying]; never true towards Metrolist's server): this app holds paused at
+     * a synchronized start. Aura's server opens one only when every connected device says so (docs/worker/rooms, W2).
+     */
+    @ProtoNumber(101) val syncStart: Boolean = false,
 )
 
 @Serializable

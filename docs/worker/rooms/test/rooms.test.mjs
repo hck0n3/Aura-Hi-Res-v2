@@ -47,16 +47,19 @@ async function open(pathAndQuery) {
 }
 const is = (t) => (m) => m.type === t;
 
-async function host(name = "Ana") {
+// `holds`: the app says it holds at a synchronized start (W2), as this app's handshake does; without it, an older app.
+async function host(name = "Ana", holds = false) {
   const h = await open("/rooms/create");
   assert.equal(h.status, 101);
+  if (holds) h.send("client_capabilities", { supportsProtobuf: true, supportsCompression: true, clientVersion: "AuraHiRes", syncStart: true });
   h.send("create_room", { username: name });
   const created = await h.next(is("room_created"));
   return { h, created };
 }
-async function guest(code, name = "Beto", h) {
+async function guest(code, name = "Beto", h, holds = false) {
   const g = await open("/rooms/join?code=" + code);
   assert.equal(g.status, 101);
+  if (holds) g.send("client_capabilities", { supportsProtobuf: true, supportsCompression: true, clientVersion: "AuraHiRes", syncStart: true });
   g.send("join_room", { roomCode: code, username: name });
   const req = await h.next(is("join_request"));
   h.send("approve_join", { userId: req.userId });
@@ -210,8 +213,8 @@ test("W2: a solo host never waits", async () => {
 });
 
 test("W2: a new track freezes the room, waits for the host too, and starts everyone at one future server time", async () => {
-  const { h, created } = await host();
-  const { g, ok } = await guest(created.roomCode, "Beto", h);
+  const { h, created } = await host("Ana", true);
+  const { g, ok } = await guest(created.roomCode, "Beto", h, true);
   h.send("playback_action", { action: "change_track", trackId: "syn00000001", position: 0, trackInfo: song("syn00000001"), hostPlaying: true, capturedAtServerTime: Date.now() });
   const wait = await g.next(is("buffer_wait"));
   assert.equal(wait.syncStart, true);
@@ -261,8 +264,8 @@ test("W2: a new track freezes the room, waits for the host too, and starts every
 });
 
 test("W2: a new host's jump holds everyone at the new spot", async () => {
-  const { h, created } = await host();
-  const { g } = await guest(created.roomCode, "Beto", h);
+  const { h, created } = await host("Ana", true);
+  const { g } = await guest(created.roomCode, "Beto", h, true);
   h.send("playback_action", { action: "play", trackId: "", position: 5000 });
   await g.next(isPlay);
   h.send("playback_action", { action: "seek", trackId: "", position: 30000, hostPlaying: true, capturedAtServerTime: Date.now() });
@@ -273,8 +276,8 @@ test("W2: a new host's jump holds everyone at the new spot", async () => {
 });
 
 test("W2: the PLAY that starts a track the room had paused on opens the barrier and is not sent on", async () => {
-  const { h, created } = await host();
-  const { g } = await guest(created.roomCode, "Beto", h);
+  const { h, created } = await host("Ana", true);
+  const { g } = await guest(created.roomCode, "Beto", h, true);
   h.send("playback_action", { action: "change_track", trackId: "lst00000001", position: 0, trackInfo: song("lst00000001"), hostPlaying: false });
   await g.next((m) => m.type === "sync_playback" && m.action === "change_track");
   h.send("playback_action", { action: "play", trackId: "", position: 120, hostPlaying: true });
@@ -291,8 +294,8 @@ test("W2: the PLAY that starts a track the room had paused on opens the barrier 
 });
 
 test("W2: a pause during a synchronized start ends it; a stale answer about another track does not count", async () => {
-  const { h, created } = await host();
-  const { g } = await guest(created.roomCode, "Beto", h);
+  const { h, created } = await host("Ana", true);
+  const { g } = await guest(created.roomCode, "Beto", h, true);
   h.send("playback_action", { action: "change_track", trackId: "stl00000001", position: 0, trackInfo: song("stl00000001"), hostPlaying: true });
   await g.next(is("buffer_wait"));
   g.send("buffer_ready", { trackId: "stl00000001" });
@@ -304,6 +307,35 @@ test("W2: a pause during a synchronized start ends it; a stale answer about anot
   assert.equal((await g.next(is("buffer_complete"))).trackId, "stl00000001");
   await sleep(200);
   assert.equal(g.has(isPlay), false, "a paused room does not start");
+});
+
+test("W2: with a guest on an older app the room keeps the old barrier and its clock runs", async () => {
+  const { h, created } = await host("Ana", true);
+  const { g: older, ok } = await guest(created.roomCode, "Beto", h);
+  const { g: newer } = await guest(created.roomCode, "Caro", h, true);
+  h.send("playback_action", { action: "change_track", trackId: "mix00000001", position: 0, trackInfo: song("mix00000001"), hostPlaying: true, capturedAtServerTime: Date.now() });
+  const wait = await newer.next(is("buffer_wait"));
+  assert.equal("syncStart" in wait, false, "no synchronized start while someone cannot hold");
+  assert.equal(wait.waitingFor.includes(created.userId), false, "the host is not waited for, as before");
+  assert.ok(wait.waitingFor.includes(ok.userId));
+  await sleep(300);
+  older.send("request_sync");
+  const running = await older.next(is("sync_state"));
+  assert.equal(running.isPlaying, true);
+  assert.ok(running.position >= 200, "the room's clock runs during the old barrier: " + running.position);
+});
+
+test("W2: a reconnected socket keeps saying whether its app holds", async () => {
+  const { h, created } = await host("Ana", true);
+  const { g, ok } = await guest(created.roomCode, "Beto", h, true);
+  g.close();
+  await h.next(is("user_disconnected"));
+  const back = await open("/rooms/join?code=" + created.roomCode);
+  back.send("client_capabilities", { supportsProtobuf: true, supportsCompression: true, clientVersion: "AuraHiRes", syncStart: true });
+  back.send("reconnect", { sessionToken: ok.sessionToken });
+  await back.next(is("reconnected"));
+  h.send("playback_action", { action: "change_track", trackId: "rec00000001", position: 0, trackInfo: song("rec00000001"), hostPlaying: true });
+  assert.equal((await back.next(is("buffer_wait"))).syncStart, true);
 });
 
 test("suggestions go through the host; approved ones join the queue", async () => {

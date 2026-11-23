@@ -45,7 +45,7 @@ export function fromWire(type, p) {
     case "approve_suggestion": return { t: type, suggestionId: p.suggestionId };
     case "reject_suggestion": return { t: type, suggestionId: p.suggestionId, reason: p.reason };
     case "reconnect": { const [userId, ...rest] = String(p.sessionToken || "").split("."); return { t: type, userId, token: rest.join(".") }; }
-    case "client_capabilities": return { t: "noop" };
+    case "client_capabilities": return { t: type, syncStart: p.syncStart === true };
     default: return { ...p, t: type };
   }
 }
@@ -198,7 +198,8 @@ export class Room {
     return true;
   }
 
-  async on_noop() { /* client_capabilities: nothing to negotiate */ }
+  /** Nothing to negotiate but one thing to note, per socket: whether this app holds at a synchronized start (W2). */
+  async on_client_capabilities(ws, a, m) { ws.serializeAttachment({ ...a, syncStart: !!m.syncStart }); }
 
   async on_ping(ws, a, m) { send(ws, { t: "pong", clientTime: Number(m.clientTime) || 0, receivedAt: m.receivedAt, sequence: Number(m.sequence) || 0 }); }
 
@@ -343,8 +344,10 @@ export class Room {
     }
     // W2: a new track, a jump, or the PLAY that starts a track the room had paused on, from an app that waits at the barrier, with
     // someone else to wait for. The room's clock stays frozen at the start position until everyone (the host too) is ready.
-    const others = Object.entries(r.users).some(([id, u]) => id !== a.id && u.connected);
-    const startsTogether = syncHost && others && r.playing && (
+    const others = Object.entries(r.users).filter(([id, u]) => id !== a.id && u.connected).map(([id]) => id);
+    // Only when every other device holds too: an older app plays at once and the frozen clock would then pull it back.
+    const everyoneHolds = others.every((id) => (this.socketOf(id)?.deserializeAttachment() || {}).syncStart === true);
+    const startsTogether = syncHost && others.length > 0 && everyoneHolds && r.playing && (
       (action === "change_track" && r.track.id !== previousTrackId) || action === "seek" || (action === "play" && !wasPlaying && m.hostPlaying === true));
     let cancelled = null;
     if (startsTogether) {
@@ -359,7 +362,7 @@ export class Room {
     out.positionMs = Math.max(0, Math.round(this.position(now)));
     out.volume = r.volume;
     // A new track or a jump makes everyone fetch audio: wait for the slowest (or 10 s) before playing together.
-    if (!syncHost && (action === "change_track" || action === "seek") && r.playing) {
+    if (!startsTogether && (action === "change_track" || action === "seek") && r.playing) {
       const waiting = Object.entries(r.users).filter(([id, u]) => id !== a.id && u.connected).map(([id]) => id);
       if (waiting.length) {
         r.buffering = { waiting, until: now + BUFFER_TIMEOUT_MS, trackId: r.track ? r.track.id : "", all: waiting.slice() };
@@ -375,7 +378,8 @@ export class Room {
     // The PLAY that opened a barrier is not sent on: everyone plays when it closes.
     if (!(startsTogether && action === "play")) this.broadcast(out, a.id);
     if (out.bufferWait) this.broadcast({ t: "buffer_wait", trackId: r.buffering.trackId, waitingFor: r.buffering.waiting.slice() });
-    if (cancelled !== null) this.broadcast({ t: "buffer_complete", trackId: cancelled });
+    // An old-style barrier that took its place already ended it (and a buffer_complete now would end that one too).
+    if (cancelled !== null && !out.bufferWait) this.broadcast({ t: "buffer_complete", trackId: cancelled });
   }
 
   async maybeCompleteBuffer() {

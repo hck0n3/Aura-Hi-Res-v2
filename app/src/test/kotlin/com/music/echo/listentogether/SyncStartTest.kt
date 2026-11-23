@@ -143,4 +143,20 @@ class SyncStartTest {
         val wait = ProtoBuf.decodeFromByteArray(BufferWaitPayload.serializer(), ProtoBuf.encodeToByteArray(BufferWaitPayload.serializer(), BufferWaitPayload("t", listOf("a"))))
         assertFalse(wait.syncStart)
     }
+
+    @Test
+    fun theHandshakeSaysThisAppHoldsOnlyTowardsAurasRooms() {
+        // Aura's server opens a synchronized start only when every connected device said syncStart (review of A3: an older guest would
+        // play at once and be pulled back by the frozen clock).
+        val sent =
+            Json.parseToJsonElement(
+                json.encode(MessageTypes.CLIENT_CAPABILITIES, ClientCapabilities(supportsProtobuf = true, clientVersion = "x", syncStart = true)).decodeToString(),
+            ).jsonObject["payload"]!!.jsonObject
+        assertEquals("true", sent["syncStart"]!!.jsonPrimitive.content)
+        // Towards Metrolist's server the field is false, so field 101 is not on the wire at all.
+        val metrolist = ProtoBuf { encodeDefaults = false }.encodeToByteArray(ClientCapabilities.serializer(), ClientCapabilities(supportsProtobuf = true))
+        assertArrayEquals(byteArrayOf(0x08, 0x01), metrolist)
+        val client = java.io.File("src/main/kotlin/com/music/echo/listentogether/ListenTogetherClient.kt").readText()
+        assertTrue("the handshake declares it exactly when the room is Aura's", client.contains("syncStart = aura,"))
+    }
 }
