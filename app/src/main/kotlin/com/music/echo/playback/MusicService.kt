@@ -5647,8 +5647,11 @@ class MusicService :
             val quickSkips = withContext(Dispatchers.IO) {
                 runCatching { iad1tya.echo.music.reco.QuickSkipLog.read(this@MusicService) }.getOrDefault(emptyList())
             }
+            val dislikedSongs = withContext(Dispatchers.IO) {
+                runCatching { disliked.songs.toList().chunked(900).flatMap { database.getSongsByIds(it) } }.getOrDefault(emptyList())
+            }
             withContext(Dispatchers.Default) {
-                iad1tya.echo.music.reco.AffinityEngine.buildProfile(events, disliked, artistGenres = genres, onboardingGenres = onboarding, librarySongs = library, followedArtists = followed, externalArtistWeights = lastfm, quickSkips = quickSkips)
+                iad1tya.echo.music.reco.AffinityEngine.buildProfile(events, disliked, artistGenres = genres, onboardingGenres = onboarding, librarySongs = library, followedArtists = followed, externalArtistWeights = lastfm, quickSkips = quickSkips, dislikedSongs = dislikedSongs)
             }.also {
                 cachedTaste = it
                 cachedTasteAt = now

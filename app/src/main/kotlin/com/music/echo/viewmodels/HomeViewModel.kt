@@ -241,10 +241,13 @@ class HomeViewModel @Inject constructor(
                 context.dataStore.get(iad1tya.echo.music.constants.LastFMUsernameKey, "").isNotBlank()
             ) iad1tya.echo.music.reco.LastFmTasteSource.cached(context) else emptyMap()
             val quickSkips = runCatching { iad1tya.echo.music.reco.QuickSkipLog.read(context) }.getOrDefault(emptyList())
+            val dislikedSongs = runCatching {
+                disliked.songs.toList().chunked(900).flatMap { database.getSongsByIds(it) }
+            }.getOrDefault(emptyList())
             // buildProfile is CPU-bound (genre/lane scans over events + library) — run it on Default (not the
             // IO dispatcher this is called on) to free IO threads, matching MusicService.tasteProfile().
             tasteProfile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                iad1tya.echo.music.reco.AffinityEngine.buildProfile(events, disliked, artistGenres = genres, onboardingGenres = onboarding, librarySongs = library, followedArtists = followed, externalArtistWeights = lastfm, quickSkips = quickSkips)
+                iad1tya.echo.music.reco.AffinityEngine.buildProfile(events, disliked, artistGenres = genres, onboardingGenres = onboarding, librarySongs = library, followedArtists = followed, externalArtistWeights = lastfm, quickSkips = quickSkips, dislikedSongs = dislikedSongs)
             }
         }
         // Learn the real genres of your FOLLOWED artists too (not just played ones), so a followed artist's

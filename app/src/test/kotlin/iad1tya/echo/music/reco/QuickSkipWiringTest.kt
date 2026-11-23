@@ -45,11 +45,11 @@ class QuickSkipWiringTest {
         val service = main("playback/MusicService.kt")
         val taste = service.substringAfter("internal suspend fun tasteProfile()").substringBefore("cachedTaste = it")
         assertTrue(taste.contains("QuickSkipLog.read(this@MusicService)"))
-        assertTrue(taste.contains("quickSkips = quickSkips)"))
+        assertTrue(taste.contains("quickSkips = quickSkips"))
         val home = main("viewmodels/HomeViewModel.kt")
         val refresh = home.substringAfter("private suspend fun refreshTasteProfile()").substringBefore("private fun List<Song>.rankedByTaste()")
         assertTrue(refresh.contains("QuickSkipLog.read(context)"))
-        assertTrue(refresh.contains("quickSkips = quickSkips)"))
+        assertTrue(refresh.contains("quickSkips = quickSkips"))
     }
 
     @Test

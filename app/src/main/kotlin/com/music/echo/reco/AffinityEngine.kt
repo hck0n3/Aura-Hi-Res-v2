@@ -63,6 +63,11 @@ object AffinityEngine {
      *  give it, so a burst of skips while hunting for a song cannot bury an artist the user otherwise plays. */
     private const val QUICK_SKIP_KEY_CAP = LIBRARY_KEY_CAP
 
+    /** Row 721 — what one «No me gusta» on a song takes from its primary artist: a fresh play skipped at second 0
+     *  ([SKIP_PIVOT] mapped like any play, no hour boost); capped per key like the quick skips. Less, never AVOID. */
+    internal const val DISLIKED_SONG_ARTIST_WEIGHT = SKIP_PIVOT / (1.0 - SKIP_PIVOT)
+    private const val DISLIKED_SONG_KEY_CAP = LIBRARY_KEY_CAP
+
     suspend fun buildProfile(
         events: List<EventWithSong>,
         disliked: DislikeStore.Disliked,
@@ -87,6 +92,9 @@ object AffinityEngine {
         externalArtistWeights: Map<String, Double> = emptyMap(),
         // Row 720: the quick skips the history never recorded ([QuickSkipLog]). Empty => zero behavior change.
         quickSkips: List<QuickSkipLog.Entry> = emptyList(),
+        // Row 721: the stored rows of the songs in disliked.songs, so a song's «No me gusta» also lowers its primary
+        // artist a little. Empty => zero behavior change.
+        dislikedSongs: List<Song> = emptyList(),
     ): TasteProfile {
         val byId = HashMap<String, Double>()
         val byName = HashMap<String, Double>()
@@ -182,6 +190,22 @@ object AffinityEngine {
             }
             skipById.forEach { (k, v) -> byId.merge(k, -min(v, QUICK_SKIP_KEY_CAP), Double::plus) }
             skipByName.forEach { (k, v) -> byName.merge(k, -min(v, QUICK_SKIP_KEY_CAP), Double::plus) }
+        }
+
+        // Row 721: a disliked song lowers its primary artist by a bounded amount (the song itself stays AVOID in [score]).
+        // An artist that is itself marked keeps the hard path (removed below, AVOID by name).
+        if (dislikedSongs.isNotEmpty()) {
+            val dislikeById = HashMap<String, Double>()
+            val dislikeByName = HashMap<String, Double>()
+            dislikedSongs.distinctBy { it.song.id }.forEach { s ->
+                if (s.song.id !in disliked.songs) return@forEach
+                val a = s.artists.firstOrNull() ?: return@forEach
+                if (isDislikedArtist(a.id, a.name)) return@forEach
+                dislikeById.merge(a.id, DISLIKED_SONG_ARTIST_WEIGHT, Double::plus)
+                if (a.name.isNotBlank()) dislikeByName.merge(a.name.lowercase(), DISLIKED_SONG_ARTIST_WEIGHT, Double::plus)
+            }
+            dislikeById.forEach { (k, v) -> byId.merge(k, -min(v, DISLIKED_SONG_KEY_CAP), Double::plus) }
+            dislikeByName.forEach { (k, v) -> byName.merge(k, -min(v, DISLIKED_SONG_KEY_CAP), Double::plus) }
         }
 
         // B4: seed taste from the saved/imported library. A song you saved but never played is a real
