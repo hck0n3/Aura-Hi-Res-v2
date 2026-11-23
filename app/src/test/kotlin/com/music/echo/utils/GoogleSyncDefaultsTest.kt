@@ -71,6 +71,10 @@ class GoogleSyncDefaultsTest {
         )
         assertTrue(src("utils/YtmAutoSyncWorker.kt").contains("if (freqDays <= 0) {\n                wm.cancelUniqueWork(WORK_NAME)"))
 
+        // A «library» notice from another of the user's devices pulls from YouTube: it honours the switch too.
+        val library = src("devicesync/DeviceSyncEngine.kt").substringAfter("\"library\" -> {").substringBefore("withContext(Dispatchers.Main)")
+        assertTrue(library.contains("dataStore.data.first()[iad1tya.echo.music.constants.YtmSyncKey] == false"))
+
         val tabs = src("ui/newui/AuraLibraryTabs.kt")
         assertFalse("a library tab pulls without the switch", Regex("""\n\s+syncUtils\.tryAutoSync\(\)""").containsMatchIn(tabs))
     }
