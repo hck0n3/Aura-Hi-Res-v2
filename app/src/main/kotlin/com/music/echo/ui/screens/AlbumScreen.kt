@@ -174,6 +174,7 @@ fun AlbumScreen(
     val descriptionRuns by viewModel.descriptionRuns.collectAsState()
     val hasFailed by viewModel.hasFailed.collectAsState()
     val notFound by viewModel.notFound.collectAsState()
+    val radarType by viewModel.radarType.collectAsState()
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
     // DATA SAVER: hide video songs (heavier streams) and turn the album canvas off while the switch
     // is ON; both user prefs stay persisted and come back untouched when it goes OFF.
@@ -360,7 +361,13 @@ fun AlbumScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         val albumInfoText = buildString {
-                            append(stringResource(R.string.album_text))
+                            append(
+                                stringResource(
+                                    iad1tya.echo.music.ui.newui.albumTypeLabelRes(
+                                        iad1tya.echo.music.ui.newui.albumReleaseType(albumWithSongs, radarType),
+                                    ),
+                                ),
+                            )
                             if (albumWithSongs.album.year != null) {
                                 append(" • ${albumWithSongs.album.year}")
                             }
@@ -693,11 +700,10 @@ fun AlbumScreen(
 
                     Spacer(Modifier.height(5.dp))
 
-                    val staticDescription = remember(albumWithSongs) {
-                        "${albumWithSongs.album.title} is an album by ${albumWithSongs.artists.joinToString { it.name }}${
-                            if (albumWithSongs.album.year != null) ", released in ${albumWithSongs.album.year}" else ""
-                        }. This collection features ${albumWithSongs.songs.size} tracks showcasing their musical artistry."
-                    }
+                    val staticDescription = iad1tya.echo.music.ui.newui.albumStaticDescription(
+                        albumWithSongs,
+                        iad1tya.echo.music.ui.newui.albumReleaseType(albumWithSongs, radarType),
+                    )
 
                     Column(
                         modifier = Modifier

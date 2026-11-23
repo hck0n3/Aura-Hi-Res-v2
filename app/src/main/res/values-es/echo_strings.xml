@@ -262,6 +262,10 @@
     <string name="novedades_type_album">Álbum</string>
     <string name="novedades_type_single">Sencillo</string>
     <string name="novedades_type_ep">EP</string>
+    <string name="about_release_album">%1$s es un álbum de %2$s%3$s. Esta colección reúne %4$d canciones que muestran su talento musical.</string>
+    <string name="about_release_ep">%1$s es un EP de %2$s%3$s. Esta colección reúne %4$d canciones que muestran su talento musical.</string>
+    <string name="about_release_single">%1$s es un sencillo de %2$s%3$s.</string>
+    <string name="about_release_year">, publicado en %1$d</string>
     <string name="novedades_new_label">Nuevo</string>
     <string name="novedades_more_releases">Más estrenos</string>
     <string name="novedades_empty_hint">Aquí aparecerán los estrenos de tus artistas.</string>

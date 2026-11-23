@@ -1019,17 +1019,9 @@ private fun AuraAlbumHeader(
         // "ÁLBUM · 2019 · 12 CANCIONES · 48:31" — the classic meta line, as the redesign's technical
         // type. The track word is the app's own plural (the classic literal was English "Tracks").
         val totalSeconds = remember(album) { album.songs.sumOf { it.song.duration } }
+        val releaseType = albumReleaseType(album, radarType)
         val metaLine = listOfNotNull(
-            stringResource(
-                when (
-                    iad1tya.echo.music.releaseradar.ReleaseRadarMatching
-                        .albumPageType(radarType, album.album.songCount, album.album.title)
-                ) {
-                    iad1tya.echo.music.releaseradar.ReleaseRadarMatching.TYPE_SINGLE -> R.string.novedades_type_single
-                    iad1tya.echo.music.releaseradar.ReleaseRadarMatching.TYPE_EP -> R.string.novedades_type_ep
-                    else -> R.string.album_text
-                },
-            ),
+            stringResource(albumTypeLabelRes(releaseType)),
             album.album.year?.toString(),
             pluralStringResource(R.plurals.n_song, album.songs.size, album.songs.size),
             makeTimeString(totalSeconds * 1000L),
@@ -1151,11 +1143,7 @@ private fun AuraAlbumHeader(
 
         // "Acerca de este álbum". The fallback sentence is the classic one, kept so an album with no
         // fetched description still says something instead of showing an empty block.
-        val staticDescription = remember(album) {
-            "${album.album.title} is an album by ${album.artists.joinToString { it.name }}${
-                if (album.album.year != null) ", released in ${album.album.year}" else ""
-            }. This collection features ${album.songs.size} tracks showcasing their musical artistry."
-        }
+        val staticDescription = albumStaticDescription(album, releaseType)
         Column(Modifier.fillMaxWidth()) {
             AuraSectionLabel(text = stringResource(R.string.about_album).uppercase(Locale.ROOT))
             Spacer(Modifier.height(6.dp))
@@ -1202,6 +1190,32 @@ private fun AuraAlbumHeader(
             offlineState = downloadState,
             onDismiss = { showDownloadSheet = false },
         )
+    }
+}
+
+/** Row 710: the album page's type (Sencillo/EP/Álbum), shared with the classic AlbumScreen. */
+internal fun albumReleaseType(album: iad1tya.echo.music.db.entities.AlbumWithSongs, radarType: String?): String =
+    iad1tya.echo.music.releaseradar.ReleaseRadarMatching
+        .albumPageType(radarType, album.album.songCount, album.album.title)
+
+internal fun albumTypeLabelRes(releaseType: String): Int = when (releaseType) {
+    iad1tya.echo.music.releaseradar.ReleaseRadarMatching.TYPE_SINGLE -> R.string.novedades_type_single
+    iad1tya.echo.music.releaseradar.ReleaseRadarMatching.TYPE_EP -> R.string.novedades_type_ep
+    else -> R.string.album_text
+}
+
+/** The «Acerca de» fallback sentence when nothing was fetched, worded for [releaseType]. */
+@Composable
+internal fun albumStaticDescription(album: iad1tya.echo.music.db.entities.AlbumWithSongs, releaseType: String): String {
+    val year = album.album.year?.let { stringResource(R.string.about_release_year, it) }.orEmpty()
+    val title = album.album.title
+    val artists = album.artists.joinToString { it.name }
+    return when (releaseType) {
+        iad1tya.echo.music.releaseradar.ReleaseRadarMatching.TYPE_SINGLE ->
+            stringResource(R.string.about_release_single, title, artists, year)
+        iad1tya.echo.music.releaseradar.ReleaseRadarMatching.TYPE_EP ->
+            stringResource(R.string.about_release_ep, title, artists, year, album.songs.size)
+        else -> stringResource(R.string.about_release_album, title, artists, year, album.songs.size)
     }
 }
 
