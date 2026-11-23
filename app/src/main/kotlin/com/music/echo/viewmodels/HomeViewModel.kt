@@ -290,7 +290,9 @@ class HomeViewModel @Inject constructor(
         val rnd = java.util.Random()
         // Precompute the key ONCE per item — rnd inside the comparator would be inconsistent between
         // comparisons and crash TimSort ("Comparison method violates its general contract").
-        val scored = map { it to (p.score(it) + rnd.nextDouble() * 0.08) }.sortedByDescending { it.second }
+        val scored = map {
+            it to (p.score(it) - p.softPenalty(it.id, it.artists.map { a -> a.id }, it.artists.map { a -> a.name }) + rnd.nextDouble() * 0.08)
+        }.sortedByDescending { it.second }
         // Diversity re-rank (MMR-lite): keep taste order but greedily spread artists so a shelf doesn't tunnel
         // into a single artist/genre (filter-bubble). Each already-placed artist adds a penalty to its next
         // song. O(n^2) — only worth it for shelf-sized lists; large lists keep the plain taste sort.
@@ -320,8 +322,10 @@ class HomeViewModel @Inject constructor(
     private fun tasteScoreYt(item: com.music.innertube.models.YTItem): Double {
         val p = tasteProfile ?: return 0.0
         return when (item) {
-            is com.music.innertube.models.SongItem -> p.scoreNames(item.artists.map { it.name }, item.title)
-            is com.music.innertube.models.AlbumItem -> p.scoreNames(item.artists?.map { it.name } ?: emptyList(), item.title)
+            is com.music.innertube.models.SongItem -> p.scoreNames(item.artists.map { it.name }, item.title) -
+                p.softPenalty(item.id, item.artists.map { it.id }, item.artists.map { it.name })
+            is com.music.innertube.models.AlbumItem -> p.scoreNames(item.artists?.map { it.name } ?: emptyList(), item.title) -
+                p.softPenalty(null, item.artists?.map { it.id } ?: emptyList(), item.artists?.map { it.name } ?: emptyList())
             else -> 0.0
         }
     }

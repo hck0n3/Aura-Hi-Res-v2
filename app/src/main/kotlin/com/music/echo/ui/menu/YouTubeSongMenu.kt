@@ -412,8 +412,18 @@ fun YouTubeSongMenu(
                             )
                         },
                         onClick = {
+                            val primary = song.artists.firstOrNull()
                             coroutineScope.launch {
-                                iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context).softDislikeSong(song.id)
+                                val store = iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context)
+                                store.softDislikeSong(song.id)
+                                // Row 721: «menos parecido» reaches the artist too (Home + radio read it), and the smart
+                                // queue's 30-day skip memory counts it as one quick skip of that artist.
+                                iad1tya.echo.music.reco.SoftDislikeRank.artistKey(primary?.id, primary?.name)
+                                    ?.let { store.softDislikeArtist(it) }
+                                val skipKey = iad1tya.echo.music.reco.ArtistStyleMemory.key(primary?.name)
+                                kotlinx.coroutines.withContext(Dispatchers.IO) {
+                                    iad1tya.echo.music.reco.ContinuationSkipMemory.recordSkip(context, skipKey)
+                                }
                             }
                             android.widget.Toast.makeText(
                                 context,

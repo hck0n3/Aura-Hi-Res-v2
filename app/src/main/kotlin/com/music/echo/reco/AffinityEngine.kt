@@ -348,6 +348,10 @@ class TasteProfile internal constructor(
         return (artistWeightByName[name.lowercase()] ?: 0.0) > 0.0
     }
 
+    /** Row 721 — what «Menos de esto» takes from a Home candidate ([SoftDislikeRank]); 0 when nothing of it was marked. */
+    fun softPenalty(songId: String?, artistIds: List<String?>, artistNames: List<String>): Double =
+        if (SoftDislikeRank.matches(disliked, songId, artistIds, artistNames)) SoftDislikeRank.HOME_PENALTY else 0.0
+
     /** Affinity for the artist's real genre (Latin, Rock, Hip-Hop...), when known via GenreCache. */
     private fun genreScore(artistNames: List<String>): Double {
         if (genreWeight.isEmpty()) return 0.0
