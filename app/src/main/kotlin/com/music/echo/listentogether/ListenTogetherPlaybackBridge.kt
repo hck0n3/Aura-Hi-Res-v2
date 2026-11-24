@@ -1464,7 +1464,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         if (!plan.applyRoomState) return
         remoteDepth.incrementAndGet()
         try {
-            applyTransport(service, state.isPlaying && !pausedLocally, state.position, state.currentTrack, state.lastActionServerTime)
+            // Row 821: a released hold carries out the room's own command (once per hold), so the failure-resume gate does not apply.
+            applyTransport(service, state.isPlaying && !pausedLocally, state.position, state.currentTrack, state.lastActionServerTime, fromRoomCommand = true)
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to follow the room after a synchronized start")
         } finally {
