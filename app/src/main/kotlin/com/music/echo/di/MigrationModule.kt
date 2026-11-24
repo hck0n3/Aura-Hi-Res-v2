@@ -2,6 +2,8 @@ package iad1tya.echo.music.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.aura.migration.MigrationEngine
 import com.aura.migration.db.MatchCache
 import com.aura.migration.net.HttpJson
@@ -67,7 +69,24 @@ object MigrationModule {
         .databaseBuilder(context, MigrationCacheDatabase::class.java, MigrationCacheDatabase.DB_NAME)
         // Pure recomputable cache: dropping it on a future schema bump is always safe, never loses user data.
         .fallbackToDestructiveMigration(dropAllTables = true)
+        // Registry row 843: automatic matches cached before RecordingMatcher would skip its gate on a re-import, so they are
+        // dropped once; the user's own picks (verifiedByUser) stay. Retried on the next open if the delete fails.
+        .addCallback(object : RoomDatabase.Callback() {
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                val prefs = context.getSharedPreferences(MATCH_RULES_PREFS, Context.MODE_PRIVATE)
+                if (prefs.getInt(MATCH_RULES_VERSION_KEY, 0) >= MATCH_RULES_VERSION) return
+                try {
+                    db.execSQL("DELETE FROM match_cache WHERE verifiedByUser = 0")
+                    prefs.edit().putInt(MATCH_RULES_VERSION_KEY, MATCH_RULES_VERSION).apply()
+                } catch (_: Exception) {
+                }
+            }
+        })
         .build()
+
+    private const val MATCH_RULES_PREFS = "migration_match_rules"
+    private const val MATCH_RULES_VERSION_KEY = "match_rules_version"
+    private const val MATCH_RULES_VERSION = 1
 
     @Provides
     @Singleton
