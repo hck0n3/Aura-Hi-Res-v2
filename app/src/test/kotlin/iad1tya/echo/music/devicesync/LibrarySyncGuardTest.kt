@@ -81,12 +81,22 @@ class LibrarySyncGuardTest {
         assertTrue("el freno sigue activo tras restaurar", l.contains("if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {") && !l.contains("!freshStart && LibrarySyncCore.brakeTrips("))
     }
 
+    /**
+     * Row 835 replaces row 542 (owner 2026-11-24, «haz K1, K2 y K3»: «que no sincronice otras cosas que no tengan nada que ver con
+     * lo que estoy pidiendo»): what arrives through the room is written HERE only. The device where the user tapped sends it to its
+     * own account; this device's account may be another one. A list made on another device and never put on YouTube stays local.
+     */
     @Test
-    fun `likes that arrive through the room are also sent to the YouTube account, a few at a time`() {
+    fun `what arrives through the room is never written to this device's YouTube account`() {
         val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAdapter.kt")
-        assertTrue(a.contains("mirrorLikesToAccount(changedLikes)"))
-        assertTrue(a.contains("AccountPushPolicy.Op.SONG_LIKE"))
-        assertTrue("una sincronización inicial grande no se reenvía una a una a YouTube", a.contains("changed.size > MIRROR_MAX"))
+        assertFalse(a.contains("AccountPush"))
+        assertFalse(a.contains("mirrorLikesToAccount"))
+        assertFalse(a.contains("mirrorAlbumsToAccount"))
+        assertFalse(a.contains("YouTube."))
+        assertTrue(a.contains("database.syncSetLiked(id, liked, if (liked) now else null)"))
+        assertTrue(a.contains("database.syncSetAlbumSaved(id, if (saved) now else null)"))
+        assertTrue("a list with its own key (no browseId) is created local", a.contains("isLocal = ownId,"))
+        assertTrue(a.contains("browseId = if (ownId) null else key,"))
     }
 
     /**
