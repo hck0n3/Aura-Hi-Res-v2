@@ -53,4 +53,15 @@ class SpotifyExactSyncGuardTest {
         assertFalse(src.contains(".syncLikedSongsSuspend()"))
         assertEquals(1, Regex("""YtmSyncWorker\.TYPE_UPLOAD_LIBRARY""").findAll(src).count())
     }
+
+    /** Row 832: a scheduled pass only marks as liked what is new in Spotify since the last pass (SpotifyLikedImportLedger). */
+    @Test
+    fun `only new Spotify likes are marked as liked`() {
+        val src = repo
+        assertTrue(src.contains("likedIds = SpotifyLikedImportLedger.toMark(matched, previous, mirrorSongIds),"))
+        assertTrue(src.contains("it[SpotifyLikedImportLedger.keyOf(tag)] = SpotifyLikedImportLedger.next(previous, matched)"))
+        val mirror = body(src, "    private suspend fun mirrorPlaylist(")
+        assertTrue(mirror.contains("val markLiked = metadata.id in likedIds"))
+        assertFalse(mirror.contains("source is SpotifyImportSource.LikedSongs"))
+    }
 }

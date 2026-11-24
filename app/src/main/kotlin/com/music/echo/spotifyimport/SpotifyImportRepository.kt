@@ -341,7 +341,25 @@ class SpotifyImportRepository @Inject constructor(
                     onProgress = onProgress,
                 )
 
-                mirrorPlaylist(source, batch.matched.map { it.metadata })
+                if (source is SpotifyImportSource.LikedSongs) {
+                    // Row 832: only songs NEW in Spotify since the last pass are marked as liked.
+                    val matched = batch.matched.map {
+                        SpotifyLikedImportLedger.trackKey(tracks[it.index].id, it.metadata.id) to it.metadata.id
+                    }
+                    val tag = SpotifyLikedImportLedger.tagOf(Spotify.me().getOrNull()?.id)
+                    val previous = tag?.let { context.dataStore.data.first()[SpotifyLikedImportLedger.keyOf(it)] }
+                    val mirrorSongIds = database.playlistSongIdsInOrder(source.localPlaylistId).toHashSet()
+                    mirrorPlaylist(
+                        source,
+                        batch.matched.map { it.metadata },
+                        likedIds = SpotifyLikedImportLedger.toMark(matched, previous, mirrorSongIds),
+                    )
+                    if (tag != null) {
+                        context.dataStore.edit { it[SpotifyLikedImportLedger.keyOf(tag)] = SpotifyLikedImportLedger.next(previous, matched) }
+                    }
+                } else {
+                    mirrorPlaylist(source, batch.matched.map { it.metadata })
+                }
                 summaries += SpotifyImportSourceSummaryUi(
                     title = source.title,
                     // Fetched (post null/blank filter) count we actually tried to match.
@@ -1347,6 +1365,7 @@ class SpotifyImportRepository @Inject constructor(
     private suspend fun mirrorPlaylist(
         source: SpotifyImportSource,
         tracks: List<MediaMetadata>,
+        likedIds: Set<String> = emptySet(),
     ) {
         database.withTransaction {
             val existing = getPlaylistById(source.localPlaylistId)
@@ -1374,10 +1393,10 @@ class SpotifyImportRepository @Inject constructor(
             }
 
             val libraryNow = LocalDateTime.now()
-            // Spotify "Liked Songs" → mark each matched track as liked so they land in the app's
-            // Liked Songs (not only in a mirror playlist).
-            val markLiked = source is SpotifyImportSource.LikedSongs
+            // Spotify "Liked Songs" → mark each NEW matched track ([likedIds], row 832) as liked so it lands
+            // in the app's Liked Songs (not only in a mirror playlist).
             tracks.forEach { metadata ->
+                val markLiked = metadata.id in likedIds
                 // Read once: branch on existence to avoid a redundant SELECT per song.
                 val existing = getSongByIdBlocking(metadata.id)?.song
                 if (existing == null) {
