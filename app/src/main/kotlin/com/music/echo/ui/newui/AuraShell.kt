@@ -17,11 +17,13 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
 import iad1tya.echo.music.devicesync.RemotePlayback
 import iad1tya.echo.music.echomusic.AudioDeviceBottomSheet
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -55,6 +57,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
@@ -434,6 +437,11 @@ fun AuraNavigationBar(
     val cellWidths = remember { mutableStateMapOf<Int, Dp>() }
 
     val settingsIndex = if (onSettingsClick != null) items.size else -1
+    // Read by the bar's edge-tap router (row 825), whose detector must not restart when a lambda changes.
+    val latestItems by rememberUpdatedState(items)
+    val latestIsSelected by rememberUpdatedState(isSelected)
+    val latestOnItemClick by rememberUpdatedState(onItemClick)
+    val latestOnSettingsClick by rememberUpdatedState(onSettingsClick)
     val selectedIndex = when {
         settingsSelected && settingsIndex >= 0 -> settingsIndex
         else -> items.indexOfFirst { isSelected(it) }
@@ -578,6 +586,36 @@ fun AuraNavigationBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(AuraNavBarHeight)
+                // Row 825: the strip no cell covers (the bands above and below a cell, the floating capsule's side
+                // margins and its rounded ends) took no touch, so a tap there fell THROUGH the bar to whatever list row
+                // was scrolled behind it. A tap no cell answered goes to the cell under it, or the nearest one.
+                .pointerInput(interactiveGlass) {
+                    val rowStart = if (interactiveGlass) AuraFloatingInset.toPx() else 0f
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val up = waitForUpOrCancellation() ?: return@awaitEachGesture
+                        if (down.isConsumed || up.isConsumed) return@awaitEachGesture
+                        if ((up.position - down.position).getDistance() > viewConfiguration.touchSlop) return@awaitEachGesture
+                        val currentItems = latestItems
+                        val onSettings = latestOnSettingsClick
+                        val count = currentItems.size + (if (onSettings != null) 1 else 0)
+                        val cells = ArrayList<ClosedFloatingPointRange<Float>>(count)
+                        for (i in 0 until count) {
+                            val start = cellOffsets[i]?.toPx() ?: return@awaitEachGesture
+                            val width = cellWidths[i]?.toPx() ?: return@awaitEachGesture
+                            cells.add(start..(start + width))
+                        }
+                        val index = auraNavCellAt(up.position.x - rowStart, cells)
+                        if (index < 0) return@awaitEachGesture
+                        up.consume()
+                        if (index < currentItems.size) {
+                            val screen = currentItems[index]
+                            latestOnItemClick(screen, latestIsSelected(screen))
+                        } else {
+                            onSettings?.invoke()
+                        }
+                    }
+                }
                 .then(
                     if (interactiveGlass) {
                         // Los márgenes van AQUÍ, en la misma caja que ya medía `AuraNavBarHeight`, así
@@ -684,6 +722,26 @@ private fun AuraNavIndicator(
 }
 
 /**
+ * Row 825: the cell a tap at [x] belongs to — the one whose span contains it, else the nearest one (a tap in the
+ * capsule's side margin goes to the end cell next to it). [cells] are the measured spans in the row's own pixels,
+ * in order; -1 when there is none. Pure, for test.
+ */
+internal fun auraNavCellAt(x: Float, cells: List<ClosedFloatingPointRange<Float>>): Int {
+    if (cells.isEmpty()) return -1
+    cells.forEachIndexed { i, span -> if (x in span) return i }
+    var best = 0
+    var bestDistance = Float.MAX_VALUE
+    cells.forEachIndexed { i, span ->
+        val distance = if (x < span.start) span.start - x else x - span.endInclusive
+        if (distance < bestDistance) {
+            best = i
+            bestDistance = distance
+        }
+    }
+    return best
+}
+
+/**
  * One cell of [AuraNavigationBar]: `.nv` in the render — a 24 dp glyph over an 8.5 px label.
  *
  * The unselected tint is [AuraPalette.NavInactive] (62 %, ~7:1 on [AuraPalette.Ground]), NOT
@@ -726,17 +784,14 @@ private fun RowScope.AuraNavItem(
             .weight(1f)
             .fillMaxWidth()
             .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
-            // Read in the layer block, i.e. in the draw phase: a press scales the cell without
-            // recomposing it.
-            .graphicsLayer {
-                scaleX = pressScale
-                scaleY = pressScale
-            }
             .tvFocusable(rememberIsTvOrCar(), AuraShapes.Highlight, scaleFocused = 1f)
-            .clip(AuraShapes.Highlight)
+            // Row 825 («los bordes de las pestañas»): the clickable sits OUTSIDE the press layer and the rounded clip.
+            // Inside them, the 0.91 press scale shrank its bounds under a still finger, so a tap near the cell's edge
+            // was lifted "outside" and cancelled, and the 14 dp corners were not hit-testable at all. The ripple is
+            // drawn inside both by `indication` below, so the cell looks exactly as before.
             .clickable(
                 interactionSource = interactionSource,
-                indication = LocalIndication.current,
+                indication = null,
                 onClickLabel = label,
                 role = Role.Tab,
                 onClick = onClick,
@@ -746,6 +801,14 @@ private fun RowScope.AuraNavItem(
                 // Icon-only cell (row 734): without its label drawn, name it, or TalkBack reads a bare «Pestaña».
                 if (!showLabel) contentDescription = label
             }
+            // Read in the layer block, i.e. in the draw phase: a press scales the cell without
+            // recomposing it.
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .clip(AuraShapes.Highlight)
+            .indication(interactionSource, LocalIndication.current)
             .padding(vertical = 8.dp),
     ) {
         AuraIconGlyph(
