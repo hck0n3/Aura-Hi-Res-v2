@@ -85,4 +85,25 @@ class SpotifyExactSyncGuardTest {
         val removal = src.indexOf("YouTube.removeFromPlaylist(")
         assertTrue(src.indexOf("for (song in extras) {") in 0 until removal)
     }
+
+    /** Row 833: Spotify's «Liked Songs» are likes, never a playlist created (or kept in step) on the account. */
+    @Test
+    fun `the Spotify liked-songs mirror is never uploaded as a playlist`() {
+        val dao = main("db/DatabaseDao.kt")
+        val pendingFilter = "AND isEditable = 1 AND id != 'AURA_AI_RECS' AND id != 'SPOTIFY_LIKED_SONGS'"
+        assertEquals("pending list and its count must agree", 2, dao.split(pendingFilter).size - 1)
+        assertTrue(dao.contains("$pendingFilter\n        ORDER BY bookmarkedAt LIMIT :limit"))
+        val reconcile = body(upload, "    private suspend fun reconcileSpotifyMirrors() {")
+        assertTrue(reconcile.contains("it.playlist.id != \"SPOTIFY_LIKED_SONGS\""))
+        assertTrue(repo.contains("override val localPlaylistId: String = \"SPOTIFY_LIKED_SONGS\""))
+    }
+
+    /** Row 833: an empty Spotify source never creates an empty playlist, here or on the account. */
+    @Test
+    fun `an empty Spotify source creates no playlist`() {
+        val mirror = body(repo, "    private suspend fun mirrorPlaylist(")
+        assertTrue(mirror.contains("if (existing == null && tracks.isEmpty()) return@withTransaction"))
+        val uploadPlaylists = body(upload, "    private suspend fun uploadPlaylists() {")
+        assertTrue(uploadPlaylists.contains("if (songIds.isEmpty() && playlist.id.startsWith(\"SPOTIFY_\")) continue"))
+    }
 }

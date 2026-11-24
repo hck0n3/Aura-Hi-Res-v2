@@ -1369,6 +1369,8 @@ class SpotifyImportRepository @Inject constructor(
     ) {
         database.withTransaction {
             val existing = getPlaylistById(source.localPlaylistId)
+            // Row 833: an empty source (or one where nothing matched) never creates a new, empty playlist.
+            if (existing == null && tracks.isEmpty()) return@withTransaction
             val now = LocalDateTime.now()
             val entity =
                 existing?.playlist?.copy(

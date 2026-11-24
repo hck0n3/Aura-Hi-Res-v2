@@ -2006,13 +2006,14 @@ interface DatabaseDao {
      * las asocie a mi cuenta"). A playlist that already has a browseId is already linked and is
      * EXCLUDED here — that is what makes re-running the upload unable to duplicate anything.
      * Excludes local-file playlists and the regenerated auto-recommendations playlist (a fixed-id row
-     * this app rewrites in the background; uploading it would churn the account).
+     * this app rewrites in the background; uploading it would churn the account). Row 833: also the
+     * Spotify «Liked Songs» mirror — those are likes, not a playlist the user asked to have on the account.
      */
     @Query(
         """
         SELECT * FROM playlist
         WHERE browseId IS NULL AND bookmarkedAt IS NOT NULL AND isLocal = 0
-          AND isEditable = 1 AND id != 'AURA_AI_RECS'
+          AND isEditable = 1 AND id != 'AURA_AI_RECS' AND id != 'SPOTIFY_LIKED_SONGS'
         ORDER BY bookmarkedAt LIMIT :limit
         """
     )
@@ -2022,7 +2023,7 @@ interface DatabaseDao {
         """
         SELECT COUNT(*) FROM playlist
         WHERE browseId IS NULL AND bookmarkedAt IS NOT NULL AND isLocal = 0
-          AND isEditable = 1 AND id != 'AURA_AI_RECS'
+          AND isEditable = 1 AND id != 'AURA_AI_RECS' AND id != 'SPOTIFY_LIKED_SONGS'
         """
     )
     suspend fun countPlaylistsPendingUpload(): Int

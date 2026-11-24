@@ -734,6 +734,8 @@ class LibraryUploadSync @Inject constructor(
             try {
                 val songIds = runCatching { database.playlistSongIdsInOrder(playlist.id) }
                     .getOrNull().orEmpty()
+                // Row 833: a Spotify source that came back empty (or matched nothing) never becomes an empty account playlist.
+                if (songIds.isEmpty() && playlist.id.startsWith("SPOTIFY_")) continue
                 if (songIds.size > MAX_PLAYLIST_SONGS_ATOMIC) {
                     Timber.w(
                         "LibraryUploadSync: a playlist has ${songIds.size} songs " +
@@ -822,7 +824,10 @@ class LibraryUploadSync @Inject constructor(
     private suspend fun reconcileSpotifyMirrors() {
         if (!budgetLeft()) return
         val mirrors = runCatching { database.playlistsWithBrowseIdBlocking() }.getOrNull().orEmpty()
-            .filter { it.playlist.id.startsWith("SPOTIFY_") && it.playlist.browseId != null }
+            // Row 833: never the «Liked Songs» mirror (likes, not a playlist), even if an older version created it upstream.
+            .filter {
+                it.playlist.id.startsWith("SPOTIFY_") && it.playlist.id != "SPOTIFY_LIKED_SONGS" && it.playlist.browseId != null
+            }
         if (mirrors.isEmpty()) return
         val prefs = context.getSharedPreferences(SPOTIFY_MIRROR_PREFS, Context.MODE_PRIVATE)
         for (mirror in mirrors) {
