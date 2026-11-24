@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -65,6 +66,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -1705,6 +1707,8 @@ fun AuraSwipeSongBox(
                 .fillMaxWidth(),
             content = content,
         )
+        AuraSwipeActionLabel(offset, threshold, goingRight = true, icon = AuraIcons.Queue, label = stringResource(R.string.play_next))
+        AuraSwipeActionLabel(offset, threshold, goingRight = false, icon = AuraIcons.Plus, label = stringResource(R.string.add_to_queue))
     }
 }
 
@@ -1799,6 +1803,69 @@ fun AuraLibrarySwipeActionsBox(
                 .offset { IntOffset(offset.floatValue.roundToInt(), 0) }
                 .fillMaxWidth(),
             content = content,
+        )
+        AuraSwipeActionLabel(
+            offset = offset,
+            threshold = AURA_LIKE_THRESHOLD,
+            goingRight = true,
+            icon = if (liked) AuraIcons.ThumbDown else AuraIcons.HeartFilled,
+            label = stringResource(if (liked) R.string.action_remove_like else R.string.action_like),
+        )
+        AuraSwipeActionLabel(
+            offset = offset,
+            threshold = AURA_ADD_TO_PLAYLIST_THRESHOLD,
+            goingRight = false,
+            icon = AuraIcons.PlaylistAdd,
+            label = stringResource(R.string.add_to_playlist),
+        )
+    }
+}
+
+/**
+ * Registry row 806 (owner decision H1): what the swipe will do, in words AND icon, while the row moves — each screen
+ * keeps its own meanings. Drawn OVER the row, centred: the strip the row uncovers is only the threshold wide, too
+ * narrow for «Reproducir a continuación». Same draw-phase discipline as [AuraSwipeActionBackground] (the offset and
+ * the ground are read only inside `graphicsLayer` / `drawBehind`, so a drag never recomposes), and no gesture
+ * modifier, so it can never take the drag from the parent.
+ */
+@Composable
+private fun BoxScope.AuraSwipeActionLabel(
+    offset: MutableFloatState,
+    threshold: Float,
+    goingRight: Boolean,
+    icon: ImageVector,
+    label: String,
+) {
+    Row(
+        modifier = Modifier
+            .align(Alignment.Center)
+            // Composed (invisible) on every row at rest: TalkBack must not read both actions on each song.
+            .clearAndSetSemantics {}
+            .graphicsLayer {
+                val value = offset.floatValue
+                val matches = if (goingRight) value > 0f else value < 0f
+                alpha = if (matches) (abs(value) / (threshold * 0.5f)).coerceIn(0f, 1f) else 0f
+                shape = AuraShapes.Pill
+                clip = true
+            }
+            .drawBehind { drawRect(AuraPalette.Ground) }
+            .background(if (goingRight) AuraPalette.NowPlayingFill else AuraPalette.BetaFill)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AuraIconGlyph(
+            icon = icon,
+            contentDescription = null,
+            size = 18.dp,
+            tint = if (goingRight) AuraPalette.Teal else AuraPalette.Violet,
+        )
+        Text(
+            text = label,
+            style = AuraType.Chip,
+            color = AuraPalette.OnGround,
+            maxLines = 1,
+            overflow = AuraDefaultOverflow,
         )
     }
 }
