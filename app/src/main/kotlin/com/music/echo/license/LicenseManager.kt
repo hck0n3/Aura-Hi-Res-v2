@@ -21,6 +21,7 @@ object LicenseManager {
     private const val KEY_LAST_SEEN = "last_seen_at"
     private const val KEY_LAST_STATE = "last_state"
     private const val KEY_EMAIL = "purchase_email"
+    private const val KEY_MASTER = "master_key"
 
     /** Last resolved gate state, cached so re-verification can happen in the background without
      *  flashing the "verificando licencia" screen every time the app opens. */
@@ -54,6 +55,17 @@ object LicenseManager {
         return key to email
     }
 
+    /** Row 851: what device sync may pair by — [purchaseIdentity], except for a master key, which only pairs with a typed code. */
+    fun syncIdentity(context: Context): Pair<String, String>? =
+        MasterKeyPolicy.syncIdentity(purchaseIdentity(context), isMasterKey(context))
+
+    /** Row 851: the Worker said the stored key is a master key. Never logged. */
+    fun isMasterKey(context: Context): Boolean = prefs(context).getBoolean(KEY_MASTER, false)
+
+    private fun saveMaster(context: Context, master: Boolean) {
+        prefs(context).edit().putBoolean(KEY_MASTER, master).apply()
+    }
+
     /** The stored key, to prefill the entry screen when a blocked device is asked for the purchase email. */
     fun storedKey(context: Context): String? = load(context).subscriptionKey
 
@@ -74,8 +86,13 @@ object LicenseManager {
      */
     private suspend fun verifyStored(context: Context, key: String): LicenseStatus {
         val email = storedEmail(context)
-        val status = backend.verify(key, DeviceId.get(context), email)
-        return if (status == LicenseStatus.EMAIL_MISMATCH) backend.verify(key, DeviceId.get(context), null) else status
+        val first = backend.verifyDetailed(key, DeviceId.get(context), email)
+        val result = if (first.status == LicenseStatus.EMAIL_MISMATCH) backend.verifyDetailed(key, DeviceId.get(context), null) else first
+        // Row 851: a device that stored an email with a master key before the owner's order stops pairing by it from here on.
+        if (result.status == LicenseStatus.ACTIVE) {
+            saveMaster(context, MasterKeyPolicy.markAfterActive(isMasterKey(context), result.masterKey, sameKey = true))
+        }
+        return result.status
     }
 
     private fun save(context: Context, state: LicenseLogic.State) {
@@ -173,10 +190,12 @@ object LicenseManager {
             val result = backend.verifyDetailed(key, DeviceId.get(context), email)
             if (result.status == LicenseStatus.ACTIVE) {
                 val now = System.currentTimeMillis()
+                val sameKey = load(context).subscriptionKey == key
+                saveMaster(context, MasterKeyPolicy.markAfterActive(isMasterKey(context), result.masterKey, sameKey))
                 save(context, LicenseLogic.withSubscriptionKey(load(context), key, now))
-                // The email is kept only when the Worker accepted it (`email_ok`): confirmed against the Gumroad purchase, or, for a
-                // master key, typed by its user. With an old Worker or no email nothing is kept, so nothing pairs by itself.
-                saveEmail(context, email.takeIf { result.emailVerified })
+                // The email is kept when the Worker confirmed it (`email_ok`) against the Gumroad purchase, or for a master key (row 851:
+                // never paired by, only the cloud backup secret). With an old Worker or no email nothing is kept, so nothing pairs by itself.
+                saveEmail(context, MasterKeyPolicy.emailToKeep(email, result.emailVerified, isMasterKey(context)))
             }
             result.status
         }

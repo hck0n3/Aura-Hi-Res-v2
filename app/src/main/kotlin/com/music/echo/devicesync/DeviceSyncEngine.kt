@@ -167,7 +167,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     private suspend fun configLoop() {
         kotlinx.coroutines.flow.combine(appContext.dataStore.data, DeviceSyncHub.pairingRefresh) { prefs, _ -> prefs }
             .map {
-                val identity = iad1tya.echo.music.license.LicenseManager.purchaseIdentity(appContext)
+                val identity = iad1tya.echo.music.license.LicenseManager.syncIdentity(appContext)
                 listOf(
                     it[DeviceSyncServerKey].orEmpty(),
                     it[DeviceSyncCodeKey].orEmpty(),

@@ -184,11 +184,16 @@ fun DeviceSyncSettings(
         is DeviceSyncHub.LibraryStatus.Synced -> stringResource(R.string.device_sync_lib_synced, s.known, s.pending)
         is DeviceSyncHub.LibraryStatus.Failed -> stringResource(R.string.device_sync_lib_failed, s.reason)
     }
+    // Row 851: a master key never pairs by email; the screen says so instead of asking for the purchase email.
+    val masterKey = remember(pairedBy) { iad1tya.echo.music.license.LicenseManager.isMasterKey(context) }
     val pairedText = when (pairedBy) {
         DeviceSyncHub.PairedBy.License -> stringResource(R.string.device_sync_paired_license)
         DeviceSyncHub.PairedBy.Code -> stringResource(R.string.device_sync_paired_code)
-        DeviceSyncHub.PairedBy.None ->
-            if (auto) stringResource(R.string.device_sync_auto_need_email) else stringResource(R.string.device_sync_paired_none)
+        DeviceSyncHub.PairedBy.None -> when {
+            !auto -> stringResource(R.string.device_sync_paired_none)
+            masterKey -> stringResource(R.string.device_sync_auto_master_key)
+            else -> stringResource(R.string.device_sync_auto_need_email)
+        }
     }
 
     // Row 565: battery optimisation lets the system refuse to start playback when an order arrives from the other device with the screen off

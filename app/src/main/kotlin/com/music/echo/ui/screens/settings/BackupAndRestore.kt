@@ -122,7 +122,14 @@ fun BackupAndRestore(
                             return@launch
                         }
                         val tmp = java.io.File(context.cacheDir, "cloud_restore_${System.currentTimeMillis()}.zip")
-                        iad1tya.echo.music.edge.EdgeClient.backupDownload(context, secret, tmp).fold(
+                        var download = iad1tya.echo.music.edge.EdgeClient.backupDownload(context, secret, tmp)
+                        // Row 851: a master key is told to pair with a code, which moves the copies to a new space; the ones made
+                        // before under key + email are still restored when the code's space has none.
+                        val older = masterLicenseSecret(context)
+                        if (download.exceptionOrNull()?.message == "no-backup" && older != null && older != secret) {
+                            download = iad1tya.echo.music.edge.EdgeClient.backupDownload(context, older, tmp)
+                        }
+                        download.fold(
                             onSuccess = { viewModel.restore(context, android.net.Uri.fromFile(tmp)) },
                             onFailure = {
                                 tmp.delete()
@@ -653,6 +660,13 @@ private suspend fun cloudSecret(context: android.content.Context): String? {
     )
     val identity = iad1tya.echo.music.license.LicenseManager.purchaseIdentity(context)
     return iad1tya.echo.music.edge.BackupCrypto.secretFor(code, identity?.first, identity?.second)
+}
+
+/** Row 851: the key + email secret of a master key (where its copies lived before a pairing code was typed); null otherwise. */
+private fun masterLicenseSecret(context: android.content.Context): String? {
+    if (!iad1tya.echo.music.license.LicenseManager.isMasterKey(context)) return null
+    val identity = iad1tya.echo.music.license.LicenseManager.purchaseIdentity(context) ?: return null
+    return iad1tya.echo.music.edge.BackupCrypto.secretFor(null, identity.first, identity.second)
 }
 
 private suspend fun cloudInfoText(context: android.content.Context, secret: String): String {

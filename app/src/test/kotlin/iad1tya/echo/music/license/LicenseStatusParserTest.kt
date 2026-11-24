@@ -46,4 +46,16 @@ class LicenseStatusParserTest {
         assertEquals(false, LicenseStatusParser.emailVerified("""{"status":"active","email_ok":false}"""))
         assertEquals(false, LicenseStatusParser.emailVerified("<html>502</html>"))
     }
+
+    @Test fun masterKeyOnlyWhenTheWorkerSaysSo() {
+        // row 850: the Worker's master-key answer
+        assertEquals(true, LicenseStatusParser.masterKey("""{"status":"active","master":true}"""))
+        assertEquals(LicenseStatus.ACTIVE, LicenseStatusParser.parse("""{"status":"active","master":true}"""))
+        assertEquals(false, LicenseStatusParser.emailVerified("""{"status":"active","master":true}"""))
+        // an old Worker, a Gumroad buyer, false, or garbage: never a master key
+        assertEquals(false, LicenseStatusParser.masterKey("""{"status":"active","email_ok":true}"""))
+        assertEquals(false, LicenseStatusParser.masterKey("""{"status":"active"}"""))
+        assertEquals(false, LicenseStatusParser.masterKey("""{"status":"active","master":false}"""))
+        assertEquals(false, LicenseStatusParser.masterKey("<html>502</html>"))
+    }
 }

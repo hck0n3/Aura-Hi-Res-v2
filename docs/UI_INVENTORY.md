@@ -4507,3 +4507,8 @@ Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión 
 | Reproductor Aura > menú «Más» > Reproducción: **Aleatorio** (`ui/newui/AuraPlayerMenu.kt:512`) | Sin cambios: para el invitado ya estaba oculto (junto a Repetir) antes de esta fila | 848 |
 | Notificación de reproducción y Android Auto: **Activar aleatorio** (§25.4, `CommandToggleShuffle`) | El botón sigue ahí; siendo invitado no cambia nada y sale el mismo aviso | 848 |
 | Al entrar en una sala como invitado (sin botón: lo hace la app) | El aleatorio se apaga solo mientras dure la sala y su icono se ve apagado en el reproductor, la cola y la notificación; al salir, o al pasar a anfitrión, vuelve como lo tenías | 849 |
+## Anexo 2026-11-24 (fila 851): orden O2 del dueño, la clave maestra no se empareja sola por correo (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Ajustes ▸ Sincronizar dispositivos ▸ «Emparejamiento» (descripción, solo con «Emparejar con mi licencia» encendido y sin código) | Con una clave maestra dice «Con una clave maestra los aparatos no se emparejan solos: usa un código de emparejamiento» en vez de pedir el correo de la compra. Con licencia de Gumroad, igual que antes. El interruptor, el código, el QR y todo lo demás siguen igual | 851 |

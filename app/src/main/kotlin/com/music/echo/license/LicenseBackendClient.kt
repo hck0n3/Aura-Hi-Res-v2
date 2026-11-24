@@ -24,7 +24,7 @@ class LicenseBackendClient(
     private val http: HttpClient = HttpClient(OkHttp),
 ) {
     /** A verification plus whether the Worker confirmed the typed email (row 531: only then do the buyer's devices pair by themselves). */
-    data class Result(val status: LicenseStatus, val emailVerified: Boolean)
+    data class Result(val status: LicenseStatus, val emailVerified: Boolean, val masterKey: Boolean = false)
 
     /**
      * [email] is the purchase email, optional: with it (and when it matches the one on the Gumroad purchase) the Worker lets
@@ -44,7 +44,8 @@ class LicenseBackendClient(
                 setBody(TextContent(payload, ContentType.Application.Json))
             }.bodyAsText()
             val status = LicenseStatusParser.parse(body)
-            Result(status, status == LicenseStatus.ACTIVE && LicenseStatusParser.emailVerified(body))
+            val active = status == LicenseStatus.ACTIVE
+            Result(status, active && LicenseStatusParser.emailVerified(body), active && LicenseStatusParser.masterKey(body))
         } catch (e: Exception) {
             Result(LicenseStatus.NETWORK_ERROR, false)
         }

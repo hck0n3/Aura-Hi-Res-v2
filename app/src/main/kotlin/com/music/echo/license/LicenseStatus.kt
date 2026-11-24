@@ -27,6 +27,14 @@ object LicenseStatusParser {
             false
         }
 
+    /** Row 851: true when the Worker says the key is a master key (`master: true`). Absent, an old Worker or garbage: false. */
+    fun masterKey(body: String): Boolean =
+        try {
+            json.parseToJsonElement(body).jsonObject["master"]?.jsonPrimitive?.contentOrNull == "true"
+        } catch (e: Exception) {
+            false
+        }
+
     fun parse(body: String): LicenseStatus =
         try {
             when (json.parseToJsonElement(body).jsonObject["status"]?.jsonPrimitive?.contentOrNull) {
@@ -40,4 +48,33 @@ object LicenseStatusParser {
         } catch (e: Exception) {
             LicenseStatus.NETWORK_ERROR
         }
+}
+
+/**
+ * Row 851 (owner order 2026-11-24): a master key never pairs devices by email. Pure, so the rule is tested without Android.
+ * Cloud backup keeps using the stored key + email ([LicenseManager.purchaseIdentity]) so nobody loses the copies already made.
+ */
+object MasterKeyPolicy {
+    /** The identity device sync may pair by: none for a master key (only a typed code pairs it). */
+    fun syncIdentity(identity: Pair<String, String>?, masterKey: Boolean): Pair<String, String>? =
+        if (masterKey) null else identity
+
+    /**
+     * The master mark after an ACTIVE answer. A different key takes the answer as it is; the same key keeps a mark it already had,
+     * so a Worker rolled back to one that stops saying `master` cannot turn pairing by email back on.
+     */
+    fun markAfterActive(wasMaster: Boolean, saysMaster: Boolean, sameKey: Boolean): Boolean =
+        if (sameKey) wasMaster || saysMaster else saysMaster
+
+    /**
+     * The email an activation keeps: the one the Worker confirmed (`email_ok`), or, with the master mark, the one typed with an "@"
+     * (what the old Worker accepted). Device sync never pairs by the latter ([syncIdentity] gives none with the mark), but cloud
+     * backup needs it: copies made before row 850 live under `license:<key>|<email>`, reached again after a reinstall or on a new phone.
+     */
+    fun emailToKeep(typed: String?, emailVerified: Boolean, masterKey: Boolean): String? = when {
+        typed.isNullOrBlank() -> null
+        emailVerified -> typed
+        masterKey && typed.contains('@') -> typed
+        else -> null
+    }
 }
