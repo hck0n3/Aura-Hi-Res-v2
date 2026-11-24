@@ -612,6 +612,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.lyrics_more_settings), "Contenido", "settings/content"),
             Triple(stringResource(R.string.lyrics_more_settings), "Romanización", "settings/content/romanization"),
             Triple(stringResource(R.string.lyrics_more_settings), "Traducción de letras IA", "settings/ai"),
+            // Registry row 813: «Revisar suscripciones», a row of Ajustes ▸ Cuentas (shown only while signed in).
+            Triple(stringResource(R.string.sub_cleanup_title), "Cuentas", "settings/accounts"),
+            Triple(stringResource(R.string.sub_cleanup_desc), "Cuentas", "settings/accounts"),
     )
 
     // Flag OFF: the exact list above, same content, same order. Nothing below runs.
