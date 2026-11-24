@@ -61,6 +61,30 @@ class SpotifyExactImportPolicyTest {
     }
 
     @Test
+    fun `two channels with the exact name are ambiguous, one channel under both spellings is not`() {
+        assertFalse(SpotifyExactImportPolicy.isAmbiguousArtist(emptyList()))
+        assertFalse(SpotifyExactImportPolicy.isAmbiguousArtist(listOf("UCaaa")))
+        assertFalse(SpotifyExactImportPolicy.isAmbiguousArtist(listOf("UCaaa", "MPLAUCaaa")))
+        assertTrue(SpotifyExactImportPolicy.isAmbiguousArtist(listOf("UCaaa", "UCbbb")))
+        assertTrue(SpotifyExactImportPolicy.isAmbiguousArtist(listOf("UCaaa", "MPLAUCaaa", "UCbbb")))
+    }
+
+    @Test
+    fun `an ambiguous artist is not followed and goes to the failures`() {
+        val repo = main("spotifyimport/SpotifyImportRepository.kt")
+        val follow = repo.substringAfter("private suspend fun matchAndFollowArtistDetailed(").substringBefore("\n    }\n")
+        assertTrue(follow.contains(".filter { name.isNotEmpty() && name == ArtistNameMatching.normalize(it.title) }"))
+        assertFalse("the first exact result is not taken blindly", follow.contains(".firstOrNull {"))
+        val ambiguous = follow.indexOf("if (SpotifyExactImportPolicy.isAmbiguousArtist(exactMatches.map { it.id })) {")
+        assertTrue(ambiguous >= 0)
+        assertTrue(
+            follow.substring(ambiguous).substringBefore("\n        }").contains("return ItemMatchOutcome.Failure(SpotifyImportFailureReason.LOW_SCORE)"),
+        )
+        assertTrue("decided before anything is written", ambiguous < follow.indexOf("database.withTransaction {"))
+        assertTrue(ambiguous < follow.indexOf("ImportFollowsAwaitingConfirmKey"))
+    }
+
+    @Test
     fun `the screen, the view model and the worker go through the policy`() {
         val vm = main("spotifyimport/SpotifyImportViewModel.kt")
         assertTrue(vm.contains("selectedSourceIds = SpotifyExactImportPolicy.initialSelection("))

@@ -1,5 +1,7 @@
 package iad1tya.echo.music.spotifyimport
 
+import iad1tya.echo.music.utils.ArtistSyncPolicy
+
 /**
  * Registry row 830 (owner 2026-11-24, K1: «quiero que la sincronización sea exacta y no que sincronice otras cosas que no
  * tengan nada que ver con lo que estoy pidiendo»). The pure decisions of the Spotify import, so a JVM test can hold them.
@@ -32,4 +34,12 @@ object SpotifyExactImportPolicy {
             .filterTo(LinkedHashSet()) {
                 it.isNotEmpty() && it != FOLLOWED_ARTISTS_SOURCE_ID && it != SAVED_ALBUMS_SOURCE_ID
             }
+
+    /**
+     * True when the YouTube results whose normalized name is exactly the Spotify artist's ([exactMatchIds]) are more than one
+     * channel: namesakes, and nothing says which one the user follows, so none is followed. One channel listed under its `UC…` and
+     * `MPLAUC…` spellings is one channel ([ArtistSyncPolicy.channelKey]).
+     */
+    fun isAmbiguousArtist(exactMatchIds: List<String>): Boolean =
+        exactMatchIds.mapTo(HashSet()) { ArtistSyncPolicy.channelKey(it) }.size > 1
 }

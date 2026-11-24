@@ -1056,8 +1056,8 @@ class SpotifyImportRepository @Inject constructor(
     }
 
     /**
-     * Searches YouTube Music for [spotifyArtist], picks the first result whose
-     * normalized name is identical, then upserts it as a followed [ArtistEntity].
+     * Searches YouTube Music for [spotifyArtist], takes the ONE channel whose
+     * normalized name is identical (none if two channels share it), then upserts it as a followed [ArtistEntity].
      * The YouTube subscribe is left to the library upload pass. Success when the
      * artist was matched and followed locally, or the user had unfollowed it.
      */
@@ -1076,12 +1076,16 @@ class SpotifyImportRepository @Inject constructor(
             }
         }
 
-        val match = searchResult.items
+        val name = ArtistNameMatching.normalize(spotifyArtist.name)
+        val exactMatches = searchResult.items
             .filterIsInstance<ArtistItem>()
-            .firstOrNull {
-                val name = ArtistNameMatching.normalize(spotifyArtist.name)
-                name.isNotEmpty() && name == ArtistNameMatching.normalize(it.title)
-            }
+            .filter { name.isNotEmpty() && name == ArtistNameMatching.normalize(it.title) }
+        // Row 830: two different channels with exactly this name are namesakes — following the first one followed a stranger.
+        // Not followed; it goes to the failures list like an artist that was not found.
+        if (SpotifyExactImportPolicy.isAmbiguousArtist(exactMatches.map { it.id })) {
+            return ItemMatchOutcome.Failure(SpotifyImportFailureReason.LOW_SCORE)
+        }
+        val match = exactMatches.firstOrNull()
             ?: return ItemMatchOutcome.Failure(SpotifyImportFailureReason.NO_CANDIDATES)
 
         // Resolve the real channel id the same way SyncUtils does: search-result
