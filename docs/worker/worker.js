@@ -67,8 +67,8 @@ export default {
     if (masterKeys.includes(licenseKey)) {
       // Clave maestra: sin límite de equipos y sin Gumroad (no hay compra, así que no hay correo que comparar). Orden del dueño
       // 2026-11-24 (fila 850): nunca empareja por correo. El correo escrito no se puede comprobar y quien conociera la clave y el
-      // correo de otro entraba en su grupo; por eso nunca lleva `email_ok` (ninguna app guarda el correo) y `master: true` avisa
-      // a la app nueva para que deje de emparejar sola con un correo guardado antes. Se empareja con un código escrito.
+      // correo de otro entraba en su grupo; por eso nunca lleva `email_ok` (ninguna app empareja por él) y `master: true` avisa
+      // a la app nueva para que deje de emparejar sola con un correo guardado (lo guarda solo para la copia en la nube, fila 851). Se empareja con un código escrito.
       return json({ status: "active", master: true });
     }
 

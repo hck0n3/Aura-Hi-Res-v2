@@ -65,4 +65,16 @@ object MasterKeyPolicy {
      */
     fun markAfterActive(wasMaster: Boolean, saysMaster: Boolean, sameKey: Boolean): Boolean =
         if (sameKey) wasMaster || saysMaster else saysMaster
+
+    /**
+     * The email an activation keeps: the one the Worker confirmed (`email_ok`), or, with the master mark, the one typed with an "@"
+     * (what the old Worker accepted). Device sync never pairs by the latter ([syncIdentity] gives none with the mark), but cloud
+     * backup needs it: copies made before row 850 live under `license:<key>|<email>`, reached again after a reinstall or on a new phone.
+     */
+    fun emailToKeep(typed: String?, emailVerified: Boolean, masterKey: Boolean): String? = when {
+        typed.isNullOrBlank() -> null
+        emailVerified -> typed
+        masterKey && typed.contains('@') -> typed
+        else -> null
+    }
 }

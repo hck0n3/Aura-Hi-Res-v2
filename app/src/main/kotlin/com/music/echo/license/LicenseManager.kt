@@ -193,9 +193,9 @@ object LicenseManager {
                 val sameKey = load(context).subscriptionKey == key
                 saveMaster(context, MasterKeyPolicy.markAfterActive(isMasterKey(context), result.masterKey, sameKey))
                 save(context, LicenseLogic.withSubscriptionKey(load(context), key, now))
-                // The email is kept only when the Worker confirmed it (`email_ok`) against the Gumroad purchase; a master key never gets
-                // it (row 850). With an old Worker or no email nothing is kept, so nothing pairs by itself.
-                saveEmail(context, email.takeIf { result.emailVerified })
+                // The email is kept when the Worker confirmed it (`email_ok`) against the Gumroad purchase, or for a master key (row 851:
+                // never paired by, only the cloud backup secret). With an old Worker or no email nothing is kept, so nothing pairs by itself.
+                saveEmail(context, MasterKeyPolicy.emailToKeep(email, result.emailVerified, isMasterKey(context)))
             }
             result.status
         }

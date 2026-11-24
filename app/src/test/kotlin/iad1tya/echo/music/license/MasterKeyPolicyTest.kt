@@ -56,6 +56,26 @@ class MasterKeyPolicyTest {
         assertTrue(MasterKeyPolicy.markAfterActive(wasMaster = false, saysMaster = true, sameKey = false))
     }
 
+    @Test
+    fun `a master key keeps the typed email for the cloud backup while device sync still gets no identity`() {
+        // Reinstall or new phone: the copies made before row 850 live under license:<key>|<email>, so the email must be kept.
+        val kept = MasterKeyPolicy.emailToKeep("owner@mail.com", emailVerified = false, masterKey = true)
+        assertEquals("owner@mail.com", kept)
+        assertEquals("license:MASTER-KEY|owner@mail.com", BackupCrypto.secretFor(null, "MASTER-KEY", kept))
+        assertNull(MasterKeyPolicy.syncIdentity("MASTER-KEY" to kept!!, masterKey = true))
+        // the old Worker accepted only a typed email with an "@": anything else never had copies and is not kept
+        assertNull(MasterKeyPolicy.emailToKeep("not-an-email", emailVerified = false, masterKey = true))
+        assertNull(MasterKeyPolicy.emailToKeep(null, emailVerified = false, masterKey = true))
+        assertNull(MasterKeyPolicy.emailToKeep("  ", emailVerified = false, masterKey = true))
+    }
+
+    @Test
+    fun `a Gumroad key keeps the email only when the Worker confirmed it, as before`() {
+        assertEquals("buyer@mail.com", MasterKeyPolicy.emailToKeep("buyer@mail.com", emailVerified = true, masterKey = false))
+        assertNull(MasterKeyPolicy.emailToKeep("someone@mail.com", emailVerified = false, masterKey = false))
+        assertNull(MasterKeyPolicy.emailToKeep(null, emailVerified = true, masterKey = false))
+    }
+
     // --- wiring: who uses which identity ---
 
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }
@@ -80,6 +100,8 @@ class MasterKeyPolicyTest {
         assertTrue(manager.contains("MasterKeyPolicy.syncIdentity(purchaseIdentity(context), isMasterKey(context))"))
         assertTrue(manager.contains("saveMaster(context, MasterKeyPolicy.markAfterActive(isMasterKey(context), result.masterKey, sameKey = true))"))
         assertTrue(manager.contains("saveMaster(context, MasterKeyPolicy.markAfterActive(isMasterKey(context), result.masterKey, sameKey))"))
+        assertTrue(manager.contains("saveEmail(context, MasterKeyPolicy.emailToKeep(email, result.emailVerified, isMasterKey(context)))"))
+        assertFalse("a master key must keep its typed email for the cloud backup", manager.contains("email.takeIf { result.emailVerified }"))
         val client = read("$main/license/LicenseBackendClient.kt")
         assertTrue(client.contains("active && LicenseStatusParser.masterKey(body)"))
         val settings = read("$main/ui/screens/settings/integrations/DeviceSyncSettings.kt")
