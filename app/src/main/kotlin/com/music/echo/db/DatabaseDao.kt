@@ -2803,7 +2803,8 @@ interface DatabaseDao {
     /**
      * Registry row 814 («Revisar suscripciones»): per artist row, the local evidence that the user listens to it —
      * liked songs, songs in HIS playlists (same predicate as [artistPageLibrarySongs], row 673), songs in the library
-     * and plays in the history. Read once when the review screen opens.
+     * and plays in the history. Read once when the review screen opens. Local-file artists (`isLocal = 1`,
+     * `LocalSongScanner`) are kept: their evidence reaches a subscription through the exact-name bridge.
      */
     @Query(
         """
@@ -2821,7 +2822,6 @@ interface DatabaseDao {
         FROM artist
         JOIN song_artist_map ON song_artist_map.artistId = artist.id
         JOIN song ON song.id = song_artist_map.songId
-        WHERE artist.isLocal = 0
         GROUP BY artist.id
         """
     )

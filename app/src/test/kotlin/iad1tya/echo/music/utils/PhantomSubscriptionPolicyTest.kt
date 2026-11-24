@@ -65,6 +65,15 @@ class PhantomSubscriptionPolicyTest {
     }
 
     @Test
+    fun `a local-files artist of the same name with liked songs keeps the subscription out of the suggestions`() {
+        // LocalSongScanner gives on-device songs their own artist row (isLocal = 1, a non-YouTube id): its evidence
+        // reaches the account subscription only through the exact-name bridge.
+        val rows = listOf(row("local_artist_42", name = "Artist X", liked = 12, playlists = 3, plays = 40))
+        val interest = PhantomSubscriptionPolicy.interestFor("UCabc", "Artist X", rows)
+        assertFalse(PhantomSubscriptionPolicy.verdict(interest).suggested)
+    }
+
+    @Test
     fun `a blank name bridges nothing`() {
         val rows = listOf(row("UCzzz", name = " ", liked = 5))
         assertEquals(Interest(), PhantomSubscriptionPolicy.interestFor("UCabc", "  ", rows))

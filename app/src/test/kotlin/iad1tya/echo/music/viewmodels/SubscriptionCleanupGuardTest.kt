@@ -55,6 +55,14 @@ class SubscriptionCleanupGuardTest {
     }
 
     @Test
+    fun `the interest query keeps local-file artists, whose evidence the name bridge needs`() {
+        val dao = src("app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt")
+        val query = dao.substringBefore("suspend fun artistInterestRows()").substringAfterLast("@Query(")
+        assertTrue(query.contains("JOIN song ON song.id = song_artist_map.songId"))
+        assertFalse(query.contains("isLocal = 0"))
+    }
+
+    @Test
     fun `logs carry counts only`() {
         val vm = src(vmPath)
         val lines = Regex("""Timber\.\w\([^\n]*(\n[^\n]*){0,4}""").findAll(vm).map { it.value }.toList()
