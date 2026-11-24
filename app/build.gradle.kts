@@ -625,7 +625,7 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     implementation(project(":innertube"))
-    // PipePipeExtractor f8982ca9e7 exposes YoutubeJavaScriptDecoder/YoutubeApiDecoder, which
+    // PipePipeExtractor bba8d84453 exposes YoutubeJavaScriptDecoder/YoutubeApiDecoder, which
     // PipePipeLocalCipherDecoder (app) implements as the on-device cipher tier. innertube declares
     // it `implementation` (not api), so the app needs its own declaration to see the interfaces.
     // Same version + same protobuf exclusion as innertube's to keep ONE copy on the classpath.
