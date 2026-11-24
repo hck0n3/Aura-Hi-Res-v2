@@ -85,6 +85,25 @@ class SpotifyExactImportPolicyTest {
     }
 
     @Test
+    fun `every spelling of the matched channel is checked for the user's unfollow`() {
+        assertEquals(listOf("UCaaa", "MPLAUCaaa"), SpotifyExactImportPolicy.storedSpellings("UCaaa", "UCaaa"))
+        assertEquals(listOf("MPLAUCaaa", "UCaaa"), SpotifyExactImportPolicy.storedSpellings("MPLAUCaaa", null))
+        assertEquals(listOf("browse1", "UCbbb", "MPLAUCbbb"), SpotifyExactImportPolicy.storedSpellings("browse1", "UCbbb"))
+        assertEquals(listOf("browse1"), SpotifyExactImportPolicy.storedSpellings("browse1", ""))
+    }
+
+    @Test
+    fun `an unfollow on any spelling stops the import before it writes`() {
+        val repo = main("spotifyimport/SpotifyImportRepository.kt")
+        val follow = repo.substringAfter("private suspend fun matchAndFollowArtistDetailed(").substringBefore("\n    }\n")
+        val check = "if (database.getArtistEntitiesByIds(spellings).any { it.unfollowedByUserAt != null }) return ItemMatchOutcome.Success"
+        assertTrue(follow.contains("val spellings = SpotifyExactImportPolicy.storedSpellings(match.id, channelId)"))
+        assertTrue(follow.contains(check))
+        assertTrue(follow.indexOf(check) < follow.indexOf("it[ImportFollowsAwaitingConfirmKey] ="))
+        assertTrue(follow.indexOf(check) < follow.indexOf("database.withTransaction {"))
+    }
+
+    @Test
     fun `the screen, the view model and the worker go through the policy`() {
         val vm = main("spotifyimport/SpotifyImportViewModel.kt")
         assertTrue(vm.contains("selectedSourceIds = SpotifyExactImportPolicy.initialSelection("))

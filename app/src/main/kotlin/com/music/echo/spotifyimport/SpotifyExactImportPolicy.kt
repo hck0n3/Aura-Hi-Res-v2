@@ -42,4 +42,12 @@ object SpotifyExactImportPolicy {
      */
     fun isAmbiguousArtist(exactMatchIds: List<String>): Boolean =
         exactMatchIds.mapTo(HashSet()) { ArtistSyncPolicy.channelKey(it) }.size > 1
+
+    /**
+     * Every id under which the matched channel can be stored: the spellings ([ArtistSyncPolicy.aliasIds]) of the result's id and of
+     * its resolved [channelId]. An unfollow on ANY of them means the user removed this artist, and the import must not follow it again.
+     */
+    fun storedSpellings(matchId: String, channelId: String?): List<String> =
+        (ArtistSyncPolicy.aliasIds(matchId) + channelId?.takeIf { it.isNotBlank() }?.let(ArtistSyncPolicy::aliasIds).orEmpty())
+            .distinct()
 }

@@ -1106,6 +1106,9 @@ class SpotifyImportRepository @Inject constructor(
         val thumbnail = match.thumbnail
         val existing = database.artist(match.id).first()?.artist
         if (existing?.unfollowedByUserAt != null) return ItemMatchOutcome.Success
+        // Row 830: the user's unfollow can sit on another spelling of this channel (UC… / MPLAUC…, row 716); any of them keeps it.
+        val spellings = SpotifyExactImportPolicy.storedSpellings(match.id, channelId)
+        if (database.getArtistEntitiesByIds(spellings).any { it.unfollowedByUserAt != null }) return ItemMatchOutcome.Success
         // Recorded before the follow is written, so the upload pass never sees the follow without it.
         if (existing?.followedByUserAt == null) {
             context.dataStore.edit {
