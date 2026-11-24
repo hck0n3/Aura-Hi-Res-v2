@@ -657,6 +657,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         // SEPARATE, LAST WORD on the crossfade length: fila 362 (owner 2026-10-09) — 6 s for everyone, once,
         // after every older writer (8 s directives) so none of them can undo it.
         migrateCrossfade6s20261009(settings)
+        // SEPARATE: row 799 (owner decision H16, 2026-11-24) — the glue compressor OFF once, even if saved ON.
+        migrateGlueCompressorOff20261124(settings)
 
         // Establish, at most ONCE per install, where this data came from — and clean up after a
         // platform restore before anything is allowed to act on the restored rows. Must run before
@@ -1508,6 +1510,23 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] = false
                 it[iad1tya.echo.music.constants.SoundProtectionsOff20261006AppliedKey] = true
             }
+        }.onFailure { reportException(it) }
+    }
+
+    /**
+     * One-time (row 799, owner decision H16 2026-11-24): the glue compressor's default became OFF in row 712, but a
+     * read default does nothing for an install that SAVED it ON, so it is written OFF exactly once. Afterwards the
+     * switch in Ajustes ▸ Sonido is the user's again.
+     */
+    private suspend fun migrateGlueCompressorOff20261124(settings: androidx.datastore.preferences.core.Preferences) {
+        if (settings[iad1tya.echo.music.constants.GlueCompressorOff20261124AppliedKey] == true) return
+        val wasOn = settings[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: iad1tya.echo.music.constants.GlueCompressorDefault
+        runCatching {
+            dataStore.edit {
+                it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] = false
+                it[iad1tya.echo.music.constants.GlueCompressorOff20261124AppliedKey] = true
+            }
+            Timber.i("GLUE_COMPRESSOR_OFF_ONCE was_on=%b", wasOn)
         }.onFailure { reportException(it) }
     }
 

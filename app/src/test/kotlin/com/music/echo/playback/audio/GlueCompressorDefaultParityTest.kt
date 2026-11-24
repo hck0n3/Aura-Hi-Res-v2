@@ -41,6 +41,8 @@ class GlueCompressorDefaultParityTest {
             val text = f.readText()
             // A key access `[...GlueCompressorEnabledKey]` or a rememberPreference(…Key, …) call.
             Regex("""GlueCompressorEnabledKey\s*(\]|,)""").findAll(text).forEach { m ->
+                // Row 799: the one-shot write (`…Key] = false`) is not a read; `no other write …` pins it below.
+                if (Regex("""^\]\s*=[^=]""").containsMatchIn(text.substring(m.range.last))) return@forEach
                 val window = text.substring(m.range.first, minOf(text.length, m.range.last + 220))
                 reads += "${f.name}: ${window.lineSequence().take(3).joinToString(" ").trim()}"
                 assertTrue(
@@ -64,16 +66,28 @@ class GlueCompressorDefaultParityTest {
     }
 
     @Test
-    fun `no migration writes the key`() {
-        // The order keeps every explicit choice: only a user who never touched the switch (no stored key)
-        // gets the new OFF. A one-shot write of the key would overwrite his choice.
-        val mainRoot = File(repoRoot, "app/src/main/kotlin")
-        mainRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { f ->
-            assertFalse(
-                "${f.name} escribe GlueCompressorEnabledKey: la orden es no migrar",
-                Regex("""\[[\w.]*GlueCompressorEnabledKey\]\s*=""").containsMatchIn(f.readText()),
-            )
+    fun `the only write of the key is the one-shot OFF migration`() {
+        // Row 712 kept every saved choice (no migration). Row 799 (owner decision H16, 2026-11-24) replaced that
+        // order: whoever had it saved ON hears it once more, so it is written OFF exactly once, behind its own
+        // flag, and the switch is the user's again afterwards. Any other write would override his choice.
+        val write = Regex("""\[[\w.]*GlueCompressorEnabledKey\]\s*=[^=]""")
+        val writes = mutableListOf<String>()
+        File(repoRoot, "app/src/main/kotlin").walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { f ->
+            write.findAll(f.readText()).forEach { writes += "${f.name}: ${it.value}" }
         }
+        assertEquals("se esperaba una sola escritura (App.kt), encontradas: $writes", 1, writes.size)
+        assertTrue(writes.single().startsWith("App.kt:"))
+
+        val app = source("app/src/main/kotlin/com/music/echo/App.kt")
+        val migration = app.substringAfter("private suspend fun migrateGlueCompressorOff20261124(")
+            .substringBefore("\n    }\n")
+        assertTrue("the flag gates it", migration.contains("if (settings[iad1tya.echo.music.constants.GlueCompressorOff20261124AppliedKey] == true) return"))
+        assertTrue(migration.contains("it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] = false"))
+        assertTrue("value and flag in one edit", migration.contains("it[iad1tya.echo.music.constants.GlueCompressorOff20261124AppliedKey] = true"))
+        assertTrue("logged once, at INFO", migration.contains("Timber.i(\"GLUE_COMPRESSOR_OFF_ONCE was_on=%b\", wasOn)"))
+        assertTrue("it runs at startup", app.contains("        migrateGlueCompressorOff20261124(settings)\n"))
+        val keys = source("app/src/main/kotlin/com/music/echo/constants/PreferenceKeys.kt")
+        assertTrue(keys.contains("val GlueCompressorOff20261124AppliedKey = booleanPreferencesKey(\"glue_compressor_off_20261124_applied\")"))
     }
 
     @Test

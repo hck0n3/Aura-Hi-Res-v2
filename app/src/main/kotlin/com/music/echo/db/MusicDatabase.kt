@@ -183,7 +183,7 @@ private fun Throwable.isDbConnectionClosed(): Boolean {
         SortedSongAlbumMap::class,
         PlaylistSongMapPreview::class,
     ],
-    version = 45,
+    version = 46,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 2, to = 3),
@@ -246,6 +246,9 @@ private fun Throwable.isDbConnectionClosed(): Boolean {
         // as `enhanced_shuffle_played`/MIGRATION_38_39 — see RadioContinuationPlayedEntity's kdoc). Hand-
         // written for the exact same reason as 42->43/43->44 above: no committed 44.json to diff against.
         // MIGRATION_44_45 below.
+        // 45 -> 46: additive nullable artist.unfollowConfirmedAt (row 798). An AutoMigration (45.json is committed),
+        // so it travels with this annotation to BOTH builders, like 40 -> 41.
+        AutoMigration(from = 45, to = 46),
     ],
 )
 @TypeConverters(Converters::class)

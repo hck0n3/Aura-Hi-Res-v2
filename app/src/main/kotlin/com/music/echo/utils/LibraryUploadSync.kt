@@ -465,7 +465,10 @@ class LibraryUploadSync @Inject constructor(
             // later in the SAME pass. It now cannot produce that shape at all (see
             // DatabaseDao.markArtistsSubscribedOnYtm / ArtistSyncPolicy.afterRemoteSubscriptionSeen).
             runCatching {
-                ids.chunked(500).forEach { database.markArtistsSubscribedOnYtm(it, LocalDateTime.now()) }
+                val now = LocalDateTime.now()
+                ids.chunked(500).forEach {
+                    database.markArtistsSubscribedOnYtm(it, now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))
+                }
             }.onFailure { Timber.w(it, "Could not backfill subscribed artists") }
         }
         return ids.toSet()
@@ -658,6 +661,7 @@ class LibraryUploadSync @Inject constructor(
                 // older follow of the other spelling does not cancel this newer unfollow: it is sent.
                 val current = database.getArtistEntitiesByIds(listOf(artist.id)).firstOrNull()
                 if (current == null || ArtistSyncPolicy.refuseUnsubscribe(current, LocalDateTime.now()) != null) continue
+                val deliveredAt = current.unfollowedByUserAt ?: continue
                 val newerFollow = ArtistSyncPolicy.supersedingAliasFollow(
                     current,
                     database.getArtistEntitiesByIds(ArtistSyncPolicy.aliasIds(artist.id)),
@@ -669,7 +673,12 @@ class LibraryUploadSync @Inject constructor(
                 }
                 Timber.i("ARTIST_SUBSCRIBE_SYNC subscribing=false")
                 YouTube.subscribeChannel(channelId, false)
-                    .onSuccess { cleared.add(artist.id); unsubscribed++ }
+                    .onSuccess {
+                        unsubscribed++
+                        // Row 798: confirmed right away and only for the marker this call delivered, like the live tap;
+                        // an unfollow tapped again meanwhile stays unconfirmed, so it is still retried.
+                        runCatching { database.confirmArtistUnsubscribed(artist.id, deliveredAt) }
+                    }
                     .onFailure { Timber.w(it, "UPLOAD_SYNC unsubscribe failed") }
             } catch (e: CancellationException) {
                 throw e
@@ -680,11 +689,11 @@ class LibraryUploadSync @Inject constructor(
         if (cleared.isNotEmpty()) {
             runCatching { database.clearArtistsSyncedToYtm(cleared) }
         }
-        // `cleared` also carries rows retired without a network call (stale intent, no channel to
-        // unsubscribe from), so count the real ones separately rather than overstating what was sent.
+        // `cleared` carries only rows retired without a network call (stale intent, no channel to unsubscribe
+        // from); the ones YouTube accepted were confirmed one by one above.
         Timber.d(
             "LibraryUploadSync: unsubscribed from $unsubscribed artists " +
-                "(${cleared.size - unsubscribed} markers retired without contacting YouTube)",
+                "(${cleared.size} markers retired without contacting YouTube)",
         )
     }
 
