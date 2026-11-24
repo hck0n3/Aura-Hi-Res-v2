@@ -208,6 +208,10 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** The pending delayed bump of [guestTrackCheck]. Main thread only. */
     private var trackRecheck: kotlinx.coroutines.Job? = null
 
+    /** Row 796: when this guest received the room's current timeline; see [roomPositionNow]. */
+    @Volatile
+    private var roomReceipt: RoomTimelineReceipt? = null
+
     /** True while this device, as host, waits paused at a synchronized start: that pause is the room's, not the host pausing it. */
     @Volatile
     private var hostHoldingForStart = false
@@ -452,6 +456,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     }
                     pausedLocally = false
                     trackGuard.reset()
+                    roomReceipt = null
                     realignGate.reset()
                     lastAppliedTrackId = null
                     lastAppliedQueueIds = emptyList()
@@ -475,6 +480,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // with the track unchanged, and is applied normally.
                     val playing = if (trackChanged && !isPlaying) lastRoomPlaying else isPlaying
                     lastRoomPlaying = playing
+                    // Row 796: when this timeline reached this device, for re-applying it later without a server clock.
+                    val receipt = roomReceipt
+                    if (receipt == null || receipt.position != position || receipt.anchorServerTime != anchorServerTime || receipt.playing != playing) {
+                        roomReceipt = RoomTimelineReceipt(position, anchorServerTime, playing, android.os.SystemClock.elapsedRealtime())
+                    }
                     // A synchronized start (W2): the room's track loads PAUSED at the start position; the hold starts it on time.
                     val hold = session.state.value.syncStart?.takeIf { syncStartHolds(it, track?.id) }
                     if (trackChanged && track != null) {
@@ -718,7 +728,16 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // to the raw value whenever it is not calibrated yet.
         val player = runCatching { service.player }.getOrNull() ?: return@remoteOnMain false
         val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
-        val roomPosition = session.positionAt(position, isPlaying, anchorServerTime)
+        // Row 796: re-applied later (heartbeat, realign, recheck), an uncalibrated clock or a missing anchor no longer means «the
+        // room is where its last command was»: see [roomPositionNow].
+        val roomPosition = roomPositionNow(
+            position = position,
+            playing = isPlaying,
+            anchorServerTime = anchorServerTime,
+            serverNow = session.serverNow(),
+            receipt = roomReceipt,
+            nowMs = android.os.SystemClock.elapsedRealtime(),
+        )
         val corrected = capToTrack(roomPosition, roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
             val previous = player.previousMediaItemIndex
