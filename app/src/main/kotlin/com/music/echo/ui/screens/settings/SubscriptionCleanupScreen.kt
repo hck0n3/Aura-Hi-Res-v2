@@ -225,6 +225,11 @@ fun SubscriptionCleanupScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
+                                    candidate.resendAllowed -> Text(
+                                        stringResource(R.string.sub_cleanup_resend_badge),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                     candidate.removalConfirmed -> Text(
                                         stringResource(R.string.sub_cleanup_confirmed_badge),
                                         style = MaterialTheme.typography.bodySmall,

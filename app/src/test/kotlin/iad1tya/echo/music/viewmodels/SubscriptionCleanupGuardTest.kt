@@ -73,6 +73,19 @@ class SubscriptionCleanupGuardTest {
     }
 
     @Test
+    fun `a resend goes through the same read-back and tap, with the hold the policy picks`() {
+        val vm = src(vmPath)
+        assertTrue(vm.contains("resendAllowed = PhantomSubscriptionPolicy.resendAllowed(item.id, local.filter { it.id in spellings }, now),"))
+        assertTrue(vm.contains("database.markArtistsSubscribedOnYtm(listOf(item.id), now, PhantomSubscriptionPolicy.readBackHoldSince(item, now))"))
+        assertFalse(vm.contains("markArtistsSubscribedOnYtm(listOf(item.id), now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))"))
+        val readBack = vm.indexOf("PhantomSubscriptionPolicy.readBackHoldSince(item, now)")
+        assertTrue("read-back before the tap", readBack in 0 until vm.indexOf("database.toggleArtistFollow(item.id, fallback = null, shownFollowed = true)"))
+        val screen = src(screenPath)
+        assertTrue(screen.contains("candidate.resendAllowed -> Text(\n                                        stringResource(R.string.sub_cleanup_resend_badge),"))
+        assertTrue("the resend badge wins over the confirmed one", screen.indexOf("candidate.resendAllowed ->") < screen.indexOf("candidate.removalConfirmed ->"))
+    }
+
+    @Test
     fun `logs carry counts only`() {
         val vm = src(vmPath)
         val lines = Regex("""Timber\.\w\([^\n]*(\n[^\n]*){0,4}""").findAll(vm).map { it.value }.toList()

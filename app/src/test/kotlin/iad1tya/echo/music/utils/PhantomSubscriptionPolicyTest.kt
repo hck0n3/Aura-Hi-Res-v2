@@ -135,6 +135,71 @@ class PhantomSubscriptionPolicyTest {
         assertTrue(PhantomSubscriptionPolicy.suggestedSelection(listOf(confirmed)).isEmpty())
     }
 
+    // ---- resend of a confirmed unfollow the account still lists (row 829) ----
+
+    private fun confirmedRow(id: String, hoursAgo: Long, now: LocalDateTime): ArtistEntity {
+        val at = now.minusHours(hoursAgo)
+        return ArtistEntity(id = id, name = id, unfollowedByUserAt = at, unfollowConfirmedAt = at, ytmSyncedAt = null)
+    }
+
+    @Test
+    fun `a confirmed unfollow may be sent again only once it is more than 24 hours old`() {
+        val now = LocalDateTime.of(2026, 11, 24, 12, 0)
+        assertEquals(24L, PhantomSubscriptionPolicy.RESEND_AFTER_CONFIRMED_HOURS)
+        assertEquals(now.minusHours(24), PhantomSubscriptionPolicy.resendSince(now))
+        assertFalse(PhantomSubscriptionPolicy.resendAllowed("UCa", listOf(confirmedRow("UCa", 1, now)), now))
+        assertFalse("exactly 24 h is not more than 24 h", PhantomSubscriptionPolicy.resendAllowed("UCa", listOf(confirmedRow("UCa", 24, now)), now))
+        assertTrue(PhantomSubscriptionPolicy.resendAllowed("UCa", listOf(confirmedRow("UCa", 25, now)), now))
+        assertTrue(PhantomSubscriptionPolicy.resendAllowed("UCa", listOf(confirmedRow("UCa", 29 * 24, now)), now))
+        // Past the 30-day hold the read-back already reads it as a follow: a normal row, nothing to resend.
+        assertFalse(PhantomSubscriptionPolicy.resendAllowed("UCa", listOf(confirmedRow("UCa", 31 * 24, now)), now))
+    }
+
+    @Test
+    fun `only a confirmed unfollow can be resent`() {
+        val now = LocalDateTime.of(2026, 11, 24, 12, 0)
+        val old = confirmedRow("UCa", 48, now)
+        // Not confirmed (a newer unfollow than the confirmation): that is the pending path, not a resend.
+        assertFalse(PhantomSubscriptionPolicy.resendAllowed("UCa", listOf(old.copy(unfollowConfirmedAt = old.unfollowedByUserAt!!.minusMinutes(1))), now))
+        // Another spelling still followed, a local row, or no row of the listed id: the normal tap handles it.
+        val followedAlias = ArtistEntity(id = "MPLAUCa", name = "a", followedByUserAt = now, ytmSyncedAt = now)
+        assertFalse(PhantomSubscriptionPolicy.resendAllowed("UCa", listOf(old, followedAlias), now))
+        assertFalse(PhantomSubscriptionPolicy.resendAllowed("UCa", listOf(old.copy(isLocal = true)), now))
+        assertFalse(PhantomSubscriptionPolicy.resendAllowed("MPLAUCa", listOf(old), now))
+        assertFalse(PhantomSubscriptionPolicy.resendAllowed("UCa", emptyList(), now))
+    }
+
+    @Test
+    fun `a resend is selectable by its own tap but never by select suggested`() {
+        val resend = candidate("UC5", true).copy(removalConfirmed = true, resendAllowed = true)
+        val recent = candidate("UC4", true).copy(removalConfirmed = true)
+        assertFalse(resend.blocked)
+        assertTrue(recent.blocked)
+        assertTrue(PhantomSubscriptionPolicy.suggestedSelection(listOf(resend, recent)).isEmpty())
+        assertEquals(setOf("UC1"), PhantomSubscriptionPolicy.suggestedSelection(listOf(resend, candidate("UC1", true))))
+        // Explicitly selected, it reaches the batch; the recent one never does.
+        val plan = PhantomSubscriptionPolicy.planBatch(
+            ordered = listOf("UC4", "UC5"),
+            selected = setOf("UC4", "UC5"),
+            blocked = listOf(resend, recent).filter { it.blocked }.map { it.id }.toSet(),
+        )
+        assertEquals(listOf("UC5"), plan)
+        // A pending removal stays blocked whatever the flag says.
+        assertTrue(candidate("UC6", true, pending = true).copy(resendAllowed = true).blocked)
+    }
+
+    @Test
+    fun `the read-back of a resend uses the 24-hour hold, every other row the 30-day one`() {
+        val now = LocalDateTime.of(2026, 11, 24, 12, 0)
+        val resend = candidate("UC5", true).copy(removalConfirmed = true, resendAllowed = true)
+        assertEquals(now.minusHours(24), PhantomSubscriptionPolicy.readBackHoldSince(resend, now))
+        assertEquals(ArtistSyncPolicy.confirmedUnfollowHoldSince(now), PhantomSubscriptionPolicy.readBackHoldSince(candidate("UC1", true), now))
+        assertEquals(
+            ArtistSyncPolicy.confirmedUnfollowHoldSince(now),
+            PhantomSubscriptionPolicy.readBackHoldSince(candidate("UC4", true).copy(removalConfirmed = true), now),
+        )
+    }
+
     @Test
     fun `suggested rows come first, then by name`() {
         val list = listOf(
