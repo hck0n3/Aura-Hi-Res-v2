@@ -593,10 +593,10 @@ private fun LibraryUploadSection(
 
     Spacer(Modifier.height(12.dp))
 
-    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_playlists), progress.playlists, AccountReadLists.PLAYLISTS in incompleteReads)
-    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_artists), progress.artists, AccountReadLists.ARTISTS in incompleteReads)
-    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_liked_songs), progress.likedSongs, AccountReadLists.LIKED_SONGS in incompleteReads)
-    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_liked_albums), progress.likedAlbums, AccountReadLists.LIKED_ALBUMS in incompleteReads)
+    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_playlists), progress.playlists, AccountReadLists.PLAYLISTS in incompleteReads || progress.playlists.readCutShort)
+    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_artists), progress.artists, AccountReadLists.ARTISTS in incompleteReads || progress.artists.readCutShort)
+    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_liked_songs), progress.likedSongs, AccountReadLists.LIKED_SONGS in incompleteReads || progress.likedSongs.readCutShort)
+    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_liked_albums), progress.likedAlbums, AccountReadLists.LIKED_ALBUMS in incompleteReads || progress.likedAlbums.readCutShort)
 
     Spacer(Modifier.height(12.dp))
 
@@ -610,7 +610,7 @@ private fun LibraryUploadSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 6.dp),
         )
-    } else if (incompleteReads.isNotEmpty()) {
+    } else if (incompleteReads.isNotEmpty() || progress.anyReadCutShort) {
         // Row 841: never «todo sincronizado» while a list was read only in part.
         Text(
             text = stringResource(R.string.ytm_upload_incomplete_summary),

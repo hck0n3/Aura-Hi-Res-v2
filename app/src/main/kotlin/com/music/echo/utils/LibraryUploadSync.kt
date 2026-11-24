@@ -53,6 +53,11 @@ data class UploadCategoryProgress(
      * report a completion it never verified.
      */
     val verified: Boolean = false,
+    /**
+     * Registry row 841: this pass's own read of the account list stopped before its end, so [synced] is a minimum. Kept here and
+     * not only in YtmAccountReadsIncompleteKey: a later down sync that reads the list whole clears that key, but not these numbers.
+     */
+    val readCutShort: Boolean = false,
 ) {
     val total: Int get() = synced + pending
     val isComplete: Boolean get() = verified && pending == 0
@@ -90,6 +95,9 @@ data class LibraryUploadProgress(
 
     val totalPending: Int
         get() = playlists.pending + artists.pending + likedSongs.pending + likedAlbums.pending
+
+    val anyReadCutShort: Boolean
+        get() = playlists.readCutShort || artists.readCutShort || likedSongs.readCutShort || likedAlbums.readCutShort
 }
 
 /**
@@ -1017,7 +1025,7 @@ class LibraryUploadSync @Inject constructor(
             // nothing is sent and the category stays unverified instead of reporting a number that looks exact.
             _progress.value = _progress.value.copy(
                 likedSongs = UploadCategoryProgress(
-                    synced = localLiked.count { it in remoteIds }, pending = 0, running = false, verified = false,
+                    synced = localLiked.count { it in remoteIds }, pending = 0, running = false, verified = false, readCutShort = true,
                 ),
             )
             return
@@ -1089,7 +1097,7 @@ class LibraryUploadSync @Inject constructor(
             // Row 840: same as the likes: a read cut short sends nothing and reports only what it reached, unverified.
             _progress.value = _progress.value.copy(
                 likedAlbums = UploadCategoryProgress(
-                    synced = localAlbums.size - missing.size, pending = 0, running = false, verified = false,
+                    synced = localAlbums.size - missing.size, pending = 0, running = false, verified = false, readCutShort = true,
                 ),
             )
             return

@@ -56,14 +56,14 @@ class UploadCountDisplayTest {
             "liked_albums" to "LIKED_ALBUMS",
         )) {
             val field = mapOf("playlists" to "playlists", "artists" to "artists", "liked_songs" to "likedSongs", "liked_albums" to "likedAlbums")[cat]
-            assertTrue(cat, screen.contains("UploadCategoryRow(stringResource(R.string.ytm_upload_cat_$cat), progress.$field, AccountReadLists.$list in incompleteReads)"))
+            assertTrue(cat, screen.contains("UploadCategoryRow(stringResource(R.string.ytm_upload_cat_$cat), progress.$field, AccountReadLists.$list in incompleteReads || progress.$field.readCutShort)"))
         }
         val row = screen.substringAfter("private fun UploadCategoryRow(label: String, state: UploadCategoryProgress, readIncomplete: Boolean) {")
         assertTrue(row.contains("UploadCountDisplay.status(state.running, state.total, state.isComplete, readIncomplete)"))
         assertTrue(row.contains("UploadCountDisplay.line(state.synced, state.total, readIncomplete)"))
         assertTrue(row.contains("stringResource(R.string.ytm_upload_count_at_least, line.synced)"))
         assertTrue(row.contains("UploadCategoryStatus.INCOMPLETE -> stringResource(R.string.ytm_upload_list_incomplete)"))
-        val incomplete = screen.indexOf("} else if (incompleteReads.isNotEmpty()) {")
+        val incomplete = screen.indexOf("} else if (incompleteReads.isNotEmpty() || progress.anyReadCutShort) {")
         assertTrue(incomplete >= 0)
         assertTrue("checked before the all-done notice", incomplete < screen.indexOf("} else if (progress.everythingSynced) {"))
         assertTrue(screen.contains("text = stringResource(R.string.ytm_upload_incomplete_summary),"))
@@ -83,6 +83,18 @@ class UploadCountDisplayTest {
         assertTrue(upload.contains("if (remotePage != null) noteAccountRead(AccountReadLists.PLAYLISTS, remoteListComplete)"))
         assertTrue(upload.contains("noteAccountRead(AccountReadLists.LIKED_SONGS, remotePage.songsContinuation == null)"))
         assertTrue(upload.contains("noteAccountRead(AccountReadLists.LIKED_ALBUMS, remotePage.continuation == null)"))
+    }
+
+    @Test
+    fun `a pass whose own read was cut short keeps its numbers a minimum after a later whole read clears the key`() {
+        // Reviewer scenario: the upload pass reads LM short and stores {synced=S, pending=0, verified=false}; a later down sync
+        // reads LM whole and clears the DataStore key but never touches the pass's numbers. Without the progress's own mark the
+        // row said «S de S sincronizadas» next to «faltan 0» and the summary «Faltan 0 elementos».
+        val upload = src("app/src/main/kotlin/com/music/echo/utils/LibraryUploadSync.kt")
+        assertTrue(upload.contains("    val readCutShort: Boolean = false,"))
+        assertTrue(upload.contains("synced = localLiked.count { it in remoteIds }, pending = 0, running = false, verified = false, readCutShort = true,"))
+        assertTrue(upload.contains("synced = localAlbums.size - missing.size, pending = 0, running = false, verified = false, readCutShort = true,"))
+        assertTrue(upload.contains("playlists.readCutShort || artists.readCutShort || likedSongs.readCutShort || likedAlbums.readCutShort"))
     }
 
     @Test
