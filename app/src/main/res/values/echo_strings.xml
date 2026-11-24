@@ -43,7 +43,7 @@
     <string name="sync_playlist">Sync playlist</string>
     <string name="sync_disabled">Sync disabled</string>
     <string name="elements_selected">%1$d elements selected</string>
-    <string name="allows_for_sync_witch_youtube">Note: This allows for syncing with YouTube Music. This is NOT changeable later.</string>
+    <string name="allows_for_sync_witch_youtube">Note: This allows for syncing with your Google account. This is NOT changeable later.</string>
     <string name="generating_image">Generating image</string>
     <string name="please_wait">Please wait</string>
     <string name="cancel">Cancel</string>
@@ -83,7 +83,7 @@
     <string name="download_in_progress_desc">Download is in progress</string>
     <string name="share_playlist_desc">Share this playlist with others</string>
     <string name="delete_playlist_desc">Remove this playlist permanently</string>
-    <string name="sync_playlist_desc">Sync playlist with YouTube Music</string>
+    <string name="sync_playlist_desc">Sync playlist with your Google account</string>
     <string name="copy_link">Copy link</string>
     <string name="select">Select all</string>
     <string name="like_all">Like all</string>
@@ -192,13 +192,13 @@
     <string name="token_hidden">Tap to show token</string>
     <string name="token_shown">Tap again to copy or edit</string>
     <string name="token_adv_login_description">This is an ADVANCED login method. As an alternative to the web portal, you may directly enter or update your login token here. For example, this can speed up logging in on multiple devices. Please note that any invalid token formats the app fails to parse will not be accepted</string>
-    <string name="ytm_sync">Automatically sync with your YouTube Music account</string>
+    <string name="ytm_sync">Automatically sync with your Google account</string>
     <string name="yt_sync">Auto sync with account</string>
     <string name="more_content">More content</string>
     
     <!-- Playlist cover edit -->
     <string name="edit_playlist_cover">Edit playlist cover</string>
-    <string name="edit_playlist_cover_note">Note: Your account must be linked to a phone number and verified on YouTube Music to change playlist cover.</string>
+    <string name="edit_playlist_cover_note">Note: Your Google account must be linked to a phone number and verified to change the playlist cover.</string>
     <string name="edit_playlist_cover_note_wait">After selecting an image, please wait a moment for the new cover to appear in your playlist.</string>
     <string name="choose_from_library">Choose from library</string>
     <string name="remove_custom_image">Remove custom image</string>
@@ -262,7 +262,7 @@
 
     <string name="disable">Disable</string>
 
-    <string name="pause_remote_listen_history">Pause share listen history with YouTube Music</string>
+    <string name="pause_remote_listen_history">Pause sharing listen history with your Google account</string>
     <string name="not_logged_in_youtube">Not logged in to YouTube</string>
 
     <string name="default_links">Open supported links</string>
@@ -1258,13 +1258,13 @@
     <string name="palette_charcoal">Charcoal</string>
     <string name="palette_ivory">Ivory</string>
     <!-- ===== Library upload sync (Aura -> YouTube Music) ===== -->
-    <string name="ytm_upload_section_title">Backup to YouTube Music</string>
+    <string name="ytm_upload_section_title">Backup to your Google account</string>
     <string name="ytm_upload_toggle_title">Sync my library to my account</string>
-    <string name="ytm_upload_toggle_desc">Playlists, artists you follow, likes and albums are saved to your YouTube Music account. New playlists sync automatically, without asking.</string>
+    <string name="ytm_upload_toggle_desc">Playlists, artists you follow, likes and albums are saved to your Google account. New playlists sync automatically, without asking.</string>
     <string name="ytm_upload_run_now">Sync my whole library now</string>
     <string name="ytm_upload_run_now_desc">Uploads everything still missing. Runs in the background, in batches, and picks up where it left off.</string>
-    <string name="ytm_upload_started">Syncing your library to YouTube Music…</string>
-    <string name="ytm_upload_needs_login">Sign in to YouTube Music first</string>
+    <string name="ytm_upload_started">Syncing your library to your Google account…</string>
+    <string name="ytm_upload_needs_login">Sign in with your Google account first</string>
     <string name="ytm_upload_disabled_hint">Turn on "Sync my library to my account" to upload your library.</string>
     <string name="ytm_upload_cat_playlists">Playlists</string>
     <string name="ytm_upload_cat_artists">Artists you follow</string>
@@ -1275,7 +1275,7 @@
     <string name="ytm_upload_in_progress">Syncing…</string>
     <string name="ytm_upload_category_done">Done</string>
     <string name="ytm_upload_nothing_to_sync">Nothing to sync</string>
-    <string name="ytm_upload_all_done">Your whole library is on YouTube Music</string>
+    <string name="ytm_upload_all_done">Your whole library is in your Google account</string>
     <string name="ytm_upload_all_done_desc">Sign in with this account on a new device and everything will already be there.</string>
     <string name="ytm_upload_pending_summary">%1$d items still to sync</string>
     <string name="ytm_upload_continues_background">It continues in the background, a batch at a time, so it does not drain your battery.</string>
@@ -1283,7 +1283,7 @@
     <string name="ytm_upload_never_completed">Never fully synced yet</string>
     <string name="ytm_upload_requests_last_run">%1$d requests on the last run</string>
     <string name="ytm_upload_only_followed_note">Only artists you actually followed are subscribed on your account — never artists that just happen to have a song in your library.</string>
-    <string name="ytm_upload_enable_confirm_message">%1$d artists you follow in Aura are not on your YouTube Music account yet. Turning this on will subscribe your account to them.</string>
+    <string name="ytm_upload_enable_confirm_message">%1$d artists you follow in Aura are not on your Google account yet. Turning this on will subscribe your account to them.</string>
     <plurals name="ytm_upload_import_awaiting">
         <item quantity="one">%d artist is waiting for your confirmation to be subscribed on your account</item>
         <item quantity="other">%d artists are waiting for your confirmation to be subscribed on your account</item>
@@ -1381,7 +1381,7 @@
     <!-- Sincronización de biblioteca como trabajo de primer plano (YtmSyncWorker) -->
     <string name="sync_channel_name">Library sync</string>
     <string name="sync_notification_title">Syncing your library</string>
-    <string name="sync_notification_text">Keeping Aura and your YouTube Music account in step. You can close the app.</string>
+    <string name="sync_notification_text">Keeping Aura and your Google account in step. You can close the app.</string>
     <!-- Descarga automática por lista (punto 3 del dueño, 2026-09-17) -->
     <string name="auto_download_playlist">Download automatically</string>
     <string name="auto_download_playlist_desc">Keeps this playlist downloaded, including songs added later.</string>

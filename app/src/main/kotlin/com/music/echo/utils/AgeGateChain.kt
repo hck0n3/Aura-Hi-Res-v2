@@ -66,7 +66,7 @@ internal object AgeGateChain {
             "YouTube pide confirmar la edad y no la ha confirmado con tu cuenta. Entra en youtube.com con esta misma cuenta, " +
                 "verifica tu edad y vuelve a intentarlo (puede que también haga falta cerrar sesión y volver a entrar en Aura)."
         } else {
-            "Esta canción tiene restricción de edad. Inicia sesión con una cuenta de YouTube de un adulto " +
+            "Esta canción tiene restricción de edad. Inicia sesión con la cuenta de Google de un adulto " +
                 "(Ajustes ▸ Cuenta) para reproducirla."
         }
 }

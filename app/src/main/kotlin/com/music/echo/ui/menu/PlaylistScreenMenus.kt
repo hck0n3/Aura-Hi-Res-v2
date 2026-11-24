@@ -515,7 +515,7 @@ fun AutoPlaylistMenu(
             onSync?.let {
                 Material3MenuItemData(
                     title = { Text(stringResource(R.string.action_sync)) },
-                    description = { Text("Traer los últimos cambios de YouTube Music") },
+                    description = { Text("Traer los últimos cambios de tu cuenta de Google") },
                     icon = {
                         Icon(
                             painter = painterResource(R.drawable.sync),

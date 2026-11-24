@@ -55,7 +55,7 @@ fun OnboardingSpotifyScreen(
                     // (system back) if they want, but the flow only moves forward by tapping here.
                     onClick = { navController.navigate("onboarding_youtube") },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
-                ) { Text("Siguiente: YouTube Music") }
+                ) { Text("Siguiente: tu cuenta de Google") }
             }
         },
     ) { padding ->

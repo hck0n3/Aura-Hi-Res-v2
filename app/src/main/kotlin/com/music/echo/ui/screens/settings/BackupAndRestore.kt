@@ -393,7 +393,7 @@ fun BackupAndRestore(
                                     onClick = { navController.navigate("migration") },
                                 ),
                                 Material3SettingsItem(
-                                    title = { Text("Sincronizar desde YouTube Music") },
+                                    title = { Text("Sincronizar desde tu cuenta de Google") },
                                     description = {
                                         Text("Trae tu me gusta, álbumes, artistas, suscripciones y playlists de tu cuenta")
                                     },

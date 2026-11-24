@@ -24,7 +24,7 @@
     <string name="sync_playlist">Sincronizar lista de reproducción</string>
     <string name="sync_disabled">Sincronización deshabilitada</string>
     <string name="elements_selected">%1$d elementos seleccionados</string>
-    <string name="allows_for_sync_witch_youtube">Nota: Esto permite la sincronización con YouTube Music. Esto NO se puede cambiar más tarde.</string>
+    <string name="allows_for_sync_witch_youtube">Nota: Esto permite la sincronización con tu cuenta de Google. Esto NO se puede cambiar más tarde.</string>
     <string name="added_to_play_next">Añadido a reproducir a continuación</string>
     <string name="added_to_queue">Añadido a la cola</string>
     <string name="remove_from_cache">Eliminar de la caché</string>
@@ -72,7 +72,7 @@
     <string name="token_hidden">Toca para mostrar el token</string>
     <string name="token_shown">Toca de nuevo para copiar o editar</string>
     <string name="token_adv_login_description">Este es un método de inicio de sesión AVANZADO. Como alternativa al portal web, puedes introducir o actualizar directamente tu token de inicio de sesión aquí. Por ejemplo, esto puede acelerar el inicio de sesión en algunos dispositivos. Ten en cuenta que cualquier formato de token inválido que la aplicación no pueda analizar no será aceptado</string>
-    <string name="ytm_sync">Sincronizar automáticamente con tu cuenta de YouTube Music</string>
+    <string name="ytm_sync">Sincronizar automáticamente con tu cuenta de Google</string>
     <string name="general">General</string>
     <string name="proxy">Proxy</string>
     <string name="default_lib_chips">Cambiar chip de biblioteca predeterminado</string>
@@ -94,7 +94,7 @@
     <string name="minimum_playback_duration">Duración mínima de reproducción</string>
     <string name="clear_song_cache_dialog">¿Estás seguro de que quieres borrar todas las canciones en caché?</string>
     <string name="clear_downloads_dialog">¿Estás seguro de que quieres borrar todas las descargas?</string>
-    <string name="pause_remote_listen_history">Pausar historial de reproducción con YouTube Music</string>
+    <string name="pause_remote_listen_history">Pausar historial de reproducción con tu cuenta de Google</string>
     <string name="not_logged_in_youtube">No has iniciado sesión en YouTube</string>
     <string name="default_links">Abrir enlaces compatibles</string>
     <string name="open_app_settings_error">No se pudieron abrir los ajustes de la aplicación</string>
@@ -200,7 +200,7 @@
     <string name="line_by_line_dialog_enable">Permitir</string>
     <string name="romanize_current_track">Romanizar la pista actual</string>
     <string name="edit_playlist_cover">Editar la portada de la lista de reproducción</string>
-    <string name="edit_playlist_cover_note">Nota: Tu cuenta debe estar vinculada a un número de teléfono y verificada en YouTube Music para cambiar la portada de la lista de reproducción.</string>
+    <string name="edit_playlist_cover_note">Nota: Tu cuenta de Google debe estar vinculada a un número de teléfono y verificada para cambiar la portada de la lista de reproducción.</string>
     <string name="edit_playlist_cover_note_wait">Después de seleccionar una imagen, espera un momento hasta que la nueva portada aparezca en la lista de reproducción.</string>
     <string name="choose_from_library">Elija de la biblioteca</string>
     <string name="remove_custom_image">Eliminar imagen personalizada</string>
@@ -336,7 +336,7 @@
     <string name="download_in_progress_desc">La descarga está en proceso</string>
     <string name="share_playlist_desc">Compartir esta lista de reproducción con otros</string>
     <string name="delete_playlist_desc">Eliminar esta lista de reproducción de forma permanente</string>
-    <string name="sync_playlist_desc">Sincronizar lista de reproducción con YouTube Music</string>
+    <string name="sync_playlist_desc">Sincronizar lista de reproducción con tu cuenta de Google</string>
     <string name="enable_better_lyrics">Habilitar Better Lyrics</string>
     <string name="enable_better_lyrics_desc">Usar el proveedor Better Lyrics para obtener letras sincronizadas palabra por palabra</string>
     <string name="lyrics_animation_style">Estilo de animación de la letra</string>
@@ -1151,13 +1151,13 @@
     <string name="palette_charcoal">Carbón</string>
     <string name="palette_ivory">Marfil</string>
     <!-- ===== Sincronización de la biblioteca hacia YouTube Music ===== -->
-    <string name="ytm_upload_section_title">Copia de seguridad en YouTube Music</string>
+    <string name="ytm_upload_section_title">Copia de seguridad en tu cuenta de Google</string>
     <string name="ytm_upload_toggle_title">Sincronizar mi biblioteca con mi cuenta</string>
-    <string name="ytm_upload_toggle_desc">Tus playlists, artistas seguidos, me gusta y álbumes se guardan en tu cuenta de YouTube Music. Las playlists nuevas se sincronizan solas, sin preguntarte.</string>
+    <string name="ytm_upload_toggle_desc">Tus playlists, artistas seguidos, me gusta y álbumes se guardan en tu cuenta de Google. Las playlists nuevas se sincronizan solas, sin preguntarte.</string>
     <string name="ytm_upload_run_now">Sincronizar toda mi biblioteca ahora</string>
     <string name="ytm_upload_run_now_desc">Sube todo lo que falte. Corre en segundo plano, por tandas, y continúa donde se quedó.</string>
-    <string name="ytm_upload_started">Sincronizando tu biblioteca con YouTube Music…</string>
-    <string name="ytm_upload_needs_login">Primero inicia sesión en YouTube Music</string>
+    <string name="ytm_upload_started">Sincronizando tu biblioteca con tu cuenta de Google…</string>
+    <string name="ytm_upload_needs_login">Primero inicia sesión con tu cuenta de Google</string>
     <string name="ytm_upload_disabled_hint">Activa "Sincronizar mi biblioteca con mi cuenta" para subir tu biblioteca.</string>
     <string name="ytm_upload_cat_playlists">Playlists</string>
     <string name="ytm_upload_cat_artists">Artistas que sigues</string>
@@ -1168,7 +1168,7 @@
     <string name="ytm_upload_in_progress">Sincronizando…</string>
     <string name="ytm_upload_category_done">Listo</string>
     <string name="ytm_upload_nothing_to_sync">Nada que sincronizar</string>
-    <string name="ytm_upload_all_done">Toda tu biblioteca ya está en YouTube Music</string>
+    <string name="ytm_upload_all_done">Toda tu biblioteca ya está en tu cuenta de Google</string>
     <string name="ytm_upload_all_done_desc">Inicia sesión con esta cuenta en otro dispositivo y todo estará allí, sin volver a migrar nada.</string>
     <string name="ytm_upload_pending_summary">Faltan %1$d elementos por sincronizar</string>
     <string name="ytm_upload_continues_background">Continúa en segundo plano, por tandas, para no gastarte batería.</string>
@@ -1176,7 +1176,7 @@
     <string name="ytm_upload_never_completed">Aún no se ha sincronizado por completo</string>
     <string name="ytm_upload_requests_last_run">%1$d peticiones en la última tanda</string>
     <string name="ytm_upload_only_followed_note">Solo se suscriben en tu cuenta los artistas que tú seguiste — nunca los que simplemente tienen una canción en tu biblioteca.</string>
-    <string name="ytm_upload_enable_confirm_message">%1$d artistas que sigues en Aura aún no están en tu cuenta de YouTube Music. Al activarlo, tu cuenta se suscribirá a ellos.</string>
+    <string name="ytm_upload_enable_confirm_message">%1$d artistas que sigues en Aura aún no están en tu cuenta de Google. Al activarlo, tu cuenta se suscribirá a ellos.</string>
     <plurals name="ytm_upload_import_awaiting">
         <item quantity="one">%d artista espera tu confirmación para suscribirse en tu cuenta</item>
         <item quantity="many">%d artistas esperan tu confirmación para suscribirse en tu cuenta</item>
@@ -1273,7 +1273,7 @@
     <!-- Sincronización de biblioteca como trabajo de primer plano (YtmSyncWorker) -->
     <string name="sync_channel_name">Sincronización de biblioteca</string>
     <string name="sync_notification_title">Sincronizando tu biblioteca</string>
-    <string name="sync_notification_text">Poniendo Aura y tu cuenta de YouTube Music al día. Puedes cerrar la app.</string>
+    <string name="sync_notification_text">Poniendo Aura y tu cuenta de Google al día. Puedes cerrar la app.</string>
     <!-- Descarga automática por lista (punto 3 del dueño, 2026-09-17) -->
     <string name="auto_download_playlist">Descargar automáticamente</string>
     <string name="auto_download_playlist_desc">Mantiene esta lista descargada, incluidas las canciones que añadas después.</string>

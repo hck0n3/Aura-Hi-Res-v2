@@ -42,7 +42,7 @@ fun OnboardingYouTubeScreen(
     Scaffold(
         topBar = {
             iad1tya.echo.music.ui.component.AuraTopAppBar(title = {
-                Text("Migra tu YouTube Music", fontWeight = FontWeight.Bold)
+                Text("Trae tu biblioteca de la nube", fontWeight = FontWeight.Bold)
             })
         },
         bottomBar = {
@@ -52,7 +52,7 @@ fun OnboardingYouTubeScreen(
                     // finishes from there without going back. Keep onboarding on the stack (no popUpTo).
                     onClick = { navController.navigate("settings/ytm_sync?onboarding=true") },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
-                ) { Text("Sincronizar YouTube Music") }
+                ) { Text("Sincronizar con tu cuenta de Google") }
                 Spacer(Modifier.height(8.dp))
                 iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     onClick = {
@@ -80,7 +80,7 @@ fun OnboardingYouTubeScreen(
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "Trae tu contenido de YouTube Music",
+                "Trae el contenido de tu cuenta de Google",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,

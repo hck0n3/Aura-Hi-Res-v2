@@ -270,7 +270,7 @@ pantalla y resetea la barra superior (`MainActivity.kt:1358-1362`, `:1503-1507`)
 | **«Iniciar sesión»** *(hardcoded)* → `login` | Hoja de cuenta | `ui/screens/SettingDialoge.kt:119-122` | navegación | rara | solo sin sesión |
 | Grupo **«Preferences»** *(hardcoded, en inglés)* | Hoja de cuenta | `ui/screens/SettingDialoge.kt:129` | informativo | — | solo con sesión |
 | **«Usar la cuenta para explorar»** *(hardcoded)* + interruptor | Hoja de cuenta | `ui/screens/SettingDialoge.kt:132-150` | conmutador | rara | solo con sesión |
-| **«Sincronización con YouTube Music»** *(hardcoded)* + interruptor | Hoja de cuenta | `ui/screens/SettingDialoge.kt:151-162` | conmutador | rara | solo con sesión |
+| **«Sincronización con tu cuenta de Google»** *(hardcoded)* + interruptor | Hoja de cuenta | `ui/screens/SettingDialoge.kt:151-162` | conmutador | rara | solo con sesión |
 | **«Sincronizar biblioteca ahora»** *(hardcoded)* — desc. «Toda la biblioteca con tu cuenta. Sigue en segundo plano aunque cierres la app.» | Hoja de cuenta | `ui/screens/SettingDialoge.kt:302-320` | acción primaria | rara | solo con sesión; encola `YtmSyncWorker.TYPE_ALL` |
 | **«Programar sincronización»** *(hardcoded)* — desc. «Cada 3 días por defecto, o elige cuándo» → `settings/ytm_sync` | Hoja de cuenta | `ui/screens/SettingDialoge.kt:321-328` | navegación | rara | solo con sesión |
 | Grupo **«App»** *(hardcoded)* | Hoja de cuenta | `ui/screens/SettingDialoge.kt:168` | informativo | — | siempre |
@@ -351,8 +351,8 @@ Con `-Pnosub=true` la puerta se salta entera (`license/LicenseGate.kt:21-24`).
 | «¿Qué géneros te gustan?» + **24 chips de género** | Onboarding 2/4 | `ui/screens/OnboardingGenresScreen.kt:41-45`, `:104-112` | conmutador | rara | siempre |
 | **«Continuar»** / **«Omitir»** | Onboarding 2/4 | `ui/screens/OnboardingGenresScreen.kt:83-88` / `:89-92` | acción primaria / secundaria | rara | siempre |
 | «Migra tu Spotify» + **«Conectar Spotify y elegir qué migrar»** | Onboarding 3/4 | `ui/screens/OnboardingSpotifyScreen.kt:43`, `:48-51` | acción primaria | rara | siempre |
-| **«Siguiente: YouTube Music»** | Onboarding 3/4 | `ui/screens/OnboardingSpotifyScreen.kt:53-58` | acción secundaria | rara | siempre |
-| «Migra tu YouTube Music» + **«Sincronizar YouTube Music»** | Onboarding 4/4 | `ui/screens/OnboardingYouTubeScreen.kt:45`, `:50-55` | acción primaria | rara | siempre |
+| **«Siguiente: tu cuenta de Google»** | Onboarding 3/4 | `ui/screens/OnboardingSpotifyScreen.kt:53-58` | acción secundaria | rara | siempre |
+| «Trae tu biblioteca de la nube» + **«Sincronizar con tu cuenta de Google»** | Onboarding 4/4 | `ui/screens/OnboardingYouTubeScreen.kt:45`, `:50-55` | acción primaria | rara | siempre |
 | **«Comenzar»** *(limpia todo el onboarding y va a Inicio)* | Onboarding 4/4 | `ui/screens/OnboardingYouTubeScreen.kt:57-64` | acción primaria | rara | siempre |
 
 ## 1.13 Migración (pantalla de 6 fases)
@@ -360,7 +360,7 @@ Con `-Pnosub=true` la puerta se salta entera (`license/LicenseGate.kt:21-24`).
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | **«Migrar lista»** + volver *(pulsación larga = ir a la principal)* | Migración > barra | `ui/screens/migration/MigrationScreen.kt:65-81` | navegación | rara | siempre |
-| Aviso «Inicia sesión en YouTube Music…» + **«Iniciar sesión en YouTube Music»** | Migración > fase Elegir | `ui/screens/migration/MigrationScreen.kt:229-235` | acción primaria | rara | solo sin sesión de YouTube; **oculta todas las fuentes** |
+| Aviso «Inicia sesión con tu cuenta de Google…» + **«Iniciar sesión con Google»** | Migración > fase Elegir | `ui/screens/migration/MigrationScreen.kt:229-235` | acción primaria | rara | solo sin sesión de YouTube; **oculta todas las fuentes** |
 | **«Archivo (CSV, M3U, JSPF)»** | Migración > fase Elegir | `ui/screens/migration/MigrationScreen.kt:249-254` | navegación | rara | solo con sesión |
 | **«Deezer»** | Migración > fase Elegir | `ui/screens/migration/MigrationScreen.kt:255-260` | navegación | rara | igual |
 | **«Tidal»** | Migración > fase Elegir | `ui/screens/migration/MigrationScreen.kt:261-266` | navegación | rara | igual |
@@ -479,7 +479,7 @@ diálogo pertenece a la canción para la que se abrió: si la canción cambia, s
 | **Suscribirme** / **Suscrito a N de M** (R.string.player_artists_some_subscribed) / **Suscrito** — varios artistas → abre el selector | Reproductor Aura > fila del artista | `ui/newui/AuraPlayer.kt:1826-1845` · `PlayerArtistFollow.kt:93` (`several`) | navegación | ocasional | solo con más de un artista con nombre; el texto dice cuántos sigue ya |
 | Selector de artistas para suscribirse: nombre + chip **Suscribirme / Suscrito** por fila | Reproductor Aura > «Suscribirme» con varios artistas | `ui/newui/AuraPlayer.kt:960-992` (chip `:984`) | conmutador | ocasional | sigue abierto: cada fila cambia en su sitio, así se pueden seguir varios en una visita |
 | Diálogo **«¿Suscribirte a X?»** (R.string.player_subscribe_confirm) con la foto del canal + **Cancelar** / **Suscribirme** | Reproductor Aura > tras «Suscribirme» | `ui/newui/AuraPlayer.kt:1053-1084` (foto `:1074`) | acción primaria | rara | solo si el canal se encontró por NOMBRE y aún no se sigue (fila 646); nada se suscribe sin confirmar |
-| Toast «No se encontró en YouTube Music» / «No se pudo cargar el artista. Revisa tu conexión.» | Reproductor Aura > tras «Suscribirme» | `ui/newui/AuraPlayer.kt:918` / `:921` | informativo | rara | canal no encontrado / búsqueda fallida (sin conexión) |
+| Toast «No se encontró en el catálogo de Aura» / «No se pudo cargar el artista. Revisa tu conexión.» | Reproductor Aura > tras «Suscribirme» | `ui/newui/AuraPlayer.kt:918` / `:921` | informativo | rara | canal no encontrado / búsqueda fallida (sin conexión) |
 | **Ir a la lista** (R.string.go_to_playlist) — una lista → la abre | Reproductor Aura > fila del artista | `ui/newui/AuraPlayer.kt:1853` · `ui/newui/PlayerPlaylistRoute.kt:38-44` (`door`) | navegación | ocasional | solo si la canción está en UNA de TUS listas (`isUsersPlaylist`, `PlayerPlaylistRoute.kt:29`), suene desde donde suene |
 | **Ir a la lista** — varias listas → selector | Reproductor Aura > fila del artista | `ui/newui/AuraPlayer.kt:1862-1871` | navegación | ocasional | solo si la canción está en más de una de tus listas |
 | Selector **Ir a la lista** (nombres de tus listas) → abre `local_playlist/{id}` | Reproductor Aura > Ir a la lista | `ui/newui/AuraPlayer.kt:1030-1050` · `PlayerPlaylistRoute.kt:36` (`route`) | navegación | ocasional | en vivo: una lista de la que sale la canción con el selector abierto desaparece de él |
@@ -1126,7 +1126,7 @@ descarga `:477`/`:500`/`:521-522`, Ver artista `:580-581` (solo si el álbum tra
 | **«Exportar playlist»** *(hardcoded)* — «Guardar las canciones en un archivo» (JSON) | Lista > menú > grupo 1 | `ui/menu/PlaylistMenu.kt:526-527` | acción secundaria | rara | siempre |
 | **«Exportar CSV»** *(hardcoded)* — «Título y artistas (para hojas de cálculo)» | Lista > menú > grupo 1 | `ui/menu/PlaylistMenu.kt:542-543` | acción secundaria | rara | siempre |
 | Iniciar radio | Lista > menú > grupo 1 | `ui/menu/PlaylistMenu.kt:560-561` | acción primaria | ocasional | solo si no eres invitado **y** la lista está sincronizada |
-| Sincronizar ahora | Lista > menú > grupo 1 | `ui/menu/PlaylistMenu.kt:589-590` | acción secundaria | ocasional | igual; sin sesión muestra «Inicia sesión en YouTube Music» |
+| Sincronizar ahora | Lista > menú > grupo 1 | `ui/menu/PlaylistMenu.kt:589-590` | acción secundaria | ocasional | igual; sin sesión muestra «Inicia sesión con tu cuenta de Google» |
 | Reproducir a continuación | Lista > menú > grupo 1 | `ui/menu/PlaylistMenu.kt:633-634` | acción primaria | diaria | solo si no eres invitado |
 | Añadir a la cola | Lista > menú > grupo 1 | `ui/menu/PlaylistMenu.kt:653-654` | acción primaria | diaria | solo si no eres invitado |
 | Editar *(«Cambiar el título o el artista»)* | Lista > menú > grupo 2 | `ui/menu/PlaylistMenu.kt:680-681` | navegación | ocasional | solo si la lista es editable, no es auto-lista y no eres invitado |
@@ -1172,7 +1172,7 @@ descarga `:477`/`:500`/`:521-522`, Ver artista `:580-581` (solo si el álbum tra
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Sincronizar *(«Traer los últimos cambios de YouTube Music», hardcoded)* | Auto-lista > ⋯ | `ui/menu/PlaylistScreenMenus.kt:280-281` | acción secundaria | ocasional | solo en Me gustan / Subidas |
+| Sincronizar *(«Traer los últimos cambios de tu cuenta de Google», hardcoded)* | Auto-lista > ⋯ | `ui/menu/PlaylistScreenMenus.kt:280-281` | acción secundaria | ocasional | solo en Me gustan / Subidas |
 | Añadir a la cola | Auto-lista > ⋯ | `ui/menu/PlaylistScreenMenus.kt:296-297` | acción primaria | diaria | solo si no eres invitado |
 | Eliminar descarga / Descargando / Descargar | Auto-lista > ⋯ | `ui/menu/PlaylistScreenMenus.kt:233` / `:247` / `:261` | destructiva / destructiva / primaria | diaria | según estado |
 
@@ -1247,7 +1247,7 @@ listas sincronizadas (`:377`). Se usa desde la selección múltiple online y des
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Crear lista de reproducción *(campo + Aceptar/Cancelar)* | Crear lista | `ui/component/CreatePlaylistDialog.kt:75` | acción primaria | diaria | siempre |
-| **Sincronizar lista de reproducción** *(interruptor)* — «Esto NO se puede cambiar más tarde» | Crear lista | `ui/component/CreatePlaylistDialog.kt:123-135` | conmutador | ocasional | **solo si la sincronización global con YouTube Music está DESACTIVADA**; con ella activa el interruptor no sale y la lista se sube en silencio |
+| **Sincronizar lista de reproducción** *(interruptor)* — «Esto NO se puede cambiar más tarde» | Crear lista | `ui/component/CreatePlaylistDialog.kt:123-135` | conmutador | ocasional | **solo si la sincronización global con tu cuenta de Google está DESACTIVADA**; con ella activa el interruptor no sale y la lista se sube en silencio |
 
 ### «Lista AI» (`AiPlaylistDialog`)
 
@@ -1712,7 +1712,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Crear lista de reproducción (FAB extendido) | Biblioteca > botones flotantes | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:191-198 (texto :192) | acción primaria | diaria | solo si `filterType ∈ {LIBRARY, PLAYLISTS}` |
 | Importar lista de reproducción (FAB extendido) | Biblioteca > botones flotantes | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:201-208 (texto :202) | acción secundaria | ocasional | solo si `filterType ∈ {LIBRARY, PLAYLISTS}` |
 | Importar desde Spotify | Biblioteca > menú del FAB Importar | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:214-220 | acción secundaria | ocasional | solo con el menú abierto |
-| Importar desde YouTube Music | Biblioteca > menú del FAB Importar | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:221-227 | acción secundaria | ocasional | solo con el menú abierto |
+| Importar desde un enlace de YouTube | Biblioteca > menú del FAB Importar | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:221-227 | acción secundaria | ocasional | solo con el menú abierto |
 | Migrar lista → `migration` | Biblioteca > menú del FAB Importar | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:228-234 | navegación | rara | solo con el menú abierto |
 | (Atrás del sistema → vuelve al hub) | Biblioteca | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryScreen.kt:70-72 | navegación | diaria | solo si `filterType != LIBRARY` |
 
@@ -2096,7 +2096,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 |---|---|---|---|---|---|
 | Editar / *Editar lista de reproducción* | Lista local > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:93-108 (cableado LocalPlaylistScreen.kt:1501) | acción secundaria | ocasional | siempre |
 | Editar con IA / *Describe un cambio y revísalo antes de aplicarlo* | Lista local > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:110-127 (gate LocalPlaylistScreen.kt:353) | acción secundaria | ocasional | `aiPlaylistEnabled && editable && browseId == null` |
-| Sincronizar / *Sincronizar lista de reproducción con YouTube Music* | Lista local > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:130-147 | acción secundaria | ocasional | solo si `browseId != null` |
+| Sincronizar / *Sincronizar lista de reproducción con tu cuenta de Google* | Lista local > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:130-147 | acción secundaria | ocasional | solo si `browseId != null` |
 | Añadir a la cola / *Añadir al final de la cola* | Lista local > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:149-166 | acción secundaria | ocasional | solo si `!isGuest` |
 | Descargar / *Descargar todas las canciones para reproducirlas sin conexión* | Lista local > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:74-87 | acción secundaria | ocasional | `downloadState` ni COMPLETED ni DOWNLOADING |
 | Descargando / *La descarga está en proceso* (tocar = cancelar) | Lista local > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:60-73 | destructiva | rara | `downloadState == QUEUED/DOWNLOADING` |
@@ -2122,7 +2122,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Editar la portada de la lista de reproducción + Nota: Tu cuenta debe estar vinculada… + Después de seleccionar una imagen, espera… + Cancelar/Aceptar | Diálogo aviso de portada | app/src/main/kotlin/com/music/echo/ui/screens/playlist/LocalPlaylistScreen.kt:1182-1207 | informativo / acción primaria | rara | la "Nota" solo si `browseId != null` |
 | Elija de la biblioteca | Menú de portada personalizada | app/src/main/kotlin/com/music/echo/ui/menu/CustomThumbnailMenu.kt:38-52 (cableado LocalPlaylistScreen.kt:1255-1259 / :1319-1323) | acción primaria | rara | `editable` y ya hay portada personalizada |
 | Eliminar imagen personalizada | Menú de portada personalizada | app/src/main/kotlin/com/music/echo/ui/menu/CustomThumbnailMenu.kt:54-69 | destructiva | rara | ídem |
-| Inicia sesión en YouTube Music (Toast) | Menú ⋯ > Sincronizar | app/src/main/kotlin/com/music/echo/ui/screens/playlist/LocalPlaylistScreen.kt:1506-1510 | informativo | rara | `browseId != null` y NO `isLoggedIn` |
+| Inicia sesión con tu cuenta de Google (Toast) | Menú ⋯ > Sincronizar | app/src/main/kotlin/com/music/echo/ui/screens/playlist/LocalPlaylistScreen.kt:1506-1510 | informativo | rara | `browseId != null` y NO `isLoggedIn` |
 | Sincronizando… (Toast) | Menú ⋯ > Sincronizar | app/src/main/kotlin/com/music/echo/ui/screens/playlist/LocalPlaylistScreen.kt:1512-1516 | informativo | ocasional | al lanzar la sincronización |
 | Lista de reproducción sincronizada / No se pudo sincronizar (snackbar) | Menú ⋯ > Sincronizar | app/src/main/kotlin/com/music/echo/ui/screens/playlist/LocalPlaylistScreen.kt:1523-1529 | informativo | ocasional | al terminar |
 
@@ -2175,12 +2175,12 @@ Título según ruta (:140-145): `liked` → Canciones que me gustan, `uploaded` 
 | Aleatorio | Auto-lista > botonera | app/src/main/kotlin/com/music/echo/ui/screens/playlist/AutoPlaylistScreen.kt:735-765 (:758-763) | acción primaria | diaria | siempre |
 | Reproducir | Auto-lista > botonera | app/src/main/kotlin/com/music/echo/ui/screens/playlist/AutoPlaylistScreen.kt:768-804 (:799-802) | acción primaria | constante | siempre |
 | (⋯ → `AutoPlaylistMenu`) (cD = null) | Auto-lista > botonera | app/src/main/kotlin/com/music/echo/ui/screens/playlist/AutoPlaylistScreen.kt:807-869 | navegación | ocasional | siempre |
-| Sincronizar / "Traer los últimos cambios de YouTube Music" (hardcoded en español) | Auto-lista > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:278-293 (texto :281) | acción secundaria | ocasional | `isLoggedIn` y `playlistType == LIKE \|\| UPLOADED` |
+| Sincronizar / "Traer los últimos cambios de tu cuenta de Google" (hardcoded en español) | Auto-lista > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:278-293 (texto :281) | acción secundaria | ocasional | `isLoggedIn` y `playlistType == LIKE \|\| UPLOADED` |
 | Añadir a la cola / *Añadir al final de la cola* | Auto-lista > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:294-309 | acción secundaria | ocasional | `!isGuest` |
 | Descargar / *Descargar todas las canciones…* | Auto-lista > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:260-273 | acción secundaria | ocasional | ni COMPLETED ni DOWNLOADING |
 | Descargando / *La descarga está en proceso* (cancela) | Auto-lista > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:246-259 | destructiva | rara | QUEUED/DOWNLOADING |
 | Eliminar descarga / *Eliminar todas las canciones descargadas…* | Auto-lista > menú ⋯ | app/src/main/kotlin/com/music/echo/ui/menu/PlaylistScreenMenus.kt:232-245 | destructiva | rara | COMPLETED |
-| "Sincronizando con YouTube Music…" (hardcoded, Toast) | Auto-lista | app/src/main/kotlin/com/music/echo/ui/screens/playlist/AutoPlaylistScreen.kt:361-365 | informativo | ocasional | tras pulsar Sincronizar |
+| "Sincronizando con tu cuenta de Google…" (hardcoded, Toast) | Auto-lista | app/src/main/kotlin/com/music/echo/ui/screens/playlist/AutoPlaylistScreen.kt:361-365 | informativo | ocasional | tras pulsar Sincronizar |
 | «%d canciones • Xh Ym» | Auto-lista > cabecera | app/src/main/kotlin/com/music/echo/ui/screens/playlist/AutoPlaylistScreen.kt:875-885 | informativo | constante | siempre |
 | "Aleatorio mejorado · X/Y reproducidas" (hardcoded) | Auto-lista > cabecera | app/src/main/kotlin/com/music/echo/ui/screens/playlist/AutoPlaylistScreen.kt:888-896 | informativo | constante | `EnhancedShuffleKey` ON y `total != 0` |
 | Acerca de + descripción (hardcoded en inglés) + Mostrar más/menos | Auto-lista > cabecera | app/src/main/kotlin/com/music/echo/ui/screens/playlist/AutoPlaylistScreen.kt:900-924 | informativo / conmutador | constante | siempre |
@@ -3038,7 +3038,7 @@ Pantalla con dos sub-vistas (`BackupSubScreen.MAIN` / `BackupSubScreen.IMPORT`) 
 |---|---|---|---|---|---|
 | Importar desde Spotify (hardcoded) | Ajustes > Copias de seguridad > Import | BackupAndRestore.kt:258 | navegación | rara | solo en `BackupSubScreen.IMPORT` |
 | Migrar playlists (Tidal, Deezer, archivo) (hardcoded) — desc. «Inicia sesión en Tidal para traer toda tu biblioteca, o importa por enlace/archivo» (hardcoded) | Ajustes > Copias de seguridad > Import | BackupAndRestore.kt:267 | navegación | rara | solo en IMPORT |
-| Sincronizar desde YouTube Music (hardcoded) — desc. «Trae tu me gusta, álbumes, artistas, suscripciones y playlists de tu cuenta» (hardcoded) | Ajustes > Copias de seguridad > Import | BackupAndRestore.kt:273 | navegación (`settings/ytm_sync`) | rara | solo en IMPORT |
+| Sincronizar desde tu cuenta de Google (hardcoded) — desc. «Trae tu me gusta, álbumes, artistas, suscripciones y playlists de tu cuenta» (hardcoded) | Ajustes > Copias de seguridad > Import | BackupAndRestore.kt:273 | navegación (`settings/ytm_sync`) | rara | solo en IMPORT |
 | Importar desde archivo local (hardcoded) | Ajustes > Copias de seguridad > Import | BackupAndRestore.kt:279 | acción primaria (selector SAF) | rara | solo en IMPORT |
 | Importar lista 'm3u' (hardcoded) | Ajustes > Copias de seguridad > Import | BackupAndRestore.kt:289 | acción primaria (selector SAF) | rara | solo en IMPORT |
 | Importar lista 'csv' (hardcoded) | Ajustes > Copias de seguridad > Import | BackupAndRestore.kt:296 | acción primaria (selector SAF) | rara | solo en IMPORT |
@@ -3055,7 +3055,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/AccountsScreen.
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Atrás (tap) / Ir al inicio (mantener) | Ajustes > Cuentas | AccountsScreen.kt:130 (`onLongClick` 132) | navegación | constante | siempre |
-| Fila YouTube Music (nombre de la cuenta o «Cuenta») — grupo «YouTube Music» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:156 | navegación | ocasional | tocar la fila navega a `settings/ytm_sync` solo si `ytLoggedIn` |
+| Fila Cuenta de Google (nombre de la cuenta o «Cuenta»; sin sesión, «Inicia sesión con tu cuenta de Google») — grupo «Cuenta de Google» (hardcoded; fila 815) | Ajustes > Cuentas | AccountsScreen.kt:156 | navegación | ocasional | tocar la fila navega a `settings/ytm_sync` solo si `ytLoggedIn` |
 | Finalizar sesión / Cuenta (botón YouTube) | Ajustes > Cuentas | AccountsScreen.kt:188 | destructiva / acción primaria | rara | «Finalizar sesión» si `ytLoggedIn`, si no «Cuenta» (login) |
 | Revisar suscripciones — desc. «Encuentra y quita las suscripciones de YouTube que probablemente no hiciste tú» — grupo «YouTube Music» (NUEVA, fila 813) | Ajustes > Cuentas | AccountsScreen.kt:203-209 | navegación (`settings/accounts/subscription_cleanup`) | rara | solo si `ytLoggedIn` |
 | Fila Spotify — grupo «Spotify» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:215 | navegación | ocasional | siempre |
@@ -3167,33 +3167,33 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/QobuzSettingsSc
 
 ---
 
-## 18.20 Sincronizar desde YouTube Music — `settings/ytm_sync?onboarding={bool}`
+## 18.20 Sincronizar desde tu cuenta de Google — `settings/ytm_sync?onboarding={bool}`
 
 Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/YtmSyncScreen.kt`
 Se llega desde Ajustes > Cuentas (fila YouTube), Ajustes > Copias de seguridad > Import, el onboarding y `MainActivity.kt:1115`. **No está en el menú raíz de Ajustes.**
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Atrás (tap) / Ir al inicio (mantener) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:80 | navegación | constante | siempre |
-| Comenzar a usar Aura (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:93 | acción primaria | rara | solo si `onboarding == true` |
-| Cuenta (botón de inicio de sesión) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:122 | acción primaria | rara | solo si `!isLoggedIn` |
-| Sincronizar todo (hardcoded) — desc. «Me gusta, álbumes, artistas, suscripciones, playlists y biblioteca» (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:148 | acción primaria | rara | siempre |
-| Me gusta (canciones) (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:159 | acción primaria | rara | siempre |
-| Álbumes favoritos (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:164 | acción primaria | rara | siempre |
-| Artistas y suscripciones (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:169 | acción primaria | rara | siempre |
-| Playlists guardadas (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:174 | acción primaria | rara | siempre |
-| Biblioteca (canciones) (hardcoded) — desc. «Incluye tus me gusta (favoritos)» (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:179 | acción primaria | rara | siempre |
-| Subidas (canciones y álbumes) (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt:192 | acción primaria | rara | siempre |
-| Desactivada (frecuencia de auto-sincronización) (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
-| Cada 3 días (hardcoded, recomendada; default si la clave no existe) | Sincronizar desde YouTube Music | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
-| Cada día (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
-| Cada semana (hardcoded) | Sincronizar desde YouTube Music | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
-| Sincronizar mi biblioteca con mi cuenta — desc. «Tus playlists, artistas seguidos, me gusta y álbumes se guardan en tu cuenta de YouTube Music…» (sección «Copia de seguridad en YouTube Music») | Sincronizar desde YouTube Music | YtmSyncScreen.kt:454 (Switch `:462`) | conmutador | rara | siempre; al ENCENDER pasa por `requestUploadEnabled` (`:351`), que puede abrir el diálogo de la fila siguiente |
-| Diálogo **«Sincronizar mi biblioteca con mi cuenta»** — «%1$d artistas que sigues en Aura aún no están en tu cuenta de YouTube Music. Al activarlo, tu cuenta se suscribirá a ellos.» + **Habilitar** / **Cancelar** | Sincronizar desde YouTube Music > al encender el conmutador | YtmSyncScreen.kt:370-388 | acción primaria | rara | solo si hay artistas seguidos en Aura pendientes de subir (sin contar los importados que esperan confirmación o quedaron «Solo en Aura»); si no hay ninguno, se enciende sin preguntar |
-| **«%d artistas esperan tu confirmación para suscribirse en tu cuenta»** (R.plurals.ytm_upload_import_awaiting) → abre el diálogo de la fila siguiente | Sincronizar desde YouTube Music > «Copia de seguridad en YouTube Music» | YtmSyncScreen.kt:470-476 | navegación | rara | solo si hay artistas importados esperando confirmación (`ImportFollowsAwaitingConfirmKey`) |
-| Diálogo de los artistas importados: mismo texto + **Suscribir** (los sube a tu cuenta) / **Solo en Aura** (los deja solo en la app) | Sincronizar desde YouTube Music > fila «… esperan tu confirmación» | YtmSyncScreen.kt:391-438 | acción primaria | rara | igual que la fila anterior |
-| «%d artistas solo en Aura — volver a preguntar» (sección «Copia de seguridad en YouTube Music») | Sincronizar desde YouTube Music | YtmSyncScreen.kt:477-500 | acción secundaria | rara | solo si hay artistas importados que el usuario dejó «Solo en Aura»; los devuelve a la espera de confirmación |
-| Sincronizar toda mi biblioteca ahora — desc. «Sube todo lo que falte. Corre en segundo plano, por tandas, y continúa donde se quedó.» | Sincronizar desde YouTube Music | YtmSyncScreen.kt:504 | acción primaria | rara | siempre; muestra «Activa "Sincronizar mi biblioteca…"» si el conmutador está apagado y «Primero inicia sesión en YouTube Music» sin sesión |
+| Atrás (tap) / Ir al inicio (mantener) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:80 | navegación | constante | siempre |
+| Comenzar a usar Aura (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:93 | acción primaria | rara | solo si `onboarding == true` |
+| Cuenta (botón de inicio de sesión) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:122 | acción primaria | rara | solo si `!isLoggedIn` |
+| Sincronizar todo (hardcoded) — desc. «Me gusta, álbumes, artistas, suscripciones, playlists y biblioteca» (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:148 | acción primaria | rara | siempre |
+| Me gusta (canciones) (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:159 | acción primaria | rara | siempre |
+| Álbumes favoritos (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:164 | acción primaria | rara | siempre |
+| Artistas y suscripciones (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:169 | acción primaria | rara | siempre |
+| Playlists guardadas (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:174 | acción primaria | rara | siempre |
+| Biblioteca (canciones) (hardcoded) — desc. «Incluye tus me gusta (favoritos)» (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:179 | acción primaria | rara | siempre |
+| Subidas (canciones y álbumes) (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:192 | acción primaria | rara | siempre |
+| Desactivada (frecuencia de auto-sincronización) (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
+| Cada 3 días (hardcoded, recomendada; default si la clave no existe) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
+| Cada día (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
+| Cada semana (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt | acción primaria (selección) | rara | siempre |
+| Sincronizar mi biblioteca con mi cuenta — desc. «Tus playlists, artistas seguidos, me gusta y álbumes se guardan en tu cuenta de Google…» (sección «Copia de seguridad en tu cuenta de Google») | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:454 (Switch `:462`) | conmutador | rara | siempre; al ENCENDER pasa por `requestUploadEnabled` (`:351`), que puede abrir el diálogo de la fila siguiente |
+| Diálogo **«Sincronizar mi biblioteca con mi cuenta»** — «%1$d artistas que sigues en Aura aún no están en tu cuenta de Google. Al activarlo, tu cuenta se suscribirá a ellos.» + **Habilitar** / **Cancelar** | Sincronizar desde tu cuenta de Google > al encender el conmutador | YtmSyncScreen.kt:370-388 | acción primaria | rara | solo si hay artistas seguidos en Aura pendientes de subir (sin contar los importados que esperan confirmación o quedaron «Solo en Aura»); si no hay ninguno, se enciende sin preguntar |
+| **«%d artistas esperan tu confirmación para suscribirse en tu cuenta»** (R.plurals.ytm_upload_import_awaiting) → abre el diálogo de la fila siguiente | Sincronizar desde tu cuenta de Google > «Copia de seguridad en tu cuenta de Google» | YtmSyncScreen.kt:470-476 | navegación | rara | solo si hay artistas importados esperando confirmación (`ImportFollowsAwaitingConfirmKey`) |
+| Diálogo de los artistas importados: mismo texto + **Suscribir** (los sube a tu cuenta) / **Solo en Aura** (los deja solo en la app) | Sincronizar desde tu cuenta de Google > fila «… esperan tu confirmación» | YtmSyncScreen.kt:391-438 | acción primaria | rara | igual que la fila anterior |
+| «%d artistas solo en Aura — volver a preguntar» (sección «Copia de seguridad en tu cuenta de Google») | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:477-500 | acción secundaria | rara | solo si hay artistas importados que el usuario dejó «Solo en Aura»; los devuelve a la espera de confirmación |
+| Sincronizar toda mi biblioteca ahora — desc. «Sube todo lo que falte. Corre en segundo plano, por tandas, y continúa donde se quedó.» | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:504 | acción primaria | rara | siempre; muestra «Activa "Sincronizar mi biblioteca…"» si el conmutador está apagado y «Primero inicia sesión con tu cuenta de Google» sin sesión |
 
 ---
 
@@ -3345,7 +3345,7 @@ Se abre desde el icono de la barra superior en `MainActivity.kt:1309` (no desde 
 | Cerrar (X) | Diálogo: Ajustes rápidos | SettingDialoge.kt:99 | acción secundaria | ocasional | siempre |
 | Iniciar sesión (hardcoded) — grupo «Cuenta» (hardcoded) | Diálogo: Ajustes rápidos | SettingDialoge.kt:119 | navegación (`login`) | rara | siempre |
 | Usar la cuenta para explorar (hardcoded) — grupo «Preferences» (hardcoded, sin traducir) | Diálogo: Ajustes rápidos | SettingDialoge.kt:133 | conmutador | rara | siempre |
-| Sincronización con YouTube Music (hardcoded) | Diálogo: Ajustes rápidos | SettingDialoge.kt:152 | conmutador | rara | siempre |
+| Sincronización con tu cuenta de Google (hardcoded) | Diálogo: Ajustes rápidos | SettingDialoge.kt:152 | conmutador | rara | siempre |
 | Sincronizar biblioteca ahora (hardcoded) | Diálogo: Ajustes rápidos | SettingDialoge.kt:302 | acción primaria | rara | solo con sesión; encola `YtmSyncWorker.TYPE_ALL` |
 | Programar sincronización (hardcoded) → `settings/ytm_sync` | Diálogo: Ajustes rápidos | SettingDialoge.kt:321 | navegación | rara | solo con sesión |
 | Ajustes (hardcoded) — grupo «App» (hardcoded) | Diálogo: Ajustes rápidos | SettingDialoge.kt:172 | navegación (`settings`) | ocasional | siempre |
@@ -3615,7 +3615,7 @@ en él. Son los candidatos número uno a desaparecer sin que nadie lo note hasta
 
 | Condición | Qué aparece o desaparece |
 |---|---|
-| **Sin sesión de YouTube** | Desaparecen: chip «Remoto» del Historial, «Sus listas de reproducción de YouTube» del Inicio, la pantalla Cuenta, «Sincronizar ahora» de las listas, «Sincronizar» de las auto-listas, los grupos «Preferences» de la hoja de cuenta. En Migración se **ocultan TODAS las fuentes** y solo queda «Iniciar sesión en YouTube Music» |
+| **Sin sesión de YouTube** | Desaparecen: chip «Remoto» del Historial, «Sus listas de reproducción de YouTube» del Inicio, la pantalla Cuenta, «Sincronizar ahora» de las listas, «Sincronizar» de las auto-listas, los grupos «Preferences» de la hoja de cuenta. En Migración se **ocultan TODAS las fuentes** y solo queda «Iniciar sesión con Google» |
 | **Con sesión** | Aparece el avatar en la barra superior en lugar del engranaje, y los dos interruptores de la hoja de cuenta |
 | **Sin sesión de Spotify** | La pantalla de importación cambia de 7 filas a 2 |
 | **Sin sesión de Tidal** | La pantalla de Tidal muestra el formulario de Client ID en vez de la lista de colecciones |
@@ -3861,7 +3861,7 @@ Los diálogos del **reproductor** están en §3.8, §4.3, §5.1, §5.2, §7.1 y 
 
 | Diálogo / hoja | Qué control lo abre | archivo:línea del control |
 |---|---|---|
-| Importar lista de reproducción desde YouTube Music (`TextFieldDialog`) | Menú del FAB Importar → Importar desde YouTube Music | LibraryScreen.kt:221-227 → diálogo :242-272 |
+| Importar lista de reproducción desde un enlace de YouTube (`TextFieldDialog`) | Menú del FAB Importar → Importar desde un enlace de YouTube | LibraryScreen.kt:221-227 → diálogo :242-272 |
 | Importar lista por link (Spotify) | Menú del FAB Importar → Importar desde Spotify | LibraryScreen.kt:214-220 → diálogo :275-312 |
 | Toast «El enlace de la lista de reproducción no es válido» | Aceptar con URL inválida en cualquiera de los dos | LibraryScreen.kt:264-268 / :303-307 |
 | `CreatePlaylistDialog` | FAB Crear lista de reproducción | LibraryScreen.kt:194 → :314-324 |
@@ -4152,8 +4152,8 @@ todo `PodcastScreen`, todo `SettingDialoge`, «Sonido» del menú del reproducto
 | Descripciones de "Acerca de" generadas en inglés | AlbumScreen.kt:688-692 · LocalPlaylistScreen.kt:1608-1614 · AutoPlaylistScreen.kt:900-905 · CachePlaylistScreen.kt:688-694 · TopPlaylistScreen.kt:789 |
 | "Aleatorio mejorado · X/Y reproducidas" (español hardcoded, no en `values-es`) | EnhancedShuffleIndicator.kt:79 |
 | "Ya reproducida en aleatorio" (español hardcoded, cD) | Items.kt:498 |
-| "Traer los últimos cambios de YouTube Music" (español hardcoded) | PlaylistScreenMenus.kt:281 |
-| "Sincronizando con YouTube Music…" (español hardcoded, Toast) | AutoPlaylistScreen.kt:361-365 |
+| "Traer los últimos cambios de tu cuenta de Google" (español hardcoded) | PlaylistScreenMenus.kt:281 |
+| "Sincronizando con tu cuenta de Google…" (español hardcoded, Toast) | AutoPlaylistScreen.kt:361-365 |
 | `− Título — Artista` / `+ Título — Artistas` (formato hardcoded) | AiModifyPlaylistDialog.kt:219, :233 |
 | "Artista · Año" (formato hardcoded) | ReleaseRadarScreen.kt:162 |
 
@@ -4379,7 +4379,7 @@ cambian pero los nombres de composable siguen siendo válidos.*
 
 | Dónde | Qué hay ahora | Fila del registro |
 |---|---|---|
-| Barra inferior / cápsula (`MainActivity`) | No se dibuja en las rutas `onboarding_*` ni en importar Spotify / sincronizar YouTube Music abiertas desde la bienvenida; vuelve en Inicio | 494 |
+| Barra inferior / cápsula (`MainActivity`) | No se dibuja en las rutas `onboarding_*` ni en importar Spotify / sincronizar con tu cuenta de Google abiertas desde la bienvenida; vuelve en Inicio | 494 |
 | Menús desplegables (ordenar, chips, Estadísticas, Biblioteca, estilo que sigue la cola…) y diálogos de ventana (`AuraFloatingSurface`) | Misma placa traslúcida y filete que los menús ⋯; la hoja Material (`AuraModalBottomSheet`) con la esquina y el filete de las hojas ⋯ | 495 |
 | Biblioteca (Listas, Canciones, Álbumes, Artistas), tableta ≥ 900 dp | 3 / 4 / 5 columnas (Grande) o 4 / 5 / 6 (Pequeño) en vez de 7-8 portadas pequeñas; teléfono y plegable igual | 496 |
 | Artista, panel ancho (≥ 560 dp) | Cabecera `AuraWideTop`: portada cuadrada a la izquierda; nombre, cifras, «acerca de», Suscribirse / Radio / Aleatorio y el vídeo de fondo (sobre la portada) a su derecha. Panel estrecho: héroe a sangre como siempre | 497 |
@@ -4397,7 +4397,7 @@ cambian pero los nombres de composable siguen siendo válidos.*
 | Dispositivos de audio y volumen | Salida conectada (nombre, estado, volumen %), lista de salidas al desplegar, control de volumen, batería Bluetooth y «Listo», con las losas del menú ⋯ | 500 |
 | Búsqueda rápida del reproductor (lupa) | Historial y sugerencias como losa continua; ✕ borra, ↖ copia al campo, «Borrar todo»; resultados sin cambios | 501 |
 | Reconocer música (resultado) | Portada, título, artista y álbum; Reproducir en la app, Me gusta, Añadir a lista, Volver a escuchar y Cerrar como filas de una losa (Me gusta y Añadir a lista esperan a que la canción se resuelva) | 502 |
-| Menú de la cuenta (avatar de Inicio) | Perfil; Usar la cuenta para explorar, Sincronización con YouTube Music (+ sincronizar ahora, programar), Actualizaciones, Reporte de errores, Ajustes, Compartir y Acerca de, cada grupo en su losa | 502 |
+| Menú de la cuenta (avatar de Inicio) | Perfil; Usar la cuenta para explorar, Sincronización con tu cuenta de Google (+ sincronizar ahora, programar), Actualizaciones, Reporte de errores, Ajustes, Compartir y Acerca de, cada grupo en su losa | 502 |
 | Botón de descargar del reproductor | Descargando / descargada / exportada: abre la hoja (antes quitaba la descarga en silencio); la hoja avisa «ya descargada» (sin conexión · MP3 · vídeo) y las listas que la tienen; «Quitar descarga» pide confirmación | 505 |
 | Añadir a lista de reproducción | Cada lista que ya tiene la canción dice «Ya tiene esta canción» bajo el nombre, además del tick | 504 |
 | Listas de YouTube y de la biblioteca (Me gusta, Descargadas, Mi top, En caché) | Deslizar a la derecha = me gusta, a la izquierda = añadir a lista | 506 |

@@ -84,7 +84,7 @@ class PlayerAndAudioSheetGlassGuardTest {
         val group = main("ui/component/Material3SettingsGroup.kt")
         assertTrue("opt-in", group.contains("glass: Boolean = false,"))
         assertTrue(group.contains("val glassSlab = glass && skin.enabled && skin.darkGround"))
-        listOf("Usar la cuenta para explorar", "Sincronización con YouTube Music", "Actualizaciones", "Compartir Aura Hi-Res", "Acerca de")
+        listOf("Usar la cuenta para explorar", "Sincronización con tu cuenta de Google", "Actualizaciones", "Compartir Aura Hi-Res", "Acerca de")
             .forEach { assertTrue(it, dialog.contains(it)) }
     }
 }

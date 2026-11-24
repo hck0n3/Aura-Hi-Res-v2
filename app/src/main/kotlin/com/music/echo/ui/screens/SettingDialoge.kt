@@ -330,7 +330,7 @@ private fun SettingDialogeBody(
                 )
                 add(
                     Material3SettingsItem(
-                        title = { Text("Sincronización con YouTube Music") },
+                        title = { Text("Sincronización con tu cuenta de Google") },
                         icon = painterResource(R.drawable.cached),
                         trailingContent = {
                             Row(
