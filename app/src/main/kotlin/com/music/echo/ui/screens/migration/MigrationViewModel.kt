@@ -15,6 +15,8 @@ import com.aura.migration.model.SourceTrack
 import com.aura.migration.model.YtmCandidate
 import com.aura.migration.source.PlaylistSource
 import com.aura.migration.source.SourceError
+import com.aura.migration.source.amazon.AmazonMusicClient
+import com.aura.migration.source.amazon.AmazonMusicSource
 import com.aura.migration.source.deezer.DeezerSource
 import com.aura.migration.source.file.FileSource
 import com.aura.migration.source.tidal.TidalSource
@@ -32,6 +34,10 @@ import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.migration.InMemoryPlaylistSource
 import iad1tya.echo.music.migration.TidalTokenStore
+import iad1tya.echo.music.migration.amazonErrorText
+import iad1tya.echo.music.migration.amazonSpecificErrorText
+import iad1tya.echo.music.migration.expireAmazonWebCookies
+import iad1tya.echo.music.migration.isAmazonSessionGone
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.spotifyimport.ArtistNameMatching
@@ -115,6 +121,20 @@ data class TidalAuthUiState(
     val pendingAuthUrl: String? = null,
 )
 
+/**
+ * Amazon Music sign-in + library state, kept apart from [MigrationUiState] for the same reason as
+ * [TidalAuthUiState]: [reset]/[cancelPending] must not sign the user out. A picked collection flows into
+ * the SAME CONFIRM -> RUNNING -> DONE machinery.
+ */
+data class AmazonAuthUiState(
+    val authenticated: Boolean = false,
+    /** The marketplace host of the stored session (music.amazon.es…), shown next to «Conectado». */
+    val musicHost: String? = null,
+    val collection: List<SourcePlaylist> = emptyList(),
+    val collectionLoading: Boolean = false,
+    val error: String? = null,
+)
+
 @HiltViewModel
 class MigrationViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -122,6 +142,8 @@ class MigrationViewModel @Inject constructor(
     private val deezerSource: DeezerSource,
     private val tidalSource: TidalSource,
     private val tidalTokenStore: TidalTokenStore,
+    private val amazonClient: AmazonMusicClient,
+    private val amazonSource: AmazonMusicSource,
     private val database: MusicDatabase,
     private val syncUtils: SyncUtils,
 ) : ViewModel() {
@@ -131,6 +153,9 @@ class MigrationViewModel @Inject constructor(
 
     private val _tidalState = MutableStateFlow(TidalAuthUiState())
     val tidalState: StateFlow<TidalAuthUiState> = _tidalState.asStateFlow()
+
+    private val _amazonState = MutableStateFlow(AmazonAuthUiState())
+    val amazonState: StateFlow<AmazonAuthUiState> = _amazonState.asStateFlow()
 
     /** The running import, so a re-entry cancels the previous one instead of running two at once. */
     private var migrationJob: Job? = null
@@ -492,6 +517,71 @@ class MigrationViewModel @Inject constructor(
         _tidalState.value = _tidalState.value.copy(error = message)
     }
 
+    // ── AMAZON MUSIC (read only) ─────────────────────────────────────────
+
+    /** Re-derives the Amazon sign-in from the encrypted vault, and lazily loads the library once. */
+    fun refreshAmazonAuth() {
+        viewModelScope.launch {
+            val (authed, host) = withContext(Dispatchers.IO) { amazonClient.isSignedIn() to amazonClient.musicHost() }
+            _amazonState.value = _amazonState.value.copy(authenticated = authed, musicHost = host)
+            if (authed && _amazonState.value.collection.isEmpty() && !_amazonState.value.collectionLoading) {
+                loadAmazonCollection()
+            }
+        }
+    }
+
+    /** Liked songs + every playlist the user owns, read to the last page (see AmazonMusicSource). */
+    fun loadAmazonCollection() {
+        _amazonState.value = _amazonState.value.copy(collectionLoading = true, error = null)
+        viewModelScope.launch {
+            try {
+                val lists = withContext(Dispatchers.IO) { amazonSource.listPlaylists(null) }
+                Timber.tag("Migration").i("Amazon collection loaded: %d collections", lists.size)
+                _amazonState.value = _amazonState.value.copy(collection = lists, collectionLoading = false)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Only the failure KIND: never a response, cookie or list name (AGENTS rule 4).
+                Timber.tag("Migration").w("Amazon collection load failed: %s", e.javaClass.simpleName)
+                val gone = isAmazonSessionGone(e)
+                if (gone) withContext(Dispatchers.IO) { amazonClient.logout() }
+                _amazonState.value = _amazonState.value.copy(
+                    authenticated = _amazonState.value.authenticated && !gone,
+                    collection = if (gone) emptyList() else _amazonState.value.collection,
+                    collectionLoading = false,
+                    error = context.getString(amazonErrorText(e)),
+                )
+            }
+        }
+    }
+
+    /** «Cerrar sesión de Amazon»: the encrypted session and any Amazon cookie left in the WebView jar. */
+    fun logoutAmazon() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { amazonClient.logout() }
+            runCatching { expireAmazonWebCookies() }
+            _amazonState.value = AmazonAuthUiState()
+        }
+    }
+
+    fun dismissAmazonError() {
+        _amazonState.value = _amazonState.value.copy(error = null)
+    }
+
+    /** The user tapped a collection of their Amazon library. -> CONFIRM (shared machinery). */
+    fun prepareAmazonPlaylist(playlist: SourcePlaylist) {
+        val name = playlist.name.ifBlank { context.getString(R.string.migrate_amazon_default_name) }
+        prepared = Prepared(
+            source = amazonSource,
+            playlistId = playlist.id,
+            name = name,
+            count = playlist.trackCount,
+            kind = playlist.kind,
+        )
+        _amazonState.value = _amazonState.value.copy(error = null)
+        toConfirm(name, playlist.trackCount, playlist.kind)
+    }
+
     // ── IMPORT ───────────────────────────────────────────────────────────
 
     fun confirmAndStart() {
@@ -564,7 +654,10 @@ class MigrationViewModel @Inject constructor(
                     onFinished(progress.report, progress.ytmPlaylistId, p.kind)
 
                 is MigrationEngine.Progress.Failed ->
-                    fail(progress.error.message ?: "La migración falló.")
+                    fail(
+                        amazonSpecificErrorText(progress.error)?.let { context.getString(it) }
+                            ?: progress.error.message ?: "La migración falló.",
+                    )
             }
         }
     }

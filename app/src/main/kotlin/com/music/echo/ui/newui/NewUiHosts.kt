@@ -320,6 +320,18 @@ fun MigrationAppleScreenHost(navController: NavController) {
     )
 }
 
+/**
+ * Amazon Music arrived after the classic skin was retired (SINGLE_UI), so it has no classic twin: both
+ * sides draw the same screen, and the gate is kept only for its palette sync.
+ */
+@Composable
+fun MigrationAmazonScreenHost(navController: NavController) {
+    NewUiGate(
+        classic = { AuraMigrationAmazonScreen(navController) },
+        new = { AuraMigrationAmazonScreen(navController) },
+    )
+}
+
 // ── 10. Auto-listas (Descargadas, Me gusta, Más escuchadas, En caché, Subidas) ─────────────────────
 
 /**

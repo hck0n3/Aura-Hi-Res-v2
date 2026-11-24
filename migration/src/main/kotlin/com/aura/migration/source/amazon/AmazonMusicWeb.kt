@@ -87,6 +87,21 @@ object AmazonMusicWeb {
         return host.takeIf { isMusicHost(it) }
     }
 
+    private val STORE_BY_COUNTRY = mapOf(
+        "GB" to "music.amazon.co.uk", "DE" to "music.amazon.de", "FR" to "music.amazon.fr",
+        "IT" to "music.amazon.it", "ES" to "music.amazon.es", "JP" to "music.amazon.co.jp",
+        "CA" to "music.amazon.ca", "AU" to "music.amazon.com.au", "BR" to "music.amazon.com.br",
+        "MX" to "music.amazon.com.mx", "IN" to "music.amazon.in", "AE" to "music.amazon.ae",
+        "SA" to "music.amazon.sa", "EG" to "music.amazon.eg",
+    )
+
+    /**
+     * The sign-in store to suggest for a device country (ISO 3166 code): the marketplace whose domain is
+     * that country's, else music.amazon.com. Only a suggestion — the screen lets the user pick another.
+     */
+    fun storeForCountry(country: String?): String =
+        STORE_BY_COUNTRY[country.orEmpty().uppercase(Locale.ROOT)] ?: DEFAULT_MUSIC_HOST
+
     // ── Cookie allowlist (SongMirror `_COMMON_RENEWAL_COOKIES` / `_RETAIL_COOKIE_RE`) ─────────────────
 
     private val COMMON_RENEWAL_COOKIES = setOf(

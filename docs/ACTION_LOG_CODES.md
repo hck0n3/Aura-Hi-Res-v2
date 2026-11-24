@@ -1002,6 +1002,15 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.MIG.TIDAL_RELOAD` | «Recargar listas» de Tidal |
 | `UI.MIG.TIDAL_IMPORT_URL` | «Importar» una lista de Tidal por enlace (no se registra) |
 | `UI.MIG.APPLE_PRIVACY` | «Abrir privacy.apple.com» |
+| `UI.MIG.SOURCE_AMAZON` | Origen «Amazon Music» |
+| `UI.MIG.AMAZON_STORE` | «Cambiar tienda» de Amazon Music |
+| `UI.MIG.AMAZON_STORE_PICK` | Elegir una tienda de Amazon Music (no se registra cuál) |
+| `UI.MIG.AMAZON_STORE_CANCEL` | «Cancelar» en «Tu tienda de Amazon» |
+| `UI.MIG.AMAZON_LOGIN` | «Iniciar sesión en Amazon Music» |
+| `UI.MIG.AMAZON_LOGOUT` | «Cerrar sesión de Amazon» |
+| `UI.MIG.AMAZON_PICK` | Elegir una lista de Amazon Music (no se registra cuál) |
+| `UI.MIG.AMAZON_RELOAD` | «Recargar listas» de Amazon Music |
+| `UI.MIG.AMAZON_ERROR_OK` | «Aceptar» en el error de Amazon Music |
 
 ### Novedades
 

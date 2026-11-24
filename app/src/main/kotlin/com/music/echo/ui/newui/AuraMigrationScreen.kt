@@ -64,14 +64,17 @@ import androidx.navigation.NavController
 import com.aura.migration.model.CollectionKind
 import com.aura.migration.model.SourcePlaylist
 import com.aura.migration.model.YtmCandidate
+import com.aura.migration.source.amazon.AmazonMusicWeb
 import com.aura.migration.source.apple.AppleMusicGuide
 import iad1tya.echo.music.BuildConfig
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.TidalClientIdKey
+import iad1tya.echo.music.migration.AmazonMusicLoginActivity
 import iad1tya.echo.music.migration.TidalAuthCallbackBus
 import iad1tya.echo.music.ui.component.DefaultDialog
+import iad1tya.echo.music.ui.screens.migration.AmazonAuthUiState
 import iad1tya.echo.music.ui.screens.migration.AmbiguousItem
 import iad1tya.echo.music.ui.screens.migration.MigrationPhase
 import iad1tya.echo.music.ui.screens.migration.MigrationUiState
@@ -243,6 +246,7 @@ fun AuraMigrationScreen(
                             onDeezer = { deezerInput = ""; showDeezerDialog = true },
                             onTidal = { navController.navigate("migration/tidal") },
                             onApple = { navController.navigate("migration/apple") },
+                            onAmazon = { navController.navigate("migration/amazon") },
                             onYouTubeLogin = { navController.navigate("login") },
                         )
 
@@ -355,6 +359,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraPickerContent(
     onDeezer: () -> Unit,
     onTidal: () -> Unit,
     onApple: () -> Unit,
+    onAmazon: () -> Unit,
     onYouTubeLogin: () -> Unit,
 ) {
     // HARD GATE, carried over unchanged: the migrated playlist is CREATED in the user's YouTube Music
@@ -417,6 +422,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraPickerContent(
                 title = stringResource(R.string.migrate_source_apple),
                 description = stringResource(R.string.migrate_source_apple_desc),
                 onClick = { ActionLog.tap(ActionId.MIG_SOURCE_APPLE); onApple() },
+            )
+            AuraSourceRow(
+                icon = AuraIcons.Music,
+                title = stringResource(R.string.migrate_source_amazon),
+                description = stringResource(R.string.migrate_source_amazon_desc),
+                onClick = { ActionLog.tap(ActionId.MIG_SOURCE_AMAZON); onAmazon() },
             )
         }
     }
@@ -1397,6 +1408,225 @@ fun AuraMigrationAppleScreen(navController: NavController) {
                     }
                 }
             }
+        }
+    }
+}
+
+// ── 4. Amazon Music ───────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Amazon Music — sign in inside the app ([AmazonMusicLoginActivity]), then pick from the library (liked
+ * songs + own playlists). Read only. Same shape as the Tidal screen: the ViewModel is scoped to the
+ * "migration" back-stack entry, so a picked collection lands in the SAME confirm/progress/result
+ * machinery once this screen hands back to the picker.
+ */
+@Composable
+fun AuraMigrationAmazonScreen(navController: NavController) {
+    val context = LocalContext.current
+    val migrationEntry = remember(navController) { navController.getBackStackEntry("migration") }
+    val viewModel: MigrationViewModel = hiltViewModel(migrationEntry)
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val amazonState by viewModel.amazonState.collectAsStateWithLifecycle()
+
+    var storeHost by rememberSaveable { mutableStateOf(AmazonMusicWeb.storeForCountry(Locale.getDefault().country)) }
+    var showStorePicker by remember { mutableStateOf(false) }
+
+    val loginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) viewModel.refreshAmazonAuth()
+    }
+
+    // Re-derive the sign-in from the encrypted vault whenever the screen is shown.
+    LaunchedEffect(Unit) { viewModel.refreshAmazonAuth() }
+
+    // A picked collection moves the shared state to CONFIRM; hand off to the picker.
+    LaunchedEffect(uiState.phase) {
+        if (uiState.phase == MigrationPhase.CONFIRM) navController.navigateUp()
+    }
+
+    // HALLAZGO-049: live artwork seed, same as the other migration screens.
+    val amazonPlayerConnection = LocalPlayerConnection.current
+    val amazonMediaMetadata by amazonPlayerConnection?.mediaMetadata?.collectAsState()
+        ?: remember { mutableStateOf(null) }
+    val bloom = rememberAuraBloom(amazonMediaMetadata?.id)
+    val insets = LocalPlayerAwareWindowInsets.current
+    val bottomClearance = insets
+        .only(WindowInsetsSides.Bottom)
+        .asPaddingValues()
+        .calculateBottomPadding()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .auraScreenBackground(bloom, intensity = 0.32f),
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(insets.only(WindowInsetsSides.Horizontal))
+                .padding(top = auraStatusBarPadding()),
+        ) {
+            AuraDetailHeader(
+                title = stringResource(R.string.migrate_source_amazon),
+                onBack = navController::navigateUp,
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = AuraSpacing.Gutter,
+                        end = AuraSpacing.Gutter,
+                        top = 10.dp,
+                        bottom = bottomClearance + 48.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.migrate_amazon_intro),
+                    style = AuraType.RowSubtitle,
+                    color = AuraPalette.OnGroundMuted,
+                )
+
+                if (!amazonState.authenticated) {
+                    AuraCardSurface {
+                        Text(
+                            text = stringResource(R.string.migrate_amazon_login_title),
+                            style = AuraType.CalloutTitle,
+                            color = AuraPalette.OnGround,
+                        )
+                        Text(
+                            text = stringResource(R.string.migrate_amazon_login_desc),
+                            style = AuraType.RowSubtitle,
+                            color = AuraPalette.OnGroundMuted,
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.migrate_amazon_store, storeHost),
+                                style = AuraType.RowSubtitle,
+                                color = AuraPalette.OnGroundMuted,
+                                modifier = Modifier.weight(1f),
+                            )
+                            AuraLinkButton(
+                                text = stringResource(R.string.migrate_amazon_store_change),
+                                onClick = { ActionLog.tap(ActionId.MIG_AMAZON_STORE); showStorePicker = true },
+                            )
+                        }
+                        AuraActionButton(
+                            text = stringResource(R.string.migrate_amazon_login),
+                            onClick = {
+                                ActionLog.tap(ActionId.MIG_AMAZON_LOGIN)
+                                loginLauncher.launch(AmazonMusicLoginActivity.intent(context, storeHost))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                } else {
+                    AuraAmazonConnectedCard(
+                        state = amazonState,
+                        onPickPlaylist = { viewModel.prepareAmazonPlaylist(it) },
+                        onReload = { viewModel.loadAmazonCollection() },
+                        onLogout = { viewModel.logoutAmazon() },
+                    )
+                }
+
+                amazonState.error?.let { message ->
+                    AuraNoticeCard(
+                        text = message,
+                        action = {
+                            AuraLinkButton(
+                                text = stringResource(android.R.string.ok),
+                                onClick = { ActionLog.tap(ActionId.MIG_AMAZON_ERROR_OK); viewModel.dismissAmazonError() },
+                            )
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    if (showStorePicker) {
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
+            onDismissRequest = { showStorePicker = false },
+            title = { Text(stringResource(R.string.migrate_amazon_store_title)) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    AmazonMusicWeb.MUSIC_HOSTS.forEach { host ->
+                        TextButton(
+                            onClick = {
+                                ActionLog.tap(ActionId.MIG_AMAZON_STORE_PICK)
+                                storeHost = host
+                                showStorePicker = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(host) }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { ActionLog.tap(ActionId.MIG_AMAZON_STORE_CANCEL); showStorePicker = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun AuraAmazonConnectedCard(
+    state: AmazonAuthUiState,
+    onPickPlaylist: (SourcePlaylist) -> Unit,
+    onReload: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    AuraCardSurface {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.migrate_amazon_connected),
+                    style = AuraType.CalloutTitle,
+                    color = AuraPalette.Teal,
+                )
+                state.musicHost?.let { host ->
+                    Text(
+                        text = stringResource(R.string.migrate_amazon_store, host),
+                        style = AuraType.RowSubtitle,
+                        color = AuraPalette.OnGroundMuted,
+                    )
+                }
+            }
+            AuraLinkButton(
+                text = stringResource(R.string.migrate_amazon_logout),
+                onClick = { ActionLog.tap(ActionId.MIG_AMAZON_LOGOUT); onLogout() },
+            )
+        }
+
+        Text(
+            text = stringResource(R.string.migrate_amazon_pick_title),
+            style = AuraType.CalloutTitle,
+            color = AuraPalette.OnGround,
+        )
+        if (state.collectionLoading) {
+            AuraLoadingLine(stringResource(R.string.migrate_amazon_loading))
+        } else {
+            // Liked songs carry the library badge: they become «Me gusta», not a new playlist.
+            state.collection.forEach { playlist ->
+                AuraCollectionRow(
+                    playlist = playlist,
+                    onClick = { ActionLog.tap(ActionId.MIG_AMAZON_PICK); onPickPlaylist(playlist) },
+                )
+            }
+            AuraLinkButton(
+                text = stringResource(R.string.migrate_amazon_reload),
+                onClick = { ActionLog.tap(ActionId.MIG_AMAZON_RELOAD); onReload() },
+            )
         }
     }
 }

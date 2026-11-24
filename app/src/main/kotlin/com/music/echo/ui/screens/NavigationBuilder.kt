@@ -67,6 +67,7 @@ import iad1tya.echo.music.ui.newui.ProvideNavSharedTransition
 import iad1tya.echo.music.ui.newui.LibraryScreenHost
 import iad1tya.echo.music.ui.newui.NovedadesScreenHost
 import iad1tya.echo.music.ui.newui.LocalPlaylistScreenHost
+import iad1tya.echo.music.ui.newui.MigrationAmazonScreenHost
 import iad1tya.echo.music.ui.newui.MigrationAppleScreenHost
 import iad1tya.echo.music.ui.newui.MigrationScreenHost
 import iad1tya.echo.music.ui.newui.MigrationTidalScreenHost
@@ -532,6 +533,10 @@ fun NavGraphBuilder.navigationBuilder(
 
     composable("migration/apple") {
         MigrationAppleScreenHost(navController)
+    }
+
+    composable("migration/amazon") {
+        MigrationAmazonScreenHost(navController)
     }
 
     composable(

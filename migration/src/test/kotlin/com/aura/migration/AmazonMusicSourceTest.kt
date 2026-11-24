@@ -125,6 +125,19 @@ class AmazonMusicSourceTest {
     }
 
     @Test
+    fun `the suggested store follows the device country and is always a Music host`() {
+        assertEquals("music.amazon.es", AmazonMusicWeb.storeForCountry("ES"))
+        assertEquals("music.amazon.com.mx", AmazonMusicWeb.storeForCountry("mx"))
+        assertEquals("music.amazon.co.uk", AmazonMusicWeb.storeForCountry("GB"))
+        assertEquals("music.amazon.com", AmazonMusicWeb.storeForCountry("AR"))
+        assertEquals("music.amazon.com", AmazonMusicWeb.storeForCountry(""))
+        assertEquals("music.amazon.com", AmazonMusicWeb.storeForCountry(null))
+        for (country in listOf("US", "GB", "DE", "FR", "IT", "ES", "JP", "CA", "AU", "BR", "MX", "IN", "AE", "SA", "EG", "CO")) {
+            assertTrue(country, AmazonMusicWeb.isMusicHost(AmazonMusicWeb.storeForCountry(country)))
+        }
+    }
+
+    @Test
     fun `config json mints the web-player headers and nothing else`() {
         val headers = AmazonMusicWeb.headersFromConfig(json(config))
         assertEquals(
