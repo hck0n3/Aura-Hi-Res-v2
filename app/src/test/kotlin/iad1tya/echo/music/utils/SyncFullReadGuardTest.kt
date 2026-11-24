@@ -136,6 +136,9 @@ class SyncFullReadGuardTest {
         assertTrue(albumsCut >= 0)
         assertTrue(albumsCut < albums.indexOf("YouTube.likePlaylist(playlistId, true)"))
 
+        // Rule 7: a category left unverified by a cut-short read must not keep YtmSyncWorker chaining passes that write nothing.
+        assertTrue(upload.contains("moreWorkPending = !done && requestBudget > 0,"))
+
         val topUp = body(upload, "private suspend fun topUpRemotePlaylist(")
         assertTrue(topUp.contains("?.takeIf { it.songsContinuation == null }"))
         val spotify = body(upload, "private suspend fun reconcileSpotifyMirrors() {")

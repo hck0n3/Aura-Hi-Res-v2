@@ -443,7 +443,9 @@ class LibraryUploadSync @Inject constructor(
             } else {
                 null
             },
-            moreWorkPending = !done,
+            // Row 840 (rule 7): a pass that wrote nothing would only repeat itself (e.g. a list read cut short again), so
+            // YtmSyncWorker chains no continuation for it; the next sync the user or the cadence starts picks it up.
+            moreWorkPending = !done && requestBudget > 0,
             lastCompletedEpochMs = if (done) System.currentTimeMillis()
             else _progress.value.lastCompletedEpochMs,
         )
