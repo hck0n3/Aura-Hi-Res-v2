@@ -25,8 +25,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -178,7 +176,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
         }
     }
 
-    /** «Detener»: the item in flight ends (its wait for the account stops), the rest is not attempted. */
+    /** «Detener»: the item in flight finishes its (bounded) wait for the account, the rest is not attempted. */
     fun stop() {
         stopRequested.value = true
         _state.update { if (it.phase == Phase.RUNNING) it.copy(stopping = true) else it }
@@ -257,14 +255,12 @@ class SubscriptionCleanupViewModel @Inject constructor(
             return false
         }
         awaitingAccount.add(item.id)
+        // «Detener» does not cut this wait short: the unfollow is already committed and queued for the account, so
+        // ending here would report a removal that goes through a moment later as failed.
         val confirmed = withTimeoutOrNull(PhantomSubscriptionPolicy.CONFIRM_TIMEOUT_MS) {
-            combine(database.artistEntitiesByIdsFlow(ArtistSyncPolicy.aliasIds(item.id)), stopRequested) { rows, stopped ->
-                when {
-                    rows.none(ArtistSyncPolicy::hasPendingUnfollow) -> true
-                    stopped -> false
-                    else -> null
-                }
-            }.filterNotNull().first()
+            database.artistEntitiesByIdsFlow(ArtistSyncPolicy.aliasIds(item.id))
+                .first { rows -> rows.none(ArtistSyncPolicy::hasPendingUnfollow) }
+            true
         } ?: false
         if (confirmed) awaitingAccount.remove(item.id)
         return confirmed

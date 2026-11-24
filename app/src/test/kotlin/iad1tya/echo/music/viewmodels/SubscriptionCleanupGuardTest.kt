@@ -63,6 +63,16 @@ class SubscriptionCleanupGuardTest {
     }
 
     @Test
+    fun `stopping never reports a removal already sent to the account as failed`() {
+        val vm = src(vmPath)
+        val wait = vm.substringAfter("val confirmed = withTimeoutOrNull(PhantomSubscriptionPolicy.CONFIRM_TIMEOUT_MS) {")
+            .substringBefore("} ?: false")
+        assertTrue(wait.contains(".first { rows -> rows.none(ArtistSyncPolicy::hasPendingUnfollow) }"))
+        assertFalse(wait.contains("stopRequested"))
+        assertFalse(wait.contains("stopped"))
+    }
+
+    @Test
     fun `logs carry counts only`() {
         val vm = src(vmPath)
         val lines = Regex("""Timber\.\w\([^\n]*(\n[^\n]*){0,4}""").findAll(vm).map { it.value }.toList()
