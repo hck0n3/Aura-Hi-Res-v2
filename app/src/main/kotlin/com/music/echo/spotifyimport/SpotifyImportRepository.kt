@@ -405,11 +405,12 @@ class SpotifyImportRepository @Inject constructor(
             // followed artist waits in ImportFollowsAwaitingConfirmKey until the user picks «Suscribir»
             // or «Solo en Aura» on the sync screen (registry #646).
 
-            // Mirror the freshly-imported likes + library to YouTube Music (when signed in), so the
-            // Spotify import also lands in the user's YT Music library. Fire-and-forget (sync queue).
+            // Mirror the freshly-imported library to YouTube Music (when signed in), so the Spotify import
+            // also lands in the user's YT Music library. Fire-and-forget (sync queue). Row 832: no
+            // syncLikedSongs() here — it likeVideo()d every local like without reading YtmUploadSyncKey;
+            // the upload pass enqueued below pushes likes and respects that switch.
             if (com.music.innertube.YouTube.cookie != null) {
                 runCatching {
-                    syncUtils.syncLikedSongs()
                     syncUtils.syncLibrarySongs()
                 }
                 // "Todas las playlists que importe de otra cuenta ya me queden en mi cuenta de YouTube
