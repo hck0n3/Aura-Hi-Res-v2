@@ -133,3 +133,20 @@ Los arreglos que no necesitan decisión (paquetes D1-D7) ya están en marcha. Re
 Volver atrás (si algo falla): en `docs/worker/rooms` o `docs/worker/sync`,
 `npx wrangler rollback <versión anterior>` (o en el panel de Cloudflare ▸ Workers ▸ el worker ▸ Deployments ▸ Rollback).
 El token vive solo como Network secret del entorno (`api.cloudflare.com`), nunca en el repositorio.
+
+## J. Auditoría del 2026-11-24: lo que se había quedado atrás (todo pasa a trabajo pendiente)
+
+1. **Escuchar juntos: «doy play en un dispositivo y el otro solo pone la canción pero no le da play»** (dueño, 24-11). Diagnóstico
+   hecho (causa más probable: `pausedLocally` queda en `true` por pausas que no son del usuario — error de stream, pérdida de foco,
+   auriculares, temporizador — y no caduca; `ListenTogetherPlaybackBridge.kt:319-320`). Se aplica encima de la rama de la fila 796.
+2. **«Inicia sesión con tu cuenta de Google» y no mencionar YouTube Music** (dueño, 22-11) contradice la decisión H27 de
+   `DECISIONES_2026-11-24.md` (que mantiene «YouTube» en Cuentas). **Pregunta abierta al dueño**; hasta su respuesta no se toca.
+3. **Registro con un ID por botón «sin excepciones»** (dueño): la fila 730 cubre el reproductor, cola, menús, biblioteca, búsqueda e
+   Inicio, pero faltan muchas pantallas (EQ, Auto-EQ, Cuenta, Copias, Tema, Acerca de, Novedades, Estadísticas, Descargas, Letras,
+   Migración) y las excepciones de la fila 730. Pendiente de completar.
+4. **Decisiones nuevas de Escuchar juntos** (fila 797, rama sin fusionar): A) dejar de usar el servidor compartido de Metrolist;
+   B) aleatorio del invitado dentro de una sala; C) aviso tras 3 recargas fallidas. **Pendientes de preguntar al dueño.**
+5. **Toques raros** comunicados el 22-11 como «sin terminar»: bordes de las pestañas, mando de la TV, teclado de la búsqueda rápida.
+6. **Pruebas en el móvil del dueño por depuración USB**: ofrecidas y sin usar; las 13 pruebas de §H siguen sin hacer.
+7. **Sospecha de placebo S-003** (`triggerRetry`, `docs/audit/AUDIT_TRACKER.md`) sin seguimiento.
+8. **Fases 1-10 del plan** (`PLAN_TODO_EN_UNO.md`): delegadas y sin empezar.
