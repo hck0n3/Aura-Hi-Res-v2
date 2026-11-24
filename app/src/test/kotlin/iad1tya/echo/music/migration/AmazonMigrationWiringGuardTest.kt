@@ -101,6 +101,20 @@ class AmazonMigrationWiringGuardTest {
         assertTrue(refresh.contains("if (startedIn != amazonGeneration) return@launch"))
     }
 
+    @Test
+    fun `a migration Amazon rejects drops the dead session like the library load does`() {
+        val vm = main("ui/screens/migration/MigrationViewModel.kt")
+        val failed = between(vm, "is MigrationEngine.Progress.Failed -> {", "private suspend fun createLocalMirror(")
+        val forget = failed.indexOf("if (isAmazonSessionGone(progress.error)) forgetRejectedAmazonSession(progress.error)")
+        assertTrue("the rejected session is dropped before the failure is shown", forget >= 0 && forget < failed.indexOf("fail("))
+
+        val helper = between(vm, "private suspend fun forgetRejectedAmazonSession(e: Throwable)", "fun dismissAmazonError()")
+        assertTrue(helper.contains("amazonClient.logout()"))
+        assertTrue(helper.contains("authenticated = false,"))
+        assertTrue(helper.contains("collection = emptyList(),"))
+        assertTrue(helper.contains("error = context.getString(amazonErrorText(e)),"))
+    }
+
     /** Source without string literals, so a log FORMAT may say «session» while its ARGUMENTS may not. */
     private fun withoutLiterals(code: String): String = code.replace(Regex("\"(?:\\\\.|[^\"\\\\])*\""), "\"\"")
 

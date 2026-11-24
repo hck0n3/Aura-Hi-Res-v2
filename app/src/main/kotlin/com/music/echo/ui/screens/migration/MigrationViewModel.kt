@@ -577,6 +577,24 @@ class MigrationViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Amazon rejected the session during a migration: drop it as the load path does, so the Amazon screen
+     * offers «Iniciar sesión» again instead of «Conectado» with a dead session. Called from the import (IO).
+     */
+    private suspend fun forgetRejectedAmazonSession(e: Throwable) {
+        amazonClient.logout()
+        withContext(Dispatchers.Main) {
+            amazonLoadJob?.cancel()
+            amazonGeneration++
+            _amazonState.value = _amazonState.value.copy(
+                authenticated = false,
+                collection = emptyList(),
+                collectionLoading = false,
+                error = context.getString(amazonErrorText(e)),
+            )
+        }
+    }
+
     fun dismissAmazonError() {
         _amazonState.value = _amazonState.value.copy(error = null)
     }
@@ -666,11 +684,13 @@ class MigrationViewModel @Inject constructor(
                 is MigrationEngine.Progress.Finished ->
                     onFinished(progress.report, progress.ytmPlaylistId, p.kind)
 
-                is MigrationEngine.Progress.Failed ->
+                is MigrationEngine.Progress.Failed -> {
+                    if (isAmazonSessionGone(progress.error)) forgetRejectedAmazonSession(progress.error)
                     fail(
                         amazonSpecificErrorText(progress.error)?.let { context.getString(it) }
                             ?: progress.error.message ?: "La migración falló.",
                     )
+                }
             }
         }
     }
