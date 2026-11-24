@@ -48,17 +48,6 @@ object ExternalMusicLinks {
 
         /** Only a name is known (page title): search YouTube Music for it. */
         data class Query(override val kind: Kind, val text: String) : Resolved
-
-        /**
-         * Ronda 9 (dueño): "verifica si hay algo mejor". Odesli/song.link (la misma empresa detrás
-         * de los links que Aura ya reconoce como `song.link`) mantiene su PROPIA base pública y
-         * gratuita de equivalencias entre plataformas — es justo su función. Cuando tiene el
-         * equivalente de YouTube Music para el link que se abrió, es un id EXACTO por catálogo, no
-         * una búsqueda de texto adivinada — máxima confianza posible, se reproduce directo.
-         */
-        data class DirectVideo(val videoId: String) : Resolved {
-            override val kind = Kind.TRACK
-        }
     }
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -125,29 +114,21 @@ object ExternalMusicLinks {
             if (expandedHost != host) {
                 Timber.tag(TAG).i("EXTERNAL_LINK short-link host=%s expanded_to=%s", host, expandedHost)
             }
-            // Odesli PRIMERO — ver el KDoc de [Resolved.DirectVideo]. Solo produce un id cuando su
-            // propio catálogo ya conecta este link con YouTube Music; si no lo tiene (lanzamiento
-            // reciente que todavía no indexó, o esa plataforma en particular), sigue null y cae al
-            // scraping+búsqueda de siempre — nunca peor que antes, y cuando SÍ lo tiene, mucho mejor.
-            val direct = odesliYouTubeMusicId(uri)
-            val resolved = if (direct != null) {
-                Resolved.DirectVideo(direct)
-            } else {
-                when {
-                    uri.scheme == "spotify" -> {
-                        val parts = uri.schemeSpecificPart.split(":")
-                        spotify(context, Uri.parse("https://open.spotify.com/${parts.getOrNull(0)}/${parts.getOrNull(1)}"))
-                    }
-                    expandedHost == "open.spotify.com" -> spotify(context, uri)
-                    expandedHost.endsWith("deezer.com") -> deezer(uri)
-                    expandedHost.endsWith("apple.com") -> apple(uri)
-                    expandedHost.endsWith("tidal.com") -> tidal(uri)
-                    else -> pageQuery(uri, kindFromPath(uri))
+            // Registry row 846: Odesli's keyless public API answers 401 PUBLIC_API_ACCESS_DEPRECATED (checked 2026-11-24), so it
+            // is no longer asked; each service's own public catalog gives the exact title, artist and duration instead.
+            val resolved = when {
+                uri.scheme == "spotify" -> {
+                    val parts = uri.schemeSpecificPart.split(":")
+                    spotify(context, Uri.parse("https://open.spotify.com/${parts.getOrNull(0)}/${parts.getOrNull(1)}"))
                 }
+                expandedHost == "open.spotify.com" -> spotify(context, uri)
+                expandedHost.endsWith("deezer.com") -> deezer(uri)
+                expandedHost.endsWith("apple.com") -> apple(uri)
+                expandedHost.endsWith("tidal.com") -> tidal(uri)
+                else -> pageQuery(uri, kindFromPath(uri))
             }
             val outcome = when (resolved) {
                 null -> "null"
-                is Resolved.DirectVideo -> "odesli_direct"
                 is Resolved.Tracks -> "tracks(kind=${resolved.kind}, count=${resolved.tracks.size})"
                 is Resolved.Query -> "query(kind=${resolved.kind})"
             }
@@ -161,27 +142,6 @@ object ExternalMusicLinks {
             null
         }
     }
-
-    /**
-     * Consulta la API pública y sin clave de Odesli (api.song.link — la misma empresa detrás de
-     * `song.link`/`odesli.co`) por la equivalencia REAL de este link en YouTube Music, si su propio
-     * catálogo ya la conoce. Solo funciona cuando la URL de YouTube Music trae `?v=<id>` (una
-     * canción de verdad, no un álbum/playlist — YouTube Music no tiene una URL de "reproducir álbum
-     * directo" equivalente), así que esto se autolimita al caso donde de verdad hay máxima
-     * confianza: si no la trae, se cae al scraping+búsqueda de siempre, tal cual antes.
-     */
-    private fun odesliYouTubeMusicId(uri: Uri): String? = runCatching {
-        val apiUrl = "https://api.song.link/v1-alpha.1/links?url=" +
-            java.net.URLEncoder.encode(uri.toString(), "UTF-8")
-        // Timeout corto (regla de batería/latencia — AGENTS.md #7): esto es un intento EXTRA antes
-        // del camino de siempre, así que si Odesli está lento o no responde, la espera no se duplica
-        // — cae al scraping+búsqueda de siempre casi de inmediato.
-        val body = fetch(apiUrl, timeoutMs = 5_000)
-        val byPlatform = json.parseToJsonElement(body).jsonObject["linksByPlatform"] as? JsonObject
-        val ytMusic = byPlatform?.get("youtubeMusic") as? JsonObject ?: byPlatform?.get("youtube") as? JsonObject
-        val ytUrl = ytMusic?.str("url") ?: return@runCatching null
-        Uri.parse(ytUrl).getQueryParameter("v")?.takeIf { it.isNotBlank() }
-    }.getOrNull()
 
     // ── Platforms ────────────────────────────────────────────────────────────────────────────────
 
