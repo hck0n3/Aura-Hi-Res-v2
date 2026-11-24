@@ -31,6 +31,34 @@ class ExportedSongsOnDeviceTest {
         assertEquals(listOf("u1", "u2"), asked)
     }
 
+    @Test
+    fun `a later pass only checks the uris it has not answered yet`() {
+        val known = mutableMapOf<String, Boolean>()
+        val asked = mutableListOf<String>()
+        val check: (String) -> Boolean = { asked += it; true }
+        exportedIdsWithFile(listOf("a", "b"), mapOf("a" to "u1", "b" to "u2"), known, check)
+        asked.clear()
+        // An export writes its id first: no uri yet, so nothing is checked.
+        assertEquals(listOf("a", "b"), exportedIdsWithFile(listOf("c", "a", "b"), mapOf("a" to "u1", "b" to "u2"), known, check))
+        assertEquals(emptyList<String>(), asked)
+        // Then its uri: only that one is checked.
+        val uris = mapOf("a" to "u1", "b" to "u2", "c" to "u3")
+        assertEquals(listOf("c", "a", "b"), exportedIdsWithFile(listOf("c", "a", "b"), uris, known, check))
+        assertEquals(listOf("u3"), asked)
+    }
+
+    @Test
+    fun `a re-exported song checks its new uri and the old one is forgotten`() {
+        val known = mutableMapOf<String, Boolean>()
+        val onDisk = setOf("u1")
+        exportedIdsWithFile(listOf("a", "b"), mapOf("a" to "u1", "b" to "u2"), known) { it in onDisk }
+        assertEquals(mapOf("u1" to true, "u2" to false), known)
+        // «b» exported again to a new file: the old uri is dropped and the new one checked.
+        val kept = exportedIdsWithFile(listOf("b", "a"), mapOf("a" to "u1", "b" to "u4"), known) { it == "u4" }
+        assertEquals(listOf("b", "a"), kept)
+        assertEquals(mapOf("u1" to true, "u4" to true), known)
+    }
+
     // ---- wiring -----------------------------------------------------------------------------------
 
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }
@@ -49,15 +77,25 @@ class ExportedSongsOnDeviceTest {
         assertTrue(helper.contains("withContext(Dispatchers.IO)"))
         assertTrue(helper.contains("it[ExportedSongIdsKey].orEmpty() to it[ExportedFileUrisKey].orEmpty()"))
         assertTrue(helper.contains(".distinctUntilChanged()"))
+        // The answers live per collection, and a superseded pass stops at the next file.
+        assertTrue(helper.contains("val known = HashMap<String, Boolean>()"))
+        assertTrue(helper.contains("parseExportedFileUriMap(urisRaw), known) {"))
+        assertTrue(helper.contains("ensureActive()"))
+        // One shared check per ViewModel, null until it answers and reset once no list holds it.
+        assertTrue(helper.contains("stateIn(scope, SharingStarted.WhileSubscribed(EXPORTED_ON_DEVICE_KEEP_MS, 0L), null)"))
     }
 
     @Test
     fun `Biblioteca and the automatic list both read the filtered ids`() {
         val library = main("viewmodels/LibraryViewModels.kt")
-        assertTrue(library.contains("SongFilter.EXPORTED -> exportedSongIdsOnDevice(context).flatMapLatest { ids ->"))
-        assertFalse(library.contains("ExportedSongIdsKey"))
         val auto = main("viewmodels/AutoPlaylistViewModel.kt")
-        assertTrue(auto.contains("\"exported\" -> exportedSongIdsOnDevice(context).flatMapLatest { ids ->"))
-        assertFalse(auto.contains("ExportedSongIdsKey"))
+        for (vm in listOf(library, auto)) {
+            assertTrue(vm.contains("private val exportedIdsOnDevice = exportedSongIdsOnDeviceIn(viewModelScope, context)"))
+            assertTrue(vm.contains("if (ids == null) return@flatMapLatest flowOf(emptyList())"))
+            assertFalse(vm.contains("exportedSongIdsOnDevice(context)"))
+            assertFalse(vm.contains("ExportedSongIdsKey"))
+        }
+        assertTrue(library.contains("SongFilter.EXPORTED -> exportedIdsOnDevice.flatMapLatest { ids ->"))
+        assertTrue(auto.contains("\"exported\" -> exportedIdsOnDevice.flatMapLatest { ids ->"))
     }
 }

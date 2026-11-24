@@ -19,7 +19,7 @@ import iad1tya.echo.music.extensions.filterVideoSongs
 import iad1tya.echo.music.extensions.toEnum
 import iad1tya.echo.music.utils.SyncUtils
 import iad1tya.echo.music.utils.dataStore
-import iad1tya.echo.music.utils.exportedSongIdsOnDevice
+import iad1tya.echo.music.utils.exportedSongIdsOnDeviceIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +51,9 @@ constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
 
+    // Row 801: one existence check for every sort change (rule 7).
+    private val exportedIdsOnDevice = exportedSongIdsOnDeviceIn(viewModelScope, context)
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val likedSongs =
         context.dataStore.data
@@ -79,7 +82,9 @@ constructor(
                     "uploaded" -> flowOf(emptyList())
 
                     // Row 801 (H30): only exports whose file is still on the phone.
-                    "exported" -> exportedSongIdsOnDevice(context).flatMapLatest { ids ->
+                    "exported" -> exportedIdsOnDevice.flatMapLatest { ids ->
+                        // Until the first check answers: an empty list, not a stale one.
+                        if (ids == null) return@flatMapLatest flowOf(emptyList())
                         // `WHERE id IN (...)` comes back unordered, so the sort selector is applied here.
                         database.getSongsByIdsFlowChunked(ids)
                             .map {

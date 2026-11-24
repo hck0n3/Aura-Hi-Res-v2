@@ -46,7 +46,7 @@ import iad1tya.echo.music.extensions.reversed
 import iad1tya.echo.music.extensions.toEnum
 import iad1tya.echo.music.playback.DownloadUtil
 import iad1tya.echo.music.utils.SyncUtils
-import iad1tya.echo.music.utils.exportedSongIdsOnDevice
+import iad1tya.echo.music.utils.exportedSongIdsOnDeviceIn
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.likedFirst
 import iad1tya.echo.music.utils.reportException
@@ -61,6 +61,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -121,6 +122,9 @@ constructor(
     downloadUtil: DownloadUtil,
     private val syncUtils: SyncUtils,
 ) : ViewModel() {
+    // Row 801: one existence check for every sort and filter change (rule 7).
+    private val exportedIdsOnDevice = exportedSongIdsOnDeviceIn(viewModelScope, context)
+
     val allSongs =
         context.dataStore.data
             .map {
@@ -142,7 +146,9 @@ constructor(
                     SongFilter.DOWNLOADED -> database.downloadedSongs(sortType, descending).map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
                     SongFilter.UPLOADED -> database.uploadedSongs(sortType, descending).map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
                     // Row 801 (H30): only exports whose file is still on the phone.
-                    SongFilter.EXPORTED -> exportedSongIdsOnDevice(context).flatMapLatest { ids ->
+                    SongFilter.EXPORTED -> exportedIdsOnDevice.flatMapLatest { ids ->
+                        // Until the first check answers: an empty list, not the previous filter's songs.
+                        if (ids == null) return@flatMapLatest flowOf(emptyList())
                         // `WHERE id IN (...)` comes back unordered, so the sort selector is applied here.
                         database.getSongsByIdsFlowChunked(ids).map {
                             it.filterExplicit(hideExplicit)

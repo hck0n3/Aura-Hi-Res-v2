@@ -1748,7 +1748,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Biblioteca (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:210 | conmutador | diaria | siempre |
 | Subido (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:211 | conmutador | ocasional | siempre |
 | Descargado (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:212 | conmutador | diaria | siempre |
-| Exportado (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:213 | conmutador | ocasional | siempre · **fila 801:** solo los MP3 exportados cuyo archivo sigue en el teléfono |
+| Exportado (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:213 | conmutador | ocasional | siempre · **fila 801:** solo los MP3 exportados cuyo archivo sigue en el teléfono; mientras se comprueban, la lista sale vacía (no la del filtro anterior) |
 | Buscar en la biblioteca… (campo) | Canciones > búsqueda | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:225-244 (placeholder :239) | acción primaria | diaria | siempre |
 | (borrar búsqueda) (solo icono, cD = null) | Canciones > búsqueda | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:234-236 | acción secundaria | diaria | solo si `searchQuery.isNotEmpty()` |
 | (botón de orden) | Canciones > cabecera de lista | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:253-266 | acción secundaria | ocasional | siempre |
