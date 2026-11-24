@@ -70,7 +70,15 @@ class SoftDislikeUndoTest {
         assertTrue(shell.contains("iad1tya.echo.music.dislike.SoftDislikeUndo.offer.collectLatest { offer ->"))
         assertTrue(shell.contains("?.let { this@MainActivity.getString(R.string.soft_dislike_undo_artist, it) }"))
         assertTrue(shell.contains("actionLabel = if (offer.canUndo) queueClosedUndoLabel else null,"))
-        assertTrue(shell.contains("if (data != null && data.visuals.message != message) data.dismiss()"))
+        val effect = shell.substringAfter("iad1tya.echo.music.dislike.SoftDislikeUndo.offer.collectLatest { offer ->")
+            .substringBefore("var showSettingDialoge")
+        // Only a plain notice is cleared; an actionable one (previous-queue offer, «Cola cerrada») is never dismissed.
+        assertTrue(effect.contains("if (data != null && data.visuals.message != message && data.visuals.actionLabel == null) data.dismiss()"))
+        assertFalse(effect.contains("if (data != null && data.visuals.message != message) data.dismiss()"))
+        assertTrue(effect.contains("data != null && (data.visuals.message == message || data.visuals.actionLabel != null)"))
+        // With the player sheet open the shell snackbar is off-screen: the notice falls back to a Toast.
+        assertTrue(effect.contains("var asToast = !playerBottomSheetState.isCollapsed && !playerBottomSheetState.isDismissed"))
+        assertTrue(effect.contains("android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_SHORT).show()"))
         assertTrue(shell.contains("this@MainActivity.applicationScope.launch {"))
         assertTrue(shell.contains("iad1tya.echo.music.dislike.SoftDislikeUndo.drop(offer.token)"))
         val es = File(root, "app/src/main/res/values-es/strings.xml").readText()

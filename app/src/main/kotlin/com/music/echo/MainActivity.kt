@@ -1560,18 +1560,36 @@ class MainActivity : ComponentActivity() {
                         val message = offer.artistName?.takeIf { it.isNotBlank() }
                             ?.let { this@MainActivity.getString(R.string.soft_dislike_undo_artist, it) }
                             ?: softDislikeGenericMessage
-                        val result = kotlinx.coroutines.withTimeoutOrNull(remaining) {
-                            val clearWay = launch {
-                                androidx.compose.runtime.snapshotFlow { snackbarHostState.currentSnackbarData }.first { data ->
-                                    if (data != null && data.visuals.message != message) data.dismiss()
-                                    data?.visuals?.message == message
+                        // The shell snackbar sits above the Scaffold's bottomBar, which holds the player sheet: with the
+                        // player open it would be off-screen, so the notice falls back to the Toast it replaced.
+                        var asToast = !playerBottomSheetState.isCollapsed && !playerBottomSheetState.isDismissed
+                        val result = if (asToast) null else kotlinx.coroutines.withTimeoutOrNull(remaining) {
+                            kotlinx.coroutines.coroutineScope {
+                                val shown = async {
+                                    snackbarHostState.showSnackbar(
+                                        message = message,
+                                        actionLabel = if (offer.canUndo) queueClosedUndoLabel else null,
+                                        duration = SnackbarDuration.Indefinite,
+                                    )
+                                }
+                                // Only a plain notice gives way. One with an action (the previous-queue offer, «Cola
+                                // cerrada · Deshacer») answers as dismissed when cleared, losing what it offered, so this
+                                // notice yields to it as a Toast instead of waiting unseen behind it.
+                                val front = androidx.compose.runtime.snapshotFlow { snackbarHostState.currentSnackbarData }.first { data ->
+                                    if (data != null && data.visuals.message != message && data.visuals.actionLabel == null) data.dismiss()
+                                    data != null && (data.visuals.message == message || data.visuals.actionLabel != null)
+                                }
+                                if (front?.visuals?.message == message) {
+                                    shown.await()
+                                } else {
+                                    shown.cancel()
+                                    asToast = true
+                                    null
                                 }
                             }
-                            snackbarHostState.showSnackbar(
-                                message = message,
-                                actionLabel = if (offer.canUndo) queueClosedUndoLabel else null,
-                                duration = SnackbarDuration.Indefinite,
-                            ).also { clearWay.cancel() }
+                        }
+                        if (asToast) {
+                            android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_SHORT).show()
                         }
                         if (result == SnackbarResult.ActionPerformed) {
                             this@MainActivity.applicationScope.launch {
