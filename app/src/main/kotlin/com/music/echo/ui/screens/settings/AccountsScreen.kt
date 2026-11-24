@@ -148,7 +148,7 @@ fun AccountsScreen(
             // ── YouTube Music ──
             Material3SettingsGroup(
                 title = "YouTube Music",
-                items = listOf(
+                items = listOfNotNull(
                     Material3SettingsItem(
                         icon = if (ytLoggedIn && !ytImageUrl.isNullOrBlank()) null else painterResource(R.drawable.account),
                         title = {
@@ -198,7 +198,18 @@ fun AccountsScreen(
                             if (ytLoggedIn) navController.navigate("settings/ytm_sync")
                             else navController.navigate("login")
                         }
-                    )
+                    ),
+                    // Registry row 813: review and remove subscriptions the user never made (signed in only).
+                    if (ytLoggedIn) {
+                        Material3SettingsItem(
+                            icon = painterResource(R.drawable.subscribed),
+                            title = { Text(stringResource(R.string.sub_cleanup_title)) },
+                            description = { Text(stringResource(R.string.sub_cleanup_desc)) },
+                            onClick = { navController.navigate("settings/accounts/subscription_cleanup") },
+                        )
+                    } else {
+                        null
+                    },
                 )
             )
 

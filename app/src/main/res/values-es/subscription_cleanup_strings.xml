@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sub_cleanup_title">Revisar suscripciones</string>
+    <string name="sub_cleanup_desc">Encuentra y quita las suscripciones de YouTube que probablemente no hiciste tú</string>
+    <string name="sub_cleanup_intro">Estos son los artistas a los que está suscrita tu cuenta de YouTube. Los marcados «Probablemente no la hiciste tú» no tienen canciones con me gusta, no están en tus listas ni en tu biblioteca y casi no los has escuchado aquí. No se quita nada hasta que lo selecciones y lo confirmes.</string>
+    <string name="sub_cleanup_loading">Leyendo tus suscripciones…</string>
+    <string name="sub_cleanup_signed_out">Inicia sesión para revisar tus suscripciones.</string>
+    <string name="sub_cleanup_load_failed">No se pudieron leer tus suscripciones. Inténtalo de nuevo.</string>
+    <string name="sub_cleanup_empty">Tu cuenta no está suscrita a ningún artista.</string>
+    <string name="sub_cleanup_suggested_badge">Probablemente no la hiciste tú</string>
+    <string name="sub_cleanup_suggested_reason">Sin me gusta, fuera de tus listas y de tu biblioteca, casi sin escuchas</string>
+    <string name="sub_cleanup_pending_badge">Ya la quitaste en Aura; falta que YouTube lo confirme</string>
+    <string name="sub_cleanup_select_suggested">Seleccionar las sugeridas (%1$d)</string>
+    <string name="sub_cleanup_clear_selection">Quitar la selección</string>
+    <plurals name="sub_cleanup_remove_n">
+        <item quantity="one">Quitar %d suscripción</item>
+        <item quantity="many">Quitar %d de suscripciones</item>
+        <item quantity="other">Quitar %d suscripciones</item>
+    </plurals>
+    <plurals name="sub_cleanup_confirm_title">
+        <item quantity="one">¿Quitar %d suscripción?</item>
+        <item quantity="many">¿Quitar %d de suscripciones?</item>
+        <item quantity="other">¿Quitar %d suscripciones?</item>
+    </plurals>
+    <string name="sub_cleanup_confirm_message">Se quitan de tu cuenta de YouTube una a una. Solo las que seleccionaste.</string>
+    <string name="sub_cleanup_confirm_action">Quitar</string>
+    <string name="sub_cleanup_progress">Quitando %1$d de %2$d…</string>
+    <string name="sub_cleanup_stopping">Deteniendo…</string>
+    <string name="sub_cleanup_stop">Detener</string>
+    <string name="sub_cleanup_counts">Quitadas: %1$d · Fallidas: %2$d</string>
+    <string name="sub_cleanup_result">Quitadas: %1$d · Fallidas: %2$d · Sin intentar: %3$d</string>
+    <string name="sub_cleanup_retry_failed">Reintentar las fallidas</string>
+    <string name="sub_cleanup_reload">Volver a cargar la lista</string>
+    <string name="sub_cleanup_confirmed_badge">Ya quitada y confirmada; YouTube puede tardar en reflejarlo</string>
+</resources>

@@ -179,6 +179,7 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 29 | `settings` | `SettingsScreen` | `:332` | sí |
 | 30 | `settings/update` | `UpdateSettings` | `:336` | sí |
 | 31 | `settings/accounts` | `AccountsScreen` | `:342` | sí |
+| 31b | `settings/accounts/subscription_cleanup` | `SubscriptionCleanupScreen` (fila 813) | NavigationBuilder | sí (Ajustes ▸ Cuentas, con sesión iniciada) |
 | 32 | `settings/lastfm` | `LastFMSettingsScreen` | `:346` | sí |
 | **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** 33 | `settings/qobuz` | `QobuzSettingsScreen` | `:350` | sí |
 | 34 | `settings/appearance` | `AppearanceSettings` | `:354` | sí |
@@ -3056,6 +3057,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/AccountsScreen.
 | Atrás (tap) / Ir al inicio (mantener) | Ajustes > Cuentas | AccountsScreen.kt:130 (`onLongClick` 132) | navegación | constante | siempre |
 | Fila YouTube Music (nombre de la cuenta o «Cuenta») — grupo «YouTube Music» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:156 | navegación | ocasional | tocar la fila navega a `settings/ytm_sync` solo si `ytLoggedIn` |
 | Finalizar sesión / Cuenta (botón YouTube) | Ajustes > Cuentas | AccountsScreen.kt:188 | destructiva / acción primaria | rara | «Finalizar sesión» si `ytLoggedIn`, si no «Cuenta» (login) |
+| Revisar suscripciones — desc. «Encuentra y quita las suscripciones de YouTube que probablemente no hiciste tú» — grupo «YouTube Music» (NUEVA, fila 813) | Ajustes > Cuentas | AccountsScreen.kt:203-209 | navegación (`settings/accounts/subscription_cleanup`) | rara | solo si `ytLoggedIn` |
 | Fila Spotify — grupo «Spotify» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:215 | navegación | ocasional | siempre |
 | Conectar / Finalizar sesión (botón Spotify) | Ajustes > Cuentas | AccountsScreen.kt:243 | acción primaria / destructiva | rara | según estado de sesión |
 | Fila Last.fm — grupo «Last.fm» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:269 | navegación | ocasional | siempre |
@@ -3076,6 +3078,25 @@ Diálogos de cierre de sesión (título «Cerrar sesión», mensaje «¿Deseas c
 | Finalizar sesión (diálogo Spotify) | Diálogo: Cerrar sesión Spotify | AccountsScreen.kt:466 | destructiva | rara | ídem |
 | Cancelar (diálogo Last.fm) | Diálogo: Cerrar sesión Last.fm | AccountsScreen.kt:501 | acción secundaria | rara | solo si `showLastFmLogoutDialog` |
 | Finalizar sesión (diálogo Last.fm) | Diálogo: Cerrar sesión Last.fm | AccountsScreen.kt:510 | destructiva | rara | ídem |
+
+## 18.16b Ajustes > Cuentas > Revisar suscripciones — `settings/accounts/subscription_cleanup` (NUEVA, filas 813/814)
+
+Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SubscriptionCleanupScreen.kt` (ViewModel `viewmodels/SubscriptionCleanupViewModel.kt`). Lee UNA vez, al abrir, la lista de suscripciones de la cuenta (`FEmusic_library_corpus_artists`, paginada). No quita nada sin selección y confirmación.
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Atrás (tap) | Revisar suscripciones | SubscriptionCleanupScreen.kt:86 | navegación | constante | siempre |
+| Texto «Estos son los artistas a los que está suscrita tu cuenta de YouTube…» | Revisar suscripciones | SubscriptionCleanupScreen.kt:105 | informativo | — | siempre |
+| «Leyendo tus suscripciones…» | Revisar suscripciones | SubscriptionCleanupScreen.kt:115 | informativo | rara | mientras carga |
+| «Inicia sesión para revisar tus suscripciones.» + **Cuenta** (abre `login`) | Revisar suscripciones | SubscriptionCleanupScreen.kt:120-121 | acción primaria | rara | sin sesión |
+| «No se pudieron leer tus suscripciones…» + **Reintentar** | Revisar suscripciones | SubscriptionCleanupScreen.kt:126-127 | acción primaria | rara | si la lectura falla |
+| Progreso «Quitando N de M…» / «Deteniendo…», barra, «Quitadas · Fallidas» y **Detener** | Revisar suscripciones | SubscriptionCleanupScreen.kt:131-150 | informativo / acción secundaria | rara | mientras se quitan |
+| Resumen «Quitadas · Fallidas · Sin intentar» + **Reintentar las fallidas** + **Volver a cargar la lista** | Revisar suscripciones | SubscriptionCleanupScreen.kt:153-173 | acción primaria / secundaria | rara | tras una tanda («Reintentar» solo si hubo fallidas) |
+| «Tu cuenta no está suscrita a ningún artista.» | Revisar suscripciones | SubscriptionCleanupScreen.kt:177 | informativo | rara | lista vacía |
+| **Seleccionar las sugeridas (N)** / **Quitar la selección** | Revisar suscripciones | SubscriptionCleanupScreen.kt:182-187 | acción secundaria | rara | con lista; deshabilitados si no hay sugeridas / selección |
+| **Quitar N suscripciones** → diálogo | Revisar suscripciones | SubscriptionCleanupScreen.kt:189-195 | destructiva | rara | habilitado con al menos una seleccionada |
+| Fila de artista: casilla, avatar, nombre; «Probablemente no la hiciste tú» + «Sin me gusta, fuera de tus listas y de tu biblioteca, casi sin escuchas» (sugeridas) o «Ya la quitaste en Aura; falta que YouTube lo confirme» / «Ya quitada y confirmada; YouTube puede tardar en reflejarlo» (no seleccionables) | Revisar suscripciones | SubscriptionCleanupScreen.kt:199-248 | conmutador (selección) | rara | una por suscripción; sugeridas primero |
+| Diálogo «¿Quitar N suscripciones?» — «Se quitan de tu cuenta de YouTube una a una. Solo las que seleccionaste.» + **Quitar** / **Cancelar** | Diálogo: Revisar suscripciones | SubscriptionCleanupScreen.kt:251-263 | destructiva / acción secundaria | rara | solo tras tocar «Quitar N suscripciones» |
 
 ---
 

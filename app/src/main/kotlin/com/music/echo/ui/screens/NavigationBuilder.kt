@@ -399,6 +399,11 @@ fun NavGraphBuilder.navigationBuilder(
         AccountsScreen(navController, scrollBehavior)
     }
 
+    // Registry row 813: «Revisar suscripciones», from Ajustes ▸ Cuentas ▸ YouTube.
+    composable("settings/accounts/subscription_cleanup") {
+        iad1tya.echo.music.ui.screens.settings.SubscriptionCleanupScreen(navController, scrollBehavior)
+    }
+
     composable("settings/lastfm") {
         iad1tya.echo.music.ui.screens.settings.LastFMSettingsScreen(navController)
     }

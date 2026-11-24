@@ -2799,6 +2799,37 @@ interface DatabaseDao {
     /** Registry 765: Listen Together durations stored in milliseconds. See `RoomDurationRepair`. */
     @Query("UPDATE song SET duration = duration / 1000 WHERE duration >= :minSeconds AND isLocal = 0 AND isUploaded = 0")
     suspend fun repairMillisecondDurations(minSeconds: Int): Int
+
+    /**
+     * Registry row 814 («Revisar suscripciones»): per artist row, the local evidence that the user listens to it —
+     * liked songs, songs in HIS playlists (same predicate as [artistPageLibrarySongs], row 673), songs in the library
+     * and plays in the history. Read once when the review screen opens. Local-file artists (`isLocal = 1`,
+     * `LocalSongScanner`) are kept: their evidence reaches a subscription through the exact-name bridge.
+     */
+    @Query(
+        """
+        SELECT artist.id AS artistId, artist.name AS artistName,
+               SUM(CASE WHEN song.liked = 1 THEN 1 ELSE 0 END) AS likedSongs,
+               SUM(CASE WHEN EXISTS (
+                       SELECT 1 FROM playlist_song_map
+                       JOIN playlist ON playlist.id = playlist_song_map.playlistId
+                       WHERE playlist_song_map.songId = song.id
+                         AND (playlist.bookmarkedAt IS NOT NULL OR playlist.browseId IS NULL OR playlist.isLocal = 1)
+                         AND playlist.id != 'AURA_AI_RECS'
+                   ) THEN 1 ELSE 0 END) AS playlistSongs,
+               SUM(CASE WHEN song.inLibrary IS NOT NULL THEN 1 ELSE 0 END) AS librarySongs,
+               SUM((SELECT COUNT(*) FROM event WHERE event.songId = song.id)) AS plays
+        FROM artist
+        JOIN song_artist_map ON song_artist_map.artistId = artist.id
+        JOIN song ON song.id = song_artist_map.songId
+        GROUP BY artist.id
+        """
+    )
+    suspend fun artistInterestRows(): List<iad1tya.echo.music.utils.ArtistInterestRow>
+
+    /** Row 813: the rows of one channel's spellings, re-emitted on every change (to see an unsubscribe confirmed). */
+    @Query("SELECT * FROM artist WHERE id IN (:ids)")
+    fun artistEntitiesByIdsFlow(ids: List<String>): Flow<List<ArtistEntity>>
 }
 
 /** One playlist as the library sync reads it. */
