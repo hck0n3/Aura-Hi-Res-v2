@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="scroll_haptics">Vibrate while scrolling</string>
+    <string name="scroll_haptics_desc">A light tick every 100 ms while you drag a list. Off by default; needs Haptic feedback on</string>
+</resources>

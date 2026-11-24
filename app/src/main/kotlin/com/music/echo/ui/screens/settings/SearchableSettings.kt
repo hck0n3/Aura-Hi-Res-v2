@@ -150,6 +150,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple("Panel del reproductor a la izquierda", "Rendimiento", "settings/performance"),
             // --- Apariencia (settings/appearance) : 99 ---
             Triple(stringResource(R.string.global_haptics), "Apariencia", "settings/appearance"),
+            Triple(stringResource(R.string.scroll_haptics), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.lyrics_text_position), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.left), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.center), "Apariencia", "settings/appearance"),
@@ -537,6 +538,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.logs_delete_all), "Registros", "settings/logs"),
             // --- Beta 9 completeness pass: every visible row of these screens is searchable ---
             Triple(stringResource(R.string.global_haptics_desc), "Apariencia", "settings/appearance"),
+            Triple(stringResource(R.string.scroll_haptics_desc), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.apple_music_inspired), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.hide_player_volume), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.hide_player_volume_desc), "Apariencia", "settings/appearance"),

@@ -146,6 +146,10 @@ fun AppearanceSettings(
         iad1tya.echo.music.constants.GlobalHapticsKey,
         defaultValue = true
     )
+    val (scrollHaptics, onScrollHapticsChange) = rememberPreference(
+        iad1tya.echo.music.constants.ScrollHapticsKey,
+        defaultValue = false
+    )
     val (enableHighRefreshRate, onEnableHighRefreshRateChange) = rememberPreference(
         iad1tya.echo.music.constants.EnableHighRefreshRateKey,
         defaultValue = true
@@ -1086,6 +1090,32 @@ fun AppearanceSettings(
                             )
                         },
                         onClick = { onGlobalHapticsChange(!globalHaptics) }
+                    )
+                )
+                // Row 806 (owner decision H2): the scroll tick, OFF by default; it rides on the haptics switch above.
+                add(
+                    Material3SettingsItem(
+                        icon = painterResource(R.drawable.vibration),
+                        title = { Text(stringResource(R.string.scroll_haptics)) },
+                        description = { Text(stringResource(R.string.scroll_haptics_desc)) },
+                        enabled = globalHaptics,
+                        trailingContent = {
+                            Switch(
+                                checked = scrollHaptics,
+                                onCheckedChange = onScrollHapticsChange,
+                                enabled = globalHaptics,
+                                thumbContent = {
+                                    Icon(
+                                        painter = painterResource(
+                                            id = if (scrollHaptics) R.drawable.check else R.drawable.close
+                                        ),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(SwitchDefaults.IconSize)
+                                    )
+                                }
+                            )
+                        },
+                        onClick = { onScrollHapticsChange(!scrollHaptics) }
                     )
                 )
 

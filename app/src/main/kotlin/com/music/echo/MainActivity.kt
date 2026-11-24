@@ -150,6 +150,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.coroutineScope
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.navigation.NavBackStackEntry
@@ -295,6 +296,7 @@ import iad1tya.echo.music.ui.utils.resetHeightOffset
 import iad1tya.echo.music.utils.SyncUtils
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.get
+import iad1tya.echo.music.ui.newui.navigateOnce
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.constants.SidePanelOnLeftKey
 import iad1tya.echo.music.utils.rememberPreference
@@ -341,6 +343,7 @@ class MainActivity : ComponentActivity() {
         /** Notification / in-app redirect: open Ajustes ▸ Actualizaciones. */
         const val EXTRA_OPEN_UPDATE = "extra_open_update"
         const val EXTRA_UPDATE_TAG = "extra_update_tag"
+        private const val STATE_PENDING_LISTEN_INVITE = "pending_listen_invite"
 
         /**
          * The generic "a notification was tapped, go to what it is about" door.
@@ -373,6 +376,8 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var navController: NavHostController
     private var pendingIntent: Intent? = null
+    // Registry row 804 (owner decision H9): the room code of an opened invite link, waiting for «Unirme».
+    private var pendingListenInvite by mutableStateOf<String?>(null)
 
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
     // True while the app is in Android Picture-in-Picture mode (video floating window).
@@ -511,6 +516,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // The invite link's data is consumed when it is read: a rotation keeps the unanswered question only through here.
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingListenInvite?.let { outState.putString(STATE_PENDING_LISTEN_INVITE, it) }
+    }
+
     // Picture-in-Picture: when the user leaves the app while a video is playing, float it in a PiP window
     // so the video keeps showing. (Audio already keeps playing via the foreground service regardless.)
     override fun onUserLeaveHint() {
@@ -610,6 +621,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        pendingListenInvite = savedInstanceState?.getString(STATE_PENDING_LISTEN_INVITE)
         ContextCompat.registerReceiver(
             this, pipReceiver, IntentFilter(PIP_ACTION), ContextCompat.RECEIVER_NOT_EXPORTED,
         )
@@ -868,6 +880,8 @@ class MainActivity : ComponentActivity() {
         // Global haptics: a single root-level observer covers taps and scrolling app-wide, so the
         // toggle is honoured everywhere instead of only in the few components that opted in.
         val (globalHaptics) = rememberPreference(GlobalHapticsKey, defaultValue = true)
+        // Row 806 (owner decision H2): the scroll tick is opt-in now; the tap haptic above is unchanged.
+        val (scrollHaptics) = rememberPreference(iad1tya.echo.music.constants.ScrollHapticsKey, defaultValue = false)
         val rootView = LocalView.current
 
         echomusicTheme(
@@ -889,7 +903,7 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(if (pureBlack) Color.Black else MaterialTheme.colorScheme.surface)
-                    .pointerInput(globalHaptics) {
+                    .pointerInput(globalHaptics, scrollHaptics) {
                         if (!globalHaptics) return@pointerInput
                         // Observe-only on the Initial pass: nothing is ever consumed, so children,
                         // scrolling and D-pad/TV focus keep the exact behaviour they had before.
@@ -905,7 +919,7 @@ class MainActivity : ComponentActivity() {
                                 val changes = awaitPointerEvent(PointerEventPass.Initial).changes
                                 if (changes.fastAny { it.changedToDown() }) {
                                     rootView.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                } else if (changes.fastAny { it.pressed && it.positionChange().getDistance() > slop }) {
+                                } else if (scrollHaptics && changes.fastAny { it.pressed && it.positionChange().getDistance() > slop }) {
                                     val now = SystemClock.uptimeMillis()
                                     if (now - lastScrollHaptic > SCROLL_HAPTIC_THROTTLE_MS) {
                                         rootView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
@@ -1600,6 +1614,36 @@ class MainActivity : ComponentActivity() {
                             }
                         } else {
                             iad1tya.echo.music.dislike.SoftDislikeUndo.drop(offer.token)
+                        }
+                    }
+                }
+                // Row 805 (owner decision H8): the service's notices that need an action come here with their button.
+                // Collected only while STARTED, so ActionNotices.post answers false in the background and the service
+                // keeps its toast. Event-driven, nothing polled (rule 7).
+                LaunchedEffect(Unit) {
+                    this@MainActivity.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                        iad1tya.echo.music.playback.ActionNotices.events.collect { notice ->
+                            val message = getString(notice.message)
+                            // The expanded player sheet is drawn over this Scaffold's snackbar (its error card has its own
+                            // sign-in step): there the notice keeps the toast it always had. So does a notice that would
+                            // queue behind another snackbar (the previous-queue offer, «Cola cerrada»): queued, it could be
+                            // dropped unseen when the screen stops.
+                            if (playerBottomSheetState.isExpanded || snackbarHostState.currentSnackbarData != null) {
+                                android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_LONG).show()
+                                return@collect
+                            }
+                            // Undispatched, so the snackbar is current before the next notice is read; the collector never
+                            // waits on it, so no accepted notice is left buffered when repeatOnLifecycle cancels.
+                            launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                val result = snackbarHostState.showSnackbar(
+                                    message = message,
+                                    actionLabel = getString(notice.action),
+                                    duration = SnackbarDuration.Long,
+                                )
+                                if (result == SnackbarResult.ActionPerformed) {
+                                    runCatching { navController.navigateOnce(notice.route) }
+                                }
+                            }
                         }
                     }
                 }
@@ -2896,6 +2940,26 @@ class MainActivity : ComponentActivity() {
                             setOpenLinksPromptShown(true)
                         })
                     }
+
+                    // Registry row 804 (owner decision H9): «¿Unirte a la sala X?» before an invite link joins anything.
+                    pendingListenInvite?.let { code ->
+                        iad1tya.echo.music.ui.component.AuraAlertDialog(
+                            onDismissRequest = { pendingListenInvite = null },
+                            title = { Text(stringResource(R.string.listen_invite_confirm_title, code)) },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    pendingListenInvite = null
+                                    val username = this@MainActivity.dataStore.get(ListenTogetherUsernameKey, "").ifBlank { "Guest" }
+                                    listenTogetherManager.joinRoom(code, username)
+                                }) { Text(stringResource(R.string.listen_invite_join)) }
+                            },
+                            dismissButton = {
+                                androidx.compose.material3.TextButton(onClick = { pendingListenInvite = null }) {
+                                    Text(stringResource(R.string.cancel))
+                                }
+                            },
+                        )
+                    }
                     } // SHELL GLASS (A1): close of the CompositionLocalProvider(LocalShellHazeState)
                 }
             }
@@ -3204,8 +3268,8 @@ class MainActivity : ComponentActivity() {
             ?: uri.pathSegments.getOrNull(1)
         val isListenLink = uri.pathSegments.firstOrNull() == "listen" || uri.host?.equals("listen", ignoreCase = true) == true
         if (!listenCode.isNullOrBlank() && isListenLink) {
-            val username = dataStore.get(ListenTogetherUsernameKey, "").ifBlank { "Guest" }
-            listenTogetherManager.joinRoom(listenCode, username)
+            // Owner decision H9: an opened link never joins on its own; the dialog in setContent asks first.
+            pendingListenInvite = listenCode
             return
         }
 

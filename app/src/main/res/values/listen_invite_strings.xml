@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listen_invite_confirm_title">Join room %1$s?</string>
+    <string name="listen_invite_join">Join</string>
+</resources>

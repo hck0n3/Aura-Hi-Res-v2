@@ -307,7 +307,7 @@
     <string name="cd_palette_item">Paleta %1$s</string>
     <string name="play_all">Reproducir todo</string>
     <string name="global_haptics">Vibración</string>
-    <string name="global_haptics_desc">Vibra al tocar y al desplazarte por toda la app</string>
+    <string name="global_haptics_desc">Vibra al tocar en toda la app</string>
     <string name="recognition">Reconocimiento</string>
     <string name="tap_to_recognize">Toca para identificar</string>
     <string name="listening">Escuchando…</string>
