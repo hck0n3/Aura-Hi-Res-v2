@@ -162,7 +162,7 @@ object ExternalMusicLinks {
                 // unchanged when the separator isn't there, which used to hand the entire
                 // description (garbage) to the matcher as an "artist" and sink its score below
                 // MIN_MATCH_SCORE — reading as "no encontrado" for a song that really is on YTM.
-                // Empty is the safe fallback: the search still runs on the title alone.
+                // Registry row 846: no artist goes to the title search (Resolved.Query); the strict matcher never accepts it.
                 val artist = meta(html, "og:description")
                     ?.let { desc ->
                         when {
@@ -174,6 +174,7 @@ object ExternalMusicLinks {
                     ?.trim()
                     ?.takeIf { it.isNotBlank() && it.length <= 100 }
                     .orEmpty()
+                if (artist.isEmpty()) return Resolved.Query(Kind.TRACK, title)
                 Resolved.Tracks(Kind.TRACK, title, artist, listOf(track(id, title, artist)))
             }
             "album" -> {
@@ -259,6 +260,7 @@ object ExternalMusicLinks {
         // og:title: "Artist - Title"
         val artist = title.substringBefore(" - ", "")
         val name = title.substringAfter(" - ")
+        if (artist.isBlank()) return Resolved.Query(Kind.TRACK, name)
         return Resolved.Tracks(Kind.TRACK, name, artist, listOf(track("td_${uri.lastPathSegment}", name, artist)))
     }
 

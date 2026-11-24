@@ -65,6 +65,21 @@ class ExternalLinksExactGuardTest {
         assertFalse(activity.contains("findAlbum(resolved.text, resolved.text)"))
     }
 
+    /**
+     * A Spotify or Tidal track whose page gives no artist can never pass the strict matcher (SpotifyTrackMatcher.pick returns
+     * null without one): it goes to the title search, as row 846 says, instead of three YouTube searches bound to fail.
+     */
+    @Test
+    fun `a shared track without an artist goes to the title search`() {
+        val links = main("utils/ExternalMusicLinks.kt")
+        val spotify = links.substring(links.indexOf("    private suspend fun spotify("), links.indexOf("    private fun deezer("))
+        assertTrue(spotify.contains("if (artist.isEmpty()) return Resolved.Query(Kind.TRACK, title)"))
+        val tidal = links.substring(links.indexOf("    private fun tidal("), links.indexOf("    private fun fetchPage("))
+        assertTrue(tidal.contains("if (artist.isBlank()) return Resolved.Query(Kind.TRACK, name)"))
+        assertFalse(links.contains("Empty is the safe fallback"))
+        assertTrue(main("spotifyimport/SpotifyTrackMatcher.kt").contains("if (artists.isEmpty()) return null"))
+    }
+
     private fun openExternal(): String {
         val activity = main("MainActivity.kt")
         val start = activity.indexOf("    private fun openExternalMusicLink(")
