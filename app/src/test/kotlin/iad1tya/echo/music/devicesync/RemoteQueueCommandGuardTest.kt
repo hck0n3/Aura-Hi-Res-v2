@@ -42,6 +42,7 @@ class RemoteQueueCommandGuardTest {
         assertTrue(send.contains("R.string.device_sync_queue_edit_not_sent"))
         assertTrue("chunks the size of a take window", send.contains("RemotePlayback.queueChunks(sendable, WINDOW_BEHIND + WINDOW_AHEAD + 1)"))
         assertTrue("each chunk says which order it is and where it goes", send.contains("put(\"q\", order); put(\"i\", index); put(\"of\", chunks.size)"))
+        assertTrue("one order at a time on the wire", send.indexOf("scope.launch { synchronized(queueSendLock) {") in 0 until send.indexOf("for ((index, chunk) in chunks.withIndex())"))
         assertTrue(engine.contains("const val CMD_QUEUE = \"queue\""))
         assertTrue(engine.contains("const val CMD_QUEUE_OK = \"queue_ok\""))
         assertTrue("the room's «not connected» cancels the second notice", engine.contains("if (msg.str(\"cmd\") == CMD_QUEUE) queueAckWatch?.cancel()"))

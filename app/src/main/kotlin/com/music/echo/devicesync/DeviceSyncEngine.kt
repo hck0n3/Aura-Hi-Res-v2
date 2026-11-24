@@ -805,6 +805,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     /** Row 809: the chunks of a queue order received here (touched only by the one collector of [client] messages). */
     private val queueOrders = RemotePlayback.QueueOrderAssembler<MediaItem>()
+    private val queueSendLock = Any()
 
     /**
      * Row 809 (owner 2026-11-24, H24): «Reproducir a continuación» ([insertNext]) / «Añadir a la cola» while another device is controlled
@@ -821,7 +822,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         val chunks = RemotePlayback.queueChunks(sendable, WINDOW_BEHIND + WINDOW_AHEAD + 1)
         // Which order a chunk belongs to: the receiver applies an order only once all its chunks are there, in turn.
         val order = System.currentTimeMillis().toString()
-        scope.launch {
+        // One order at a time on the wire: two taps in a row on the IO pool would interleave their chunks and the receiver drop both.
+        scope.launch { synchronized(queueSendLock) {
             // Armed before the first send, so an answer that comes back very fast still finds it to cancel.
             queueAckWatch?.cancel()
             val watch = scope.launch {
@@ -846,7 +848,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 }
             }
             Timber.tag(TAG).i("DEVICE_SYNC queue order sent items=%d next=%b", sendable.size, insertNext)
-        }
+        } }
         return true
     }
 
