@@ -1133,6 +1133,7 @@ fun ListenTogetherDialog(
     
     val waitingForApprovalText = stringResource(R.string.waiting_for_approval)
     val invalidRoomCodeText = stringResource(R.string.invalid_room_code)
+    val notAuraCodeText = stringResource(R.string.listen_together_not_aura_code)
     val joinRequestDeniedText = stringResource(R.string.join_request_denied)
     val connectionFailedText = stringResource(R.string.listen_together_connection_failed)
     val kickedFromRoomText = stringResource(R.string.listen_together_kicked_from_room)
@@ -1342,6 +1343,7 @@ fun ListenTogetherDialog(
             val raw = room?.error
             if (raw != null) {
                 joinErrorMessage = when {
+                    raw == iad1tya.echo.music.listentogether.RoomCodes.NOT_AURA_CODE_ERROR -> notAuraCodeText
                     raw.contains("kicked", ignoreCase = true) -> kickedFromRoomText
                     raw.contains("declined", ignoreCase = true) -> joinRequestDeniedText
                     raw.contains("invalid", ignoreCase = true) -> invalidRoomCodeText
@@ -2030,7 +2032,15 @@ fun ListenTogetherDialog(
                         
                         OutlinedTextField(
                             value = roomCodeInput,
-                            onValueChange = { roomCodeInput = iad1tya.echo.music.listentogether.RoomCodes.normalize(it, auraRoomsMenu) },
+                            onValueChange = {
+                                // Row 818: a pasted Metrolist code would be cut to a wrong Aura one; say why and leave the field empty.
+                                if (iad1tya.echo.music.listentogether.RoomCodes.isSharedServerCode(it)) {
+                                    joinErrorMessage = notAuraCodeText
+                                    roomCodeInput = ""
+                                } else {
+                                    roomCodeInput = iad1tya.echo.music.listentogether.RoomCodes.normalize(it, auraRoomsMenu)
+                                }
+                            },
                             label = { Text(stringResource(R.string.room_code)) },
                             placeholder = { Text(iad1tya.echo.music.listentogether.RoomCodes.placeholder(auraRoomsMenu)) },
                             supportingText = {

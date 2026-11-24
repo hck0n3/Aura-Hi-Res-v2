@@ -2,6 +2,8 @@ package iad1tya.echo.music.listentogether
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import iad1tya.echo.music.constants.ListenTogetherAuraOnlyAppliedKey
+import iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey
 import iad1tya.echo.music.constants.ListenTogetherBlockedUsersKey
 import iad1tya.echo.music.constants.ListenTogetherRoomCodeKey
 import iad1tya.echo.music.constants.ListenTogetherSessionTokenKey
@@ -116,6 +118,18 @@ class ListenTogetherManager @Inject constructor(
         scope.launch {
             val raw = context.dataStore.get(ListenTogetherBlockedUsersKey, "")
             _blockedUsernames.value = raw.split('\n').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        }
+        // Row 818 (owner decision B1): rooms are only Aura's. A «Salas de Aura» an older version left off is switched on, once, so the
+        // screens ask for Aura's 6-character codes; the client itself no longer reads it (AppModule).
+        scope.launch {
+            runCatching {
+                context.dataStore.edit { prefs ->
+                    if (auraRoomsOnlyMigrationNeeded(prefs[ListenTogetherAuraOnlyAppliedKey])) {
+                        prefs[ListenTogetherAuraRoomsKey] = true
+                        prefs[ListenTogetherAuraOnlyAppliedKey] = true
+                    }
+                }
+            }.onFailure { Timber.tag(TAG).w(it, "Could not switch Listen Together to Aura rooms") }
         }
         // NOTE: session resumption runs from MainActivity.onCreate via [connectIfResumable] —
         // NOT here — so a plain Hilt graph instantiation (tests, :phoenix process) does not open

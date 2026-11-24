@@ -166,27 +166,15 @@ object AppModule {
     fun provideListenTogetherClient(
         @ApplicationContext context: Context,
     ): ListenTogetherClient {
-        // The URL is read PER CONNECTION ATTEMPT (upstream SimpMusic rule): changing the server in
-        // settings applies on the next connect, not on the next process restart. The supplier runs
-        // on the client's own dispatcher; PrefsBridge.peek answers the warm case with ZERO
-        // blocking, and the cold-start first connect falls back to one blocking read (the same
-        // trade getNonBlocking makes everywhere else).
-        val urlSupplier: () -> String = {
-            val stored = iad1tya.echo.music.utils.PrefsBridge.peek(
-                iad1tya.echo.music.constants.ListenTogetherServerUrlKey
-            )
-            stored?.takeIf { it.isNotBlank() } ?: ListenTogetherClient.DEFAULT_SERVER_URL
-        }
         return ListenTogetherClient(
             clientVersion = "AuraHiRes",
             // Same shape upstream sends: app/version (applicationId; Android release). No user data
             // — the server only needs to know which client it is talking to.
             userAgent = "Aura/${iad1tya.echo.music.BuildConfig.VERSION_NAME} " +
                 "(${iad1tya.echo.music.BuildConfig.APPLICATION_ID}; Android ${android.os.Build.VERSION.RELEASE})",
-            serverUrl = urlSupplier,
-            auraRooms = {
-                iad1tya.echo.music.utils.PrefsBridge.peek(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey) ?: true
-            },
+            // Row 818 (owner decision B1, 2026-11-24): rooms live only on Aura's own server. Whatever an older version stored
+            // (the «Salas de Aura» switch off, a custom Metrolist-compatible URL) is never read: the shared server is unreachable.
+            auraRooms = { true },
         )
     }
 

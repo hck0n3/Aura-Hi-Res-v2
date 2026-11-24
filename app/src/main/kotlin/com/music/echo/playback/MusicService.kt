@@ -1506,6 +1506,13 @@ class MusicService :
     internal var deliberatePause: Boolean = false
         private set
 
+    // Registry 816: the last pause was the service giving up on playback by itself (error stop, end of an error-skip chain, a
+    // foreground start the system refused), not the user. Set right BEFORE that pause, so every listener sees it whatever its
+    // order; cleared the moment playback starts. Read by Listen Together: such a pause does not keep a guest out of the room.
+    @Volatile
+    internal var pausedByPlaybackFailure: Boolean = false
+        private set
+
     /** When a playback route (Bluetooth / car / dock) last appeared — the window in which a foreign PLAY is an echo. */
     @Volatile
     internal var lastRouteConnectedAtMs: Long = 0L
@@ -2363,7 +2370,10 @@ class MusicService :
                 // Pausing turns that into something the user can see and act on.
                 Timber.tag(TAG).w("Foreground service start refused by the system — pausing instead of playing unmanaged")
                 runCatching {
-                    if (::player.isInitialized && player.playWhenReady) player.pause()
+                    if (::player.isInitialized && player.playWhenReady) {
+                        pausedByPlaybackFailure = true
+                        player.pause()
+                    }
                     // The crossfade renders through SEPARATE ExoPlayer instances. If the refusal lands
                     // mid-fade, pausing only the primary leaves the other one audible — the same
                     // "playing with no notification, no transport, reapable" state, just for ~9s.
@@ -3878,6 +3888,7 @@ class MusicService :
             runCatching { Toast.makeText(this, R.string.skip_chain_stopped, Toast.LENGTH_LONG).show() }
         }
         Timber.tag(TAG).i("START_CAUSE=error_skip_chain_pause")
+        if (player.playWhenReady) pausedByPlaybackFailure = true
         player.pause()
         consecutivePlaybackErr = 0
     }
@@ -4708,6 +4719,7 @@ class MusicService :
         // Mark that the imminent pause is OURS, so onPlayWhenReadyChanged keeps pausedByNetwork (whereas a
         // genuine user/external pause clears it and is therefore never auto-resumed).
         expectingOwnStopPause = true
+        if (player.playWhenReady) pausedByPlaybackFailure = true
         Timber.tag(TAG).i("START_CAUSE=error_stop")
         player.pause()
     }
@@ -8312,6 +8324,7 @@ class MusicService :
             expectingOwnStopPause = false
             pausedByNoisy = false
             deliberatePause = false
+            pausedByPlaybackFailure = false
         }
 
         if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {

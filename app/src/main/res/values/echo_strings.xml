@@ -431,6 +431,8 @@
     <string name="audio_offload_disabled_by_spatial">Disabled because spatial audio is active</string>
     <string name="audio_offload_disabled_by_listen_together">Disabled while you are in a Listen Together room</string>
     <string name="listen_together_tempo_locked">Speed stays at 1.0× while you are in a Listen Together room, so everyone hears the same moment</string>
+    <string name="listen_together_room_paused_host_only">The room is paused: only the host can resume it</string>
+    <string name="listen_together_not_aura_code">That code is not from an Aura room. Listen Together now uses only Aura rooms: ask the host for a new 6-character code</string>
     <string name="audio_offload_disabled_by_mastering">Disabled because the soft compressor, phone speaker protection or a changed stereo width is active</string>
 
     <!-- Google Cast -->

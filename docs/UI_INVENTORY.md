@@ -832,9 +832,9 @@ Se abre desde `ui/player/Queue.kt:475` (barra colapsada) y `ui/player/Queue.kt:8
 | **Salir de la sala** | Escuchar juntos > pie (en sala) | `ui/menu/PlayerMenu.kt:1878` | destructiva | ocasional | solo en sala |
 | Nombre de usuario *(campo, «Ingresar nombre de usuario»)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1905-1908` | acción primaria | rara | solo fuera de sala |
 | Limpiar nombre *(solo icono)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1919-1920` | acción secundaria | rara | solo si el campo no está vacío |
-| Código de sala *(campo, «ABCD1234», contador n/8)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1943-1946` | acción primaria | rara | solo fuera de sala |
+| Código de sala *(campo, «ABC234», contador n/6 desde la fila 601; fila 818: pegar un código de 8 caracteres de Metrolist vacía el campo y muestra «Ese código no es de una sala de Aura…»)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1943-1946` | acción primaria | rara | solo fuera de sala |
 | Crear | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2067` | acción primaria | ocasional | `enabled` solo con nombre de usuario |
-| Unirse | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2104` | acción primaria | ocasional | `enabled` solo con código de 8 caracteres y nombre |
+| Unirse | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2104` | acción primaria | ocasional | `enabled` solo con código de 6 caracteres y nombre (filas 601 y 818) |
 | Cancelar | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2114` | navegación | ocasional | solo fuera de sala |
 | Esperando la aprobación del anfitrión | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1986` | informativo | rara | mientras te unes |
 | *(mensaje de error de unión)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2013` | informativo | rara | solo si hay error |
@@ -1605,12 +1605,13 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 | **Sugerencias pendientes** + **Aprobar** / **Rechazar** | Juntos > sugerencias | `ui/screens/ListenTogetherScreen.kt:1047-1100` | acción primaria / destructiva | ocasional | solo anfitrión con sugerencias |
 | Pestañas **Crear** / **Unirse** | Juntos > selector | `ui/screens/ListenTogetherScreen.kt:1146-1181` | navegación | diaria | solo fuera de sala |
 | Campo **Nombre de usuario** + borrar | Juntos > formulario | `ui/screens/ListenTogetherScreen.kt:1184-1214`, `:1196-1202` | acción primaria | diaria | igual |
-| Campo **Código de sala** *(máx. 8, mayúsculas)* + borrar | Juntos > formulario | `ui/screens/ListenTogetherScreen.kt:1221-1252` | acción primaria | diaria | **solo en la pestaña Unirse** |
+| Campo **Código de sala** *(máx. 6 desde la fila 601, mayúsculas; fila 818: pegar un código de 8 caracteres de Metrolist vacía el campo y muestra «Ese código no es de una sala de Aura…»)* + borrar | Juntos > formulario | `ui/screens/ListenTogetherScreen.kt:1221-1252` | acción primaria | diaria | **solo en la pestaña Unirse** |
 | **Esperando la aprobación del anfitrión** | Juntos > banner | `ui/screens/ListenTogetherScreen.kt:1255-1287` | informativo | ocasional | mientras te unes |
-| Banner de error: **Solicitud de unión denegada** / **Código de sala no válido** / **No se pudo conectar…** / **El anfitrión te expulsó** | Juntos > banner | `ui/screens/ListenTogetherScreen.kt:1289-1322` | informativo | ocasional | según el error |
+| Banner de error: **Solicitud de unión denegada** / **Código de sala no válido** / **No se pudo conectar…** / **El anfitrión te expulsó** / **Ese código no es de una sala de Aura…** *(fila 818: código o enlace que no es de Aura)* | Juntos > banner | `ui/screens/ListenTogetherScreen.kt:1289-1322` | informativo | ocasional | según el error |
 | **Crear** | Juntos > acción | `ui/screens/ListenTogetherScreen.kt:1328-1344` | acción primaria | diaria | habilitado solo con nombre de usuario |
-| **Unirse** | Juntos > acción | `ui/screens/ListenTogetherScreen.kt:1346-1362` | acción primaria | diaria | habilitado solo con nombre y código de 8 caracteres |
+| **Unirse** | Juntos > acción | `ui/screens/ListenTogetherScreen.kt:1346-1362` | acción primaria | diaria | habilitado solo con nombre y código de 6 caracteres (filas 601 y 818) |
 | **Salir de la sala** | Juntos > acción | `ui/screens/ListenTogetherScreen.kt:344-362` | destructiva | ocasional | solo en sala |
+| Toast **«La sala está en pausa: solo el anfitrión puede reanudar»** *(nuevo, fila 817: antes la sala volvía a pausar al invitado en silencio)* | Cualquier pantalla (lo muestra el servicio) | `listentogether/ListenTogetherPlaybackBridge.kt` (`listen_together_room_paused_host_only`) | informativo | ocasional | invitado que pulsa reproducir con la sala en pausa |
 | **Ajustes** → `settings/integrations/listen_together` | Juntos > tarjeta de ajustes | `ui/screens/ListenTogetherScreen.kt:422-426`, `:1369-1379` | navegación | ocasional | siempre |
 | **«How it Works»** + 3 pasos *(hardcoded, en inglés)* | Juntos > ayuda | `ui/screens/ListenTogetherScreen.kt:444-464` | informativo | rara | solo fuera de sala |
 | Diálogo **Administrar usuario**: **Expulsar** / **Bloquear permanentemente** / **Transferir propiedad** / **Cancelar** | Juntos > diálogo | `ui/screens/ListenTogetherScreen.kt:1399-1523` | destructiva | ocasional | ⚠️ **las tres acciones destructivas se ejecutan a un solo toque, sin confirmación** |
@@ -3289,8 +3290,8 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/integrations/Li
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Usuarios bloqueados — desc. «%d usuario(s) bloqueado(s)» / «No hay usuarios bloqueados» (grupo «Ajustes») | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:347 | navegación (diálogo) | rara | siempre |
-| **Salas de Aura** — desc. «Usa las salas propias de Aura… solo con otros usuarios de Aura» (beta 8, por defecto apagado: con el apagado todo sigue como antes, servidor compartido) | Ajustes > Escuchar juntos | ListenTogetherSettings.kt (fila antes de «URL del servidor») | conmutador | rara | bloqueado mientras se está en una sala |
-| URL del servidor — desc. valor o «No establecido» | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:362 | navegación (diálogo «Elegir servidor») | rara | siempre |
+| **[RETIRADO: decisión B1 del dueño (2026-11-24, fila 818): las salas de Escuchar juntos van solo al servidor propio de Aura; ya no hay servidor compartido de Metrolist/SimpMusic que elegir]** **Salas de Aura** — desc. «Usa las salas propias de Aura… solo con otros usuarios de Aura» (beta 8, por defecto apagado: con el apagado todo sigue como antes, servidor compartido) | Ajustes > Escuchar juntos | ListenTogetherSettings.kt (fila antes de «URL del servidor») | conmutador | rara | bloqueado mientras se está en una sala |
+| **[RETIRADO: decisión B1 del dueño (2026-11-24, fila 818): las salas de Escuchar juntos van solo al servidor propio de Aura; ya no hay servidor compartido de Metrolist/SimpMusic que elegir]** URL del servidor — desc. valor o «No establecido» | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:362 | navegación (diálogo «Elegir servidor») | rara | siempre |
 | Nombre de usuario | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:376 | navegación (diálogo con campo) | rara | bloqueado con «No se puede editar el nombre de usuario mientras se está en una sala» |
 | Aprobar automáticamente solicitudes de conexión — desc. «…en lugar de revisarlas manualmente» | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:388 (Switch 393) | conmutador | rara | siempre |
 | Sincronizar volumen del anfitrión — desc. «Los invitados siguen el nivel de volumen del anfitrión» | Ajustes > Escuchar juntos | ListenTogetherSettings.kt:414 (Switch 419) | conmutador | rara | siempre |
@@ -3308,7 +3309,7 @@ Controles dentro de los diálogos de esta pantalla:
 | Campo «Código de la sala» + Cancelar/Crear | Diálogo: Crear sala | ListenTogetherSettings.kt:240 · 211 / 215 | acción secundaria / primaria | rara | diálogo abierto |
 | Campos de unión + Cancelar/Unirse | Diálogo: Unirse a la sala | ListenTogetherSettings.kt:287, 297 · 262 / 266 | acción secundaria / primaria | rara | diálogo abierto |
 | Copiar / Limpiar / OK (registros) | Diálogo: Registros de conexión | ListenTogetherSettings.kt:510 / 531 / 535 | acción primaria / destructiva / secundaria | rara | diálogo abierto |
-| Servidor personalizado (campo + botón) | Diálogo: Elegir servidor | ListenTogetherSettings.kt:654 / 664 | acción secundaria / primaria | rara | diálogo abierto |
+| **[RETIRADO: decisión B1 del dueño (2026-11-24, fila 818): las salas de Escuchar juntos van solo al servidor propio de Aura; ya no hay servidor compartido de Metrolist/SimpMusic que elegir]** Servidor personalizado (campo + botón) | Diálogo: Elegir servidor | ListenTogetherSettings.kt:654 / 664 | acción secundaria / primaria | rara | diálogo abierto |
 | Desbloquear (por usuario) / Cerrar | Diálogo: Usuarios bloqueados | ListenTogetherSettings.kt:802 · 750 | destructiva / secundaria | rara | diálogo abierto |
 
 ---
@@ -3928,7 +3929,7 @@ Los diálogos del **reproductor** están en §3.8, §4.3, §5.1, §5.2, §7.1 y 
 | Diálogo de token de ListenBrainz | Scrobbling | LastFMSettingsScreen.kt:713 |
 | **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** Diálogo de aviso de Qobuz | Cuentas > Qobuz | QobuzSettingsScreen.kt:~300 |
 | Diálogo de información de «Borrar actualizaciones descargadas» | Update | UpdateSettings.kt:200 |
-| Diálogos de Escuchar juntos (nombre de usuario, crear sala, unirse, registros, elegir servidor, usuarios bloqueados) | Escuchar juntos | ListenTogetherSettings.kt:172, 209, 260, 508, 583, 748 |
+| Diálogos de Escuchar juntos (nombre de usuario, crear sala, unirse, registros, ~~elegir servidor~~ **[RETIRADO B1, fila 818]**, usuarios bloqueados) | Escuchar juntos | ListenTogetherSettings.kt:172, 209, 260, 508, 583, 748 |
 | Pantalla de suscripción en línea (no es diálogo, sustituye el contenido) | Ajustes raíz | SettingsScreen.kt:77 |
 
 ---

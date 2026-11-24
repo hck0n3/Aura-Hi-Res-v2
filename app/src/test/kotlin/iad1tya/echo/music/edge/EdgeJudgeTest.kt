@@ -62,12 +62,18 @@ class EdgeJudgeTest {
         listOf(
             "src/main/kotlin/com/music/echo/ui/menu/PlayerMenu.kt",
             "src/main/kotlin/com/music/echo/ui/screens/ListenTogetherScreen.kt",
-            "src/main/kotlin/com/music/echo/ui/screens/settings/integrations/ListenTogetherSettings.kt",
         ).forEach { path ->
             val src = File(path).readText()
             assertTrue("$path default", src.contains("ListenTogetherAuraRoomsKey, true)"))
             assertFalse("$path still off by default", src.contains("ListenTogetherAuraRoomsKey, false)"))
         }
-        assertTrue(File("src/main/kotlin/com/music/echo/di/AppModule.kt").readText().contains("ListenTogetherAuraRoomsKey) ?: true"))
+        // Row 818 (owner decision B1, 2026-11-24): rooms are only Aura's. The settings switch is gone and the client never reads
+        // the stored choice (this guard used to pin the switch's default and AppModule's `?: true`).
+        val settings = File("src/main/kotlin/com/music/echo/ui/screens/settings/integrations/ListenTogetherSettings.kt").readText()
+        assertFalse("the «Salas de Aura» switch is gone", settings.contains("ListenTogetherAuraRoomsKey"))
+        assertFalse("and so is the shared server's URL", settings.contains("ListenTogetherServerUrlKey"))
+        val module = File("src/main/kotlin/com/music/echo/di/AppModule.kt").readText()
+        assertTrue(module.contains("auraRooms = { true },"))
+        assertFalse(module.contains("ListenTogetherServerUrlKey"))
     }
 }

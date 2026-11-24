@@ -147,6 +147,7 @@ fun ListenTogetherScreen(
 
     val kickedFromRoomText = stringResource(R.string.listen_together_kicked_from_room)
     val connectionFailedText = stringResource(R.string.listen_together_connection_failed)
+    val notAuraCodeText = stringResource(R.string.listen_together_not_aura_code)
 
     LaunchedEffect(savedUsername) {
         if (usernameInput.isBlank() && savedUsername.isNotBlank()) {
@@ -160,6 +161,7 @@ fun ListenTogetherScreen(
         val error = roomState?.error
         joinErrorMessage = error?.let { raw ->
             when {
+                raw == iad1tya.echo.music.listentogether.RoomCodes.NOT_AURA_CODE_ERROR -> notAuraCodeText
                 raw.contains("kicked", ignoreCase = true) -> kickedFromRoomText
                 else -> raw
             }
@@ -337,6 +339,11 @@ fun ListenTogetherScreen(
                     onUsernameChange = { usernameInput = it },
                     roomCodeInput = roomCodeInput,
                     onRoomCodeChange = { roomCodeInput = it },
+                    onSharedServerCode = {
+                        // Row 818: a pasted Metrolist code would be cut to a wrong Aura one; say why and leave the field empty.
+                        joinErrorMessage = notAuraCodeText
+                        roomCodeInput = ""
+                    },
                     savedUsername = savedUsername,
                     joinErrorMessage = joinErrorMessage,
                     isConnected = connectionState is ConnectionState.Connected,
@@ -1030,6 +1037,7 @@ private fun JoinCreateRoomSection(
     onUsernameChange: (String) -> Unit,
     roomCodeInput: String,
     onRoomCodeChange: (String) -> Unit,
+    onSharedServerCode: () -> Unit,
     savedUsername: String,
     joinErrorMessage: String?,
     isConnected: Boolean,
@@ -1047,7 +1055,11 @@ private fun JoinCreateRoomSection(
     // Row 601: the code length follows the rooms in use (Aura's own rooms are 6 characters, the shared server's 8).
     val auraRooms by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
     fun onRoomCodeChangeNormalized(value: String) =
-        onRoomCodeChange(iad1tya.echo.music.listentogether.RoomCodes.normalize(value, auraRooms))
+        if (iad1tya.echo.music.listentogether.RoomCodes.isSharedServerCode(value)) {
+            onSharedServerCode()
+        } else {
+            onRoomCodeChange(iad1tya.echo.music.listentogether.RoomCodes.normalize(value, auraRooms))
+        }
 
     AuraPanel(
         skin = skin,

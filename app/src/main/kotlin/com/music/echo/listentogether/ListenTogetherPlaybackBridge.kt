@@ -199,6 +199,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     @Volatile
     private var pausedLocally = false
 
+    /** Row 816: every change of [pausedLocally] goes through here, and each one reaches the shared log once (numbers only). */
+    private fun setPausedLocally(
+        value: Boolean,
+        reason: Int,
+        service: MusicService?,
+    ) {
+        if (pausedLocally == value) return
+        pausedLocally = value
+        Timber.tag(TAG).i(
+            pausedLocallyLogLine(value, reason, service?.deliberatePause == true, service?.pausedByPlaybackFailure == true),
+        )
+    }
+
     /** Row 796: what a guest off the room's track does about it, with bounded reloads. */
     private val trackGuard = GuestTrackGuard()
 
@@ -316,7 +329,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         player.addListener(playerListener)
         // Seed, or the first publish after a player swap compares against a stale intent.
         playIntent.value = player.playWhenReady
-        if (player.playWhenReady) pausedLocally = false
+        if (player.playWhenReady) setPausedLocally(false, PAUSED_LOCALLY_REASON_NONE, serviceFlow.value)
         isPlayingNow.value = player.isPlaying
         timelineRevision.value++
         // A room joined before this player existed, or a rebuilt player, plays at the room's speed too.
@@ -332,7 +345,15 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             playIntent.value = playWhenReady
             val state = session.state.value
             val roomsOwnCall = applyingOnMain > 0
-            if (!roomsOwnCall) pausedLocally = !playWhenReady && state.inRoom && !state.isHost
+            if (!roomsOwnCall) {
+                // Row 816: only a pause that is not the service giving up on playback keeps this guest out of the room's play.
+                val service = serviceFlow.value
+                setPausedLocally(
+                    guestPausedLocally(playWhenReady, state.inRoom, state.isHost, service?.pausedByPlaybackFailure == true),
+                    reason,
+                    service,
+                )
+            }
             if (!playWhenReady) return
             // Guest-side resume: the local player started playing while we are a guest and the apply
             // loop did NOT cause it — ask the server where the room is. This is what Metrolist's and
@@ -343,12 +364,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             trackGuard.reset()
             Timber.tag(TAG).i("Guest resumed — asking the server where the room is")
             session.requestSync()
-            if (state.isPlaying || state.currentTrack == null) return
+            if (!roomRefusesGuestResume(state.inRoom, state.isHost, state.isPlaying, state.currentTrack != null)) return
             val player = listeningTo ?: return
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 val now = session.state.value
                 if (player !== listeningTo || !player.playWhenReady) return@post
-                if (!now.inRoom || now.isHost || now.isPlaying || now.currentTrack == null) return@post
+                if (!roomRefusesGuestResume(now.inRoom, now.isHost, now.isPlaying, now.currentTrack != null)) return@post
                 remoteDepth.incrementAndGet()
                 applyingOnMain++
                 try {
@@ -356,6 +377,17 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 } finally {
                     applyingOnMain--
                     remoteDepth.decrementAndGet()
+                }
+                // Row 817: the guest pressed play and the room paused it again; say why instead of doing it silently.
+                Timber.tag(TAG).i("Guest play refused: the room is paused")
+                serviceFlow.value?.let { context ->
+                    runCatching {
+                        android.widget.Toast.makeText(
+                            context,
+                            iad1tya.echo.music.R.string.listen_together_room_paused_host_only,
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    }
                 }
             }
         }
@@ -457,7 +489,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         trackRecheck?.cancel()
                         trackRecheck = null
                     }
-                    pausedLocally = false
+                    setPausedLocally(false, PAUSED_LOCALLY_REASON_NONE, serviceFlow.value)
                     trackGuard.reset()
                     roomReceipt = null
                     syncLogGate.reset()
@@ -873,7 +905,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         playWhenReady: Boolean,
     ) {
         val (ordered, startIndex) = roomPlaybackOrder(info, session.state.value.queue)
-        Timber.tag(TAG).i("Guest loading %s at %d of %d", info.id.asLogToken(), startIndex, ordered.size)
+        Timber.tag(TAG).i("Guest loading %s at %d of %d playWhenReady=%b", info.id.asLogToken(), startIndex, ordered.size, playWhenReady)
 
         // Dispatchers.Main is mandatory, not tidiness: Media3 throws if the player is touched off
         // the main thread, and this collector runs on the bridge scope (Default).
@@ -1156,6 +1188,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         }
                     } != null
                 if (started) {
+                    // Row 817: whether the PLAY guests depend on after a track change was sent at all, and what decides a synchronized start.
+                    Timber.tag(TAG).i("Host publishing PLAY after track change (changeHostPlaying=%s roomWasPlaying=%b)", changeHostPlaying, roomWasPlaying)
                     session.sendPlaybackAction(
                         action = PlaybackActions.PLAY,
                         trackId = "",
@@ -1164,6 +1198,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         // The PLAY that starts this track: Aura's server starts everyone together on it if the room was paused.
                         hostPlaying = playStartsTogether(changeHostPlaying, roomWasPlaying, isPlayingNow.value),
                     )
+                } else {
+                    Timber.tag(TAG).i("Host track change: no PLAY, the host did not start it within %d ms", PLAY_SETTLE_TIMEOUT_MS)
                 }
             }
     }
@@ -1285,10 +1321,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             .collectLatest { (hold, service) ->
                 if (hold == null || hold.started) {
                     val dropped = hold == null && pending != null
+                    // Row 816 (C2): whether the hold that let go had been told its start time.
+                    val startTimeNamed = (pending?.startAtServerTime ?: 0L) > 0L
                     pending = null
                     // Let go without having started (the start time never came, the room paused, or we left): follow the room as before.
                     if (dropped && service != null) {
-                        followRoomAfterHold(service)
+                        followRoomAfterHold(service, startTimeNamed)
                     } else {
                         // Over either way: with no player to resume, a host left «holding» would never publish a play or pause again.
                         hostHoldingForStart = false
@@ -1306,7 +1344,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 withContext(NonCancellable) {
                     pending = null
                     session.markSyncStartStarted(hold)
-                    followRoomAfterHold(service)
+                    followRoomAfterHold(service, startTimeNamed = hold.startAtServerTime > 0L)
                 }
             }
     }
@@ -1360,8 +1398,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         true
     }
 
-    /** After a hold that did not start on time: the host plays (that was its intent), a guest takes the room's state as it is. */
-    private suspend fun followRoomAfterHold(service: MusicService) {
+    /**
+     * After a hold that did not start on time: the host plays (that was its intent), a guest takes the room's state as it is — or,
+     * when the hold never learnt its start time, asks the room first ([guestAfterHoldRelease], row 816).
+     */
+    private suspend fun followRoomAfterHold(
+        service: MusicService,
+        startTimeNamed: Boolean,
+    ) {
         val wasHostHolding = hostHoldingForStart
         hostHoldingForStart = false
         val state = session.state.value
@@ -1374,6 +1418,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             return
         }
         if (!state.inRoom || state.isHost) return
+        val plan = guestAfterHoldRelease(startTimeNamed, state.isPlaying)
+        if (plan.askRoom) {
+            Timber.tag(TAG).i("Synchronized start let go without a start time — asking the server where the room is")
+            session.requestSync()
+        }
+        if (!plan.applyRoomState) return
         remoteDepth.incrementAndGet()
         try {
             applyTransport(service, state.isPlaying && !pausedLocally, state.position, state.currentTrack, state.lastActionServerTime)

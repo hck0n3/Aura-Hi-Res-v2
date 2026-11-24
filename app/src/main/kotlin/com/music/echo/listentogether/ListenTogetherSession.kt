@@ -228,6 +228,12 @@ class ListenTogetherSession(
     ) = launch {
         pendingUsername = username.trim()
         val code = roomCode.trim().uppercase()
+        // Row 818 (owner decision B1): only Aura's rooms exist; a Metrolist code or an old invite link is refused here, clearly.
+        if (client.isAuraRooms && !RoomCodes.isAuraCode(code)) {
+            Timber.tag(TAG).i("Join refused: not an Aura room code (%d characters)", code.length)
+            _state.update { it.copy(pendingJoinCode = null, error = RoomCodes.NOT_AURA_CODE_ERROR) }
+            return@launch
+        }
         if (!_state.value.inRoom) client.forgetSessionToken()
         _state.update { it.copy(pendingJoinCode = code, error = null) }
         if (client.isAuraRooms && !client.isConnected) client.roomTarget = ListenTogetherClient.RoomTarget.Join(code)

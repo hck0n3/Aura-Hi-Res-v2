@@ -19,4 +19,19 @@ object RoomCodes {
     fun isComplete(code: String, auraRooms: Boolean): Boolean = code.length == length(auraRooms)
 
     fun placeholder(auraRooms: Boolean): String = if (auraRooms) "ABC234" else "ABCD1234"
+
+    /**
+     * Row 818 (owner decision B1): rooms are only Aura's now, so a code Aura's rooms cannot open is refused before any socket, with
+     * a clear message instead of a failed connection. [code] is what the session sends: trimmed and upper-cased.
+     */
+    fun isAuraCode(code: String): Boolean = code.length == AURA_LENGTH && code.all { it.isLetterOrDigit() }
+
+    /** Row 818: what was typed or pasted is a code of the shared (Metrolist / SimpMusic) server, which Aura no longer uses. */
+    fun isSharedServerCode(input: String): Boolean = input.uppercase().filter { it.isLetterOrDigit() }.length == SHARED_LENGTH
+
+    /** Row 818: `ListenTogetherState.error` for a code that is not an Aura room's; the screens show it in the user's language. */
+    const val NOT_AURA_CODE_ERROR = "not_an_aura_room_code"
 }
+
+/** Row 818: whether the one-time switch of a stored «Salas de Aura» to on still has to run. */
+internal fun auraRoomsOnlyMigrationNeeded(alreadyApplied: Boolean?): Boolean = alreadyApplied != true

@@ -524,7 +524,6 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.listen_together_blocked_users), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_blocked_users_count), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_no_blocked_users), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
-            Triple(stringResource(R.string.listen_together_server_url), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_cannot_edit_username_in_room), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_auto_approval), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_auto_approval_desc), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
@@ -537,9 +536,6 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.listen_together), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.listen_together_logs), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.copy), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
-            Triple(stringResource(R.string.listen_together_choose_server), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
-            Triple(stringResource(R.string.listen_together_custom_server), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
-            Triple(stringResource(R.string.listen_together_use_custom_server), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.unblock), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             Triple(stringResource(R.string.logs_delete_all), "Registros", "settings/logs"),
             // --- Beta 9 completeness pass: every visible row of these screens is searchable ---
@@ -608,8 +604,6 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.device_sync_code_enter), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_code_remove), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_name), "Sincronizar dispositivos", "settings/device_sync"),
-            Triple(stringResource(R.string.listen_together_aura_rooms), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
-            Triple(stringResource(R.string.listen_together_aura_rooms_desc), "Ajustes de Escuchar juntos", "settings/integrations/listen_together"),
             // --- Letras (P22D): the four places lyrics settings live. LyricsSettingsLinks shows all four
             // labels on each of the four screens, so each label is on screen at the route it is indexed
             // under, and searching "letras" returns the four places; each jumps to that block. ---

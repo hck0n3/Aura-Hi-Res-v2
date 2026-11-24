@@ -141,6 +141,29 @@ class SyncStartTest {
     }
 
     @Test
+    fun aHoldLetGoWithoutItsStartTimeAsksTheRoomInsteadOfApplyingAStalePause() {
+        // Row 816 (C2): the 12.4 s fallback, or a socket that came back during the barrier and missed the closing play.
+        assertEquals(HoldReleasePlan(askRoom = true, applyRoomState = false), guestAfterHoldRelease(startTimeNamed = false, roomPlaying = false))
+        assertEquals(HoldReleasePlan(askRoom = true, applyRoomState = true), guestAfterHoldRelease(startTimeNamed = false, roomPlaying = true))
+        // After the play that named the start time, the room state on this device is that play's: applied as before.
+        assertEquals(HoldReleasePlan(askRoom = false, applyRoomState = true), guestAfterHoldRelease(startTimeNamed = true, roomPlaying = true))
+        assertEquals(HoldReleasePlan(askRoom = false, applyRoomState = true), guestAfterHoldRelease(startTimeNamed = true, roomPlaying = false))
+    }
+
+    @Test
+    fun theBridgeFollowsTheReleasePlan() {
+        val bridge = java.io.File("src/main/kotlin/com/music/echo/listentogether/ListenTogetherPlaybackBridge.kt").readText()
+        val over = bridge.substringAfter("if (hold == null || hold.started) {").substringBefore("pending = hold\n")
+        assertTrue("read before it is forgotten", over.indexOf("val startTimeNamed = (pending?.startAtServerTime ?: 0L) > 0L") in 0 until over.indexOf("pending = null"))
+        assertTrue(over.contains("followRoomAfterHold(service, startTimeNamed)"))
+        assertTrue(bridge.contains("followRoomAfterHold(service, startTimeNamed = hold.startAtServerTime > 0L)"))
+        val follow = bridge.substringAfter("private suspend fun followRoomAfterHold(").substringBefore("    /**")
+        assertTrue(follow.contains("val plan = guestAfterHoldRelease(startTimeNamed, state.isPlaying)"))
+        assertTrue(follow.indexOf("session.requestSync()") in 0 until follow.indexOf("if (!plan.applyRoomState) return"))
+        assertTrue("the host's own release is untouched", follow.indexOf("if (wasHostHolding) {") in 0 until follow.indexOf("val plan ="))
+    }
+
+    @Test
     fun theHostsOwnStartEdgeIsConsumedBeforeTheApplyingRemoteGuard() {
         val bridge = java.io.File("src/main/kotlin/com/music/echo/listentogether/ListenTogetherPlaybackBridge.kt").readText()
         val publisher = bridge.substringAfter("private suspend fun publishPlayPauseAsHost()")

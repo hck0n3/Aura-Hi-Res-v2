@@ -57,9 +57,7 @@ import androidx.navigation.NavController
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.ListenTogetherAutoApprovalKey
-import iad1tya.echo.music.constants.ListenTogetherServerUrlKey
 import iad1tya.echo.music.constants.ListenTogetherUsernameKey
-import iad1tya.echo.music.listentogether.ListenTogetherClient
 import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.IntegrationCard
@@ -73,11 +71,9 @@ import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.ListenTogetherViewModel
 
 /**
- * Listen Together settings, on the SimpMusic model:
- * - ONE default public server (the same `metroserver` every SimpMusic and Metrolist client uses —
- *   what makes rooms interoperable out of the box), verified alive 2026-08-30.
- * - A custom server URL for anyone who runs their own metroserver.
- * - Auto-approve join requests (host convenience, applied by the session itself).
+ * Listen Together settings: blocked users, username and auto-approve join requests (host convenience, applied by the session
+ * itself). Rooms are only Aura's own (row 818, owner decision B1, 2026-11-24): the «Salas de Aura» switch and the server URL
+ * for the shared Metrolist/SimpMusic server were removed with it.
  *
  * REMOVED with the port (deliberate, documented): the remote "server list" fetched from
  * EchoMusicApp/Echo-Music (fila 38 del registro: fuga de branding viva; upstream SimpMusic has no
@@ -103,33 +99,15 @@ fun ListenTogetherSettings(
     val skin: AuraPanelSkin = rememberAuraPanelSkin()
     val ground = if (skin.enabled && skin.darkGround) AuraPalette.Ground else MaterialTheme.colorScheme.surface
 
-    // Empty value = the DEFAULT server (upstream SimpMusic semantics: the store holds "" unless the
-    // user explicitly saved a custom URL; the client reads it per connection attempt).
-    var serverUrl by rememberPreference(ListenTogetherServerUrlKey, "")
+    // Row 818 (owner decision B1, 2026-11-24): rooms are only Aura's, so the «Salas de Aura» switch and the server URL (with its
+    // «Elegir servidor» dialog) are gone; see docs/UI_INVENTORY.md.
     var username by rememberPreference(ListenTogetherUsernameKey, "")
     var autoApproval by rememberPreference(ListenTogetherAutoApprovalKey, false)
-    var auraRooms by rememberPreference(iad1tya.echo.music.constants.ListenTogetherAuraRoomsKey, true)
 
-    var showServerUrlDialog by rememberSaveable { mutableStateOf(false) }
     var showUsernameDialog by rememberSaveable { mutableStateOf(false) }
     var showBlockedUsersDialog by rememberSaveable { mutableStateOf(false) }
 
     val inRoom = roomState?.inRoom == true
-
-    if (showServerUrlDialog) {
-        ServerUrlDialog(
-            currentUrl = serverUrl,
-            onSave = { url ->
-                serverUrl = url
-                showServerUrlDialog = false
-            },
-            onUseDefault = {
-                serverUrl = ""
-                showServerUrlDialog = false
-            },
-            onDismiss = { showServerUrlDialog = false }
-        )
-    }
 
     if (showUsernameDialog) {
         var tempUsername by rememberSaveable(showUsernameDialog) { mutableStateOf(username) }
@@ -212,46 +190,6 @@ fun ListenTogetherSettings(
                             } else null
                         ),
                         IntegrationCardItem(
-                            icon = painterResource(R.drawable.cloud),
-                            title = { Text(stringResource(R.string.listen_together_aura_rooms)) },
-                            description = {
-                                Text(stringResource(R.string.listen_together_aura_rooms_desc))
-                            },
-                            trailingContent = {
-                                Switch(
-                                    checked = auraRooms,
-                                    // The room lives on one server or the other; switching mid-room would orphan it.
-                                    enabled = !inRoom,
-                                    onCheckedChange = { auraRooms = it },
-                                    thumbContent = {
-                                        Icon(
-                                            painter = painterResource(
-                                                id = if (auraRooms) R.drawable.check else R.drawable.close
-                                            ),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(SwitchDefaults.IconSize),
-                                        )
-                                    }
-                                )
-                            },
-                            onClick = { if (!inRoom) auraRooms = !auraRooms }
-                        ),
-                        IntegrationCardItem(
-                            icon = painterResource(R.drawable.cloud),
-                            title = { Text(stringResource(R.string.listen_together_server_url)) },
-                            description = {
-                                Text(
-                                    if (serverUrl.isBlank())
-                                        stringResource(R.string.listen_together_default_server)
-                                    else
-                                        serverUrl,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            onClick = { showServerUrlDialog = true }
-                        ),
-                        IntegrationCardItem(
                             icon = painterResource(R.drawable.person),
                             title = { Text(stringResource(R.string.listen_together_username)) },
                             description = {
@@ -327,101 +265,6 @@ fun ListenTogetherSettings(
                 navigationIconContentColor = if (skin.enabled) skin.ink else MaterialTheme.colorScheme.onSurface,
             ),
         )
-    }
-}
-
-/**
- * The server picker, reduced to what the SimpMusic model actually offers: the default public server
- * or your own URL. No remote list — the old one came from a third-party repo we do not control.
- */
-@Composable
-private fun ServerUrlDialog(
-    currentUrl: String,
-    onSave: (String) -> Unit,
-    onUseDefault: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    var customUrl by rememberSaveable(currentUrl) { mutableStateOf(currentUrl) }
-    val trimmed = customUrl.trim()
-    val skin = rememberAuraPanelSkin()
-
-    DefaultDialog(
-        onDismiss = onDismiss,
-        icon = { Icon(painterResource(R.drawable.cloud), contentDescription = null) },
-        title = { Text(stringResource(R.string.listen_together_choose_server)) },
-        buttons = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(android.R.string.cancel))
-            }
-        }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // The DEFAULT option: the one public server, the same one SimpMusic and Metrolist ship.
-            val isDefault = currentUrl.isBlank()
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = if (isDefault) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onUseDefault)
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.listen_together_default_server_name),
-                            style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = ListenTogetherClient.DEFAULT_SERVER_URL,
-                            style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (isDefault) {
-                        Icon(
-                            painter = painterResource(R.drawable.done),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-
-            Text(
-                text = stringResource(R.string.listen_together_custom_server),
-                style = if (skin.enabled) AuraType.MenuGroupLabel else MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            OutlinedTextField(
-                value = customUrl,
-                onValueChange = { customUrl = it },
-                label = { Text(stringResource(R.string.listen_together_server_url)) },
-                leadingIcon = {
-                    Icon(painterResource(R.drawable.link), contentDescription = null)
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Button(
-                onClick = { onSave(trimmed) },
-                enabled = trimmed.isNotBlank() && trimmed != currentUrl,
-                modifier = Modifier.fillMaxWidth(),
-                shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp)
-            ) {
-                Text(stringResource(R.string.listen_together_use_custom_server))
-            }
-        }
     }
 }
 

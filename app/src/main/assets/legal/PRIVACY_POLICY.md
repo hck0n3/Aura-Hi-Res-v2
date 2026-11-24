@@ -1,6 +1,6 @@
 # Privacy Policy — Aura Hi-Res v2
 
-**Version:** 3 · **Effective date:** November 22, 2026
+**Version:** 4 · **Effective date:** November 24, 2026
 
 This is the English translation of the privacy policy of **Aura Hi-Res v2** (the "App"). The primary version is the Spanish one, [PRIVACIDAD.md](PRIVACIDAD.md); if the two differ, the Spanish version prevails. It expands on clause 11 of the [Terms and Conditions](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) (in Spanish).
 
@@ -28,7 +28,7 @@ You erase all of it by clearing the App's data or uninstalling it. Whatever has 
 
 ## 2. What our services receive
 
-We run four online services on Cloudflare's infrastructure: the licence server (which also serves the AI features), Aura services, device sync and Aura's own Listen Together rooms (if you turn them off, Listen Together uses a third-party server: section 3).
+We run four online services on Cloudflare's infrastructure: the licence server (which also serves the AI features), Aura services, device sync and Aura's own Listen Together rooms, the only server Listen Together uses.
 
 | Service | What it receives | When | How long it is kept |
 |---|---|---|---|
@@ -39,7 +39,7 @@ We run four online services on Cloudflare's infrastructure: the licence server (
 | Aura services: **diagnostic log** | The App's technical log. It does not include titles, artists, playlist names, accounts, e-mails or keys; it may include song and playlist identifiers. A fingerprint of your IP to limit uploads. | Only when you press **"Enviar registro"** (Send log). | **7 days**. |
 | Aura services: **smart-queue AI second opinion** (**off by default**) | Title and artist of what is playing and of the doubtful candidate songs, up to four style names, the language and whether it is Christian music. Your IP. | Only if you turn it on. | The content is not stored. The IP, for at most 48 hours. |
 | **Device sync** (turns itself on when you activate the licence **with the purchase e-mail**, or when you pair with a code; turned off in Settings ▸ Sincronizar dispositivos) | Your likes and dislikes, your playlist names and the title, artist and cover of their songs; your device names; what is playing (title, artist, cover and position). Your group is identified by an encrypted fingerprint (SHA-256) of your key and e-mail, or of your code. It does **not** store accounts, cookies, the e-mail or the key. | While it is on. | For as long as your group exists. You can ask us to delete it. |
-| **Listen Together: Aura rooms** (**on by default**; turned off with "Salas de Aura" (Aura rooms) in the Listen Together settings) | The name you choose, the room code and the data of the songs playing in it and in the host's queue (identifier, title, artist, album, duration and cover). | Only when you create or join a room with Aura rooms on. | An empty room is deleted after **5 minutes**. |
+| **Listen Together: Aura rooms** (the only Listen Together server) | The name you choose, the room code and the data of the songs playing in it and in the host's queue (identifier, title, artist, album, duration and cover). | Only when you create or join a room. | An empty room is deleted after **5 minutes**. |
 | **Song recognition** (relay) | An audio signature computed from the microphone. | Only while you use recognition, and only if the direct connection to Shazam fails. | It is forwarded to Shazam; we do not store it. |
 
 ## 3. What third parties receive
@@ -61,7 +61,6 @@ These third parties receive the requests and handle them under **their own** pri
 - **iTunes (Apple), Apple Music and other metadata and animated-cover providers:** song, artist and album names.
 - **Wikipedia:** the artist's name, when you view artist information.
 - **Shazam:** the song-recognition audio signature, only while you use it.
-- **Listen Together with Aura rooms turned off:** rooms go to the shared public server that other apps also use (Metrolist, SimpMusic), `metroserverx.meowery.eu`, which **we do not run**, or to the server you type in the settings. When you create or join a room, that server receives the name you choose, the room code and the data of the songs playing in it and in the host's queue (identifier, title, artist, album, duration and cover), and handles them under its own terms; we do not know how long it keeps them.
 - **Your own AI provider:** if you configure your own key, the text of your AI requests goes to that provider instead of our server.
 
 **Optional integrations (they send nothing until you enable them):** Last.fm (scrobbling and taste import), ListenBrainz, Spotify import, SponsorBlock, AutoEQ, podcasts and the like. Each sends only what it needs (for example, the song playing, a headphone model or a search term). When you sign in to YouTube, Spotify or Last.fm, your credentials go directly to that service.

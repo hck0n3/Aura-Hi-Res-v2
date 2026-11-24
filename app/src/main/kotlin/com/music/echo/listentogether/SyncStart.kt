@@ -91,6 +91,27 @@ internal fun playStartsTogether(
         else -> null
     }
 
+/** What a guest does when a synchronized start's hold lets go of it without having started it ([guestAfterHoldRelease]). */
+internal data class HoldReleasePlan(
+    /** Ask the server where the room is (`request_sync`): the room state on this device may be older than the room. */
+    val askRoom: Boolean,
+    /** Apply the room state this device has, as before. */
+    val applyRoomState: Boolean,
+)
+
+/**
+ * Row 816 (C2): a hold let go after the `play` that named its start time (a pause came during the wait, or the clock could not time
+ * it) applies the room state this device has, which that `play` brought. A hold let go WITHOUT a start time (the 12.4 s
+ * [SYNC_START_HOLD_MAX_MS] fallback, a barrier that ended without one, or a socket that came back during the barrier and so missed
+ * the `play`) is older than the room: the change_track left «not playing», and applying that kept the guest paused on the loaded
+ * song. Then it asks the room, and applies its state now only when that state already says «playing».
+ */
+internal fun guestAfterHoldRelease(
+    startTimeNamed: Boolean,
+    roomPlaying: Boolean,
+): HoldReleasePlan =
+    if (startTimeNamed) HoldReleasePlan(askRoom = false, applyRoomState = true) else HoldReleasePlan(askRoom = true, applyRoomState = roomPlaying)
+
 /** When to call play() for a synchronized start, and with the decoder at which position. */
 internal data class SyncStartTiming(
     val waitMs: Long,
