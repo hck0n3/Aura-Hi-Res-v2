@@ -6,6 +6,7 @@ import com.music.innertube.YouTube
 import com.music.innertube.models.AlbumItem
 import com.music.innertube.models.ArtistItem
 import com.music.innertube.models.PlaylistItem
+import com.music.innertube.utils.FULL_READ_MAX_PAGES
 import com.music.innertube.utils.completed
 import com.music.innertube.utils.parseCookieString
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -459,7 +460,7 @@ class LibraryUploadSync @Inject constructor(
      * idempotent: anything already there is stamped as synced and never sent again.
      */
     private suspend fun fetchRemoteSubscriptionIds(): Set<String> {
-        val page = runCatching { YouTube.library("FEmusic_library_corpus_artists").completed() }
+        val page = runCatching { YouTube.library("FEmusic_library_corpus_artists").completed(maxRequests = FULL_READ_MAX_PAGES) }
             .getOrNull()?.getOrNull() ?: return emptySet()
         val ids = page.items.filterIsInstance<ArtistItem>().map { it.id }
         if (ids.isNotEmpty()) {
@@ -722,10 +723,14 @@ class LibraryUploadSync @Inject constructor(
         // LINKED to it instead of being created again — this is what stops the backfill from filling
         // the account with duplicates when the same library was migrated on another device.
         val remoteByName = HashMap<String, PlaylistItem>()
-        runCatching { YouTube.library("FEmusic_liked_playlists").completed() }
-            .getOrNull()?.getOrNull()?.items?.filterIsInstance<PlaylistItem>()
+        val remotePage = runCatching { YouTube.library("FEmusic_liked_playlists").completed(maxRequests = FULL_READ_MAX_PAGES) }
+            .getOrNull()?.getOrNull()
+        remotePage?.items?.filterIsInstance<PlaylistItem>()
             ?.filterNot { it.id == "LM" || it.id == "SE" }
             ?.forEach { remoteByName.putIfAbsent(normalizeName(it.title), it) }
+        // Row 840: without the account's WHOLE list a same-name playlist past the cut looks absent, and creating one would
+        // put a duplicate on the account. Only linking happens then; creating waits for a read that reaches the end.
+        val remoteListComplete = remotePage != null && remotePage.continuation == null
 
         // browseIds already claimed locally must never be handed to a second local playlist.
         val claimed = runCatching {
@@ -766,6 +771,8 @@ class LibraryUploadSync @Inject constructor(
                     Timber.d("LibraryUploadSync: linked '${playlist.name}' to existing ${match.id}")
                     continue
                 }
+
+                if (!remoteListComplete && !playlist.id.startsWith("SPOTIFY_")) continue
 
                 // Atomic-or-nothing: only create it if this pass can also carry ALL of its songs.
                 // A created-but-half-filled playlist is exactly the state a later down-sync could use
@@ -846,8 +853,10 @@ class LibraryUploadSync @Inject constructor(
                 if (prefs.getString(playlistId, null) == fingerprint) continue
                 if (prefs.getString(SPOTIFY_MIRROR_SKIPPED_PREFIX + playlistId, null) == fingerprint) continue
 
-                val remote = runCatching { YouTube.playlist(browseId).completed() }
-                    .getOrNull()?.getOrNull()?.songs
+                val remote = runCatching { YouTube.playlist(browseId).completed(maxRequests = FULL_READ_MAX_PAGES) }
+                    .getOrNull()?.getOrNull()
+                    // Row 840: a read cut short would re-add what it did not reach; wait for a whole one.
+                    ?.takeIf { it.songsContinuation == null }?.songs
                     ?: run {
                         Timber.w("LibraryUploadSync: could not read a remote playlist; Spotify mirror left for next pass")
                         continue
@@ -928,8 +937,11 @@ class LibraryUploadSync @Inject constructor(
         name: String,
         localSongIds: List<String>,
     ): Boolean {
-        val remoteIds = runCatching { YouTube.playlist(browseId).completed() }
-            .getOrNull()?.getOrNull()?.songs?.map { it.id }?.toSet()
+        val remoteIds = runCatching { YouTube.playlist(browseId).completed(maxRequests = FULL_READ_MAX_PAGES) }
+            .getOrNull()?.getOrNull()
+            // Row 840: a read cut short would re-add what it did not reach; not linking until a whole one.
+            ?.takeIf { it.songsContinuation == null }
+            ?.songs?.map { it.id }?.toSet()
             ?: run {
                 Timber.w("LibraryUploadSync: could not read a remote playlist; not linking the local one yet")
                 return false
@@ -974,12 +986,23 @@ class LibraryUploadSync @Inject constructor(
             return
         }
 
-        val remoteIds = runCatching { YouTube.playlist("LM").completed() }
-            .getOrNull()?.getOrNull()?.songs?.map { it.id }?.toSet()
-        if (remoteIds == null) {
+        val remotePage = runCatching { YouTube.playlist("LM").completed(maxRequests = FULL_READ_MAX_PAGES) }
+            .getOrNull()?.getOrNull()
+        if (remotePage == null) {
             // Could not read the account's favourites. Treat that as "unknown", never as "nothing is
             // synced" — reporting 0/N here would be a lie and would re-send every like.
             _progress.value = _progress.value.copy(likedSongs = _progress.value.likedSongs.copy(running = false))
+            return
+        }
+        val remoteIds = remotePage.songs.map { it.id }.toSet()
+        if (remotePage.songsContinuation != null) {
+            // Row 840: a read cut short. What it reached is synced (a lower bound); the rest is unknown, not missing, so
+            // nothing is sent and the category stays unverified instead of reporting a number that looks exact.
+            _progress.value = _progress.value.copy(
+                likedSongs = UploadCategoryProgress(
+                    synced = localLiked.count { it in remoteIds }, pending = 0, running = false, verified = false,
+                ),
+            )
             return
         }
 
@@ -1029,12 +1052,13 @@ class LibraryUploadSync @Inject constructor(
             return
         }
 
-        val remote = runCatching { YouTube.library("FEmusic_liked_albums").completed() }
-            .getOrNull()?.getOrNull()?.items?.filterIsInstance<AlbumItem>()
-        if (remote == null) {
+        val remotePage = runCatching { YouTube.library("FEmusic_liked_albums").completed(maxRequests = FULL_READ_MAX_PAGES) }
+            .getOrNull()?.getOrNull()
+        if (remotePage == null) {
             _progress.value = _progress.value.copy(likedAlbums = _progress.value.likedAlbums.copy(running = false))
             return
         }
+        val remote = remotePage.items.filterIsInstance<AlbumItem>()
         // Match on BOTH ids: the local row keys albums by browseId while the like itself is applied to
         // the album's audio playlistId, and the two are not interchangeable.
         val remoteIds = HashSet<String>(remote.size * 2)
@@ -1042,6 +1066,15 @@ class LibraryUploadSync @Inject constructor(
 
         val missing = localAlbums.filterNot { album ->
             album.id in remoteIds || album.playlistId?.let { it in remoteIds } == true
+        }
+        if (remotePage.continuation != null) {
+            // Row 840: same as the likes: a read cut short sends nothing and reports only what it reached, unverified.
+            _progress.value = _progress.value.copy(
+                likedAlbums = UploadCategoryProgress(
+                    synced = localAlbums.size - missing.size, pending = 0, running = false, verified = false,
+                ),
+            )
+            return
         }
         var pushed = 0
         for (album in missing) {

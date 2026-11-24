@@ -7,14 +7,24 @@ import com.music.innertube.pages.LibraryPage
 import com.music.innertube.pages.PlaylistPage
 import java.security.MessageDigest
 
+/**
+ * Registry row 840: the page bound of the account reads the user starts (the library sync pulls and the upload pass).
+ * Far above any real library, so those reads stop only at the real end of the list or on an error; the old 50 pages
+ * (about a thousand items) cut big libraries and every count built on them read «1000».
+ */
+const val FULL_READ_MAX_PAGES = 1000
+
+/**
+ * Registry row 840: [PlaylistPage.songsContinuation] of the result is non-null when the walk stopped early (request cap,
+ * failed page, loop guard, two empty pages in a row), same contract as the library twin below (row 837).
+ */
 @JvmName("completedLibrary")
-suspend fun Result<PlaylistPage>.completed(): Result<PlaylistPage> = runCatching {
+suspend fun Result<PlaylistPage>.completed(maxRequests: Int = 50): Result<PlaylistPage> = runCatching {
     val page = getOrThrow()
     val songs = page.songs.toMutableList()
     var continuation = page.songsContinuation
     val seenContinuations = mutableSetOf<String>()
     var requestCount = 0
-    val maxRequests = 50
     var consecutiveEmptyResponses = 0
     
     while (continuation != null && requestCount < maxRequests) {
@@ -39,7 +49,7 @@ suspend fun Result<PlaylistPage>.completed(): Result<PlaylistPage> = runCatching
     PlaylistPage(
         playlist = page.playlist,
         songs = songs,
-        songsContinuation = null,
+        songsContinuation = continuation,
         continuation = page.continuation
     )
 }
@@ -110,11 +120,13 @@ suspend fun <T> walkContinuations(
  * ARRIVES instead of accumulating everything first. After Google sign-in the library pulls used
  * to fetch up to 50 continuation pages BEFORE the first row reached Room, so the UI looked dead
  * for minutes. Streaming the inserts makes data appear right after the first page. The loop,
- * dedupe, request cap and empty-response handling are deliberately identical to [completed]; the
+ * dedupe and empty-response handling are deliberately identical to [completed]; the
  * final accumulated result is still returned so callers that need the full list keep working.
+ * Row 840: only the library sync pulls use it, so its page bound defaults to [FULL_READ_MAX_PAGES].
  */
 @JvmName("completedStreamingLibrary")
 suspend fun Result<PlaylistPage>.completedStreaming(
+    maxRequests: Int = FULL_READ_MAX_PAGES,
     onPage: suspend (List<SongItem>) -> Unit,
 ): Result<PlaylistPage> = runCatching {
     val page = getOrThrow()
@@ -123,7 +135,6 @@ suspend fun Result<PlaylistPage>.completedStreaming(
     var continuation = page.songsContinuation
     val seenContinuations = mutableSetOf<String>()
     var requestCount = 0
-    val maxRequests = 50
     var consecutiveEmptyResponses = 0
 
     while (continuation != null && requestCount < maxRequests) {
@@ -161,6 +172,7 @@ suspend fun Result<PlaylistPage>.completedStreaming(
  */
 @JvmName("completedStreamingPlaylist")
 suspend fun Result<LibraryPage>.completedStreaming(
+    maxRequests: Int = FULL_READ_MAX_PAGES,
     onPage: suspend (List<YTItem>) -> Unit,
 ): Result<LibraryPage> = runCatching {
     val page = getOrThrow()
@@ -169,7 +181,6 @@ suspend fun Result<LibraryPage>.completedStreaming(
     var continuation = page.continuation
     val seenContinuations = mutableSetOf<String>()
     var requestCount = 0
-    val maxRequests = 50
     var consecutiveEmptyResponses = 0
 
     while (continuation != null && requestCount < maxRequests) {
