@@ -543,6 +543,10 @@ fun NavGraphBuilder.navigationBuilder(
         iad1tya.echo.music.ui.screens.settings.integrations.DeviceSyncSettings(navController, scrollBehavior)
     }
 
+    composable(route = "settings/device_sync/held") {
+        iad1tya.echo.music.ui.screens.settings.integrations.HeldRemovalsScreen(navController, scrollBehavior)
+    }
+
     composable(route = "settings/aura_services") {
         iad1tya.echo.music.ui.screens.settings.integrations.AuraServicesSettings(navController, scrollBehavior)
     }

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="device_sync_held_title">Removals on hold</string>
+    <string name="device_sync_held_none">None: nothing is waiting for you</string>
+    <string name="device_sync_held_some">%1$d on hold · tap to review</string>
+    <string name="device_sync_held_notice">Another device removed %1$d items at once; they were not removed here, to be safe.</string>
+    <string name="device_sync_held_review">Review</string>
+    <string name="device_sync_held_intro">Another of your devices removed many things at once. That looks more like a fault or an emptied account than a person tidying up, so they were kept here. Apply removes them here too. Discard keeps them and puts them back on your other devices.</string>
+    <string name="device_sync_held_apply">Apply</string>
+    <string name="device_sync_held_discard">Discard</string>
+    <string name="device_sync_held_kind_likes">Liked songs</string>
+    <string name="device_sync_held_kind_dislikes">Dislikes</string>
+    <string name="device_sync_held_kind_playlists">Playlists</string>
+    <string name="device_sync_held_kind_members">Songs in playlists</string>
+    <string name="device_sync_held_kind_albums">Saved albums</string>
+    <string name="device_sync_held_kind_pins">Pinned</string>
+    <string name="device_sync_held_kind_other">Other</string>
+</resources>

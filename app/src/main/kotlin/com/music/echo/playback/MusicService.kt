@@ -6338,8 +6338,9 @@ class MusicService :
     /**
      * Review C2: while another device is controlled from here the local player only holds its mirror (IDLE). «Reproducir a
      * continuación» took the empty-player branch on it (new queue + prepare + play), was paused by the remote-mode guard, reached no
-     * device and was lost at the next mirror update; «Añadir a la cola» prepared the mirror. The other device has no command to
-     * queue a song, so the edit is refused with a notice and the mirror is left untouched. True when refused.
+     * device and was lost at the next mirror update; «Añadir a la cola» prepared the mirror. Row 809: a tapped edit now goes to the
+     * other device first (`DeviceSyncEngine.queueOnRemote`); what is still refused here (automatic fills, the automix pool, no sync
+     * engine) is refused with a notice and the mirror is left untouched. True when refused.
      */
     internal fun refuseQueueEditInRemoteMode(notify: Boolean = true): Boolean {
         val target = iad1tya.echo.music.devicesync.RemotePlayback.target.value ?: return false
@@ -6353,6 +6354,8 @@ class MusicService :
     }
 
     fun playNext(items: List<MediaItem>) {
+        // Row 809 (H24): while another device is controlled from here, THAT device queues the songs.
+        if (deviceSync?.queueOnRemote(items, insertNext = true) == true) return
         if (refuseQueueEditInRemoteMode()) return
         if (player.mediaItemCount == 0 || player.playbackState == STATE_IDLE) {
             // Con el reproductor vacío esto NO es un "poner a continuación": construye una cola nueva
@@ -6457,6 +6460,8 @@ class MusicService :
     }
 
     fun addToQueue(items: List<MediaItem>) {
+        // Row 809 (H24): while another device is controlled from here, THAT device queues the songs.
+        if (deviceSync?.queueOnRemote(items, insertNext = false) == true) return
         if (refuseQueueEditInRemoteMode()) return
         if (dataStore.get(PreventDuplicateTracksInQueueKey, true)) {
             val itemIds = items.map { it.mediaId }.toSet()

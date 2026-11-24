@@ -597,6 +597,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.device_sync_battery_desc), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_paired_title), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_lib_title), "Sincronizar dispositivos", "settings/device_sync"),
+            Triple(stringResource(R.string.device_sync_held_title), "Sincronizar dispositivos", "settings/device_sync/held"),
             Triple(stringResource(R.string.device_sync_code_create), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_code_enter), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_code_remove), "Sincronizar dispositivos", "settings/device_sync"),

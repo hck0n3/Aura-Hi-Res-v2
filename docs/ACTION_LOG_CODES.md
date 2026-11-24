@@ -140,6 +140,10 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 | `UI.DEVSET.CODE_REMOVE` | Quitar el código |
 | `UI.DEVSET.NAME` | Abrir el diálogo del nombre del aparato |
 | `UI.DEVSET.NAME_SAVE` | Guardar el nombre (el nombre NO se registra) |
+| `UI.DEVSET.HELD` | Abrir «Borrados retenidos» (fila 807) |
+| `UI.DEVSET.HELD_APPLY` | «Aplicar» los borrados retenidos: se quitan también aquí |
+| `UI.DEVSET.HELD_DISCARD` | «Descartar» los borrados retenidos: se conservan y vuelven a los otros aparatos |
+| `UI.DEVSET.HELD_REVIEW` | «Revisar» en el aviso de borrados retenidos |
 
 ## Escuchar juntos
 

@@ -1408,6 +1408,35 @@ class MainActivity : ComponentActivity() {
                 val coroutineScope = rememberCoroutineScope()
                 val snackbarHostState = remember { SnackbarHostState() }
 
+                // Row 807 (H10): the library sync's brake held a batch of removals from another device. Offered once per batch:
+                // the batch is cleared once its notice is answered or times out (a rotation mid-notice shows it again);
+                // «Revisar» opens the screen that applies or discards them.
+                val heldNotice = stringResource(R.string.device_sync_held_notice)
+                val heldReview = stringResource(R.string.device_sync_held_review)
+                LaunchedEffect(Unit) {
+                    iad1tya.echo.music.devicesync.DeviceSyncHub.heldTrip.collectLatest { trip ->
+                        if (trip == null) return@collectLatest
+                        val result = snackbarHostState.showSnackbar(
+                            message = heldNotice.format(trip.count),
+                            actionLabel = heldReview,
+                            duration = SnackbarDuration.Long,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            iad1tya.echo.music.utils.ActionLog.tap(iad1tya.echo.music.utils.ActionId.DEVSET_HELD_REVIEW)
+                            navController.navigate("settings/device_sync/held")
+                        }
+                        iad1tya.echo.music.devicesync.DeviceSyncHub.heldTrip.compareAndSet(trip, null)
+                    }
+                }
+
+                // Row 809: the device sync's short notices (a queue order the controlled device did not take, a device that is not
+                // there, no connection) were emitted with nobody collecting them (row 775); they reach the same snackbar now.
+                LaunchedEffect(Unit) {
+                    iad1tya.echo.music.devicesync.DeviceSyncHub.notices.collect { text ->
+                        snackbarHostState.showSnackbar(message = text, duration = SnackbarDuration.Long)
+                    }
+                }
+
                 // "¿quieres volver a la cola anterior?" — the service noticed he left a playlist to go
                 // play an album (PreviousQueueRule) and snapshotted the queue he walked away from.
                 //

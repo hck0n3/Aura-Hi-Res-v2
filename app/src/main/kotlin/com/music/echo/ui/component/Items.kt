@@ -2070,7 +2070,8 @@ fun SwipeToSongBox(
                         offset.floatValue >= threshold -> {
                             if (player?.shouldBlockPlaybackChanges?.invoke() != true) {
                                 player?.playNext(listOf(mediaItem))
-                                Toast.makeText(ctx, R.string.play_next, Toast.LENGTH_SHORT).show()
+                                // Row 809: while another device is controlled, its `queue_ok` confirms instead.
+                                if (!iad1tya.echo.music.devicesync.RemotePlayback.active) Toast.makeText(ctx, R.string.play_next, Toast.LENGTH_SHORT).show()
                             }
                             reset(offset, scope)
                         }
@@ -2078,7 +2079,7 @@ fun SwipeToSongBox(
                         offset.floatValue <= -threshold -> {
                             if (player?.shouldBlockPlaybackChanges?.invoke() != true) {
                                 player?.addToQueue(listOf(mediaItem))
-                                Toast.makeText(ctx, R.string.add_to_queue, Toast.LENGTH_SHORT).show()
+                                if (!iad1tya.echo.music.devicesync.RemotePlayback.active) Toast.makeText(ctx, R.string.add_to_queue, Toast.LENGTH_SHORT).show()
                             }
                             reset(offset, scope)
                         }
