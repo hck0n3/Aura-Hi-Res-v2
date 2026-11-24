@@ -58,6 +58,22 @@ class ImportFollowsChecklistGuardTest {
     }
 
     @Test
+    fun `one tap ticks or clears the whole list, and only on purpose`() {
+        assertTrue(screen.contains("val allChecked = awaitingImportCounted.isNotEmpty() && awaitingImportCounted.all { it in checked }"))
+        assertTrue(screen.contains("ActionLog.tap(ActionId.YTMSYNC_IMPORT_PICK_ALL)"))
+        assertTrue(screen.contains("checkedImportIds.value = if (allChecked) emptySet() else awaitingImportCounted"))
+        assertTrue(screen.contains("if (allChecked) R.string.ytm_upload_import_uncheck_all else R.string.ytm_upload_import_check_all"))
+        for (dir in listOf("values-es", "values-es-rUS")) {
+            val strings = read("app/src/main/res/$dir/echo_strings.xml")
+            assertTrue(dir, strings.contains("<string name=\"ytm_upload_import_check_all\">Marcar todos</string>"))
+            assertTrue(dir, strings.contains("<string name=\"ytm_upload_import_uncheck_all\">Desmarcar todos</string>"))
+        }
+        val en = read("app/src/main/res/values/echo_strings.xml")
+        assertTrue(en.contains("<string name=\"ytm_upload_import_check_all\">"))
+        assertTrue(en.contains("<string name=\"ytm_upload_import_uncheck_all\">"))
+    }
+
+    @Test
     fun `the button texts are the owner's words`() {
         for (dir in listOf("values-es", "values-es-rUS")) {
             val strings = read("app/src/main/res/$dir/echo_strings.xml")

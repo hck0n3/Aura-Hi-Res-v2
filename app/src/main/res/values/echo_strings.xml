@@ -1563,4 +1563,6 @@
     <string name="ytm_upload_import_pick_hint">Tick the artists you want. «Subscribe the ticked ones» adds them to your Google account; «Discard the ticked ones» keeps them only in Aura, without subscribing them.</string>
     <string name="ytm_upload_import_subscribe_checked">Subscribe the ticked ones</string>
     <string name="ytm_upload_import_local_only_checked">Discard the ticked ones</string>
+    <string name="ytm_upload_import_check_all">Tick all</string>
+    <string name="ytm_upload_import_uncheck_all">Untick all</string>
 </resources>

@@ -415,6 +415,20 @@ private fun LibraryUploadSection(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(pluralStringResource(R.plurals.ytm_upload_import_awaiting, awaitingImportCount, awaitingImportCount))
                     Text(stringResource(R.string.ytm_upload_import_pick_hint))
+                    // Row 831: one tap ticks (or clears) the whole list, so a long hold is not resolved row by row.
+                    val allChecked = awaitingImportCounted.isNotEmpty() && awaitingImportCounted.all { it in checked }
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            ActionLog.tap(ActionId.YTMSYNC_IMPORT_PICK_ALL)
+                            checkedImportIds.value = if (allChecked) emptySet() else awaitingImportCounted
+                        },
+                    ) {
+                        Text(
+                            stringResource(
+                                if (allChecked) R.string.ytm_upload_import_uncheck_all else R.string.ytm_upload_import_check_all,
+                            ),
+                        )
+                    }
                     LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
                         items(awaitingImportArtists, key = { it.id }) { artist ->
                             Row(

@@ -459,6 +459,7 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 | `UI.YTMSYNC.IMPORT_LOCAL_ONLY` | «Descartar los marcados» (fila 831: los marcados quedan solo en la app) |
 | `UI.YTMSYNC.IMPORT_ASK_AGAIN` | Volver a preguntar |
 | `UI.YTMSYNC.IMPORT_PICK` | Marcar / desmarcar un artista en la lista «esperan confirmación» (fila 831) |
+| `UI.YTMSYNC.IMPORT_PICK_ALL` | «Marcar todos» / «Desmarcar todos» en la lista «esperan confirmación» (fila 831) |
 
 ## Reproductor ▸ aviso «Sin conexión» (fila 795)
 

@@ -1455,4 +1455,6 @@
     <string name="ytm_upload_import_pick_hint">Marca los artistas que quieras. «Suscribir a los marcados» los añade a tu cuenta de Google; «Descartar los marcados» los deja solo en Aura, sin suscribirlos.</string>
     <string name="ytm_upload_import_subscribe_checked">Suscribir a los marcados</string>
     <string name="ytm_upload_import_local_only_checked">Descartar los marcados</string>
+    <string name="ytm_upload_import_check_all">Marcar todos</string>
+    <string name="ytm_upload_import_uncheck_all">Desmarcar todos</string>
 </resources>
