@@ -124,16 +124,32 @@ test("verify: ended and invalid are untouched", async () => {
   assert.equal((await verify(env(), { license_key: "K", device_id: "a" })).status, "invalid");
 });
 
-test("verify: master key is unlimited; with an email it pairs by that email, without one it never pairs", async () => {
+test("verify: master key is unlimited, says master and never pairs by email (row 850)", async () => {
   gumroad({ email: "buyer@mail.com" });
   const e = env({ MASTER_KEYS: "MASTERKEY" });
   for (const id of ["m1", "m2", "m3", "m4", "m5"]) {
     const m = await verify(e, { license_key: "MASTERKEY", device_id: id, email: "friend@mail.com" });
-    assert.deepEqual(m, { status: "active", email_ok: true }, id);
+    assert.deepEqual(m, { status: "active", master: true }, id);
   }
-  assert.deepEqual(await verify(e, { license_key: "MASTERKEY", device_id: "m1" }), { status: "active" });
-  assert.deepEqual(await verify(e, { license_key: "MASTERKEY", device_id: "m1", email: "no-at-sign" }), { status: "active" });
+  assert.deepEqual(await verify(e, { license_key: "MASTERKEY", device_id: "m1" }), { status: "active", master: true });
+  assert.deepEqual(await verify(e, { license_key: "MASTERKEY", device_id: "m1", email: "no-at-sign" }), { status: "active", master: true });
   assert.equal(e.store.size, 0); // the master key leaves no trace in KV
+});
+test("verify: a master key with ANY email never gets email_ok, even the Gumroad buyer's own email (row 850)", async () => {
+  gumroad({ email: "buyer@mail.com" });
+  const e = env({ MASTER_KEYS: "OTHER, MASTERKEY" });
+  for (const email of ["buyer@mail.com", " Owner@Mail.COM ", "friend@mail.com", "x@y"]) {
+    const m = await verify(e, { license_key: "MASTERKEY", device_id: "m1", email });
+    assert.equal(m.status, "active", email);
+    assert.equal(m.email_ok, undefined, email);
+    assert.equal(m.master, true, email);
+  }
+});
+test("verify: a normal purchase never says master (row 850)", async () => {
+  gumroad({ email: "buyer@mail.com" });
+  const e = env({ MASTER_KEYS: "MASTERKEY" });
+  assert.equal((await verify(e, { license_key: "K", device_id: "a", email: "buyer@mail.com" })).master, undefined);
+  assert.equal((await verify(e, { license_key: "K", device_id: "a" })).master, undefined);
 });
 test("verify: email_ok on a normal purchase only when the email matched Gumroad", async () => {
   gumroad({ email: "buyer@mail.com" });

@@ -65,12 +65,11 @@ export default {
 
     const masterKeys = (env.MASTER_KEYS || "").split(",").map((s) => s.trim()).filter(Boolean);
     if (masterKeys.includes(licenseKey)) {
-      // Clave maestra: sin límite de equipos y sin Gumroad (no hay compra, así que no hay correo que comparar). Si el usuario
-      // escribió SU correo, se acepta tal cual para que sus equipos se emparejen entre sí: cada correo distinto = grupo distinto.
-      // OJO: ese correo no está comprobado; quien conozca la clave maestra y el correo de otro podría entrar en su grupo.
-      // Para algo realmente privado, el usuario usa un código escrito (20 caracteres al azar) en vez del correo.
-      const typed = normalizeEmail(body && body.email);
-      return json(typed.includes("@") ? { status: "active", email_ok: true } : { status: "active" });
+      // Clave maestra: sin límite de equipos y sin Gumroad (no hay compra, así que no hay correo que comparar). Orden del dueño
+      // 2026-11-24 (fila 850): nunca empareja por correo. El correo escrito no se puede comprobar y quien conociera la clave y el
+      // correo de otro entraba en su grupo; por eso nunca lleva `email_ok` (ninguna app guarda el correo) y `master: true` avisa
+      // a la app nueva para que deje de emparejar sola con un correo guardado antes. Se empareja con un código escrito.
+      return json({ status: "active", master: true });
     }
 
     const gum = await verifyGumroad(env.PRODUCT_ID, licenseKey);
