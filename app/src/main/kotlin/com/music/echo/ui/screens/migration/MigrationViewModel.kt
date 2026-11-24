@@ -497,7 +497,7 @@ class MigrationViewModel @Inject constructor(
     fun confirmAndStart() {
         val p = prepared ?: return
         if (!_uiState.value.signedInYouTube) {
-            fail("Inicia sesión en YouTube Music (Ajustes → Cuentas) para migrar: la playlist se crea en tu cuenta de YouTube Music.")
+            fail("Inicia sesión con tu cuenta de Google (Ajustes → Cuentas) para migrar: la playlist se crea en tu biblioteca de la nube.")
             return
         }
         sourceDisplayName = p.source.displayName

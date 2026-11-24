@@ -84,7 +84,7 @@ fun YtmSyncScreen(
     Scaffold(
         topBar = {
             iad1tya.echo.music.ui.component.AuraTopAppBar(
-                title = { Text("Sincronizar desde YouTube Music") },
+                title = { Text("Sincronizar desde tu cuenta de Google") },
                 navigationIcon = {
                     IconButton(onClick = navController::navigateUp, onLongClick = null) {
                         Icon(painterResource(R.drawable.arrow_back), contentDescription = null)
@@ -121,7 +121,7 @@ fun YtmSyncScreen(
             if (!isLoggedIn) {
                 Spacer(Modifier.height(24.dp))
                 Text(
-                    "Inicia sesión en YouTube Music para sincronizar tu contenido (me gusta, álbumes, artistas, suscripciones y playlists).",
+                    "Inicia sesión con tu cuenta de Google para sincronizar tu contenido (me gusta, álbumes, artistas, suscripciones y playlists).",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

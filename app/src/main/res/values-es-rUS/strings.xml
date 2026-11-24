@@ -36,8 +36,8 @@
     <string name="search_playlists">Buscar en tus playlists</string>
     <string name="library_song_empty">Las canciones de la biblioteca aparecerán aquí</string>
     <string name="library_artists_subscribed_empty">Aún no hay artistas suscritos</string>
-    <string name="library_artists_subscribed_hint">Aquí solo aparecen los artistas a los que tu cuenta de YouTube Music está suscrita. Pulsa Sincronizar para traerlos.</string>
-    <string name="library_artists_subscribed_hint_guest">Aquí aparecen los artistas a los que te suscribes. Inicia sesión en YouTube Music para traer los de tu cuenta.</string>
+    <string name="library_artists_subscribed_hint">Aquí solo aparecen los artistas a los que tu cuenta de Google está suscrita. Pulsa Sincronizar para traerlos.</string>
+    <string name="library_artists_subscribed_hint_guest">Aquí aparecen los artistas a los que te suscribes. Inicia sesión con tu cuenta de Google para traer los que ya sigues.</string>
     <string name="library_album_empty">Los álbumes de la biblioteca aparecerán aquí</string>
     <string name="other_versions">Otras versiones</string>
     <string name="downloaded_songs">Canciones descargadas</string>
@@ -85,7 +85,7 @@
     <string name="playlist_sync_now">Sincronizar ahora</string>
     <string name="playlist_syncing">Sincronizando…</string>
     <string name="playlist_sync_failed">No se pudo sincronizar</string>
-    <string name="sync_login_required">Inicia sesión en YouTube Music</string>
+    <string name="sync_login_required">Inicia sesión con tu cuenta de Google</string>
     <string name="advanced">Avanzado</string>
     <string name="tempo_and_pitch">Tempo y tono</string>
     <string name="sort_by_create_date">Fecha añadida</string>
@@ -185,10 +185,10 @@
     <string name="listen_together_connection_failed">No se pudo conectar a la sala. Revisa tu conexión a internet e inténtalo de nuevo.</string>
     <!-- Migración de listas (Tidal / Deezer / archivo / Apple -> YouTube Music) -->
     <string name="migrate_playlist">Migrar lista</string>
-    <string name="migrate_pick_source_desc">Trae una lista de otro servicio a tu biblioteca de YouTube Music. Cada canción se busca en Aura Hi-Res.</string>
+    <string name="migrate_pick_source_desc">Trae una lista de otro servicio a tu biblioteca de la nube. Cada canción se busca en Aura Hi-Res.</string>
     <string name="migrate_source_group">Elige el origen</string>
-    <string name="migrate_needs_youtube">Inicia sesión en YouTube Music (Ajustes -> Cuentas) para migrar: la lista se crea en tu cuenta de YouTube Music.</string>
-    <string name="migrate_youtube_login">Iniciar sesión en YouTube Music</string>
+    <string name="migrate_needs_youtube">Inicia sesión con tu cuenta de Google (Ajustes -> Cuentas) para migrar: la lista se crea en tu biblioteca de la nube.</string>
+    <string name="migrate_youtube_login">Iniciar sesión con Google</string>
     <string name="migrate_source_file">Archivo (CSV, M3U, JSPF)</string>
     <string name="migrate_source_file_desc">Funciona con cualquier exportación de Spotify, Apple, TuneMyMusic, Soundiiz…</string>
     <string name="migrate_source_deezer">Deezer</string>
@@ -256,7 +256,7 @@
     <string name="migrate_collection_back">Elegir otro origen</string>
     <string name="migrate_library_badge">Biblioteca</string>
     <string name="migrate_artist_count">%d artistas</string>
-    <string name="migrate_dest_playlist">Se creará una lista nueva en tu cuenta de YouTube Music.</string>
+    <string name="migrate_dest_playlist">Se creará una lista nueva en tu biblioteca de la nube.</string>
     <string name="migrate_dest_liked">Estas canciones se añadirán a tus Me gusta; no se crea ninguna lista.</string>
     <string name="migrate_dest_library">Estas canciones se añadirán a tu Biblioteca; no se crea ninguna lista.</string>
     <string name="migrate_dest_artists">Estos artistas se añadirán a tu Biblioteca.</string>
@@ -297,8 +297,8 @@
     <!-- Aprender géneros con datos móviles (puerta de enriquecimiento de GenreCache) -->
     <string name="genre_enrich_on_mobile">Aprender géneros con datos móviles</string>
     <string name="genre_enrich_on_mobile_desc">Usa datos móviles para aprender los géneros de tus artistas — pequeñas consultas, solo cuando hace falta. Desactivado = solo con WiFi.</string>
-    <string name="account_push_queued">No se pudo enviar el cambio a YouTube Music. Se reintentará solo.</string>
-    <string name="account_push_gave_up">No se pudo enviar un cambio a YouTube Music tras varios intentos.</string>
+    <string name="account_push_queued">No se pudo enviar el cambio a tu cuenta de Google. Se reintentará solo.</string>
+    <string name="account_push_gave_up">No se pudo enviar un cambio a tu cuenta de Google tras varios intentos.</string>
     <string name="added_to_playlist_toast">Añadido a «%s»</string>
     <string name="queue_closed_undo">Cola cerrada</string>
 </resources>

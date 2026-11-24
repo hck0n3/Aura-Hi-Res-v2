@@ -114,7 +114,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
 
     val all = listOf(
             // --- Cuentas / fork-only screens (hardcoded labels; these screens use literal titles) ---
-            Triple("YouTube Music", "Cuentas", "settings/accounts"),
+            Triple("Cuenta de Google", "Cuentas", "settings/accounts"),
             Triple("Spotify", "Cuentas", "settings/accounts"),
             Triple("Iniciar sesión", "Cuentas", "settings/accounts"),
             Triple("Cerrar sesión", "Cuentas", "settings/accounts"),

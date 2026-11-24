@@ -253,7 +253,7 @@ fun AuraAutoPlaylistScreen(
                             viewModel.syncLikedSongs()
                             Toast.makeText(
                                 context,
-                                "Sincronizando con YouTube Music…",
+                                "Sincronizando con tu cuenta de Google…",
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }

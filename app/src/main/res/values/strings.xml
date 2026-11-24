@@ -88,15 +88,15 @@
     <string name="filter_featured_playlists">Featured playlists</string>
     <string name="filter_bookmarked">Bookmarked</string>
     <string name="no_results_found">No results found</string>
-    <string name="session_expired_sign_in_again">Your YouTube session has expired. Sign out and sign in again in Settings ▸ Accounts to play your library.</string>
+    <string name="session_expired_sign_in_again">Your Google account session has expired. Sign out and sign in again in Settings ▸ Accounts to play your library.</string>
     <string name="queue_empty_after_filters">Nothing to play: your content filters (hide videos / hide explicit / data saver) removed every track in this queue.</string>
 
     <!-- Library -->
     <string name="library_song_empty">Library songs will show up here</string>
     <string name="library_artist_empty">Library artists will show up here</string>
     <string name="library_artists_subscribed_empty">No subscribed artists yet</string>
-    <string name="library_artists_subscribed_hint">Only the artists your YouTube Music account is subscribed to are listed here. Tap Sync to bring them in.</string>
-    <string name="library_artists_subscribed_hint_guest">Artists you subscribe to appear here. Sign in to YouTube Music to bring in the ones from your account.</string>
+    <string name="library_artists_subscribed_hint">Only the artists your Google account is subscribed to are listed here. Tap Sync to bring them in.</string>
+    <string name="library_artists_subscribed_hint_guest">Artists you subscribe to appear here. Sign in with your Google account to bring in the ones you already follow.</string>
     <string name="library_album_empty">Library albums will show up here</string>
     <string name="favorite_albums">Favorite albums</string>
     <string name="library_playlist_empty">Your playlists will show up here</string>
@@ -147,9 +147,9 @@
     <string name="remove_download">Remove download</string>
     <string name="import_playlist">Import playlist</string>
     <string name="import_from_spotify">Import from Spotify</string>
-    <string name="import_from_youtube">Import from YouTube Music</string>
-    <string name="import_youtube_playlist_title">Import playlist from YouTube Music</string>
-    <string name="import_youtube_playlist_hint">Paste the public YouTube Music playlist link below</string>
+    <string name="import_from_youtube">Import from a YouTube link</string>
+    <string name="import_youtube_playlist_title">Import playlist from a YouTube link</string>
+    <string name="import_youtube_playlist_hint">Paste the link of a public YouTube playlist below</string>
     <string name="invalid_playlist_url">Invalid playlist URL</string>
     <string name="add_to_playlist">Add to playlist</string>
     <string name="start_an_radio">Radio</string>
@@ -183,7 +183,7 @@
     <string name="playlist_sync_now">Sync now</string>
     <string name="playlist_syncing">Syncing…</string>
     <string name="playlist_sync_failed">Sync failed</string>
-    <string name="sync_login_required">Sign in to YouTube Music</string>
+    <string name="sync_login_required">Sign in with your Google account</string>
     <string name="advanced">Advanced</string>
     <string name="tempo_and_pitch">Tempo and Pitch</string>
 
@@ -600,8 +600,8 @@
     <string name="open_links_prompt_body">Aura opens YouTube, YouTube Music and song.link links. Android asks you to allow it once: tap "Allow", then turn on "Open supported links" and add the YouTube, YouTube Music and song.link ones. Spotify, Apple Music, Deezer, Tidal, SoundCloud and Amazon Music links are turned on one by one in Settings ▸ Content ▸ Open links; add their links only after turning a service on there.</string>
     <string name="open_links_prompt_allow">Allow</string>
     <string name="open_links_prompt_later">Later</string>
-    <string name="external_link_searching">Finding it on YouTube Music…</string>
-    <string name="external_link_not_found">Could not find it on YouTube Music</string>
+    <string name="external_link_searching">Finding it in Aura\'s catalog…</string>
+    <string name="external_link_not_found">Could not find it in Aura\'s catalog</string>
 
     <!-- AI text-to-playlist -->
     <string name="ai_playlist_title">AI Playlist</string>
@@ -713,10 +713,10 @@
     <string name="listen_together_connection_failed">Couldn\'t connect to the room. Check your internet connection and try again.</string>
     <!-- Playlist migration (Tidal / Deezer / file / Apple -> YouTube Music) -->
     <string name="migrate_playlist">Migrate playlist</string>
-    <string name="migrate_pick_source_desc">Bring a playlist from another service into your YouTube Music library. Each track is matched in Aura Hi-Res.</string>
+    <string name="migrate_pick_source_desc">Bring a playlist from another service into your cloud library. Each track is matched in Aura Hi-Res.</string>
     <string name="migrate_source_group">Choose the source</string>
-    <string name="migrate_needs_youtube">Sign in to YouTube Music (Settings -> Accounts) to migrate: the playlist is created in your YouTube Music account.</string>
-    <string name="migrate_youtube_login">Sign in to YouTube Music</string>
+    <string name="migrate_needs_youtube">Sign in with your Google account (Settings -> Accounts) to migrate: the playlist is created in your cloud library.</string>
+    <string name="migrate_youtube_login">Sign in with Google</string>
     <string name="migrate_source_file">File (CSV, M3U, JSPF)</string>
     <string name="migrate_source_file_desc">Works with any export from Spotify, Apple, TuneMyMusic, Soundiiz…</string>
     <string name="migrate_source_deezer">Deezer</string>
@@ -788,7 +788,7 @@
     <string name="migrate_collection_back">Choose another source</string>
     <string name="migrate_library_badge">Library</string>
     <string name="migrate_artist_count">%d artists</string>
-    <string name="migrate_dest_playlist">A new playlist will be created in your YouTube Music account.</string>
+    <string name="migrate_dest_playlist">A new playlist will be created in your cloud library.</string>
     <string name="migrate_dest_liked">These songs will be added to your liked songs — no playlist is created.</string>
     <string name="migrate_dest_library">These songs will be added to your Library — no playlist is created.</string>
     <string name="migrate_dest_artists">These artists will be added to your Library.</string>
@@ -838,8 +838,8 @@
     <string name="app_name_aura">Aura</string>
     <string name="app_name_hi_res">Hi-Res</string>
     <string name="cast_video_unavailable">This video can\u2019t be sent to the TV. Playing audio only.</string>
-    <string name="account_push_queued">Couldn\'t send that change to YouTube Music. It will be retried automatically.</string>
-    <string name="account_push_gave_up">Couldn\'t send a change to YouTube Music after several attempts.</string>
+    <string name="account_push_queued">Couldn\'t send that change to your Google account. It will be retried automatically.</string>
+    <string name="account_push_gave_up">Couldn\'t send a change to your Google account after several attempts.</string>
     <string name="added_to_playlist_toast">Added to \"%s\"</string>
     <string name="queue_closed_undo">Queue closed</string>
 </resources>

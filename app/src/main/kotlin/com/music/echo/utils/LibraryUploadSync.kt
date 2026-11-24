@@ -333,7 +333,7 @@ class LibraryUploadSync @Inject constructor(
         if (!isLoggedIn()) {
             // Not an error and not a crash: the work simply stays queued in the DB until the user
             // signs in, and the report says why nothing is moving.
-            stop("Inicia sesión en YouTube Music para sincronizar tu biblioteca")
+            stop("Inicia sesión con tu cuenta de Google para sincronizar tu biblioteca")
             return false
         }
         if (!context.isInternetConnected()) {
@@ -394,7 +394,7 @@ class LibraryUploadSync @Inject constructor(
             _progress.value = _progress.value.copy(
                 running = false,
                 requestsLastRun = requestBudget,
-                stoppedReason = "La sincronización con YouTube Music está desactivada",
+                stoppedReason = "La sincronización con tu cuenta de Google está desactivada",
             )
             persistProgress()
             return false

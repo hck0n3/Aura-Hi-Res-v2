@@ -147,7 +147,7 @@ fun AccountsScreen(
         ) {
             // ── YouTube Music ──
             Material3SettingsGroup(
-                title = "YouTube Music",
+                title = "Cuenta de Google",
                 items = listOf(
                     Material3SettingsItem(
                         icon = if (ytLoggedIn && !ytImageUrl.isNullOrBlank()) null else painterResource(R.drawable.account),
@@ -174,7 +174,7 @@ fun AccountsScreen(
                         description = {
                             Text(
                                 text = when {
-                                    !ytLoggedIn -> stringResource(R.string.not_logged_in)
+                                    !ytLoggedIn -> stringResource(R.string.sync_login_required)
                                     ytSecondary.isNotBlank() -> ytSecondary
                                     else -> "Sesión iniciada"
                                 }

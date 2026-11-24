@@ -118,7 +118,7 @@ fun WelcomeDialog(
                     WelcomeBulletGroup(
                         "Biblioteca",
                         listOf(
-                            "Sincronizar YouTube Music; importar Spotify, CSV/M3U y más",
+                            "Sincronizar tu cuenta de Google; importar Spotify, CSV/M3U y más",
                             "Podcasts RSS, medios locales y scrobbling opcional (Last.fm / ListenBrainz)",
                         ),
                     ),
