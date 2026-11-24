@@ -58,15 +58,19 @@ class PrivacyPolicyAssetTest {
     }
 
     @Test
-    fun `both policies name the third-party Listen Together server the app falls back to`() {
+    fun `both policies say Listen Together uses only Aura's own server`() {
+        // Row 818 (owner decision B1, 2026-11-24): the app no longer reaches the shared server, so the policies no longer name it
+        // (row 774 had added that paragraph for the «Salas de Aura» switch, which is gone).
         val host = ListenTogetherClient.DEFAULT_SERVER_URL.removePrefix("wss://").substringBefore('/')
-        assertEquals("metroserverx.meowery.eu", host)
         val es = file("PRIVACIDAD.md").readText()
         val en = file("PRIVACY_POLICY.md").readText()
-        assertTrue(es.contains("- **Escuchar juntos con las salas de Aura apagadas:**") && es.contains("`$host`, que **no operamos nosotros**"))
-        assertTrue(en.contains("- **Listen Together with Aura rooms turned off:**") && en.contains("`$host`, which **we do not run**"))
-        assertTrue(es.contains("| **Escuchar juntos: salas de Aura** (**activadas por defecto**;"))
-        assertTrue(en.contains("| **Listen Together: Aura rooms** (**on by default**;"))
+        assertFalse(es.contains(host) || en.contains(host))
+        assertFalse(es.contains("- **Escuchar juntos con las salas de Aura apagadas:**"))
+        assertFalse(en.contains("- **Listen Together with Aura rooms turned off:**"))
+        assertTrue(es.contains("| **Escuchar juntos: salas de Aura** (el único servidor de Escuchar juntos) |"))
+        assertTrue(en.contains("| **Listen Together: Aura rooms** (the only Listen Together server) |"))
+        assertTrue(es.contains("y las salas de Aura de Escuchar juntos, que son el único servidor que usa Escuchar juntos."))
+        assertTrue(en.contains("and Aura's own Listen Together rooms, the only server Listen Together uses."))
         assertFalse(es.contains("| **Escuchar juntos** |"))
         assertFalse(en.contains("| **Listen Together** |"))
     }

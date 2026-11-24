@@ -593,8 +593,13 @@ val EnableGoogleCastKey = booleanPreferencesKey("enableGoogleCast")
 
 val ListenTogetherServerUrlKey = stringPreferencesKey("listenTogetherServerUrl")
 val ListenTogetherUsernameKey = stringPreferencesKey("listenTogetherUsername")
-/** Use Aura's own rooms (aura-rooms Worker, only between Aura users) instead of the Metrolist-compatible server. Default OFF. */
+/**
+ * Use Aura's own rooms (aura-rooms Worker, only between Aura users). Row 818 (owner decision B1): always true now — the client no
+ * longer reads it, a stored `false` is rewritten once ([ListenTogetherAuraOnlyAppliedKey]) and the screens read it for the code length.
+ */
 val ListenTogetherAuraRoomsKey = booleanPreferencesKey("listenTogetherAuraRooms")
+/** Row 818: the one-time rewrite of [ListenTogetherAuraRoomsKey] to true has run. */
+val ListenTogetherAuraOnlyAppliedKey = booleanPreferencesKey("listen_together_aura_only_applied")
 val ListenTogetherAutoApprovalKey = booleanPreferencesKey("listenTogetherAutoApproval")
 val ListenTogetherSyncVolumeKey = booleanPreferencesKey("listenTogetherSyncVolume")
 val ListenTogetherSmartResyncKey = booleanPreferencesKey("listenTogetherSmartResync")
