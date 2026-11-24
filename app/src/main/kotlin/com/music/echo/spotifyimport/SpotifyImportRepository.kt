@@ -1301,7 +1301,7 @@ class SpotifyImportRepository @Inject constructor(
     }
 
     /**
-     * Searches YouTube Music for [spotifyAlbum] (album + artist), picks the first close title match,
+     * Searches YouTube Music for [spotifyAlbum] (album + artist), picks the first result with the same title and artist,
      * and upserts it as a bookmarked [AlbumEntity] so it appears under Favorite Albums.
      */
     private suspend fun matchAndBookmarkAlbumDetailed(spotifyAlbum: SpotifyAlbum): ItemMatchOutcome {
@@ -1326,8 +1326,13 @@ class SpotifyImportRepository @Inject constructor(
         val match = searchResult.items
             .filterIsInstance<AlbumItem>()
             .firstOrNull { item ->
-                item.title.contains(spotifyAlbum.name, ignoreCase = true) ||
-                    spotifyAlbum.name.contains(item.title, ignoreCase = true)
+                // Row 830: equal normalized title AND one of the same artists; a «contains» title alone saved other artists' albums.
+                SpotifyExactImportPolicy.isSameAlbum(
+                    spotifyTitle = spotifyAlbum.name,
+                    spotifyArtists = spotifyAlbum.artists.map { it.name },
+                    youTubeTitle = item.title,
+                    youTubeArtists = item.artists.orEmpty().map { it.name },
+                )
             } ?: return ItemMatchOutcome.Failure(SpotifyImportFailureReason.NO_CANDIDATES)
 
         val existing = database.album(match.id).first()?.album

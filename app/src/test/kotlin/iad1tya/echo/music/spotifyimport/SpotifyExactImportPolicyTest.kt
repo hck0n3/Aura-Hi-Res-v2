@@ -156,6 +156,31 @@ class SpotifyExactImportPolicyTest {
     }
 
     @Test
+    fun `an album matches only with the same normalized title and one of the same artists`() {
+        val same = SpotifyExactImportPolicy::isSameAlbum
+        assertTrue(same("Motomami", listOf("ROSALÍA"), "MOTOMAMI", listOf("Rosalia")))
+        assertTrue("one shared artist is enough", same("Collab", listOf("A", "B"), "Collab", listOf("B")))
+        assertFalse("a title that only contains Spotify's", same("Motomami", listOf("Rosalia"), "Motomami (Live)", listOf("Rosalia")))
+        assertFalse("a title contained in Spotify's", same("Motomami +", listOf("Rosalia"), "Moto", listOf("Rosalia")))
+        assertFalse("same title, another artist", same("Greatest Hits", listOf("Queen"), "Greatest Hits", listOf("ABBA")))
+        assertFalse("no artist on the YouTube result", same("Greatest Hits", listOf("Queen"), "Greatest Hits", emptyList()))
+        assertFalse("an empty title never matches", same("", listOf("Queen"), "", listOf("Queen")))
+        // A title only in a non-Latin script still compares, by exact text.
+        assertTrue(same("東京", listOf("宇多田ヒカル"), "東京", listOf("宇多田ヒカル")))
+        assertFalse(same("東京", listOf("宇多田ヒカル"), "東京駅", listOf("宇多田ヒカル")))
+    }
+
+    @Test
+    fun `the saved albums import uses the exact album match`() {
+        val repo = main("spotifyimport/SpotifyImportRepository.kt")
+        val album = repo.substringAfter("private suspend fun matchAndBookmarkAlbumDetailed(").substringBefore("\n    }\n")
+        assertTrue(album.contains("SpotifyExactImportPolicy.isSameAlbum("))
+        assertTrue(album.contains("youTubeArtists = item.artists.orEmpty().map { it.name },"))
+        assertFalse(album.contains("item.title.contains(spotifyAlbum.name, ignoreCase = true)"))
+        assertFalse(album.contains("spotifyAlbum.name.contains(item.title, ignoreCase = true)"))
+    }
+
+    @Test
     fun `the screen, the view model and the worker go through the policy`() {
         val vm = main("spotifyimport/SpotifyImportViewModel.kt")
         assertTrue(vm.contains("selectedSourceIds = SpotifyExactImportPolicy.initialSelection("))

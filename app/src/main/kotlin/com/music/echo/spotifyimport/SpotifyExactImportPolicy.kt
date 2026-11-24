@@ -70,4 +70,26 @@ object SpotifyExactImportPolicy {
         val listed = listedNow.toHashSet()
         return (previous + handledNow).filterTo(LinkedHashSet()) { it.isNotBlank() && it in listed }
     }
+
+    /**
+     * Comparison key: [ArtistNameMatching.normalize]; when that leaves nothing (a title or name written only in a non-Latin script,
+     * which it strips), the trimmed lower-case text, still compared for equality.
+     */
+    fun matchKey(raw: String): String = ArtistNameMatching.normalize(raw).ifEmpty { raw.trim().lowercase() }
+
+    /**
+     * A YouTube album is the Spotify one only when its normalized title is EQUAL and one of its artists is one of the Spotify
+     * album's artists. Before, the first album whose title contained (or was contained in) Spotify's was saved, whoever made it.
+     */
+    fun isSameAlbum(
+        spotifyTitle: String,
+        spotifyArtists: List<String>,
+        youTubeTitle: String,
+        youTubeArtists: List<String>,
+    ): Boolean {
+        val title = matchKey(spotifyTitle)
+        if (title.isEmpty() || title != matchKey(youTubeTitle)) return false
+        val wanted = spotifyArtists.map(::matchKey).filterTo(HashSet()) { it.isNotEmpty() }
+        return youTubeArtists.any { matchKey(it) in wanted }
+    }
 }
