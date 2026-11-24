@@ -7,7 +7,6 @@ import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.ExportedVideoIdsKey
 import iad1tya.echo.music.constants.HideExplicitKey
 import iad1tya.echo.music.constants.HideVideoSongsKey
@@ -20,6 +19,7 @@ import iad1tya.echo.music.extensions.filterVideoSongs
 import iad1tya.echo.music.extensions.toEnum
 import iad1tya.echo.music.utils.SyncUtils
 import iad1tya.echo.music.utils.dataStore
+import iad1tya.echo.music.utils.exportedSongIdsOnDevice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -55,18 +55,17 @@ constructor(
     val likedSongs =
         context.dataStore.data
             .map {
-                Triple(
+                Pair(
                     Triple(
                         it[SongSortTypeKey].toEnum(SongSortType.CREATE_DATE) to (it[SongSortDescendingKey] ?: true),
                         it[HideExplicitKey] ?: false,
                         it[HideVideoSongsKey] ?: false
                     ),
-                    it[ExportedSongIdsKey] ?: "",
                     it[ExportedVideoIdsKey] ?: "",
                 )
             }
             .distinctUntilChanged()
-            .flatMapLatest { (triple, exportedSongIds, exportedVideoIds) ->
+            .flatMapLatest { (triple, exportedVideoIds) ->
                 val (sortDesc, hideExplicit, hideVideoSongs) = triple
                 val (sortType, descending) = sortDesc
                 when (playlist) {
@@ -79,8 +78,8 @@ constructor(
                     // Uploaded playlist removed from product UI; keep empty for legacy deep links.
                     "uploaded" -> flowOf(emptyList())
 
-                    "exported" -> {
-                        val ids = exportedSongIds.split(",").filter { it.isNotBlank() }
+                    // Row 801 (H30): only exports whose file is still on the phone.
+                    "exported" -> exportedSongIdsOnDevice(context).flatMapLatest { ids ->
                         // `WHERE id IN (...)` comes back unordered, so the sort selector is applied here.
                         database.getSongsByIdsFlowChunked(ids)
                             .map {
