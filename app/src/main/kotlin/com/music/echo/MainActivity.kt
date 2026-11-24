@@ -341,6 +341,7 @@ class MainActivity : ComponentActivity() {
         /** Notification / in-app redirect: open Ajustes ▸ Actualizaciones. */
         const val EXTRA_OPEN_UPDATE = "extra_open_update"
         const val EXTRA_UPDATE_TAG = "extra_update_tag"
+        private const val STATE_PENDING_LISTEN_INVITE = "pending_listen_invite"
 
         /**
          * The generic "a notification was tapped, go to what it is about" door.
@@ -373,6 +374,8 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var navController: NavHostController
     private var pendingIntent: Intent? = null
+    // Registry row 804 (owner decision H9): the room code of an opened invite link, waiting for «Unirme».
+    private var pendingListenInvite by mutableStateOf<String?>(null)
 
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
     // True while the app is in Android Picture-in-Picture mode (video floating window).
@@ -511,6 +514,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // The invite link's data is consumed when it is read: a rotation keeps the unanswered question only through here.
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingListenInvite?.let { outState.putString(STATE_PENDING_LISTEN_INVITE, it) }
+    }
+
     // Picture-in-Picture: when the user leaves the app while a video is playing, float it in a PiP window
     // so the video keeps showing. (Audio already keeps playing via the foreground service regardless.)
     override fun onUserLeaveHint() {
@@ -610,6 +619,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        pendingListenInvite = savedInstanceState?.getString(STATE_PENDING_LISTEN_INVITE)
         ContextCompat.registerReceiver(
             this, pipReceiver, IntentFilter(PIP_ACTION), ContextCompat.RECEIVER_NOT_EXPORTED,
         )
@@ -2835,6 +2845,26 @@ class MainActivity : ComponentActivity() {
                             setOpenLinksPromptShown(true)
                         })
                     }
+
+                    // Registry row 804 (owner decision H9): «¿Unirte a la sala X?» before an invite link joins anything.
+                    pendingListenInvite?.let { code ->
+                        iad1tya.echo.music.ui.component.AuraAlertDialog(
+                            onDismissRequest = { pendingListenInvite = null },
+                            title = { Text(stringResource(R.string.listen_invite_confirm_title, code)) },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    pendingListenInvite = null
+                                    val username = this@MainActivity.dataStore.get(ListenTogetherUsernameKey, "").ifBlank { "Guest" }
+                                    listenTogetherManager.joinRoom(code, username)
+                                }) { Text(stringResource(R.string.listen_invite_join)) }
+                            },
+                            dismissButton = {
+                                androidx.compose.material3.TextButton(onClick = { pendingListenInvite = null }) {
+                                    Text(stringResource(R.string.cancel))
+                                }
+                            },
+                        )
+                    }
                     } // SHELL GLASS (A1): close of the CompositionLocalProvider(LocalShellHazeState)
                 }
             }
@@ -3143,8 +3173,8 @@ class MainActivity : ComponentActivity() {
             ?: uri.pathSegments.getOrNull(1)
         val isListenLink = uri.pathSegments.firstOrNull() == "listen" || uri.host?.equals("listen", ignoreCase = true) == true
         if (!listenCode.isNullOrBlank() && isListenLink) {
-            val username = dataStore.get(ListenTogetherUsernameKey, "").ifBlank { "Guest" }
-            listenTogetherManager.joinRoom(listenCode, username)
+            // Owner decision H9: an opened link never joins on its own; the dialog in setContent asks first.
+            pendingListenInvite = listenCode
             return
         }
 

@@ -1610,6 +1610,7 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 | **Ajustes** → `settings/integrations/listen_together` | Juntos > tarjeta de ajustes | `ui/screens/ListenTogetherScreen.kt:422-426`, `:1369-1379` | navegación | ocasional | siempre |
 | **«How it Works»** + 3 pasos *(hardcoded, en inglés)* | Juntos > ayuda | `ui/screens/ListenTogetherScreen.kt:444-464` | informativo | rara | solo fuera de sala |
 | Diálogo **Administrar usuario**: **Expulsar** / **Bloquear permanentemente** / **Transferir propiedad** / **Cancelar** | Juntos > diálogo | `ui/screens/ListenTogetherScreen.kt:1399-1523` | destructiva | ocasional | ⚠️ **las tres acciones destructivas se ejecutan a un solo toque, sin confirmación** |
+| Diálogo **«¿Unirte a la sala X?»** + **Unirme** / **Cancelar** (fila 804, decisión H9) — al abrir un enlace de invitación (`echomusic://listen?code=…` o el enlace https de la sala) ya no entra solo: pregunta antes. El enlace solo lleva el código, así que el diálogo no puede nombrar al anfitrión. Atrás o tocar fuera = Cancelar | Cualquier pantalla > diálogo | `MainActivity.kt` (`pendingListenInvite`, diálogo junto a `OpenLinksDefaultPrompt`) | acción primaria | rara | solo al abrir un enlace de invitación |
 
 ## 14.2 Chat de la sala — **RETIRADO (`CommentTogether.kt` borrado; la ruta `listen_together/chat` ya no existe)**
 
