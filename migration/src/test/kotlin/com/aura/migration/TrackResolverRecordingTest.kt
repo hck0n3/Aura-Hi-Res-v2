@@ -66,4 +66,14 @@ class TrackResolverRecordingTest {
         val result = resolve(tribute)
         assertTrue("$result", result !is MatchResult.Matched)
     }
+
+    @Test
+    fun `a remastered title from a source without durations is still inserted`() {
+        val noDuration = SourceTrack(title = "Yesterday - Remastered 2009", artists = listOf("The Beatles"))
+        val original = YtmCandidate(videoId = "song", title = "Yesterday", artists = listOf("The Beatles"), durationMs = 125_000L)
+        assertTrue(Scorer.score(noDuration, original) >= Scorer.ACCEPT)
+        val result = runBlocking { TrackResolver(FakeYtm(listOf(original)), MatchCache(EmptyDao())).resolve(noDuration) }
+        assertTrue("$result", result is MatchResult.Matched)
+        assertEquals("song", (result as MatchResult.Matched).videoId)
+    }
 }

@@ -89,9 +89,9 @@ object RecordingMatcher {
         val score = 0.45 * nameSim + 0.35 * artistSim + 0.20 * durationScore
         val strong = durationClose && nameSim >= 0.78 && artistSim >= FUZZY_THRESHOLD
         val fuzzy = nameStrict >= 0.88 && artistSim >= FUZZY_THRESHOLD
-        val catalog = duration != null && candidateDuration != null &&
-            abs(duration - candidateDuration) <= CATALOG_DURATION_TOLERANCE_MS &&
-            artistSim >= FUZZY_THRESHOLD &&
+        // As SongMirror's same_catalog_recording: durations further apart than 5 s were rejected above, and a source without one
+        // (a CSV, an M3U without #EXTINF) still has the same audio when only a catalog decoration differs.
+        val catalog = artistSim >= FUZZY_THRESHOLD &&
             catalogName(title).let { it.isNotEmpty() && it == catalogName(candidateTitle) }
         return Verdict(score, strong || fuzzy || catalog)
     }

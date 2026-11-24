@@ -144,6 +144,15 @@ class RecordingMatcherTest {
     }
 
     @Test
+    fun `without a duration a catalog decoration by the same artist is still the same audio`() {
+        assertTrue(accepts("Yesterday - Remastered 2009", listOf("The Beatles"), null, "Yesterday", "The Beatles", 125_000L))
+        assertTrue(accepts("Yesterday", listOf("The Beatles"), 125_000L, "Yesterday [Explicit]", "The Beatles", null))
+        assertFalse(accepts("Yesterday - Remastered 2009", listOf("The Beatles"), null, "Yesterday", "Beatles Tribute Band", 125_000L))
+        assertFalse(accepts("Yesterday - Remastered 2009", listOf("The Beatles"), null, "Yesterday (Live)", "The Beatles", 125_000L))
+        assertFalse(accepts("Yesterday - Remastered 2009", listOf("The Beatles"), null, "Tomorrow", "The Beatles", 125_000L))
+    }
+
+    @Test
     fun `non-Latin titles match exactly and never by an empty string`() {
         assertTrue(accepts("좋은 날", listOf("아이유"), 234_000L, "좋은 날", "아이유", 234_000L))
         assertTrue(accepts("夜に駆ける", listOf("YOASOBI"), 261_000L, "夜に駆ける", "YOASOBI", 261_000L))
