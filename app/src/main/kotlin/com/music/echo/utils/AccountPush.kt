@@ -186,7 +186,7 @@ object AccountPush {
 
     /**
      * Record the user's action and send it NOW. Safe from any thread, never throws, a no-op when
-     * signed out (the sync reconciles that case by itself when they sign in).
+     * signed out (row 834: the liked-songs sync sends such a like later only with the library-upload switch on).
      */
     fun submit(op: AccountPushPolicy.Op, id: String) {
         if (appContext == null || id.isBlank()) return

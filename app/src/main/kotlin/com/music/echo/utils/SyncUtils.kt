@@ -1212,7 +1212,8 @@ class SyncUtils @Inject constructor(
                     val confirmedBefore: Set<String>? = likeConfirmPrefs.getStringSet(LIKED_CONFIRMED_KEY, null)
                     // Row 834 (owner 2026-11-24: «que no sincronice otras cosas que no tengan nada que ver con lo que estoy
                     // pidiendo»): this pass is a DOWN sync; sending local likes the account never had is a bulk write, so it
-                    // only runs with the upload switch on. A like the user tapped is retried by AccountPush either way.
+                    // only runs with the upload switch on. A like tapped while signed in is retried by AccountPush; one tapped
+                    // while signed out, or one AccountPush gave up on, stays liked here but is not sent with the switch off.
                     var pushBudget = if (isUploadSwitchOn()) LIKE_REPUSH_PER_SYNC else 0
                     localSongs.filterNot { it.id in remoteIds || it.song.isLocal }.forEach { song ->
                         try {
