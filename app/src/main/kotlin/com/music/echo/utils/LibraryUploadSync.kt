@@ -993,6 +993,9 @@ class LibraryUploadSync @Inject constructor(
         // to do here this pass: verified with nothing pending, so the worker does not chain continuations for it.
         if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {
             Timber.i("LIB_SYNC YouTube like upload skipped (library synced between devices)")
+            // Row 841: no read of this list runs while the devices own the library, so an earlier «lista incompleta» would never clear.
+            noteAccountRead(AccountReadLists.LIKED_SONGS, complete = true)
+            _progress.value = _progress.value.copy(likedSongs = _progress.value.likedSongs.copy(readCutShort = false))
             _progress.value = _progress.value.copy(
                 likedSongs = _progress.value.likedSongs.copy(pending = 0, running = false, verified = true),
             )
@@ -1059,6 +1062,9 @@ class LibraryUploadSync @Inject constructor(
         // (syncSetAlbumSaved) would be saved to this device's account.
         if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {
             Timber.i("LIB_SYNC YouTube album upload skipped (library synced between devices)")
+            // Row 841: no read of this list runs while the devices own the library, so an earlier «lista incompleta» would never clear.
+            noteAccountRead(AccountReadLists.LIKED_ALBUMS, complete = true)
+            _progress.value = _progress.value.copy(likedAlbums = _progress.value.likedAlbums.copy(readCutShort = false))
             _progress.value = _progress.value.copy(
                 likedAlbums = _progress.value.likedAlbums.copy(pending = 0, running = false, verified = true),
             )

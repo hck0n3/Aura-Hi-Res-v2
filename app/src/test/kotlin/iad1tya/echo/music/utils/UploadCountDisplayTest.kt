@@ -98,6 +98,21 @@ class UploadCountDisplayTest {
     }
 
     @Test
+    fun `the device-owned skips clear the incomplete mark that no read could clear while they own the library`() {
+        val upload = src("app/src/main/kotlin/com/music/echo/utils/LibraryUploadSync.kt")
+        for ((fn, key, field) in listOf(
+            Triple("private suspend fun uploadLikedSongs() {", "LIKED_SONGS", "likedSongs"),
+            Triple("private suspend fun uploadLikedAlbums() {", "LIKED_ALBUMS", "likedAlbums"),
+        )) {
+            val skip = upload.substringAfter(fn)
+                .substringAfter("if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {")
+                .substringBefore("return\n")
+            assertTrue(key, skip.contains("noteAccountRead(AccountReadLists.$key, complete = true)"))
+            assertTrue(key, skip.contains("_progress.value = _progress.value.copy($field = _progress.value.$field.copy(readCutShort = false))"))
+        }
+    }
+
+    @Test
     fun `the minimum wording is in English and both Spanish files, with its count`() {
         for (folder in listOf("values", "values-es", "values-es-rUS")) {
             val strings = src("app/src/main/res/$folder/echo_strings.xml")
