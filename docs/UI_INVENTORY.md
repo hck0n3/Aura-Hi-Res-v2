@@ -1607,6 +1607,7 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 | **Crear** | Juntos > acción | `ui/screens/ListenTogetherScreen.kt:1328-1344` | acción primaria | diaria | habilitado solo con nombre de usuario |
 | **Unirse** | Juntos > acción | `ui/screens/ListenTogetherScreen.kt:1346-1362` | acción primaria | diaria | habilitado solo con nombre y código de 8 caracteres |
 | **Salir de la sala** | Juntos > acción | `ui/screens/ListenTogetherScreen.kt:344-362` | destructiva | ocasional | solo en sala |
+| Toast **«La sala está en pausa: solo el anfitrión puede reanudar»** *(nuevo, fila 817: antes la sala volvía a pausar al invitado en silencio)* | Cualquier pantalla (lo muestra el servicio) | `listentogether/ListenTogetherPlaybackBridge.kt` (`listen_together_room_paused_host_only`) | informativo | ocasional | invitado que pulsa reproducir con la sala en pausa |
 | **Ajustes** → `settings/integrations/listen_together` | Juntos > tarjeta de ajustes | `ui/screens/ListenTogetherScreen.kt:422-426`, `:1369-1379` | navegación | ocasional | siempre |
 | **«How it Works»** + 3 pasos *(hardcoded, en inglés)* | Juntos > ayuda | `ui/screens/ListenTogetherScreen.kt:444-464` | informativo | rara | solo fuera de sala |
 | Diálogo **Administrar usuario**: **Expulsar** / **Bloquear permanentemente** / **Transferir propiedad** / **Cancelar** | Juntos > diálogo | `ui/screens/ListenTogetherScreen.kt:1399-1523` | destructiva | ocasional | ⚠️ **las tres acciones destructivas se ejecutan a un solo toque, sin confirmación** |

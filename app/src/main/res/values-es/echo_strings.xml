@@ -670,6 +670,7 @@
     <string name="audio_offload_disabled_by_spatial">Desactivado porque el audio espacial está activo</string>
     <string name="audio_offload_disabled_by_listen_together">Desactivado mientras estás en una sala de Escuchar juntos</string>
     <string name="listen_together_tempo_locked">La velocidad se queda en 1,0× mientras estás en una sala de Escuchar juntos, para que todos oigan el mismo momento</string>
+    <string name="listen_together_room_paused_host_only">La sala está en pausa: solo el anfitrión puede reanudar</string>
     <string name="audio_offload_disabled_by_mastering">Desactivado porque el compresor suave, la protección del altavoz del teléfono o un ancho estéreo cambiado están activos</string>
     <string name="crossfade">Transición suave</string>
     <string name="hide_youtube_shorts">Ocultar Shorts</string>

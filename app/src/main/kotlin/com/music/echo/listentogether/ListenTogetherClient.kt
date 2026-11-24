@@ -479,6 +479,8 @@ class ListenTogetherClient(
                 continue
             }
             val (type, payloadBytes) = decoded
+            // Row 817: which messages reached this device, by TYPE only (rule 4: never the payload). The 15 s pong is left out.
+            if (type != MessageTypes.PONG) Timber.tag(TAG).i("Received %s", type.take(MAX_LOGGED_TYPE_CHARS))
             val payload = codec.decodePayload(type, payloadBytes)
             handleMessage(type, payload)
         }
@@ -637,6 +639,9 @@ class ListenTogetherClient(
 
         /** Aura's own rooms (docs/worker/rooms). Only reachable by Aura clients; chosen in Ajustes ▸ Escuchar juntos. */
         const val AURA_ROOMS_URL = "wss://aura-rooms.toberto4000.workers.dev"
+
+        /** Longer than any message type of the protocol; a server's type is cut to it before it reaches the log. */
+        private const val MAX_LOGGED_TYPE_CHARS = 40
 
         internal fun auraUrl(
             base: String,

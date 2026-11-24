@@ -38,7 +38,43 @@ class GuestPauseTest {
         )
     }
 
+    @Test
+    fun onlyAGuestPlayingInAPausedRoomWithATrackIsPausedAgain() {
+        assertTrue(roomRefusesGuestResume(inRoom = true, isHost = false, roomPlaying = false, hasRoomTrack = true))
+        assertFalse(roomRefusesGuestResume(inRoom = true, isHost = false, roomPlaying = true, hasRoomTrack = true))
+        assertFalse("an empty room has nothing to follow", roomRefusesGuestResume(inRoom = true, isHost = false, roomPlaying = false, hasRoomTrack = false))
+        assertFalse(roomRefusesGuestResume(inRoom = true, isHost = true, roomPlaying = false, hasRoomTrack = true))
+        assertFalse(roomRefusesGuestResume(inRoom = false, isHost = false, roomPlaying = false, hasRoomTrack = true))
+    }
+
     // ── wiring: the bridge and the service are Android-only, so their calls are pinned from the source ──────────────────────────
+
+    @Test
+    fun theRoomsRepauseOfAGuestSaysWhy() {
+        val bridge = text("app/src/main/kotlin/com/music/echo/listentogether/ListenTogetherPlaybackBridge.kt")
+        val posted = bridge.substringAfter("android.os.Handler(android.os.Looper.getMainLooper()).post {").substringBefore("override fun onIsPlayingChanged")
+        assertTrue(posted.contains("if (!roomRefusesGuestResume(now.inRoom, now.isHost, now.isPlaying, now.currentTrack != null)) return@post"))
+        assertTrue("after the pause", posted.indexOf("iad1tya.echo.music.R.string.listen_together_room_paused_host_only") > posted.indexOf("player.pause()"))
+        for (dir in listOf("values", "values-es", "values-es-rUS")) {
+            assertTrue(dir, text("app/src/main/res/$dir/echo_strings.xml").contains("<string name=\"listen_together_room_paused_host_only\">"))
+        }
+        assertTrue(
+            text("app/src/main/res/values-es/echo_strings.xml")
+                .contains("<string name=\"listen_together_room_paused_host_only\">La sala está en pausa: solo el anfitrión puede reanudar</string>"),
+        )
+    }
+
+    @Test
+    fun theSharedLogSaysWhatTheGuestLoadedWhatTheHostSentAndWhichMessagesArrived() {
+        val bridge = text("app/src/main/kotlin/com/music/echo/listentogether/ListenTogetherPlaybackBridge.kt")
+        assertTrue(bridge.contains("\"Guest loading %s at %d of %d playWhenReady=%b\", info.id.asLogToken(), startIndex, ordered.size, playWhenReady)"))
+        assertTrue(bridge.contains("\"Host publishing PLAY after track change (changeHostPlaying=%s roomWasPlaying=%b)\", changeHostPlaying, roomWasPlaying)"))
+        assertTrue(bridge.contains("\"Host track change: no PLAY, the host did not start it within %d ms\""))
+        val client = text("app/src/main/kotlin/com/music/echo/listentogether/ListenTogetherClient.kt")
+        val read = client.substringAfter("private suspend fun readFrames(").substringBefore("private suspend fun handleMessage(")
+        assertTrue("the type only, never the payload", read.contains("if (type != MessageTypes.PONG) Timber.tag(TAG).i(\"Received %s\", type.take(MAX_LOGGED_TYPE_CHARS))"))
+        assertFalse(read.contains("payloadBytes)\n            Timber"))
+    }
 
     private val root: File by lazy {
         generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "settings.gradle.kts").isFile }

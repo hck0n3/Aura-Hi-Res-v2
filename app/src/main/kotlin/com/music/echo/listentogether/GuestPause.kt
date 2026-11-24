@@ -35,3 +35,14 @@ internal fun pausedLocallyLogLine(
 
 /** [pausedLocallyLogLine]'s reason when the change did not come from the player. */
 internal const val PAUSED_LOCALLY_REASON_NONE = -1
+
+/**
+ * Row 817: a guest pressed play while the room is paused. The bridge pauses it again (the host decides when the room plays), and
+ * now says so with a short notice instead of doing it silently.
+ */
+internal fun roomRefusesGuestResume(
+    inRoom: Boolean,
+    isHost: Boolean,
+    roomPlaying: Boolean,
+    hasRoomTrack: Boolean,
+): Boolean = inRoom && !isHost && !roomPlaying && hasRoomTrack
