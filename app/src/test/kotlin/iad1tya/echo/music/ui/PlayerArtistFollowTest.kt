@@ -118,16 +118,19 @@ class PlayerArtistFollowTest {
     }
 
     @Test
-    fun `the chip and the chooser rows are first-tap safe and the tap outlives the player`() {
+    fun `the chip and the chooser rows answer only a clean tap and the tap outlives the player`() {
         val player = main("ui/newui/AuraPlayer.kt")
         assertTrue(player.contains("context.applicationScope.launch(Dispatchers.Main) {"))
         assertTrue(player.contains("when (val found = resolvePlayerArtistChannel(artist, channelIds[key])) {"))
         assertTrue("one tap at a time per artist", player.contains("if (songId != null && followInFlight.add(key)) {"))
+        // Row 836 (owner order 2026-11-24, «haz K1, K2 y K3»): the subscribe chips no longer use `firstTap` (it fires on any lift
+        // inside the chip, so a swipe that ended there subscribed the account); a plain tap is the only way to subscribe.
         assertEquals(
             "the single-artist chip and each chooser row",
             2,
-            Regex("""onClick = \{ followArtistFromPlayer\(artist, followed\) \},\s*firstTap = true,""").findAll(player).count(),
+            Regex("""onClick = \{ followArtistFromPlayer\(artist, followed\) \},\s*(//[^\n]*\n\s*)*firstTap = false,""").findAll(player).count(),
         )
+        assertFalse(Regex("""onClick = \{ followArtistFromPlayer\(artist, followed\) \},\s*firstTap = true,""").containsMatchIn(player))
         assertTrue(player.contains("text = stringResource(if (followed) R.string.subscribed else R.string.subscribe),"))
         assertTrue("several artists open the chooser in follow mode", player.contains("selectArtistToFollow = true"))
         assertTrue(player.contains("if (showSelectArtistDialog && chooserIsCurrent && selectArtistToFollow) {"))
