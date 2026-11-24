@@ -1870,6 +1870,7 @@ interface DatabaseDao {
      * that may not have landed, and registry #150(d) is the standing warning against clearing it here.
      * Row 798: and stamps it as CONFIRMED (`unfollowConfirmedAt`), so the read-back never re-arms it into an
      * unsubscribe of a subscription the user makes again on YouTube ([ArtistSyncPolicy.afterConfirmedUnsubscribe]).
+     * The upload pass confirms through this same function, keyed on the marker its call delivered.
      */
     @Query(
         """
@@ -1881,18 +1882,6 @@ interface DatabaseDao {
         """
     )
     suspend fun confirmArtistUnsubscribed(artistId: String, unfollowedAt: java.time.LocalDateTime)
-
-    /**
-     * Row 798: the upload pass's [confirmArtistUnsubscribed] — YouTube accepted `subscribeChannel(id, false)` for
-     * these rows. Only for a row still unfollowed (a re-follow tapped during the call keeps its follow).
-     */
-    @Query(
-        """
-        UPDATE artist SET ytmSyncedAt = NULL, unfollowConfirmedAt = unfollowedByUserAt
-        WHERE id IN (:ids) AND followedByUserAt IS NULL AND unfollowedByUserAt IS NOT NULL
-        """
-    )
-    suspend fun confirmArtistsUnsubscribedBySync(ids: List<String>)
 
     /**
      * Backfill for the v39->v40 columns and for every artist down-sync: record that the account really

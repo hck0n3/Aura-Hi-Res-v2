@@ -272,13 +272,16 @@ object ArtistSyncPolicy {
         artist.copy(ytmSyncedAt = null, unfollowedByUserAt = null)
 
     /**
-     * Row 798: what one row looks like once YouTube CONFIRMED its unsubscribe — what `DatabaseDao.confirmArtistUnsubscribed`
-     * (live tap) and `DatabaseDao.confirmArtistsUnsubscribedBySync` (upload pass) really write. The marker stays (row
-     * 150(d)) and is stamped as confirmed, so the read-back never re-arms it ([afterRemoteSubscriptionSeen]).
+     * Row 798: what one row looks like once YouTube CONFIRMED the unsubscribe that delivered the marker [deliveredAt] —
+     * what `DatabaseDao.confirmArtistUnsubscribed` really writes, for the live tap and the upload pass alike. The marker
+     * stays (row 150(d)) and is stamped as confirmed, so the read-back never re-arms it ([afterRemoteSubscriptionSeen]).
+     * A row followed again, or unfollowed again AFTER [deliveredAt], is left alone: that newer tap was not delivered.
      */
-    fun afterConfirmedUnsubscribe(artist: ArtistEntity): ArtistEntity =
-        if (artist.followedByUserAt != null || artist.unfollowedByUserAt == null) artist
-        else artist.copy(ytmSyncedAt = null, unfollowConfirmedAt = artist.unfollowedByUserAt)
+    fun afterConfirmedUnsubscribe(artist: ArtistEntity, deliveredAt: LocalDateTime): ArtistEntity {
+        val unfollowedAt = artist.unfollowedByUserAt
+        return if (artist.followedByUserAt != null || unfollowedAt == null || unfollowedAt.isAfter(deliveredAt)) artist
+        else artist.copy(ytmSyncedAt = null, unfollowConfirmedAt = unfollowedAt)
+    }
 
     /**
      * Whether the LIVE call [ArtistEntity.toggleLike] just made has HONOURED the queued unfollow, so

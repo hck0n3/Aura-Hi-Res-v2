@@ -30,9 +30,12 @@ class ConfirmedUnfollowHoldTest {
         ytmSyncedAt = at.minusDays(10),
     ).localToggleLike().copy(unfollowedByUserAt = at)
 
+    /** What YouTube's accepted call writes back: keyed on the marker the call delivered. */
+    private fun confirmedAsDelivered(row: ArtistEntity) = ArtistSyncPolicy.afterConfirmedUnsubscribe(row, row.unfollowedByUserAt!!)
+
     @Test
     fun `a confirmed unsubscribe is never re-armed when the user re-subscribes on YouTube within the hold`() {
-        val confirmed = ArtistSyncPolicy.afterConfirmedUnsubscribe(unfollowedSubscription())
+        val confirmed = confirmedAsDelivered(unfollowedSubscription())
         assertTrue(ArtistSyncPolicy.isConfirmedUnfollow(confirmed))
         assertNull(confirmed.ytmSyncedAt)
         assertNotNull("the marker stays (row 150(d))", confirmed.unfollowedByUserAt)
@@ -46,7 +49,7 @@ class ConfirmedUnfollowHoldTest {
 
     @Test
     fun `after the hold the account's subscription is read back as a follow`() {
-        val confirmed = ArtistSyncPolicy.afterConfirmedUnsubscribe(unfollowedSubscription(at = now.minusDays(31)))
+        val confirmed = confirmedAsDelivered(unfollowedSubscription(at = now.minusDays(31)))
         val readBack = ArtistSyncPolicy.afterRemoteSubscriptionSeen(confirmed, now)
         assertEquals(now, readBack.followedByUserAt)
         assertEquals(now, readBack.ytmSyncedAt)
@@ -66,7 +69,7 @@ class ConfirmedUnfollowHoldTest {
 
     @Test
     fun `only the unfollow YouTube confirmed counts as confirmed`() {
-        val confirmed = ArtistSyncPolicy.afterConfirmedUnsubscribe(unfollowedSubscription())
+        val confirmed = confirmedAsDelivered(unfollowedSubscription())
         // A NEWER marker (unfollowed again later) is a new instruction, unconfirmed until its own call succeeds.
         assertFalse(ArtistSyncPolicy.isConfirmedUnfollow(confirmed.copy(unfollowedByUserAt = now)))
         // A re-follow clears it, and so does the next unfollow tap.
@@ -77,7 +80,20 @@ class ConfirmedUnfollowHoldTest {
         assertNull(confirmed.markFollowedByUser(now).unfollowConfirmedAt)
         // The write-back never confirms a row the user followed again meanwhile.
         val followed = ArtistEntity(id = "UCy", name = "A", followedByUserAt = now)
-        assertSame(followed, ArtistSyncPolicy.afterConfirmedUnsubscribe(followed))
+        assertSame(followed, ArtistSyncPolicy.afterConfirmedUnsubscribe(followed, now))
+    }
+
+    @Test
+    fun `an unfollow tapped again while the call was in flight is not confirmed by it`() {
+        // The upload pass delivered T1; meanwhile the user followed and unfollowed again (T2), and the live call for
+        // T2 failed. YouTube's acceptance of T1 must not stamp T2 as confirmed, or T2 would never be retried.
+        val delivered = unfollowedSubscription(at = now.minusHours(2))
+        val deliveredAt = delivered.unfollowedByUserAt!!
+        val tappedAgain = delivered.localToggleLike().localToggleLike().copy(unfollowedByUserAt = now.minusHours(1), ytmSyncedAt = now)
+        val writeBack = ArtistSyncPolicy.afterConfirmedUnsubscribe(tappedAgain, deliveredAt)
+        assertSame(tappedAgain, writeBack)
+        assertFalse(ArtistSyncPolicy.isConfirmedUnfollow(writeBack))
+        assertTrue("the newer unfollow is still owed to the account", ArtistSyncPolicy.mayUnsubscribe(writeBack, now))
     }
 
     @Test
@@ -103,10 +119,11 @@ class ConfirmedUnfollowHoldTest {
     @Test
     fun `the SQL writes the confirmation only after a confirmed call and never re-arms it`() {
         val dao = main("db/DatabaseDao.kt")
-        assertTrue(query(dao, "confirmArtistUnsubscribed").contains("UPDATE artist SET ytmSyncedAt = NULL, unfollowConfirmedAt = unfollowedByUserAt"))
-        val bySync = query(dao, "confirmArtistsUnsubscribedBySync")
-        assertTrue(bySync.contains("UPDATE artist SET ytmSyncedAt = NULL, unfollowConfirmedAt = unfollowedByUserAt"))
-        assertTrue(bySync.contains("WHERE id IN (:ids) AND followedByUserAt IS NULL AND unfollowedByUserAt IS NOT NULL"))
+        val confirm = query(dao, "confirmArtistUnsubscribed")
+        assertTrue(confirm.contains("UPDATE artist SET ytmSyncedAt = NULL, unfollowConfirmedAt = unfollowedByUserAt"))
+        // Keyed on the marker the call delivered: a newer unfollow is a separate, undelivered instruction.
+        assertTrue(confirm.contains("AND unfollowedByUserAt <= :unfollowedAt"))
+        assertFalse("an unbounded batch confirmation would stamp a newer, undelivered unfollow", dao.contains("confirmArtistsUnsubscribedBySync"))
         assertTrue(query(dao, "artistsPendingUnsubscribe").contains(confirmedSql))
         assertTrue(query(dao, "countPendingUnsubscribes").contains(confirmedSql))
         val readBack = query(dao, "markArtistsSubscribedOnYtm")
@@ -118,8 +135,9 @@ class ConfirmedUnfollowHoldTest {
     @Test
     fun `the upload pass confirms what YouTube accepted and both read-backs pass the hold`() {
         val upload = main("utils/LibraryUploadSync.kt")
-        assertTrue(upload.contains(".onSuccess { confirmed.add(artist.id); unsubscribed++ }"))
-        assertTrue(upload.contains("database.confirmArtistsUnsubscribedBySync(confirmed)"))
+        assertTrue(upload.contains("val deliveredAt = current.unfollowedByUserAt ?: continue"))
+        assertTrue(upload.contains("runCatching { database.confirmArtistUnsubscribed(artist.id, deliveredAt) }"))
+        assertFalse(upload.contains("confirmArtistsUnsubscribedBySync"))
         assertTrue(upload.contains("database.markArtistsSubscribedOnYtm(it, now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))"))
         assertTrue(main("utils/SyncUtils.kt").contains("database.markArtistsSubscribedOnYtm(chunk, now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))"))
         assertTrue(main("viewmodels/BackupRestoreViewModel.kt").contains("unfollowConfirmedAt = existing?.unfollowConfirmedAt,"))

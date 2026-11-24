@@ -70,9 +70,9 @@ data class ArtistEntity(
      * Row 798 (owner decision H15, 2026-11-24): YouTube CONFIRMED the unsubscribe asked for by the unfollow in
      * [unfollowedByUserAt]. Holds that unfollow's own timestamp, so it only counts while it equals (or is newer
      * than) the marker — a later unfollow tap is unconfirmed until its own call succeeds. Written ONLY after a
-     * successful unsubscribe call (`DatabaseDao.confirmArtistUnsubscribed`, the live tap;
-     * `DatabaseDao.confirmArtistsUnsubscribedBySync`, the upload pass); a failed call leaves it null, and the
-     * marker keeps being the retry.
+     * successful unsubscribe call (`DatabaseDao.confirmArtistUnsubscribed`, from the live tap and from the upload
+     * pass, keyed on the marker that call delivered); a failed call leaves it null, and the marker keeps being the
+     * retry.
      *
      * Without it a confirmed unsubscribe and a failed one looked the same (marker kept, `ytmSyncedAt` null,
      * row 150(d)), so when the user re-subscribed on YouTube itself within 30 days the read-back re-armed the
