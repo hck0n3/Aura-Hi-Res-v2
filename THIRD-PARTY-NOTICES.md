@@ -79,3 +79,5 @@ disabled key would otherwise be **silent**: the app would keep running with an i
 Aura therefore runs a one-shot empirical DSP probe immediately after initialization
 (`probeSuperpoweredDsp` in `SuperpoweredBridge.cpp`) and records the verdict in the persisted
 application log as `SUPERPOWERED engine=HEALTHY|DEGRADED|UNAVAILABLE`. The licence key is never logged.
+
+- **SongMirror — Amazon Music read path** (MIT, Copyright (c) 2026 Ahnaf An Nafee, <https://github.com/ahnafnafee/songmirror> @ `e5bad7a`): `migration/src/main/kotlin/com/aura/migration/source/amazon/` (`AmazonMusicWeb.kt`, `AmazonMusicClient.kt`, `AmazonMusicSource.kt`) adapts the read side of `songmirror/amazon_music_web.py` and `songmirror/engine/targets/amazon_music.py`; the full MIT permission notice is in the header of `AmazonMusicWeb.kt`.
