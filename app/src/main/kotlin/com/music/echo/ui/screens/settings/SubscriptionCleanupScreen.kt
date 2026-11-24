@@ -159,6 +159,19 @@ fun SubscriptionCleanupScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 Text(stringResource(R.string.sub_cleanup_counts, state.removed, state.failed))
+                                // Row 838: the run belongs to the app, not to this screen.
+                                Text(
+                                    stringResource(R.string.sub_cleanup_background_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (state.refused) {
+                                    Text(
+                                        stringResource(R.string.sub_cleanup_already_running),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
                                 OutlinedButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_STOP); viewModel.stop() }, enabled = !state.stopping) {
                                     Text(stringResource(R.string.sub_cleanup_stop))
                                 }
@@ -189,7 +202,18 @@ fun SubscriptionCleanupScreen(
                         }
                     }
                     if (state.candidates.isEmpty()) {
-                        item { Text(stringResource(R.string.sub_cleanup_empty)) }
+                        // Row 838: reopened while a run goes on — the list may still be being read.
+                        when (state.listPhase) {
+                            Phase.READY -> item { Text(stringResource(R.string.sub_cleanup_empty)) }
+                            Phase.LOADING -> item {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 16.dp)) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(stringResource(R.string.sub_cleanup_loading))
+                                }
+                            }
+                            else -> Unit
+                        }
                     } else if (!running) {
                         item {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -235,6 +259,17 @@ fun SubscriptionCleanupScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(candidate.name, style = MaterialTheme.typography.bodyLarge)
                                 when {
+                                    // Row 838: what the run in progress (or the last one) already did with this row.
+                                    candidate.id in state.removedIds -> Text(
+                                        stringResource(R.string.sub_cleanup_row_removed),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    candidate.id in state.failedIds -> Text(
+                                        stringResource(R.string.sub_cleanup_row_failed),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
                                     candidate.removalPending -> Text(
                                         stringResource(R.string.sub_cleanup_pending_badge),
                                         style = MaterialTheme.typography.bodySmall,

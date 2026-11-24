@@ -21,11 +21,19 @@ class SubscriptionCleanupGuardTest {
     private val vmPath = "app/src/main/kotlin/com/music/echo/viewmodels/SubscriptionCleanupViewModel.kt"
     private val screenPath = "app/src/main/kotlin/com/music/echo/ui/screens/settings/SubscriptionCleanupScreen.kt"
 
+    /** Row 838: the run moved out of the ViewModel into the app-scoped runner and its pure engine. */
+    private val runnerPath = "app/src/main/kotlin/com/music/echo/utils/SubscriptionCleanupRunner.kt"
+    private val enginePath = "app/src/main/kotlin/com/music/echo/utils/SubscriptionCleanupEngine.kt"
+    private val workerPath = "app/src/main/kotlin/com/music/echo/utils/SubscriptionCleanupWorker.kt"
+
     @Test
     fun `the tool unsubscribes only through the manual unfollow tap`() {
-        val vm = src(vmPath)
-        assertTrue(vm.contains("database.toggleArtistFollow(item.id, fallback = null, shownFollowed = true)"))
-        listOf(vm, src(screenPath), src("app/src/main/kotlin/com/music/echo/utils/PhantomSubscriptionPolicy.kt")).forEach {
+        val runner = src(runnerPath)
+        assertTrue(runner.contains("database.toggleArtistFollow(item.id, fallback = null, shownFollowed = true)"))
+        listOf(
+            src(vmPath), src(screenPath), runner, src(enginePath), src(workerPath),
+            src("app/src/main/kotlin/com/music/echo/utils/PhantomSubscriptionPolicy.kt"),
+        ).forEach {
             assertFalse(it.contains("subscribeChannel("))
             assertFalse(it.contains("unsubscribeChannel("))
             assertFalse(it.contains("unfollowedByUserAt ="))
@@ -49,9 +57,9 @@ class SubscriptionCleanupGuardTest {
 
     @Test
     fun `the batch is throttled and stops on sign-out or another account`() {
-        val vm = src(vmPath)
-        assertTrue(vm.contains("spacingMs = PhantomSubscriptionPolicy.UNSUBSCRIBE_SPACING_MS,"))
-        assertTrue(vm.contains("shouldStop = { stopRequested.value || account == null || accountTag() != account },"))
+        val engine = src(enginePath)
+        assertTrue(engine.contains("spacingMs = PhantomSubscriptionPolicy.UNSUBSCRIBE_SPACING_MS,"))
+        assertTrue(engine.contains("shouldStop = { stopRequested.value || account == null || accountTag() != account },"))
     }
 
     @Test
@@ -64,8 +72,8 @@ class SubscriptionCleanupGuardTest {
 
     @Test
     fun `stopping never reports a removal already sent to the account as failed`() {
-        val vm = src(vmPath)
-        val wait = vm.substringAfter("val confirmed = withTimeoutOrNull(PhantomSubscriptionPolicy.CONFIRM_TIMEOUT_MS) {")
+        val runner = src(runnerPath)
+        val wait = runner.substringAfter("val confirmed = withTimeoutOrNull(PhantomSubscriptionPolicy.CONFIRM_TIMEOUT_MS) {")
             .substringBefore("} ?: false")
         assertTrue(wait.contains(".first { rows -> rows.none(ArtistSyncPolicy::hasPendingUnfollow) }"))
         assertFalse(wait.contains("stopRequested"))
@@ -76,10 +84,11 @@ class SubscriptionCleanupGuardTest {
     fun `a resend goes through the same read-back and tap, with the hold the policy picks`() {
         val vm = src(vmPath)
         assertTrue(vm.contains("resendAllowed = PhantomSubscriptionPolicy.resendAllowed(item.id, local.filter { it.id in spellings }, now),"))
-        assertTrue(vm.contains("database.markArtistsSubscribedOnYtm(listOf(item.id), now, PhantomSubscriptionPolicy.readBackHoldSince(item, now))"))
-        assertFalse(vm.contains("markArtistsSubscribedOnYtm(listOf(item.id), now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))"))
-        val readBack = vm.indexOf("PhantomSubscriptionPolicy.readBackHoldSince(item, now)")
-        assertTrue("read-back before the tap", readBack in 0 until vm.indexOf("database.toggleArtistFollow(item.id, fallback = null, shownFollowed = true)"))
+        val runner = src(runnerPath)
+        assertTrue(runner.contains("database.markArtistsSubscribedOnYtm(listOf(item.id), now, PhantomSubscriptionPolicy.readBackHoldSince(item, now))"))
+        assertFalse(runner.contains("markArtistsSubscribedOnYtm(listOf(item.id), now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))"))
+        val readBack = runner.indexOf("PhantomSubscriptionPolicy.readBackHoldSince(item, now)")
+        assertTrue("read-back before the tap", readBack in 0 until runner.indexOf("database.toggleArtistFollow(item.id, fallback = null, shownFollowed = true)"))
         val screen = src(screenPath)
         assertTrue(screen.contains("candidate.resendAllowed -> Text(\n                                        stringResource(R.string.sub_cleanup_resend_badge),"))
         assertTrue("the resend badge wins over the confirmed one", screen.indexOf("candidate.resendAllowed ->") < screen.indexOf("candidate.removalConfirmed ->"))
@@ -87,12 +96,51 @@ class SubscriptionCleanupGuardTest {
 
     @Test
     fun `logs carry counts only`() {
-        val vm = src(vmPath)
-        val lines = Regex("""Timber\.\w\([^\n]*(\n[^\n]*){0,4}""").findAll(vm).map { it.value }.toList()
-        assertTrue(lines.isNotEmpty())
-        lines.forEach { line ->
-            listOf(".name", ".title", "thumbnail", "cookie", "item.id").forEach { assertFalse("$it in a log: $line", line.contains(it)) }
+        listOf(vmPath, runnerPath, enginePath, workerPath).forEach { path ->
+            val lines = Regex("""(Timber\.\w|\blog)\([^\n]*(\n[^\n]*){0,4}""").findAll(src(path)).map { it.value }.toList()
+            assertTrue(path, lines.isNotEmpty())
+            lines.forEach { line ->
+                listOf(".name", ".title", "thumbnail", "cookie", "item.id").forEach { assertFalse("$it in a log: $line", line.contains(it)) }
+            }
         }
+    }
+
+    @Test
+    fun `the run belongs to the app-scoped runner, not to the ViewModel`() {
+        val vm = src(vmPath)
+        listOf("runBatch(", "toggleArtistFollow", "stopRequested", "withTimeoutOrNull", "awaitingAccount", "runUploadPass").forEach {
+            assertFalse("the ViewModel owns $it again", vm.contains(it))
+        }
+        assertTrue(vm.contains("private val runner: SubscriptionCleanupRunner,"))
+        assertTrue(vm.contains("combine(_state, runner.state) { list, run -> merge(list, run) }"))
+        assertTrue(vm.contains("refuseUnlessStarted(runner.start(plan.mapNotNull { byId[it] }))"))
+        val runner = src(runnerPath)
+        assertTrue(runner.contains("@Singleton\nclass SubscriptionCleanupRunner @Inject constructor("))
+        assertTrue(runner.contains("private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)"))
+        assertFalse(runner.contains("viewModelScope"))
+        assertTrue(src(enginePath).contains("PhantomSubscriptionPolicy.runBatch("))
+        // The foreground job exists only while a run is active, follows the state (no polling) and is started only by a run.
+        val worker = src(workerPath)
+        assertTrue(worker.contains("if (!runner.state.value.active) return Result.success()"))
+        assertTrue(worker.contains(".takeWhile { it.active }"))
+        assertTrue(worker.contains("ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC"))
+        assertTrue(worker.contains("R.string.sub_cleanup_notification_progress, done, total"))
+        listOf("delay(", "while (true)", "setInitialDelay", "PeriodicWorkRequest").forEach { assertFalse("polling: $it", worker.contains(it)) }
+        val enqueuers = File(root, "app/src/main/kotlin").walkTopDown()
+            .filter { it.extension == "kt" && it.readText().contains("SubscriptionCleanupWorker.enqueue(") }
+            .map { it.name }.toSet()
+        assertEquals(setOf("SubscriptionCleanupRunner.kt"), enqueuers)
+        assertEquals(2, Regex("""if \(started\) SubscriptionCleanupWorker\.enqueue\(context\)""").findAll(runner).count())
+    }
+
+    @Test
+    fun `the screen marks the run's rows and says when a new run is refused`() {
+        val screen = src(screenPath)
+        assertTrue(screen.contains("candidate.id in state.removedIds -> Text("))
+        assertTrue(screen.contains("candidate.id in state.failedIds -> Text("))
+        assertTrue(screen.contains("if (state.refused) {"))
+        assertTrue(screen.contains("stringResource(R.string.sub_cleanup_background_hint),"))
+        assertTrue("the marks win over the older badges", screen.indexOf("candidate.id in state.removedIds ->") < screen.indexOf("candidate.removalPending ->"))
     }
 
     @Test

@@ -34,4 +34,9 @@
     <string name="sub_cleanup_confirmed_badge">Ya quitada y confirmada; YouTube puede tardar en reflejarlo</string>
     <string name="sub_cleanup_resend_badge">YouTube confirmó la baja hace más de 24 h pero aún la lista; puedes seleccionarla para volver a enviarla</string>
     <string name="sub_cleanup_incomplete">Lista incompleta: YouTube devolvió solo %1$d; vuelve a cargar para ver el resto</string>
+    <string name="sub_cleanup_notification_progress">Quitando suscripciones: %1$d de %2$d</string>
+    <string name="sub_cleanup_background_hint">Sigue aunque salgas de esta pantalla o de la app; vuelve aquí para ver el progreso</string>
+    <string name="sub_cleanup_already_running">Ya se están quitando suscripciones; espera a que termine o detenla</string>
+    <string name="sub_cleanup_row_removed">Quitada</string>
+    <string name="sub_cleanup_row_failed">Falló</string>
 </resources>

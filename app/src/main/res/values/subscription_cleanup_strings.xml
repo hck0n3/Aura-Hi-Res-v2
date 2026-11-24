@@ -32,4 +32,9 @@
     <string name="sub_cleanup_confirmed_badge">Already removed and confirmed by YouTube; its list can take a while to catch up</string>
     <string name="sub_cleanup_resend_badge">YouTube confirmed this removal more than 24 h ago but still lists it; you can select it to send the removal again</string>
     <string name="sub_cleanup_incomplete">Incomplete list: YouTube returned only %1$d; reload to see the rest</string>
+    <string name="sub_cleanup_notification_progress">Removing subscriptions: %1$d of %2$d</string>
+    <string name="sub_cleanup_background_hint">It keeps going if you leave this screen or the app; come back here to see the progress</string>
+    <string name="sub_cleanup_already_running">Subscriptions are already being removed; wait for it to finish or stop it</string>
+    <string name="sub_cleanup_row_removed">Removed</string>
+    <string name="sub_cleanup_row_failed">Failed</string>
 </resources>

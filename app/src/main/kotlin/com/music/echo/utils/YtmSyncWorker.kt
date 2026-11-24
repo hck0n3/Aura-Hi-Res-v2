@@ -201,7 +201,7 @@ class YtmSyncWorker(
         private const val TAG = "YtmSyncWorker"
 
         /** Canal silencioso del trabajo de primer plano. Ver [getForegroundInfo]. */
-        private const val SYNC_CHANNEL_ID = "library_sync"
+        internal const val SYNC_CHANNEL_ID = "library_sync"
         private const val SYNC_NOTIFICATION_ID = 0x5C10
         const val KEY_TYPE = "type"
         const val TYPE_ALL = "all"

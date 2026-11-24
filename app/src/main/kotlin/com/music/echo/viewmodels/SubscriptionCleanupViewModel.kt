@@ -8,41 +8,38 @@ import com.music.innertube.utils.completed
 import com.music.innertube.utils.parseCookieString
 import dagger.hilt.android.lifecycle.HiltViewModel
 import iad1tya.echo.music.db.MusicDatabase
-import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.utils.ArtistSyncPolicy
-import iad1tya.echo.music.utils.LibraryUploadSync
 import iad1tya.echo.music.utils.PhantomSubscriptionPolicy
 import iad1tya.echo.music.utils.PhantomSubscriptionPolicy.BatchResult
 import iad1tya.echo.music.utils.PhantomSubscriptionPolicy.Candidate
-import iad1tya.echo.music.utils.toggleArtistFollow
+import iad1tya.echo.music.utils.SubscriptionCleanupEngine
+import iad1tya.echo.music.utils.SubscriptionCleanupRunner
 import java.time.LocalDateTime
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 
 /**
  * Registry row 813 — «Revisar suscripciones» (owner 2026-11-24). Lists the account's artist subscriptions, marks the
- * ones that look like the old auto-subscribe bug ([PhantomSubscriptionPolicy.verdict], row 814) and removes ONLY what
- * the user selected and confirmed, one at a time, through the manual unfollow tap ([toggleArtistFollow]: the per-channel
- * account-call queue of rows 711/716, the `unfollowedByUserAt` marker, `confirmArtistUnsubscribed`, the retry). It never
- * calls the account itself. Nothing runs on its own: the list is read once when the screen opens, the batch starts only
- * from the confirmation dialog. Logs carry counts only (regla 4).
+ * ones that look like the old auto-subscribe bug ([PhantomSubscriptionPolicy.verdict], row 814) and hands ONLY what
+ * the user selected and confirmed to [SubscriptionCleanupRunner], which removes them one at a time through the manual
+ * unfollow tap. Row 838: the run belongs to the runner (app-scoped), not to this ViewModel, so it goes on when the
+ * screen is left; this ViewModel only observes it. Nothing runs on its own: the list is read once when the screen
+ * opens, a batch starts only from the confirmation dialog. Logs carry counts only (regla 4).
  */
 @HiltViewModel
 class SubscriptionCleanupViewModel @Inject constructor(
     private val database: MusicDatabase,
-    private val libraryUploadSync: LibraryUploadSync,
+    private val runner: SubscriptionCleanupRunner,
 ) : ViewModel() {
 
     enum class Phase { LOADING, SIGNED_OUT, LOAD_FAILED, READY, RUNNING }
@@ -60,16 +57,21 @@ class SubscriptionCleanupViewModel @Inject constructor(
         /** Row 837: the read stopped before the end of the account's list (failed page or [MAX_PAGES]); [readCount] it got. */
         val incomplete: Boolean = false,
         val readCount: Int = 0,
+        /** Row 838: rows of the current (or last) run the account confirmed / that failed; the screen marks them. */
+        val removedIds: Set<String> = emptySet(),
+        val failedIds: Set<String> = emptySet(),
+        /** Row 838: where the list read is, also while [phase] says RUNNING. */
+        val listPhase: Phase = Phase.LOADING,
+        /** Row 838: a new run was asked for while one was active; refused, and the screen says so. */
+        val refused: Boolean = false,
     )
 
+    /** The list as read from the account (and the selection); the run's part comes from [runner]. */
     private val _state = MutableStateFlow(UiState())
-    val state: StateFlow<UiState> = _state.asStateFlow()
+    val state: StateFlow<UiState> = combine(_state, runner.state) { list, run -> merge(list, run) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, merge(_state.value, runner.state.value))
 
     private var job: Job? = null
-    private val stopRequested = MutableStateFlow(false)
-
-    /** Unfollows written but not confirmed by the account: the existing retry owns them (see [retryFailed]). */
-    private val awaitingAccount = ConcurrentHashMap.newKeySet<String>()
 
     init {
         load()
@@ -149,8 +151,8 @@ class SubscriptionCleanupViewModel @Inject constructor(
 
     /** The confirmation dialog's «Quitar». The ONLY way a batch starts. */
     fun removeSelected() {
-        val s = _state.value
-        if (s.phase != Phase.READY || job?.isActive == true) return
+        val s = state.value
+        if (refuseWhileRunning(s) || s.phase != Phase.READY) return
         val plan = PhantomSubscriptionPolicy.planBatch(
             ordered = s.candidates.map { it.id },
             selected = s.selected,
@@ -158,133 +160,50 @@ class SubscriptionCleanupViewModel @Inject constructor(
         )
         if (plan.isEmpty()) return
         val byId = s.candidates.associateBy { it.id }
-        runCleanup(plan.mapNotNull { byId[it] }, alreadyResolved = emptyList(), stillFailed = emptyList())
+        refuseUnlessStarted(runner.start(plan.mapNotNull { byId[it] }))
     }
 
-    /**
-     * «Reintentar las fallidas». An unfollow already written but not confirmed is retried by the pass a failed manual
-     * unfollow already relies on (`AccountPush.runArtistPass` → [LibraryUploadSync.runUploadPass], whose
-     * `flushPendingUnsubscribes` runs with or without the upload switch); one that was never written goes through the
-     * manual tap again.
-     */
+    /** «Reintentar las fallidas»: see [SubscriptionCleanupRunner.retryFailed]. */
     fun retryFailed() {
-        val s = _state.value
+        val s = state.value
+        if (refuseWhileRunning(s)) return
         val failed = s.lastResult?.failed.orEmpty()
-        if (s.phase != Phase.READY || failed.isEmpty() || job?.isActive == true) return
-        val byId = s.candidates.associateBy { it.id }
-        val written = failed.filter { it in awaitingAccount }
-        val notWritten = failed.filterNot { it in awaitingAccount }.mapNotNull { byId[it] }
-        stopRequested.value = false
-        _state.update { it.copy(phase = Phase.RUNNING, total = failed.size, done = 0, removed = 0, failed = 0, stopping = false) }
-        job = viewModelScope.launch(Dispatchers.IO) {
-            var confirmed = emptyList<String>()
-            try {
-                if (written.isNotEmpty()) {
-                    libraryUploadSync.runUploadPass()
-                    confirmed = written.filter { id ->
-                        database.getArtistEntitiesByIds(ArtistSyncPolicy.aliasIds(id)).none(ArtistSyncPolicy::hasPendingUnfollow)
-                    }
-                    awaitingAccount.removeAll(confirmed.toSet())
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Timber.w("SUB_CLEANUP_RETRY pass failed: %s", e.javaClass.simpleName)
-            }
-            Timber.i("SUB_CLEANUP_RETRY written=%d confirmed=%d rewrite=%d", written.size, confirmed.size, notWritten.size)
-            runCleanupInline(notWritten, alreadyResolved = confirmed, stillFailed = written - confirmed.toSet())
-        }
+        if (s.phase != Phase.READY || failed.isEmpty()) return
+        refuseUnlessStarted(runner.retryFailed(failed, s.candidates.associateBy { it.id }))
     }
 
     /** «Detener»: the item in flight finishes its (bounded) wait for the account, the rest is not attempted. */
-    fun stop() {
-        stopRequested.value = true
-        _state.update { if (it.phase == Phase.RUNNING) it.copy(stopping = true) else it }
+    fun stop() = runner.stop()
+
+    private fun refuseWhileRunning(s: UiState): Boolean {
+        if (s.phase != Phase.RUNNING) return false
+        _state.update { it.copy(refused = true) }
+        return true
     }
 
-    private fun runCleanup(items: List<Candidate>, alreadyResolved: List<String>, stillFailed: List<String>) {
-        stopRequested.value = false
-        _state.update { it.copy(phase = Phase.RUNNING, total = items.size, done = 0, removed = 0, failed = 0, stopping = false) }
-        job = viewModelScope.launch(Dispatchers.IO) { runCleanupInline(items, alreadyResolved, stillFailed) }
-    }
-
-    private suspend fun runCleanupInline(items: List<Candidate>, alreadyResolved: List<String>, stillFailed: List<String>) {
-        val account = accountTag()
-        val byId = items.associateBy { it.id }
-        Timber.i("SUB_CLEANUP_START count=%d", items.size)
-        val batch = PhantomSubscriptionPolicy.runBatch(
-            plan = items.map { it.id },
-            spacingMs = PhantomSubscriptionPolicy.UNSUBSCRIBE_SPACING_MS,
-            unsubscribe = { id -> unsubscribeOne(byId.getValue(id)) },
-            pause = { delay(it) },
-            // A sign-out or another account stops the batch: the list belongs to the account it was read from.
-            shouldStop = { stopRequested.value || account == null || accountTag() != account },
-            onProgress = { done, removed, failed ->
-                _state.update { it.copy(done = done + alreadyResolved.size + stillFailed.size, removed = removed + alreadyResolved.size, failed = failed + stillFailed.size) }
-            },
-        )
-        val result = BatchResult(
-            removed = alreadyResolved + batch.removed,
-            failed = stillFailed + batch.failed,
-            notAttempted = batch.notAttempted,
-            cancelled = batch.cancelled,
-        )
-        Timber.i(
-            "SUB_CLEANUP_DONE removed=%d failed=%d not_attempted=%d stopped=%b",
-            result.removed.size, result.failed.size, result.notAttempted.size, result.cancelled,
-        )
-        val gone = result.removed.toSet()
-        _state.update { s ->
-            s.copy(
-                phase = Phase.READY,
-                candidates = s.candidates.filterNot { it.id in gone },
-                selected = s.selected - gone,
-                stopping = false,
-                lastResult = result,
-            )
-        }
-    }
+    private fun refuseUnlessStarted(started: Boolean) = _state.update { it.copy(refused = !started) }
 
     /**
-     * One selected subscription through the manual unfollow tap. A subscription the account lists but this device has
-     * no row for gets the row the artist down-sync would give it (`SyncUtils.insertArtistsPage`), and the account's
-     * list is stamped with the read-back every sync runs (`markArtistsSubscribedOnYtm`), so the tap reads it as
-     * «Suscrito» and unfollows it. True only once the account confirmed it (`confirmArtistUnsubscribed` cleared the
-     * pending shape of every spelling).
+     * The list joined with the run: RUNNING while the runner is active, its counters and marks, and — once it ended —
+     * its summary, with what the account confirmed taken out of the list (and of the selection).
      */
-    private suspend fun unsubscribeOne(item: Candidate): Boolean {
-        val now = LocalDateTime.now()
-        if (database.getArtistEntitiesByIds(listOf(item.id)).isEmpty()) {
-            database.insert(
-                ArtistEntity(
-                    id = item.id,
-                    name = item.name,
-                    thumbnailUrl = item.thumbnailUrl,
-                    channelId = item.channelId,
-                    bookmarkedAt = now,
-                    followedByUserAt = now,
-                ),
-            )
-        }
-        // Row 829: for a resend the read-back takes the listing as a follow again, so the tap below sends the unfollow again.
-        database.markArtistsSubscribedOnYtm(listOf(item.id), now, PhantomSubscriptionPolicy.readBackHoldSince(item, now))
-        if (!database.toggleArtistFollow(item.id, fallback = null, shownFollowed = true)) {
-            // No row reads «Suscrito» because the user's own unfollow of this channel is still owed to the account
-            // (the read-back above re-armed it): the uploader sends it, so «Reintentar» waits for that pass.
-            val owed = database.getArtistEntitiesByIds(ArtistSyncPolicy.aliasIds(item.id)).any { ArtistSyncPolicy.mayUnsubscribe(it) }
-            if (owed) awaitingAccount.add(item.id)
-            return false
-        }
-        awaitingAccount.add(item.id)
-        // «Detener» does not cut this wait short: the unfollow is already committed and queued for the account, so
-        // ending here would report a removal that goes through a moment later as failed.
-        val confirmed = withTimeoutOrNull(PhantomSubscriptionPolicy.CONFIRM_TIMEOUT_MS) {
-            database.artistEntitiesByIdsFlow(ArtistSyncPolicy.aliasIds(item.id))
-                .first { rows -> rows.none(ArtistSyncPolicy::hasPendingUnfollow) }
-            true
-        } ?: false
-        if (confirmed) awaitingAccount.remove(item.id)
-        return confirmed
+    private fun merge(list: UiState, run: SubscriptionCleanupEngine.State): UiState {
+        val gone = run.lastResult?.removed.orEmpty().toSet()
+        return list.copy(
+            phase = if (run.active) Phase.RUNNING else list.phase,
+            candidates = list.candidates.filterNot { it.id in gone },
+            selected = list.selected - gone,
+            total = run.total,
+            done = run.done,
+            removed = run.removed,
+            failed = run.failed,
+            stopping = run.stopping,
+            lastResult = run.lastResult,
+            removedIds = run.removedIds,
+            failedIds = run.failedIds,
+            listPhase = list.phase,
+            refused = list.refused && run.active,
+        )
     }
 
     /** The signed-in account (SAPISID), or null when signed out. Compared, never logged. */
