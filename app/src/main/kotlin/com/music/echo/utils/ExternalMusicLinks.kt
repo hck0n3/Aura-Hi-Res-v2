@@ -10,6 +10,7 @@ import iad1tya.echo.music.spotifyimport.SpotifyImportRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -174,6 +175,11 @@ object ExternalMusicLinks {
                     ?.trim()
                     ?.takeIf { it.isNotBlank() && it.length <= 100 }
                     .orEmpty()
+                // Registry row 846: the page gives no duration, so the strict matcher loses its duration band. Spotify's own search,
+                // kept only for the result whose id IS the shared track, gives the duration, every artist and the album.
+                spotifyTrackById(repository, id, "$title $artist".trim())?.let { exact ->
+                    return Resolved.Tracks(Kind.TRACK, exact.name, exact.artists.joinToString(" ") { it.name }, listOf(exact))
+                }
                 if (artist.isEmpty()) return Resolved.Query(Kind.TRACK, title)
                 Resolved.Tracks(Kind.TRACK, title, artist, listOf(track(id, title, artist)))
             }
@@ -199,6 +205,23 @@ object ExternalMusicLinks {
             }
             else -> pageQuery(uri, kindFromPath(uri))
         }
+    }
+
+    /** The shared Spotify track itself (same id) from Spotify's search with the read token; null when it is not among the results. */
+    private suspend fun spotifyTrackById(repository: SpotifyImportRepository, id: String, query: String): SpotifyTrack? = try {
+        // No longer than one page fetch (fetch's 12 s): a rate-limited search (Retry-After waits) must not hold the link back.
+        withTimeoutOrNull(12_000L) {
+            if (!repository.ensureSpotifyReadToken()) {
+                null
+            } else {
+                Spotify.search(query).getOrNull()?.tracks?.items
+                    ?.firstOrNull { it.id == id && it.name.isNotBlank() && it.artists.any { artist -> artist.name.isNotBlank() } }
+            }
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     private fun deezer(uri: Uri): Resolved? {

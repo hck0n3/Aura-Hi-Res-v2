@@ -80,6 +80,22 @@ class ExternalLinksExactGuardTest {
         assertTrue(main("spotifyimport/SpotifyTrackMatcher.kt").contains("if (artists.isEmpty()) return null"))
     }
 
+    /**
+     * A Spotify track page gives no duration, so the strict matcher loses its duration band: Spotify's own search fills it in,
+     * but only with the result whose id is the shared track's (never a look-alike), bounded in time, before the page fields.
+     */
+    @Test
+    fun `a Spotify track is read with its duration from the same id`() {
+        val links = main("utils/ExternalMusicLinks.kt")
+        val spotify = links.substring(links.indexOf("    private suspend fun spotify("), links.indexOf("    private fun deezer("))
+        val lookup = spotify.indexOf("spotifyTrackById(repository, id, \"\$title \$artist\".trim())?.let { exact ->")
+        assertTrue(lookup >= 0)
+        assertTrue(lookup < spotify.indexOf("if (artist.isEmpty()) return Resolved.Query(Kind.TRACK, title)"))
+        assertTrue(spotify.contains("withTimeoutOrNull(12_000L) {"))
+        assertTrue(spotify.contains("if (!repository.ensureSpotifyReadToken()) {"))
+        assertTrue(spotify.contains(".firstOrNull { it.id == id && it.name.isNotBlank() && it.artists.any { artist -> artist.name.isNotBlank() } }"))
+    }
+
     private fun openExternal(): String {
         val activity = main("MainActivity.kt")
         val start = activity.indexOf("    private fun openExternalMusicLink(")
