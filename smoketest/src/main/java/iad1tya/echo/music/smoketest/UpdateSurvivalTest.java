@@ -41,9 +41,13 @@ public class UpdateSurvivalTest {
 
         AuraDevice.UiLabel create = aura.appString("create_playlist", "Create playlist");
         UiObject2 fab = aura.waitFor(() -> libraryPlusButton(aura, create), 15_000, "the Library '+' button");
+        // From v2.0.69-beta3 the EMPTY Playlists tab also shows «Crear lista» as its chip (AuraLibraryTabs P22A), on
+        // screen before the menu opens: the first poll returned that chip and the tap landed outside the opening menu,
+        // which only closed it (fifth run 45323606796). The menu item is the label that was NOT there before the tap.
+        SystemClock.sleep(1_500);
+        List<Rect> before = labelBounds(aura, create);
         fab.click();
-        UiObject2 item = aura.waitFor(
-                () -> aura.device.findObject(By.text(AuraDevice.exactly(create))), 10_000, "the '" + create + "' menu item");
+        UiObject2 item = aura.waitFor(() -> newLabel(aura, create, before), 10_000, "the '" + create + "' menu item");
         item.click();
         UiObject2 field = aura.waitFor(
                 () -> aura.device.findObject(By.clazz("android.widget.EditText")), 10_000, "the playlist name field");
@@ -63,6 +67,23 @@ public class UpdateSurvivalTest {
     }
 
     private static final Pattern ANY = Pattern.compile("(?s).*\\S.*");
+
+    private static List<Rect> labelBounds(AuraDevice aura, AuraDevice.UiLabel label) {
+        List<Rect> found = new ArrayList<>();
+        for (UiObject2 o : aura.device.findObjects(By.text(AuraDevice.exactly(label)))) {
+            Rect r = AuraDevice.bounds(o);
+            if (r != null) found.add(r);
+        }
+        return found;
+    }
+
+    private static UiObject2 newLabel(AuraDevice aura, AuraDevice.UiLabel label, List<Rect> before) {
+        for (UiObject2 o : aura.device.findObjects(By.text(AuraDevice.exactly(label)))) {
+            Rect r = AuraDevice.bounds(o);
+            if (r != null && !before.contains(r)) return o;
+        }
+        return null;
+    }
 
     /**
      * The Library '+' (AuraLibraryScreen AuraFab): an icon-only round button whose name only reaches the click ACTION

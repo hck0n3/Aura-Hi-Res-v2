@@ -197,6 +197,26 @@ class AppLiteralsTest(unittest.TestCase):
         self.assertIn("By.clickable(true)", finder)
         self.assertIn("catch (StaleObjectException e)", finder)
 
+    def test_create_menu_item_is_not_the_empty_tab_chip(self):
+        # Fifth emulator run (45323606796): 5a on v2.0.69-beta3 timed out on the playlist name field. The empty
+        # Playlists tab draws «Crear lista» as its own chip, already on screen when the '+' menu opens, so a plain
+        # By.text lookup returned the chip and the tap only closed the menu. 5a must pick the label that is new.
+        newui = ("app", "src", "main", "kotlin", "com", "music", "echo", "ui", "newui")
+        tabs = _read(*newui, "AuraLibraryTabs.kt")
+        self.assertIn("stringResource(R.string.create_playlist)\n                    } else {", tabs)
+        library = _read(*newui, "AuraLibraryScreen.kt")
+        self.assertIn("onCreatePlaylist = { showCreatePlaylistDialog = true },", library)
+        self.assertIn("text = { Text(stringResource(R.string.create_playlist)", library)
+        survival = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest",
+                         "UpdateSurvivalTest.java")
+        create = survival[survival.index("public void createPlaylistOnPreviousBuild("):]
+        create = create[:create.index("\n    }\n")]
+        self.assertLess(create.index("List<Rect> before = labelBounds(aura, create);"), create.index("fab.click();"))
+        self.assertIn("aura.waitFor(() -> newLabel(aura, create, before), 10_000", create)
+        self.assertNotIn("aura.device.findObject(By.text(AuraDevice.exactly(create)))", create)
+        fresh = survival[survival.index("private static UiObject2 newLabel("):]
+        self.assertIn("!before.contains(r)", fresh[:fresh.index("\n    }\n")])
+
     def test_update_check_does_not_toggle_the_playlists_chip_off(self):
         # Fourth emulator run (45249314558): 5b timed out on the playlist although 5c found it in the database. The
         # filter is a persisted preference that 5a left on Playlists, and tapping the active chip returns to the hub
