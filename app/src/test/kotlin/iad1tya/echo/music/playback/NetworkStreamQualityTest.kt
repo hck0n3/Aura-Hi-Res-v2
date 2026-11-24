@@ -83,9 +83,54 @@ class NetworkStreamQualityTest {
         val resolution = main("playback/StreamResolution.kt")
         assertTrue(resolution.contains("networkSaver = nonNullPlayback.networkSaver,"))
         assertTrue(resolution.contains("networkSaver = playback.networkSaver,"))
-        assertTrue(resolution.contains("fun tierFits(entry: CachedStream) = NetworkStreamQuality.reusable(entry.networkSaver, isCurrentlyPlaying) { saverNow }"))
+        assertTrue(resolution.contains("fun tierFits(entry: CachedStream) = NetworkStreamQuality.reusable(entry.networkSaver, keepsItsUrl) { saverNow }"))
         // Both cache-hit branches (cached bytes + URL, and URL only).
         assertEquals(2, Regex(Regex.escape("it.expiresAt > System.currentTimeMillis() && tierFits(it)")).findAll(resolution).count())
+    }
+
+    @Test
+    fun `a song the user starts is not exempt at its first open, only its re-opens are`() {
+        val opens = NetworkStreamQuality.OpenedThisPlay()
+        // Heard at home (full pick), now on mobile data set to Saver. Tapping it fires the transition before the first open,
+        // so it is already the current song when the loader asks.
+        opens.trackChanged("X")
+        val first = opens.keepsItsUrl("X", isCurrentlyPlaying = true)
+        opens.opened("X")
+        assertFalse(NetworkStreamQuality.reusable(entrySaver = false, isCurrentlyPlaying = first) { true })
+        // A re-open of the same play (a seek, even back to 0) stays on the file it opened.
+        assertTrue(opens.keepsItsUrl("X", isCurrentlyPlaying = true))
+        assertTrue(NetworkStreamQuality.reusable(entrySaver = true, isCurrentlyPlaying = opens.keepsItsUrl("X", true)) { false })
+    }
+
+    @Test
+    fun `a pre-buffered next song keeps its URL after the transition, a song played earlier does not`() {
+        val opens = NetworkStreamQuality.OpenedThisPlay()
+        opens.trackChanged("A")
+        opens.opened("A")
+        // B is opened while A plays (gapless pre-buffer), then becomes the current song.
+        opens.opened("B")
+        opens.trackChanged("B")
+        assertTrue(opens.keepsItsUrl("B", isCurrentlyPlaying = true))
+        // «Anterior» back to A: its earlier open does not count for this new play.
+        opens.trackChanged("A")
+        assertFalse(opens.keepsItsUrl("A", isCurrentlyPlaying = true))
+        // Never exempt when it is not the current song.
+        opens.opened("A")
+        assertFalse(opens.keepsItsUrl("A", isCurrentlyPlaying = false))
+    }
+
+    @Test
+    fun `the loader reads the mark before counting the open, and a song change resets it`() {
+        val resolution = main("playback/StreamResolution.kt")
+        val read = resolution.indexOf("val keepsItsUrl = streamTierOpens.keepsItsUrl(mediaId, isCurrentlyPlaying)")
+        assertTrue(read >= 0)
+        assertTrue(read < resolution.indexOf("streamTierOpens.opened(mediaId)"))
+        // Before the first return that serves a download, so every open of the song counts.
+        assertTrue(resolution.indexOf("streamTierOpens.opened(mediaId)") < resolution.indexOf("if (!shouldBypassCache && isFullyDownloaded) {"))
+        val service = main("playback/MusicService.kt")
+        assertTrue(service.contains("internal val streamTierOpens = NetworkStreamQuality.OpenedThisPlay()"))
+        val transition = service.substringAfter("override fun onMediaItemTransition(").substringBefore("if (onlyShowingMirror) {")
+        assertTrue(transition.contains("if (trackChanged) streamTierOpens.trackChanged(mediaItem?.mediaId)"))
     }
 
     @Test

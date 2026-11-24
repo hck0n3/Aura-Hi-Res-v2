@@ -812,6 +812,8 @@ class MusicService :
     // ResolvingDataSource loader thread know "is this the current track?" WITHOUT a runBlocking hop to Main
     // (which could deadlock/stall stream resolution when Main is busy).
     @Volatile internal var currentPlayingMediaId: String? = null
+    // Registry 811: the songs the loader already opened in their current play (NetworkStreamQuality.OpenedThisPlay).
+    internal val streamTierOpens = NetworkStreamQuality.OpenedThisPlay()
     // Live EQ processor of the audible player. The loader thread primes Safe Volume here before
     // open() returns, so the first sample is already at the locked level.
     @Volatile internal var currentEqProcessor: CustomEqualizerAudioProcessor? = null
@@ -7168,6 +7170,7 @@ class MusicService :
         val previousMediaId = currentPlayingMediaId
         currentPlayingMediaId = mediaItem?.mediaId
         val trackChanged = previousMediaId != mediaItem?.mediaId
+        if (trackChanged) streamTierOpens.trackChanged(mediaItem?.mediaId)
         // A stale offline refusal earns one re-prepare per item: a new item starts with its own.
         if (trackChanged) staleRejectionRetryId = null
         // Review C4 (rule 7): a song change of an unprepared device-sync mirror is another device's, nothing was heard here. None of

@@ -516,6 +516,9 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         val isFullyDownloaded = cachedLength != androidx.media3.common.C.LENGTH_UNSET.toLong() && cachedLength > 0 && downloadCache.isCached(mediaId, 0, cachedLength)
 
         val isCurrentlyPlaying = currentPlayingMediaId == mediaId
+        // Registry 811: read before this open counts, so the first open of a song the user just started is not exempt.
+        val keepsItsUrl = streamTierOpens.keepsItsUrl(mediaId, isCurrentlyPlaying)
+        streamTierOpens.opened(mediaId)
 
         // FULLY-DOWNLOADED short-circuit — a *complete* downloaded file is container-locked as a whole, so
         // it's always safe to serve WITHOUT the DB container check (its container can't drift with the
@@ -706,7 +709,7 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
             // for a new play, so it re-resolves at this network's choice. The playing song keeps its URL, like the
             // mid-song container lock above. The network is read at most once per open, and only when the two differ.
             val saverNow by lazy(LazyThreadSafetyMode.NONE) { NetworkStreamQuality.saverForCurrentNetwork(connectivityManager) }
-            fun tierFits(entry: CachedStream) = NetworkStreamQuality.reusable(entry.networkSaver, isCurrentlyPlaying) { saverNow }
+            fun tierFits(entry: CachedStream) = NetworkStreamQuality.reusable(entry.networkSaver, keepsItsUrl) { saverNow }
 
             // PARTIAL download whose container the guard above confirmed matches the target quality — serve
             // the cached bytes (the CacheDataSource fills the missing tail from the network in the same,

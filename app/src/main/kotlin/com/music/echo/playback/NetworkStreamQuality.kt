@@ -54,6 +54,28 @@ object NetworkStreamQuality {
     fun reusable(entrySaver: Boolean?, isCurrentlyPlaying: Boolean, saverNow: () -> Boolean): Boolean =
         isCurrentlyPlaying || entrySaver == null || entrySaver == saverNow()
 
+    /**
+     * Which songs the loader already opened in their current play, or just before it (pre-buffered as the next song). Only
+     * a re-open of one of those counts as «the playing song» for [reusable]: a song the user starts, goes back to or skips
+     * to is already the current one at its FIRST open (media3 fires the transition inside setMediaItem / seekTo), so the
+     * current id alone let every replay reuse a URL of the other network's tier.
+     */
+    class OpenedThisPlay {
+        private val ids: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+        /** Called on every open, after [keepsItsUrl] was read for it. */
+        fun opened(mediaId: String) {
+            ids.add(mediaId)
+        }
+
+        /** On a song change: only the new song keeps its mark, and only if it was already opened (pre-buffered). */
+        fun trackChanged(newMediaId: String?) {
+            ids.retainAll(setOfNotNull(newMediaId))
+        }
+
+        fun keepsItsUrl(mediaId: String, isCurrentlyPlaying: Boolean): Boolean = isCurrentlyPlaying && mediaId in ids
+    }
+
     /** For a stream about to be resolved now. Before the first preferences snapshot both read as absent = HIGH. */
     fun saverForCurrentNetwork(connectivityManager: ConnectivityManager): Boolean =
         wantsSaver(PrefsBridge.peek(WifiKey), PrefsBridge.peek(MobileKey)) { currentNetwork(connectivityManager) }
