@@ -779,6 +779,13 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         library?.resync()
     }
 
+    override fun resolveHeldRemovals(apply: Boolean) {
+        val lib = library ?: return
+        scope.launch {
+            runCatching { lib.resolveHeld(apply) }.onFailure { Timber.tag(TAG).w("LIB_SYNC held removals not resolved: %s", it.javaClass.simpleName) }
+        }
+    }
+
     override fun libraryChanged(what: String) {
         // Row 536: the room carries the change itself; the old «go and ask YouTube» ping is only for when this is switched off.
         val lib = library

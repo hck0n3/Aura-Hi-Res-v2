@@ -101,6 +101,7 @@ fun DeviceSyncSettings(
     val thisId by DeviceSyncHub.thisDeviceId.collectAsState()
     val pairedBy by DeviceSyncHub.pairedBy.collectAsState()
     val libraryStatus by DeviceSyncHub.libraryStatus.collectAsState()
+    val heldTotal = DeviceSyncHub.heldRemovals.collectAsState().value.values.sum()
 
     var showServer by rememberSaveable { mutableStateOf(false) }
     var showName by rememberSaveable { mutableStateOf(false) }
@@ -262,6 +263,20 @@ fun DeviceSyncSettings(
                                 title = { Text(stringResource(R.string.device_sync_lib_title)) },
                                 description = { Text(libraryText) },
                                 onClick = { ActionLog.tap(ActionId.DEVSET_LIBRARY_SYNC); DeviceSyncHub.controller?.syncLibraryNow() },
+                            )
+                        )
+                        // Row 807 (H10): the removals the brake held wait here for «Aplicar» / «Descartar».
+                        add(
+                            IntegrationCardItem(
+                                icon = painterResource(R.drawable.delete),
+                                title = { Text(stringResource(R.string.device_sync_held_title)) },
+                                description = {
+                                    Text(
+                                        if (heldTotal == 0) stringResource(R.string.device_sync_held_none)
+                                        else stringResource(R.string.device_sync_held_some, heldTotal)
+                                    )
+                                },
+                                onClick = { ActionLog.tap(ActionId.DEVSET_HELD); navController.navigate("settings/device_sync/held") },
                             )
                         )
                         add(

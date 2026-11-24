@@ -1394,6 +1394,27 @@ class MainActivity : ComponentActivity() {
                 val coroutineScope = rememberCoroutineScope()
                 val snackbarHostState = remember { SnackbarHostState() }
 
+                // Row 807 (H10): the library sync's brake held a batch of removals from another device. Offered once per batch
+                // (the token survives a rotation); «Revisar» opens the screen that applies or discards them.
+                var lastHeldTrip by rememberSaveable { mutableStateOf(0) }
+                val heldNotice = stringResource(R.string.device_sync_held_notice)
+                val heldReview = stringResource(R.string.device_sync_held_review)
+                LaunchedEffect(Unit) {
+                    iad1tya.echo.music.devicesync.DeviceSyncHub.heldTrip.collectLatest { trip ->
+                        if (trip == null || trip.token <= lastHeldTrip) return@collectLatest
+                        lastHeldTrip = trip.token
+                        val result = snackbarHostState.showSnackbar(
+                            message = heldNotice.format(trip.count),
+                            actionLabel = heldReview,
+                            duration = SnackbarDuration.Long,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            iad1tya.echo.music.utils.ActionLog.tap(iad1tya.echo.music.utils.ActionId.DEVSET_HELD_REVIEW)
+                            navController.navigate("settings/device_sync/held")
+                        }
+                    }
+                }
+
                 // "¿quieres volver a la cola anterior?" — the service noticed he left a playlist to go
                 // play an album (PreviousQueueRule) and snapshotted the queue he walked away from.
                 //

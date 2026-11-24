@@ -96,6 +96,7 @@ class LibrarySync(
         connected = false
         pulledOnce = false
         DeviceSyncHub.libraryOwnedByDevices = false
+        DeviceSyncHub.heldRemovals.value = emptyMap()
         kickJob?.cancel()
         pullWatchdog?.cancel()
     }
@@ -274,7 +275,8 @@ class LibrarySync(
             accepted = accepted - held.toSet()
             plan = LibrarySyncCore.plan(accepted, before, LibrarySyncCore.PlaylistIds.of(ledger, accepted + held.map { it.copy(parked = true) }))
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
-            DeviceSyncHub.notice("Otro dispositivo quitó ${held.size} elementos de golpe; no los quité aquí por seguridad.")
+            // Row 807: the app offers «Revisar» once per batch (MainActivity), which opens the screen that applies or discards them.
+            DeviceSyncHub.heldTrip.value = DeviceSyncHub.HeldTrip((DeviceSyncHub.heldTrip.value?.token ?: 0) + 1, held.size)
         }
         val more = (msg["more"] as? JsonPrimitive)?.booleanOrNull == true
         // Row 746: what was parked is retried once, after the LAST page (a page in the middle cannot be the end of a download).
@@ -325,6 +327,40 @@ class LibrarySync(
             known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) },
             pending = ledger.values.count { it.pending },
         )
+        publishHeldLocked()
+    }
+
+    /** Row 807: what the brake holds, as counts per key family (`lk`, `dk`, `pl`, `pm`, `ab`, `pn`) — never which items. */
+    private fun publishHeldLocked() {
+        val ledger = ledgerMap ?: return
+        DeviceSyncHub.heldRemovals.value =
+            ledger.values.filter { LibrarySyncCore.isHeld(it) }.groupingBy { it.key.substringBefore(':') }.eachCount()
+    }
+
+    /**
+     * Row 807 (owner 2026-11-24, H10) — the user's answer to the removals the brake held ([LibrarySyncCore.isHeld]). [apply] =
+     * «Aplicar»: they are made here through the same [LibraryBackend.apply] as any change from the room. Otherwise «Descartar»: the
+     * copies here are kept and go back to the room as the newest change ([LibrarySyncCore.localOps] sees a "0" in the ledger and the
+     * item still here), so the other devices get them again — union: nothing is deleted without this explicit tap. Returns how many
+     * were resolved.
+     */
+    suspend fun resolveHeld(apply: Boolean): Int = mutex.withLock {
+        val ledger = ledger()
+        val held = ledger.values.filter { LibrarySyncCore.isHeld(it) }
+        if (held.isEmpty()) return@withLock 0
+        val released = held.map { it.copy(parked = false) }
+        if (apply) {
+            // Row 740: «before» is the ledger as it was when the removals arrived (the held lists still live), so each removal
+            // reaches the row whose key it names and nothing else.
+            val before = LibrarySyncCore.PlaylistIds.of(ledger, held.map { it.copy(value = LibrarySyncCore.ON) })
+            adapter.apply(LibrarySyncCore.plan(released, before, LibrarySyncCore.PlaylistIds.of(ledger, released)))
+        }
+        released.forEach { ledger[it.key] = it }
+        store.append(released)
+        Timber.tag(TAG).i("LIB_SYNC held removals resolved apply=%b count=%d", apply, held.size)
+        if (!apply && connected && pulledOnce && isEnabled()) pushDiffLocked()
+        publishHeldLocked()
+        held.size
     }
 
     private suspend fun onAckLocked() {

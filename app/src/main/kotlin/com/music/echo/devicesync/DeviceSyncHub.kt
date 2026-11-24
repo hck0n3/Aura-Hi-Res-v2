@@ -85,6 +85,14 @@ object DeviceSyncHub {
 
     val libraryStatus = MutableStateFlow<LibraryStatus>(LibraryStatus.Off)
 
+    /** Row 807: the removals the mass-deletion brake holds here, by key family (`lk`, `dk`, `pl`, `pm`, `ab`, `pn`) → how many. */
+    val heldRemovals = MutableStateFlow<Map<String, Int>>(emptyMap())
+
+    /** Row 807: one batch the brake just held ([token] grows by one each time), so the app offers «Revisar» once per batch. */
+    data class HeldTrip(val token: Int, val count: Int)
+
+    val heldTrip = MutableStateFlow<HeldTrip?>(null)
+
     /** How this device got paired: the screens say it in words. */
     enum class PairedBy { None, License, Code }
 
@@ -118,6 +126,9 @@ object DeviceSyncHub {
 
         /** «Sincronizar ahora» of the library: pull what changed, then push what is different here. */
         fun syncLibraryNow()
+
+        /** Row 807: «Aplicar» ([apply] = true) or «Descartar» the removals the brake holds ([heldRemovals]). */
+        fun resolveHeldRemovals(apply: Boolean)
     }
 
     @Volatile

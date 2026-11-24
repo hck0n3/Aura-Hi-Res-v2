@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="device_sync_held_title">Borrados retenidos</string>
+    <string name="device_sync_held_none">Ninguno: no hay nada esperándote</string>
+    <string name="device_sync_held_some">%1$d retenidos · toca para revisarlos</string>
+    <string name="device_sync_held_notice">Otro dispositivo quitó %1$d elementos de golpe; no los quité aquí por seguridad.</string>
+    <string name="device_sync_held_review">Revisar</string>
+    <string name="device_sync_held_intro">Otro de tus dispositivos quitó muchas cosas a la vez. Eso parece más un fallo o una cuenta vaciada que alguien ordenando, así que aquí se conservaron. Aplicar las quita también aquí. Descartar las conserva y las devuelve a tus otros dispositivos.</string>
+    <string name="device_sync_held_apply">Aplicar</string>
+    <string name="device_sync_held_discard">Descartar</string>
+    <string name="device_sync_held_kind_likes">Canciones que te gustan</string>
+    <string name="device_sync_held_kind_dislikes">No me gusta</string>
+    <string name="device_sync_held_kind_playlists">Listas</string>
+    <string name="device_sync_held_kind_members">Canciones en listas</string>
+    <string name="device_sync_held_kind_albums">Álbumes guardados</string>
+    <string name="device_sync_held_kind_pins">Fijados</string>
+    <string name="device_sync_held_kind_other">Otros</string>
+</resources>
