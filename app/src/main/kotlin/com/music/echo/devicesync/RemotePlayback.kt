@@ -29,7 +29,7 @@ object RemotePlayback {
 
     /**
      * How long the remote stays shown while the link to the room is down. Covers the client's first reconnect (a 4 s backoff plus the
-     * handshake; on coming back to the app there is no backoff). Chosen for this fix, not measured (to be confirmed by the owner).
+     * handshake; on coming back to the app there is no backoff). Chosen for this fix, not measured; confirmed by the owner 2026-11-24 (H24).
      */
     const val LINK_DROP_HOLD_MS = 10_000L
 
@@ -141,6 +141,13 @@ object RemotePlayback {
         DeviceSyncHub.controller?.control(t.deviceId, "playitem", trackId = trackId)
         return true
     }
+
+    /**
+     * Pure (row 809): the songs of one «Reproducir a continuación» / «Añadir a la cola» sent to the controlled device, in orders of at most
+     * [size]. A «play next» goes last chunk first: each one lands right after the current song there, so the songs keep their order.
+     */
+    fun <T> queueChunks(items: List<T>, insertNext: Boolean, size: Int): List<List<T>> =
+        items.chunked(size).let { if (insertNext) it.reversed() else it }
 
     private fun sendForCurrentSong(command: String): Boolean {
         val t = target.value ?: return false
@@ -351,7 +358,7 @@ object RemotePlayback {
 
     /**
      * How long an in-app request to play still explains the start that follows it: a list or a search result can take a few seconds
-     * to load before the player starts. Chosen for this fix, not measured (to be confirmed by the owner).
+     * to load before the player starts. Chosen for this fix, not measured; confirmed by the owner 2026-11-24 (H24).
      */
     const val USER_START_WINDOW_MS = 30_000L
 
