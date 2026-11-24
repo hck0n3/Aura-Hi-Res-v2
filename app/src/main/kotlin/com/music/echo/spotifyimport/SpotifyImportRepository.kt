@@ -345,7 +345,25 @@ class SpotifyImportRepository @Inject constructor(
                     onProgress = onProgress,
                 )
 
-                mirrorPlaylist(source, batch.matched.map { it.metadata })
+                if (source is SpotifyImportSource.LikedSongs) {
+                    // Row 832: only songs NEW in Spotify since the last pass are marked as liked.
+                    val matched = batch.matched.map {
+                        SpotifyLikedImportLedger.trackKey(tracks[it.index].id, it.metadata.id) to it.metadata.id
+                    }
+                    val tag = SpotifyLikedImportLedger.tagOf(Spotify.me().getOrNull()?.id)
+                    val previous = tag?.let { context.dataStore.data.first()[SpotifyLikedImportLedger.keyOf(it)] }
+                    val mirrorSongIds = database.playlistSongIdsInOrder(source.localPlaylistId).toHashSet()
+                    mirrorPlaylist(
+                        source,
+                        batch.matched.map { it.metadata },
+                        likedIds = SpotifyLikedImportLedger.toMark(matched, previous, mirrorSongIds),
+                    )
+                    if (tag != null) {
+                        context.dataStore.edit { it[SpotifyLikedImportLedger.keyOf(tag)] = SpotifyLikedImportLedger.next(previous, matched) }
+                    }
+                } else {
+                    mirrorPlaylist(source, batch.matched.map { it.metadata })
+                }
                 summaries += SpotifyImportSourceSummaryUi(
                     title = source.title,
                     // Fetched (post null/blank filter) count we actually tried to match.
@@ -409,11 +427,12 @@ class SpotifyImportRepository @Inject constructor(
             // followed artist waits in ImportFollowsAwaitingConfirmKey until the user picks «Suscribir»
             // or «Solo en Aura» on the sync screen (registry #646).
 
-            // Mirror the freshly-imported likes + library to YouTube Music (when signed in), so the
-            // Spotify import also lands in the user's YT Music library. Fire-and-forget (sync queue).
+            // Mirror the freshly-imported library to YouTube Music (when signed in), so the Spotify import
+            // also lands in the user's YT Music library. Fire-and-forget (sync queue). Row 832: no
+            // syncLikedSongs() here — it likeVideo()d every local like without reading YtmUploadSyncKey;
+            // the upload pass enqueued below pushes likes and respects that switch.
             if (com.music.innertube.YouTube.cookie != null) {
                 runCatching {
-                    syncUtils.syncLikedSongs()
                     syncUtils.syncLibrarySongs()
                 }
                 // "Todas las playlists que importe de otra cuenta ya me queden en mi cuenta de YouTube
@@ -676,7 +695,7 @@ class SpotifyImportRepository @Inject constructor(
                     semaphore.withPermit {
                         val result =
                             try {
-                                matchTrack(track, index)
+                                matchTrack(track, index, strict = true)
                             } catch (error: CancellationException) {
                                 throw error
                             } catch (error: Throwable) {
@@ -784,6 +803,7 @@ class SpotifyImportRepository @Inject constructor(
     private suspend fun matchTrack(
         track: SpotifyTrack,
         index: Int,
+        strict: Boolean = false,
     ): MatchResult {
         // Local Spotify files have no YouTube counterpart; skip without searching.
         if (track.isLocal) {
@@ -791,7 +811,7 @@ class SpotifyImportRepository @Inject constructor(
         }
 
         val primaryQuery = SpotifyMapper.buildSearchQuery(track)
-        val primary = searchAndScore(track, index, primaryQuery)
+        val primary = searchAndScore(track, index, primaryQuery, strict = strict)
         if (primary is MatchResult.Success) return primary
         if (primary is MatchResult.Failure &&
             primary.reason != SpotifyImportFailureReason.LOW_SCORE &&
@@ -802,7 +822,7 @@ class SpotifyImportRepository @Inject constructor(
 
         val alternateQuery = SpotifyMapper.buildAlternateSearchQuery(track)
         val alternate = if (alternateQuery != primaryQuery) {
-            searchAndScore(track, index, alternateQuery)
+            searchAndScore(track, index, alternateQuery, strict = strict)
         } else {
             primary
         }
@@ -812,7 +832,7 @@ class SpotifyImportRepository @Inject constructor(
         // real match as a Video (lyric videos, unusual distribution) — FILTER_SONG never surfaces it
         // as a candidate, but a manual search (no type filter) does find it. Only tried once both
         // song attempts already failed, so this never widens what a confident song match accepts.
-        val video = searchAndScore(track, index, primaryQuery, filter = YouTube.SearchFilter.FILTER_VIDEO)
+        val video = searchAndScore(track, index, primaryQuery, filter = YouTube.SearchFilter.FILTER_VIDEO, strict = strict)
         return if (video is MatchResult.Success) video else alternate
     }
 
@@ -821,6 +841,7 @@ class SpotifyImportRepository @Inject constructor(
         index: Int,
         query: String,
         filter: YouTube.SearchFilter = YouTube.SearchFilter.FILTER_SONG,
+        strict: Boolean = false,
     ): MatchResult {
         val searchResult = searchWithRateLimitBackoff {
             YouTube.search(
@@ -840,6 +861,30 @@ class SpotifyImportRepository @Inject constructor(
         val candidates = searchResult.items
             .filterIsInstance<SongItem>()
             .distinctBy { it.id }
+
+        // Row 832: the import (library sync) only takes the song the track really is — strict migration Scorer, see
+        // SpotifyTrackMatcher. External links keep the lenient score below (a shared link may carry no artist at all).
+        if (strict && candidates.isNotEmpty()) {
+            val picked = SpotifyTrackMatcher.pick(
+                com.aura.migration.model.SourceTrack(
+                    title = track.name,
+                    artists = track.artists.map { it.name },
+                    album = track.album?.name?.takeIf { it.isNotBlank() },
+                    durationMs = track.durationMs.takeIf { it > 0 }?.toLong(),
+                ),
+                candidates.map { candidate ->
+                    candidate to com.aura.migration.model.YtmCandidate(
+                        videoId = candidate.id,
+                        title = candidate.title,
+                        artists = candidate.artists.map { it.name },
+                        album = candidate.album?.name,
+                        durationMs = candidate.duration?.let { it * 1_000L },
+                        isSong = filter == YouTube.SearchFilter.FILTER_SONG,
+                    )
+                },
+            ) ?: return MatchResult.Failure(SpotifyImportFailureReason.LOW_SCORE)
+            return MatchResult.Success(MatchedTrack(index = index, metadata = picked.toMediaMetadata()))
+        }
 
         // Pure-CPU scoring — safe to run in parallel across tracks, so no mutex. maxByOrNull
         // returns the best (highest-scoring) candidate; the MIN_MATCH_SCORE floor below rejects
@@ -1371,9 +1416,12 @@ class SpotifyImportRepository @Inject constructor(
     private suspend fun mirrorPlaylist(
         source: SpotifyImportSource,
         tracks: List<MediaMetadata>,
+        likedIds: Set<String> = emptySet(),
     ) {
         database.withTransaction {
             val existing = getPlaylistById(source.localPlaylistId)
+            // Row 833: an empty source (or one where nothing matched) never creates a new, empty playlist.
+            if (existing == null && tracks.isEmpty()) return@withTransaction
             val now = LocalDateTime.now()
             val entity =
                 existing?.playlist?.copy(
@@ -1398,10 +1446,10 @@ class SpotifyImportRepository @Inject constructor(
             }
 
             val libraryNow = LocalDateTime.now()
-            // Spotify "Liked Songs" → mark each matched track as liked so they land in the app's
-            // Liked Songs (not only in a mirror playlist).
-            val markLiked = source is SpotifyImportSource.LikedSongs
+            // Spotify "Liked Songs" → mark each NEW matched track ([likedIds], row 832) as liked so it lands
+            // in the app's Liked Songs (not only in a mirror playlist).
             tracks.forEach { metadata ->
+                val markLiked = metadata.id in likedIds
                 // Read once: branch on existence to avoid a redundant SELECT per song.
                 val existing = getSongByIdBlocking(metadata.id)?.song
                 if (existing == null) {

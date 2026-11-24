@@ -34,7 +34,9 @@ object SpotifyMapper {
         "\\s*-\\s*(single|radio|album|mono|stereo)?\\s*(version|edit|live)\\s*$",
         RegexOption.IGNORE_CASE,
     )
-    private val NON_ALNUM_PATTERN = Regex("[^a-z0-9\\s]")
+    // Row 832: letters and digits of ANY script (\p{L}\p{N}). The old [^a-z0-9\s] emptied Korean, Japanese,
+    // Cyrillic… titles, and two empty strings compared as identical (score 1.0 for any candidate).
+    private val NON_ALNUM_PATTERN = Regex("[^\\p{L}\\p{N}\\s]")
     private val MULTI_SPACE_PATTERN = Regex("\\s+")
 
     private const val NORM_CACHE_MAX_SIZE = 256
@@ -218,6 +220,8 @@ object SpotifyMapper {
         a: String, bigramsA: Set<String>,
         b: String, bigramsB: Set<String>,
     ): Double {
+        // Row 832: an empty normalized string (nothing left to compare) is never a match.
+        if (a.isEmpty() || b.isEmpty()) return 0.0
         if (a == b) return 1.0
         if (bigramsA.isEmpty() || bigramsB.isEmpty()) return 0.0
         val intersection = bigramsA.count { it in bigramsB }
