@@ -2674,6 +2674,14 @@ class MusicService :
         scope.launch {
             PlaybackOfflineSession.userRetries.collect { onOfflineSessionExited("user_retry") }
         }
+        // Row 795: the players' «Sin conexión» sign follows the session and the manual switch as they change.
+        scope.launch {
+            combine(
+                PlaybackOfflineSession.active,
+                dataStore.data.map { it[OfflineModeKey] ?: false }.distinctUntilChanged(),
+            ) { session, manual -> OfflinePlaybackNotice.of(sessionActive = session, manual = manual) }
+                .collect { _offlinePlaybackNotice.value = it }
+        }
 
         
         var isFirstQualityEmit = true
@@ -4001,6 +4009,10 @@ class MusicService :
     // ── Playback offline session (owner 2026-11-22) — see PlaybackOfflineSession ─────────────────────────────────────
     private var offlineSessionNoticeShown = false
     private var offlineStallJob: Job? = null
+
+    private val _offlinePlaybackNotice = MutableStateFlow(OfflinePlaybackNotice.NONE)
+    /** Row 795: the players' «Sin conexión» sign — the offline session or the manual switch. Fed by events, never polled. */
+    val offlinePlaybackNotice: kotlinx.coroutines.flow.StateFlow<OfflinePlaybackNotice> get() = _offlinePlaybackNotice
 
     /** The same "que se ponga solo" switch as the UI's automatic offline mode (AutoOfflineModeKey, ON by default). */
     private fun offlineSessionAllowed(): Boolean =

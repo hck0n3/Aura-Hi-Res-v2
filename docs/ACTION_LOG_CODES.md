@@ -454,3 +454,10 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 | `UI.YTMSYNC.IMPORT_SUBSCRIBE` | Suscribirse también en YouTube |
 | `UI.YTMSYNC.IMPORT_LOCAL_ONLY` | Solo en la app |
 | `UI.YTMSYNC.IMPORT_ASK_AGAIN` | Volver a preguntar |
+
+## Reproductor ▸ aviso «Sin conexión» (fila 795)
+
+| Código | Acción |
+|---|---|
+| `UI.PLR.OFFLINE_NOTICE` | Tocar el aviso «Sin conexión · sonando tu música sin conexión» (abre la explicación) |
+| `UI.PLR.OFFLINE_GO_ONLINE` | «Volver online» en esa explicación (apaga el modo sin conexión manual) |

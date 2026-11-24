@@ -1345,6 +1345,8 @@ private fun AuraPlayerShape(
                     }
                     // Row 734: a running sleep timer shows here with its countdown; a tap turns it off or extends it.
                     AuraSleepTimerChip(visible = state.isExpanded)
+                    // Row 795: while it goes on with offline music only (the session or the manual switch); a tap explains it.
+                    AuraOfflinePlaybackChip()
                 }
                 if (showInlineLyrics) {
                     // §2.1 — the lyrics header controls only exist while the lyrics are open.
