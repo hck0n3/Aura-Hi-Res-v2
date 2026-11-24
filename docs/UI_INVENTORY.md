@@ -2725,7 +2725,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqS
 | Atrás (barra superior «Ecualizador») | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:128 | navegación | constante | siempre |
 | Ecualizador (activar/desactivar) — desc. «Activa o desactiva el procesamiento de audio profesional» | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:299 | conmutador | ocasional | siempre |
 | «Auto-EQ activo — tu EQ se suma encima» (chip informativo) (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:346 | informativo | ocasional | solo si hay un perfil Auto-EQ aplicado |
-| Quitar Auto-EQ (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:349 | destructiva | rara | solo si hay un perfil Auto-EQ aplicado |
+| Quitar Auto-EQ (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:349 | destructiva | rara | solo si hay un perfil Auto-EQ aplicado · **fila 802:** devuelve el preamp que había antes de activar Auto-EQ |
 | Guardar (preajuste) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:392 | acción primaria | ocasional | siempre |
 | Exportar perfiles (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:424 | acción secundaria | rara | siempre (abre SAF `aura-eq-perfiles.json`) |
 | Importar (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:429 | acción secundaria | rara | siempre (abre SAF `application/json`) |
@@ -2754,7 +2754,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/autoeq/AutoEqS
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Auto-EQ activado (tarjeta de estado, hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:171 | informativo | ocasional | solo si hay un perfil aplicado |
+| Auto-EQ activado (tarjeta de estado, hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:171 | informativo | ocasional | solo si hay un perfil aplicado · **fila 802:** al apagarlo vuelve el preamp que había antes de activar Auto-EQ; al encenderlo, el del perfil |
 | «Para corrección pura, elige el preset Bypass» (pista, `autoeq_bypass_hint` ES+EN, fila 792) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:208 | informativo | ocasional | siempre |
 | «Catálogo: N modelos» / «Catálogo no cargado» (hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:191 | informativo | ocasional | siempre |
 | Actualizar base de datos / «Actualizando…» (hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:196 | acción secundaria | rara | siempre |
