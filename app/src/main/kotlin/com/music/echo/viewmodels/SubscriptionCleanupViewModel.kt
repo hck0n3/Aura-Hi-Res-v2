@@ -162,6 +162,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
         )
         if (plan.isEmpty()) return
         val byId = s.candidates.associateBy { it.id }
+        absorbLastRun()
         refuseUnlessStarted(runner.start(plan.mapNotNull { byId[it] }))
     }
 
@@ -171,6 +172,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
         if (refuseWhileRunning(s)) return
         val failed = s.lastResult?.failed.orEmpty()
         if (s.phase != Phase.READY || failed.isEmpty()) return
+        absorbLastRun()
         refuseUnlessStarted(runner.retryFailed(failed, s.candidates.associateBy { it.id }))
     }
 
@@ -197,6 +199,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
             return
         }
         val byId = s.candidates.associateBy { it.id }
+        absorbLastRun()
         refuseUnlessStarted(runner.start(plan.mapNotNull { byId[it] }))
     }
 
@@ -212,11 +215,21 @@ class SubscriptionCleanupViewModel @Inject constructor(
     private fun refuseUnlessStarted(started: Boolean) = _state.update { it.copy(refused = !started) }
 
     /**
+     * Row 838: what the account confirmed in the run that ended leaves this list (and the selection) for good, right
+     * before another run starts and wipes that run's summary. [merge] only hides the last run's ids.
+     */
+    private fun absorbLastRun() {
+        val gone = SubscriptionCleanupEngine.removedBy(runner.state.value)
+        if (gone.isEmpty()) return
+        _state.update { s -> s.copy(candidates = s.candidates.filterNot { it.id in gone }, selected = s.selected - gone) }
+    }
+
+    /**
      * The list joined with the run: RUNNING while the runner is active, its counters and marks, and — once it ended —
      * its summary, with what the account confirmed taken out of the list (and of the selection).
      */
     private fun merge(list: UiState, run: SubscriptionCleanupEngine.State): UiState {
-        val gone = run.lastResult?.removed.orEmpty().toSet()
+        val gone = SubscriptionCleanupEngine.removedBy(run)
         return list.copy(
             phase = if (run.active) Phase.RUNNING else list.phase,
             candidates = list.candidates.filterNot { it.id in gone },

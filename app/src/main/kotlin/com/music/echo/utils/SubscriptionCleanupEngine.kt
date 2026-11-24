@@ -212,6 +212,12 @@ class SubscriptionCleanupEngine(
     companion object {
         private const val SAVED_VERSION = "v1"
 
+        /**
+         * Row 838: the ids [run] ended with as confirmed removed (none while it is active). [start] wipes them, so a
+         * list folds them in for good before it starts another run; otherwise they come back, still selected.
+         */
+        fun removedBy(run: State): Set<String> = if (run.active) emptySet() else run.lastResult?.removed.orEmpty().toSet()
+
         /** A one-way hash of the account tag (SAPISID): enough to tell «same account», useless as a credential. */
         fun accountKey(tag: String): String =
             MessageDigest.getInstance("SHA-256").digest(tag.toByteArray()).joinToString("") { String.format(Locale.ROOT, "%02x", it) }

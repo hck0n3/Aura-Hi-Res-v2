@@ -74,6 +74,29 @@ class SubscriptionCleanupEngineTest {
     }
 
     @Test
+    fun `what a run removed leaves its list for good, also across a retry that wipes the summary`() = runBlocking {
+        val engine = Fixture().engine(this)
+        // The screen's list and selection, folded the way SubscriptionCleanupViewModel.absorbLastRun does before a run.
+        var candidates = listOf("a", "b", "c")
+        var selected = setOf("a", "b", "c")
+        fun absorb() {
+            val gone = SubscriptionCleanupEngine.removedBy(engine.state.value)
+            candidates = candidates.filterNot { it in gone }
+            selected = selected - gone
+        }
+        assertTrue(engine.start(listOf("a", "b", "c"), unsubscribe = { id -> id != "c" }))
+        assertTrue("nothing counts as removed while the run is active", SubscriptionCleanupEngine.removedBy(engine.state.value).isEmpty())
+        assertEquals(setOf("a", "b"), SubscriptionCleanupEngine.removedBy(engine.finished()))
+        absorb()
+        assertTrue(engine.start(listOf("c"), unsubscribe = { false }))
+        assertTrue("the retry wiped the summary", SubscriptionCleanupEngine.removedBy(engine.state.value).isEmpty())
+        engine.finished()
+        absorb()
+        assertEquals(listOf("c"), candidates)
+        assertEquals(setOf("c"), selected)
+    }
+
+    @Test
     fun `nothing to do starts nothing`() = runBlocking {
         val engine = Fixture().engine(this)
         assertFalse(engine.start(emptyList(), unsubscribe = { true }))

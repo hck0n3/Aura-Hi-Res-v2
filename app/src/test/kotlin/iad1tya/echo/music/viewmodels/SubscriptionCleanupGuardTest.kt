@@ -164,6 +164,24 @@ class SubscriptionCleanupGuardTest {
     }
 
     @Test
+    fun `every new run first folds what the last one removed into the list`() {
+        val vm = src(vmPath)
+        assertTrue(vm.contains("val gone = SubscriptionCleanupEngine.removedBy(runner.state.value)"))
+        assertTrue(vm.contains("_state.update { s -> s.copy(candidates = s.candidates.filterNot { it.id in gone }, selected = s.selected - gone) }"))
+        listOf("fun removeSelected() {", "fun retryFailed() {", "fun continueInterrupted() {").forEach { name ->
+            val body = vm.substringAfter(name).substringBefore("\n    }\n")
+            val start = Regex("""runner\.(start|retryFailed)\(""").find(body)?.range?.first ?: -1
+            assertTrue("$name starts a run", start >= 0)
+            assertTrue("$name folds the last run first", body.indexOf("absorbLastRun()") in 0 until start)
+        }
+        assertEquals(
+            "every run start is preceded by the fold",
+            Regex("""runner\.(start|retryFailed)\(""").findAll(vm).count(),
+            Regex("""absorbLastRun\(\)\n""").findAll(vm).count(),
+        )
+    }
+
+    @Test
     fun `the screen marks the run's rows and says when a new run is refused`() {
         val screen = src(screenPath)
         assertTrue(screen.contains("candidate.id in state.removedIds -> Text("))
