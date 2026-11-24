@@ -2174,3 +2174,28 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.DEVSET.SWITCH_ROW` | Fila de un interruptor de Sincronizar dispositivos (sí/no) |
 | `UI.DEVSET.TEXT_CANCEL` | «Cancelar» al editar el servidor o el nombre |
 | `UI.DEVSET.HELD_BACK` | Atrás (Retenidas) |
+
+### Lo que sigue sin código, a propósito (fila 824)
+
+Cada caso tiene su motivo; `ActionLogGuardTest` lleva la lista de archivos exentos con la razón de cada uno y falla si
+aparece un botón nuevo sin código o si una exención ya no hace falta.
+
+- **Flecha de minimizar el reproductor** (fila 513): `FirstTapAndHeaderGuardTest` fija su `onClick` literal. El
+  conmutador pantalla completa / dividida sí queda registrado: es un ajuste y sale como
+  `UI.SET.TOGGLE key=aura_wide_player_split value=…`.
+- **Abrir y cancelar «Pedir música»** (fila 730): `AuraHomeLayoutTest` y `MusicRequestCardGuardTest` fijan sus
+  `onClick` literales.
+- **Filas de Ajustes cuyo `onClick` fija un test**: «Ocultos» (Contenido; `HiddenItemsTest`), «Romanización de letras»
+  (Contenido; `LyricsSettingsLinksGuardTest`), «Política de privacidad» (Privacidad y Acerca de;
+  `PrivacyPolicyAssetTest`), «Revisar suscripciones» (Cuentas; `SubscriptionCleanupGuardTest`) y la cabecera «Tu
+  biblioteca» de la página de un artista (`ArtistPageLibrarySongsGuardTest`). Las pantallas a las que llevan sí registran sus
+  propios botones, salvo la siguiente.
+- **Pantalla «Ocultos»**: `HiddenItemsTest` prohíbe cualquier `Log.` en ese archivo (regla 4) y `ActionLog.tap` lo
+  contiene; queda fuera hasta que el dueño decida relajar esa comprobación.
+- **Cabecera de los acordeones del menú del reproductor**: `PlayerAndAudioSheetGlassGuardTest` fija `onClick = onToggle`.
+- **Ajustes de sí/no u opciones**: ya salen como `UI.SET.TOGGLE` / `UI.SET.CHOICE` con la clave y el valor nuevo; no
+  llevan un segundo código.
+- **Pantallas clásicas** (con una sola interfaz, `SINGLE_UI`, nunca se dibujan) y **componentes genéricos** cuyo toque es
+  el del que los usa (ese ya lleva su código).
+- **Pantallas de licencia y suscripción** (`license/`): fuera de este paquete de trabajo (otro paquete edita esos textos a
+  la vez); pendiente de decisión.
