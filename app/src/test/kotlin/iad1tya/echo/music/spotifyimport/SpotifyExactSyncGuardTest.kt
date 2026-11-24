@@ -64,4 +64,25 @@ class SpotifyExactSyncGuardTest {
         assertTrue(mirror.contains("val markLiked = metadata.id in likedIds"))
         assertFalse(mirror.contains("source is SpotifyImportSource.LikedSongs"))
     }
+
+    private val upload get() = main("utils/LibraryUploadSync.kt")
+
+    /** Row 833: a Spotify mirror is never linked by name to a playlist already on the account; it always gets a new one. */
+    @Test
+    fun `a Spotify mirror is never linked to an account playlist by name`() {
+        val src = body(upload, "    private suspend fun uploadPlaylists() {")
+        assertTrue(src.contains("?.takeIf { !playlist.id.startsWith(\"SPOTIFY_\") && it.isEditable && it.id !in claimed }"))
+        assertTrue(src.contains(".putString(SPOTIFY_MIRROR_CREATED_PREFIX + playlist.id, browseId).commit()"))
+    }
+
+    /** Row 833: reconcile only removes songs from a playlist Aura itself created for that Spotify source. */
+    @Test
+    fun `mirror reconcile removes songs only from playlists Aura created`() {
+        val src = body(upload, "    private suspend fun reconcileSpotifyMirrors() {")
+        assertTrue(src.contains("val createdByAura = prefs.getString(SPOTIFY_MIRROR_CREATED_PREFIX + playlistId, null) == browseId"))
+        assertTrue(src.contains("val extras = if (shrunkTooMuch || !createdByAura) {"))
+        assertEquals(1, Regex("""YouTube\.removeFromPlaylist\(""").findAll(src).count())
+        val removal = src.indexOf("YouTube.removeFromPlaylist(")
+        assertTrue(src.indexOf("for (song in extras) {") in 0 until removal)
+    }
 }
