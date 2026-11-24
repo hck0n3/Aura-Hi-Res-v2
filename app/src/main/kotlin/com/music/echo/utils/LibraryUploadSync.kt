@@ -236,7 +236,9 @@ class LibraryUploadSync @Inject constructor(
      * every follow back.
      */
     suspend fun importFollowsHeldBack(): Set<String>? = withContext(Dispatchers.IO) {
-        var prefs = runCatching { context.dataStore.data.first() }.getOrNull() ?: return@withContext null
+        // Row 808 (H13): the two lists are those of the account signed in now.
+        ImportFollowsAccounts.adopt(context)
+        var prefs =runCatching { context.dataStore.data.first() }.getOrNull() ?: return@withContext null
         if (prefs[ImportFollowsPendingHeldV1Key] != true) {
             val pendingIds = runCatching { database.artistsPendingSubscribe(Int.MAX_VALUE).map { it.id } }
                 .getOrNull() ?: return@withContext null
