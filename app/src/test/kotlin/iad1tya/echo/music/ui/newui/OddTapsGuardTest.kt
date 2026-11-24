@@ -93,12 +93,12 @@ class OddTapsGuardTest {
     }
 
     @Test
-    fun `back hides the keyboard before it closes the quick search`() {
-        val close = quick.indexOf("BackHandler(onBack = { popBrowse() })")
-        val ime = quick.indexOf("BackHandler(enabled = imeVisible) { keyboardController?.hide() }")
-        assertTrue(close > 0)
-        assertTrue("composed after the close handler, so it wins while the keyboard is up", ime > close)
-        assertTrue(quick.contains("val imeVisible = WindowInsets.isImeVisible"))
+    fun `back with the keyboard up is left to the keyboard, no handler swallows the next press`() {
+        assertTrue(quick.contains("BackHandler(onBack = { popBrowse() })"))
+        // Fresh-eyes review of 87c0271: the IME consumes back while it is up, so a BackHandler gated on isImeVisible
+        // could only fire during the hide animation and eat the user's next back press (rule 2 placebo).
+        assertFalse(quick.contains("BackHandler(enabled = imeVisible)"))
+        assertFalse(quick.contains("WindowInsets.isImeVisible"))
     }
 
     @Test

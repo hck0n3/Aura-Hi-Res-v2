@@ -5,15 +5,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -90,7 +87,6 @@ import iad1tya.echo.music.utils.ActionLog
  * Artist / album / playlist open **inside** this frost sheet (local browse stack) — the sheet stays open
  * until the user closes it (back / leading chevron). Songs keep the sheet open for play / next / queue.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AuraPlayerQuickSearchContent(
     navController: NavController,
@@ -173,11 +169,9 @@ fun AuraPlayerQuickSearchContent(
         browseStack = browseStack + dest
     }
 
+    // Row 825: no extra «back hides the keyboard» handler here. The soft keyboard takes the back press itself while it
+    // is up, so such a handler could only fire during the hide animation and would swallow the next back press.
     BackHandler(onBack = { popBrowse() })
-    // Row 825: with the keyboard up, back hides it first and leaves the card where it is. Composed after the one above,
-    // so it wins while it is enabled; on the devices where the keyboard takes back itself, this one never fires.
-    val imeVisible = WindowInsets.isImeVisible
-    BackHandler(enabled = imeVisible) { keyboardController?.hide() }
 
     // The embedded menus navigate ("Ver álbum", "Ver artista") and then call their onDismiss, which in the detail half has
     // no window to close. A navigation while this card is open means the user left: close the card with it, or it would
