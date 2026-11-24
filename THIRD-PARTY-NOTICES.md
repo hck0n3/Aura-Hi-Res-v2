@@ -79,3 +79,39 @@ disabled key would otherwise be **silent**: the app would keep running with an i
 Aura therefore runs a one-shot empirical DSP probe immediately after initialization
 (`probeSuperpoweredDsp` in `SuperpoweredBridge.cpp`) and records the verdict in the persisted
 application log as `SUPERPOWERED engine=HEALTHY|DEGRADED|UNAVAILABLE`. The licence key is never logged.
+
+---
+
+## SongMirror recording-matching rules — MIT
+
+| Path | Contents |
+| --- | --- |
+| `migration/src/main/kotlin/com/aura/migration/resolver/RecordingMatcher.kt` | Kotlin adaptation of SongMirror's `songmirror/engine/matching.py` (`score_candidate`, recording-version gates, catalog-name rules, featured-credit and performer-credit comparison) and of the RapidFuzz `token_sort_ratio` / `token_set_ratio` semantics it relies on |
+
+Source: <https://github.com/ahnafnafee/songmirror> at commit `e5bad7a` (MIT). Adapted, not copied verbatim:
+rewritten in Kotlin with no new dependency; the differences are listed in the file's header. MIT is
+GPL-3.0 compatible, so this code **is** redistributable with the rest of the repository under the notice below.
+
+```
+MIT License
+
+Copyright (c) 2026 Ahnaf An Nafee
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
