@@ -66,6 +66,20 @@ data class ArtistEntity(
      *  - followedByUserAt != null, ytmSyncedAt != null                             -> in sync, nothing to do
      */
     val unfollowedByUserAt: LocalDateTime? = null,
+    /**
+     * Row 798 (owner decision H15, 2026-11-24): YouTube CONFIRMED the unsubscribe asked for by the unfollow in
+     * [unfollowedByUserAt]. Holds that unfollow's own timestamp, so it only counts while it equals (or is newer
+     * than) the marker — a later unfollow tap is unconfirmed until its own call succeeds. Written ONLY after a
+     * successful unsubscribe call (`DatabaseDao.confirmArtistUnsubscribed`, the live tap;
+     * `DatabaseDao.confirmArtistsUnsubscribedBySync`, the upload pass); a failed call leaves it null, and the
+     * marker keeps being the retry.
+     *
+     * Without it a confirmed unsubscribe and a failed one looked the same (marker kept, `ytmSyncedAt` null,
+     * row 150(d)), so when the user re-subscribed on YouTube itself within 30 days the read-back re-armed the
+     * marker and the upload pass undid his subscription (row 716). A confirmed one is never retried; see
+     * [iad1tya.echo.music.utils.ArtistSyncPolicy.isConfirmedUnfollow].
+     */
+    val unfollowConfirmedAt: LocalDateTime? = null,
 ) {
     val isYouTubeArtist: Boolean
         get() = id.startsWith("UC") || id.startsWith("FEmusic_library_privately_owned_artist")
@@ -103,6 +117,8 @@ data class ArtistEntity(
             bookmarkedAt = null,
             followedByUserAt = null,
             unfollowedByUserAt = if (isLocal) unfollowedByUserAt else LocalDateTime.now(),
+            // Row 798: a new unfollow is unconfirmed until its own call succeeds.
+            unfollowConfirmedAt = if (isLocal) unfollowConfirmedAt else null,
         )
     } else {
         // Re-following cancels any queued unsubscribe: the newest deliberate action wins.
@@ -117,7 +133,7 @@ data class ArtistEntity(
         // restores it, and if it did not, the subscription read-back stamps `ytmSyncedAt` straight
         // back and the row costs one comparison. Self-healing in both directions.
         LocalDateTime.now().let {
-            copy(bookmarkedAt = it, followedByUserAt = it, ytmSyncedAt = null, unfollowedByUserAt = null)
+            copy(bookmarkedAt = it, followedByUserAt = it, ytmSyncedAt = null, unfollowedByUserAt = null, unfollowConfirmedAt = null)
         }
     }
 
@@ -198,6 +214,7 @@ data class ArtistEntity(
         // A follow supersedes a queued unsubscribe; leaving the marker would make the reconciler
         // undo the follow that just happened.
         unfollowedByUserAt = null,
+        unfollowConfirmedAt = null,
     )
 
     companion object {

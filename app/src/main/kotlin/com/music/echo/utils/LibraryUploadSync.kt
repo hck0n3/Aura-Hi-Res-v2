@@ -465,7 +465,10 @@ class LibraryUploadSync @Inject constructor(
             // later in the SAME pass. It now cannot produce that shape at all (see
             // DatabaseDao.markArtistsSubscribedOnYtm / ArtistSyncPolicy.afterRemoteSubscriptionSeen).
             runCatching {
-                ids.chunked(500).forEach { database.markArtistsSubscribedOnYtm(it, LocalDateTime.now()) }
+                val now = LocalDateTime.now()
+                ids.chunked(500).forEach {
+                    database.markArtistsSubscribedOnYtm(it, now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))
+                }
             }.onFailure { Timber.w(it, "Could not backfill subscribed artists") }
         }
         return ids.toSet()
@@ -577,6 +580,8 @@ class LibraryUploadSync @Inject constructor(
             .getOrNull().orEmpty()
         val now = LocalDateTime.now()
         val cleared = ArrayList<String>()
+        /** Row 798: rows whose `subscribeChannel(id, false)` YouTube accepted, stamped as confirmed. */
+        val confirmed = ArrayList<String>()
         /** Rows we really did send `subscribeChannel(id, false)` for, as opposed to markers retired. */
         var unsubscribed = 0
         val pending = fromDb.filter { artist ->
@@ -669,7 +674,7 @@ class LibraryUploadSync @Inject constructor(
                 }
                 Timber.i("ARTIST_SUBSCRIBE_SYNC subscribing=false")
                 YouTube.subscribeChannel(channelId, false)
-                    .onSuccess { cleared.add(artist.id); unsubscribed++ }
+                    .onSuccess { confirmed.add(artist.id); unsubscribed++ }
                     .onFailure { Timber.w(it, "UPLOAD_SYNC unsubscribe failed") }
             } catch (e: CancellationException) {
                 throw e
@@ -680,11 +685,14 @@ class LibraryUploadSync @Inject constructor(
         if (cleared.isNotEmpty()) {
             runCatching { database.clearArtistsSyncedToYtm(cleared) }
         }
-        // `cleared` also carries rows retired without a network call (stale intent, no channel to
-        // unsubscribe from), so count the real ones separately rather than overstating what was sent.
+        if (confirmed.isNotEmpty()) {
+            runCatching { database.confirmArtistsUnsubscribedBySync(confirmed) }
+        }
+        // `cleared` carries only rows retired without a network call (stale intent, no channel to unsubscribe
+        // from); the ones YouTube accepted are in `confirmed`.
         Timber.d(
             "LibraryUploadSync: unsubscribed from $unsubscribed artists " +
-                "(${cleared.size - unsubscribed} markers retired without contacting YouTube)",
+                "(${cleared.size} markers retired without contacting YouTube)",
         )
     }
 

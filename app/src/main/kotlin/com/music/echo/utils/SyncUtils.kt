@@ -1729,7 +1729,7 @@ class SyncUtils @Inject constructor(
                     if (remoteIds.isNotEmpty()) {
                         runCatching {
                             remoteIds.toList().chunked(SQL_IN_CHUNK).forEach { chunk ->
-                                database.markArtistsSubscribedOnYtm(chunk, now)
+                                database.markArtistsSubscribedOnYtm(chunk, now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))
                             }
                         }.onFailure { Timber.w(it, "Could not stamp subscribed artists") }
                     }

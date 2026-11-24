@@ -604,6 +604,8 @@ class BackupRestoreViewModel @Inject constructor(
                                 followedByUserAt = existing?.followedByUserAt,
                                 ytmSyncedAt = existing?.ytmSyncedAt,
                                 unfollowedByUserAt = existing?.unfollowedByUserAt,
+                                // Row 798: with its confirmation, or a confirmed unfollow would read as failed.
+                                unfollowConfirmedAt = existing?.unfollowConfirmedAt,
                             )
                         )
                     }
