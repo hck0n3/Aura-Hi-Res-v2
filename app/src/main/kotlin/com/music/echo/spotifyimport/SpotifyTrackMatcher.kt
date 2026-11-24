@@ -2,6 +2,7 @@ package iad1tya.echo.music.spotifyimport
 
 import com.aura.migration.model.SourceTrack
 import com.aura.migration.model.YtmCandidate
+import com.aura.migration.resolver.RecordingMatcher
 import com.aura.migration.resolver.Scorer
 import com.aura.migration.resolver.Similarity
 import com.aura.migration.resolver.TextNormalizer
@@ -16,6 +17,11 @@ import kotlin.math.abs
  * that Scorer alone does not enforce: an empty normalized title or artist is never a match, the artist must match near-exactly, and
  * every word of the shorter title must be in the other one (Scorer only weighs the title at 20 points, so same artist + same duration
  * would pass without it; a similarity bar is not enough either: «love me» / «love you» scores 0.87). Pure, for JVM tests.
+ *
+ * Registry row 843: on top of that, the song taken must be the same RECORDING per [RecordingMatcher] (SongMirror's rules: no
+ * live / remix / cover / acoustic / sped up… for the studio song or the reverse, complete performer credits, durations within
+ * 5 s). It can only turn a pick into «no encontrada», never pick a song these gates would not: the best candidate it accepts must
+ * still clear ACCEPT and the margin over every other gated candidate, the rejected ones included.
  */
 object SpotifyTrackMatcher {
     /** The «casan casi perfecto» bar Scorer itself uses for the artist before trusting a match without duration. */
@@ -26,6 +32,7 @@ object SpotifyTrackMatcher {
 
     private class Scored<T>(
         val item: T,
+        val candidate: YtmCandidate,
         val score: Float,
         val title: String,
         val artist: String,
@@ -41,10 +48,10 @@ object SpotifyTrackMatcher {
 
         val ranked = candidates.mapNotNull { (item, candidate) -> evaluate(source, title, artists, item, candidate) }
             .sortedByDescending { it.score }
-        val best = ranked.firstOrNull() ?: return null
+        val best = ranked.firstOrNull { RecordingMatcher.accepts(source, it.candidate) } ?: return null
         if (best.score < Scorer.ACCEPT) return null
         // The same recording uploaded twice (album + single) is not ambiguity: either one is the user's song.
-        val runnerUp = ranked.drop(1).firstOrNull { !sameRecording(best, it) }
+        val runnerUp = ranked.firstOrNull { it !== best && !sameRecording(best, it) }
         if (runnerUp != null && best.score - runnerUp.score < Scorer.MARGIN) return null
         return best.item
     }
@@ -77,7 +84,7 @@ object SpotifyTrackMatcher {
             source.copy(artists = listOf(sourceArtist)),
             candidate.copy(artists = listOf(candidateArtist)),
         )
-        return Scored(item, score, candidateTitle, artistKey(candidateArtist), candidate.durationMs)
+        return Scored(item, candidate, score, candidateTitle, artistKey(candidateArtist), candidate.durationMs)
     }
 
     /**

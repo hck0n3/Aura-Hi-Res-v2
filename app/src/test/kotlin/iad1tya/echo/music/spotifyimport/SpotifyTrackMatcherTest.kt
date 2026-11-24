@@ -179,4 +179,52 @@ class SpotifyTrackMatcherTest {
             ),
         )
     }
+
+    // ---- Registry row 843: the pick must also be the same recording (RecordingMatcher, adapted from SongMirror) ----
+
+    @Test
+    fun `another recording of the same song is not the song`() {
+        for (label in listOf("Piano", "Nightcore", "A Cappella", "Orchestral", "8D Audio", "Dub", "Live", "Remix", "Cover", "Sped Up")) {
+            assertNull(label, SpotifyTrackMatcher.pick(src("A Song", "Artist"), listOf(cand("a", "A Song ($label)", "Artist"))))
+        }
+        assertNull(SpotifyTrackMatcher.pick(src("A Song (Live)", "Artist"), listOf(cand("a", "A Song", "Artist"))))
+    }
+
+    @Test
+    fun `a tribute band is not the original artist`() {
+        assertNull(
+            SpotifyTrackMatcher.pick(src("Runaway", "AURORA", durationMs = 248_826L), listOf(cand("a", "Runaway", "AURORA Tribute Band", durationMs = 248_826L))),
+        )
+    }
+
+    @Test
+    fun `a guest the Spotify title credits must be on the YouTube song`() {
+        assertNull(SpotifyTrackMatcher.pick(src("A Song (feat. Guest)", "Artist"), listOf(cand("a", "A Song", "Artist"))))
+        assertEquals("a", SpotifyTrackMatcher.pick(src("A Song (feat. Guest)", "Artist"), listOf(cand("a", "A Song", "Artist", "Guest"))))
+    }
+
+    @Test
+    fun `a remaster is the same song`() {
+        assertEquals(
+            "a",
+            SpotifyTrackMatcher.pick(src("Elegia - 2015 Remaster", "New Order", durationMs = 293_000L), listOf(cand("a", "Elegia", "New Order", durationMs = 293_500L))),
+        )
+    }
+
+    @Test
+    fun `durations more than five seconds apart are different recordings`() {
+        assertNull(SpotifyTrackMatcher.pick(src("A Song", "Artist"), listOf(cand("a", "A Song", "Artist", durationMs = 205_100L))))
+        assertEquals("a", SpotifyTrackMatcher.pick(src("A Song", "Artist"), listOf(cand("a", "A Song", "Artist", durationMs = 202_400L))))
+    }
+
+    @Test
+    fun `a rejected recording that outranks the song still counts for the margin`() {
+        // The piano upload scores above the studio one (closer duration); the studio one is 3.5 s off. Never looser than row 832.
+        assertNull(
+            SpotifyTrackMatcher.pick(
+                src("A Song", "Artist"),
+                listOf(cand("piano", "A Song (Piano)", "Artist"), cand("studio", "A Song", "Artist", durationMs = 203_500L)),
+            ),
+        )
+    }
 }

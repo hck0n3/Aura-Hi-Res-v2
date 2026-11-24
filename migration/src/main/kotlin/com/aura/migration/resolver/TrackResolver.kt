@@ -73,8 +73,11 @@ class TrackResolver(
         val margin = if (runnerUp == Float.NEGATIVE_INFINITY) Float.MAX_VALUE
                      else bestScore - runnerUp
 
+        // Registry row 843: a high score is not enough to insert on its own; the candidate must be the same recording
+        // (RecordingMatcher: no live/remix/cover/piano… for the studio song, same performers, durations within 5 s).
+        // Otherwise it goes to review with the other candidates, never inserted silently.
         return when {
-            bestScore >= Scorer.ACCEPT && margin >= Scorer.MARGIN ->
+            bestScore >= Scorer.ACCEPT && margin >= Scorer.MARGIN && RecordingMatcher.accepts(track, best) ->
                 MatchResult.Matched(
                     source = track,
                     videoId = best.videoId,
