@@ -50,6 +50,7 @@ import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
 import iad1tya.echo.music.constants.ImportFollowsLocalOnlyKey
 import iad1tya.echo.music.constants.InnerTubeCookieKey
+import iad1tya.echo.music.constants.YtmAccountReadsIncompleteKey
 import iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey
 import iad1tya.echo.music.constants.YtmLastSyncKey
 import iad1tya.echo.music.constants.YtmUploadSyncKey
@@ -57,9 +58,13 @@ import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
+import iad1tya.echo.music.utils.AccountReadLists
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.UploadCategoryProgress
+import iad1tya.echo.music.utils.UploadCategoryStatus
+import iad1tya.echo.music.utils.UploadCountDisplay
+import iad1tya.echo.music.utils.UploadCountLine
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AccountSettingsViewModel
@@ -336,6 +341,8 @@ private fun LibraryUploadSection(
     // The switch shown here is the opt-in for anyone the one-time migration defaulted to off.
     val (uploadEnabled, setUploadEnabled) = rememberPreference(YtmUploadSyncKey, false)
     val progress by viewModel.uploadProgress.collectAsState()
+    // Row 841: the account lists whose last read did not reach the end; their numbers are a minimum, never exact.
+    val (incompleteReads, _) = rememberPreference(YtmAccountReadsIncompleteKey, emptySet())
     val database = iad1tya.echo.music.LocalDatabase.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val pendingFollowsToConfirm = remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
@@ -586,10 +593,10 @@ private fun LibraryUploadSection(
 
     Spacer(Modifier.height(12.dp))
 
-    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_playlists), progress.playlists)
-    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_artists), progress.artists)
-    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_liked_songs), progress.likedSongs)
-    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_liked_albums), progress.likedAlbums)
+    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_playlists), progress.playlists, AccountReadLists.PLAYLISTS in incompleteReads || progress.playlists.readCutShort)
+    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_artists), progress.artists, AccountReadLists.ARTISTS in incompleteReads || progress.artists.readCutShort)
+    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_liked_songs), progress.likedSongs, AccountReadLists.LIKED_SONGS in incompleteReads || progress.likedSongs.readCutShort)
+    UploadCategoryRow(stringResource(R.string.ytm_upload_cat_liked_albums), progress.likedAlbums, AccountReadLists.LIKED_ALBUMS in incompleteReads || progress.likedAlbums.readCutShort)
 
     Spacer(Modifier.height(12.dp))
 
@@ -603,6 +610,22 @@ private fun LibraryUploadSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 6.dp),
         )
+    } else if (incompleteReads.isNotEmpty() || progress.anyReadCutShort) {
+        // Row 841: never «todo sincronizado» while a list was read only in part.
+        Text(
+            text = stringResource(R.string.ytm_upload_incomplete_summary),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+        if (progress.totalPending > 0) {
+            Text(
+                text = stringResource(R.string.ytm_upload_pending_summary, progress.totalPending),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 6.dp, top = 2.dp),
+            )
+        }
     } else if (progress.everythingSynced) {
         Text(
             text = stringResource(R.string.ytm_upload_all_done),
@@ -677,9 +700,13 @@ private fun LibraryUploadSection(
     )
 }
 
-/** One "X de Y sincronizadas / faltan N / Sincronizando…" line, plus a progress bar. */
+/**
+ * One "X de Y sincronizadas / faltan N / Sincronizando…" line, plus a progress bar. Row 841: when the account list was not
+ * read to its end ([readIncomplete]) it says «Al menos N sincronizadas · lista incompleta» instead of an exact-looking count.
+ */
 @Composable
-private fun UploadCategoryRow(label: String, state: UploadCategoryProgress) {
+private fun UploadCategoryRow(label: String, state: UploadCategoryProgress, readIncomplete: Boolean) {
+    val status = UploadCountDisplay.status(state.running, state.total, state.isComplete, readIncomplete)
     Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -687,28 +714,40 @@ private fun UploadCategoryRow(label: String, state: UploadCategoryProgress) {
         ) {
             Text(text = label, style = MaterialTheme.typography.bodyMedium)
             Text(
-                text = when {
-                    state.running -> stringResource(R.string.ytm_upload_in_progress)
-                    state.total == 0 -> stringResource(R.string.ytm_upload_nothing_to_sync)
-                    state.isComplete -> stringResource(R.string.ytm_upload_category_done)
-                    else -> stringResource(R.string.ytm_upload_count_pending, state.pending)
+                text = when (status) {
+                    UploadCategoryStatus.RUNNING -> stringResource(R.string.ytm_upload_in_progress)
+                    UploadCategoryStatus.INCOMPLETE -> stringResource(R.string.ytm_upload_list_incomplete)
+                    UploadCategoryStatus.NOTHING -> stringResource(R.string.ytm_upload_nothing_to_sync)
+                    UploadCategoryStatus.DONE -> stringResource(R.string.ytm_upload_category_done)
+                    UploadCategoryStatus.PENDING -> stringResource(R.string.ytm_upload_count_pending, state.pending)
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = if (state.isComplete) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = when (status) {
+                    UploadCategoryStatus.DONE -> MaterialTheme.colorScheme.primary
+                    UploadCategoryStatus.INCOMPLETE -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
             )
         }
-        if (state.total > 0) {
-            Text(
-                text = stringResource(R.string.ytm_upload_count_synced, state.synced, state.total),
+        when (val line = UploadCountDisplay.line(state.synced, state.total, readIncomplete)) {
+            is UploadCountLine.Exact -> {
+                Text(
+                    text = stringResource(R.string.ytm_upload_count_synced, line.synced, line.total),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { line.synced.toFloat() / line.total.toFloat() },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            is UploadCountLine.AtLeast -> Text(
+                text = stringResource(R.string.ytm_upload_count_at_least, line.synced),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = { state.synced.toFloat() / state.total.toFloat() },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            UploadCountLine.Hidden -> Unit
         }
     }
 }

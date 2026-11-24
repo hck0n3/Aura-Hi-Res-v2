@@ -1565,4 +1565,7 @@
     <string name="ytm_upload_import_local_only_checked">Discard the ticked ones</string>
     <string name="ytm_upload_import_check_all">Tick all</string>
     <string name="ytm_upload_import_uncheck_all">Untick all</string>
+    <string name="ytm_upload_count_at_least">At least %1$d synced · incomplete list</string>
+    <string name="ytm_upload_list_incomplete">Incomplete list</string>
+    <string name="ytm_upload_incomplete_summary">YouTube did not return some of your lists in full, so those numbers are a minimum. Sync again to see the real ones.</string>
 </resources>

@@ -1457,4 +1457,7 @@
     <string name="ytm_upload_import_local_only_checked">Descartar los marcados</string>
     <string name="ytm_upload_import_check_all">Marcar todos</string>
     <string name="ytm_upload_import_uncheck_all">Desmarcar todos</string>
+    <string name="ytm_upload_count_at_least">Al menos %1$d sincronizadas · lista incompleta</string>
+    <string name="ytm_upload_list_incomplete">Lista incompleta</string>
+    <string name="ytm_upload_incomplete_summary">YouTube no devolvió entera alguna de tus listas, así que esos números son un mínimo. Vuelve a sincronizar para ver los reales.</string>
 </resources>

@@ -11,6 +11,7 @@ import com.music.innertube.models.ArtistItem
 import com.music.innertube.models.PlaylistItem
 import com.music.innertube.models.SongItem
 import com.music.innertube.models.YTItem
+import com.music.innertube.utils.FULL_READ_MAX_PAGES
 import com.music.innertube.utils.completed
 import com.music.innertube.utils.completedStreaming
 import com.music.innertube.utils.parseCookieString
@@ -1198,6 +1199,10 @@ class SyncUtils @Inject constructor(
                 try {
                     val remoteSongs = page.songs
                     val remoteIds = remoteSongs.map { it.id }.toSet()
+                    // Row 840: a read cut short (`songsContinuation != null`) is not the account's list: what it did not
+                    // reach is neither unliked nor missing, so nothing below is dropped, re-sent or taken as the reference.
+                    val remoteComplete = page.songsContinuation == null
+                    libraryUploadSync.noteAccountRead(AccountReadLists.LIKED_SONGS, remoteComplete)
                     val localSongs = database.likedSongsByNameAsc().first()
                     val nowEpochMs = System.currentTimeMillis()
                     val lastLikedSyncMs = context.dataStore.data.first()[LastLikedSyncTimeKey] ?: 0L
@@ -1215,7 +1220,7 @@ class SyncUtils @Inject constructor(
                     // only runs with the upload switch on. A like tapped while signed in is retried by AccountPush; one tapped
                     // while signed out, or one AccountPush gave up on, stays liked here but is not sent with the switch off.
                     var pushBudget = if (isUploadSwitchOn()) LIKE_REPUSH_PER_SYNC else 0
-                    localSongs.filterNot { it.id in remoteIds || it.song.isLocal }.forEach { song ->
+                    localSongs.filterNot { !remoteComplete || it.id in remoteIds || it.song.isLocal }.forEach { song ->
                         try {
                             val likedEpochMs = AccountLibraryReconcile.toEpochMilli(song.song.likedDate)
                             val shouldPush = AccountLibraryReconcile.shouldPushLocalMissing(
@@ -1255,10 +1260,13 @@ class SyncUtils @Inject constructor(
                     // subscribed its artist everywhere. Artists only become followed through
                     // deliberate sources now; see the tombstone in DatabaseDao.kt (registry #154).
                     // Only a non-empty, complete read may become the "was on the account" reference.
-                    if (remoteIds.isNotEmpty()) {
+                    if (remoteComplete && remoteIds.isNotEmpty()) {
                         likeConfirmPrefs.edit().putStringSet(LIKED_CONFIRMED_KEY, HashSet(remoteIds)).apply()
                     }
-                    context.dataStore.edit { it[LastLikedSyncTimeKey] = nowEpochMs }
+                    // Row 840: the reference time of the drop decision above moves only with a whole read, like LIKED_CONFIRMED_KEY.
+                    // The first stamp is still written (HALLAZGO-061 recovery reads 0 as «never synced»); nothing is dropped
+                    // before a whole read fills LIKED_CONFIRMED_KEY, and that read stamps the time too.
+                    if (remoteComplete || lastLikedSyncMs <= 0L) context.dataStore.edit { it[LastLikedSyncTimeKey] = nowEpochMs }
                     updateState { copy(likedSongs = SyncStatus.Completed) }
                     Timber.d("Synced ${remoteSongs.size} liked songs")
                 } catch (e: Exception) {
@@ -1288,7 +1296,7 @@ class SyncUtils @Inject constructor(
         updateState { copy(likedSongs = SyncStatus.Syncing, currentOperation = "Mirroring liked songs from account") }
 
         withRetry {
-            YouTube.playlist("LM").completed()
+            YouTube.playlist("LM").completed(maxRequests = FULL_READ_MAX_PAGES)
         }.onSuccess { result ->
             result.onSuccess { page ->
                 UnavailableSongs.learnFrom(page.songs)
@@ -1343,9 +1351,15 @@ class SyncUtils @Inject constructor(
                     // 2) Mirror: remove local likes that are no longer on the account. Local files are left
                     // alone. Done locally only — the account is the source of truth, so there's nothing to
                     // push up (the song is already not liked on the account).
+                    // Row 840: only with the account's WHOLE list — a read cut short would unlike everything past the cut.
                     val localLiked = database.likedSongsByNameAsc().first()
+                    val readComplete = page.songsContinuation == null
+                    libraryUploadSync.noteAccountRead(AccountReadLists.LIKED_SONGS, readComplete)
+                    if (!readComplete) {
+                        Timber.w("mirrorLikedSongs: remote list incomplete (%d read); nothing unliked", remoteSongs.size)
+                    }
                     val toUnlike = localLiked
-                        .filterNot { it.id in remoteIds || it.song.isLocal }
+                        .filterNot { !readComplete || it.id in remoteIds || it.song.isLocal }
                         .map { it.song.copy(liked = false, likedDate = null) }
                     batchUpdateSongs(toUnlike)
 
@@ -1462,7 +1476,7 @@ class SyncUtils @Inject constructor(
         updateState { copy(uploadedSongs = SyncStatus.Syncing, currentOperation = "Syncing uploaded songs") }
 
         withRetry {
-            YouTube.library("FEmusic_library_privately_owned_tracks", tabIndex = 1).completed()
+            YouTube.library("FEmusic_library_privately_owned_tracks", tabIndex = 1).completed(maxRequests = FULL_READ_MAX_PAGES)
         }.onSuccess { result ->
             result.onSuccess { page ->
                 try {
@@ -1543,12 +1557,13 @@ class SyncUtils @Inject constructor(
         updateState { copy(likedAlbums = SyncStatus.Syncing, currentOperation = "Syncing liked albums") }
 
         withRetry {
-            YouTube.library("FEmusic_liked_albums").completed()
+            YouTube.library("FEmusic_liked_albums").completed(maxRequests = FULL_READ_MAX_PAGES)
         }.onSuccess { result ->
             result.onSuccess { page ->
                 try {
                     val remoteAlbums = page.items.filterIsInstance<AlbumItem>().reversed()
                     val remoteIds = remoteAlbums.map { it.id }.toSet()
+                    libraryUploadSync.noteAccountRead(AccountReadLists.LIKED_ALBUMS, page.continuation == null)
                     val localAlbums = database.albumsLikedByNameAsc().first()
 
                     // Additive only: do NOT un-favorite local albums that aren't in the remote account.
@@ -1618,7 +1633,7 @@ class SyncUtils @Inject constructor(
         updateState { copy(uploadedAlbums = SyncStatus.Syncing, currentOperation = "Syncing uploaded albums") }
 
         withRetry {
-            YouTube.library("FEmusic_library_privately_owned_releases").completed()
+            YouTube.library("FEmusic_library_privately_owned_releases").completed(maxRequests = FULL_READ_MAX_PAGES)
         }.onSuccess { result ->
             result.onSuccess { page ->
                 try {
@@ -1710,6 +1725,7 @@ class SyncUtils @Inject constructor(
                 try {
                     val remoteArtists = page.items.filterIsInstance<ArtistItem>()
                     val remoteIds = remoteArtists.map { it.id }.toSet()
+                    libraryUploadSync.noteAccountRead(AccountReadLists.ARTISTS, page.continuation == null)
 
                     // REMOVED — this pushed local follows UP as real YouTube subscriptions, and it was
                     // subscribing the user to artists they never chose.
@@ -1877,6 +1893,7 @@ class SyncUtils @Inject constructor(
                 try {
                     val remotePlaylists = page.items.filterIsInstance<PlaylistItem>()
                         .filterNot { it.id == "LM" || it.id == "SE" }
+                    libraryUploadSync.noteAccountRead(AccountReadLists.PLAYLISTS, page.continuation == null)
 
                     updateState { copy(playlists = SyncStatus.Completed) }
                     Timber.d("Synced ${remotePlaylists.size} saved playlists")
@@ -1947,7 +1964,7 @@ class SyncUtils @Inject constructor(
         val editStampBeforeFetch = database.playlist(playlistId).first()?.playlist?.lastUpdateTime
 
         withRetry {
-            YouTube.playlist(browseId).completed()
+            YouTube.playlist(browseId).completed(maxRequests = FULL_READ_MAX_PAGES)
         }.onSuccess { result ->
             result.onSuccess { page ->
                 // Owner 2026-10-06: learn greyed-out songs (hidden/never queued; the playlist rows stay).
@@ -1967,6 +1984,13 @@ class SyncUtils @Inject constructor(
                         // always a transient/anomalous fetch, and wiping the local copy permanently loses
                         // the user's songs. Leave the local playlist untouched.
                         Timber.w("syncPlaylist: Remote playlist returned empty; leaving local playlist intact")
+                        return@onSuccess
+                    }
+
+                    // Row 840: the rebuild below replaces the local rows, so it needs the WHOLE remote list. A read cut
+                    // short (`songsContinuation != null`) leaves the local playlist as it is until a read reaches the end.
+                    if (page.songsContinuation != null) {
+                        Timber.w("syncPlaylist: remote list incomplete (%d read); leaving local playlist intact", songs.size)
                         return@onSuccess
                     }
 
