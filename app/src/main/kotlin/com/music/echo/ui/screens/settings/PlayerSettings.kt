@@ -248,6 +248,22 @@ fun PlayerSettings(
         key = iad1tya.echo.music.constants.DataSaverEnabledKey,
         defaultValue = false
     )
+    // Registry 811 (owner H6b): streaming quality per network. Default HIGH on both = what every stream got before.
+    val (wifiStreamQuality, onWifiStreamQualityChange) = rememberEnumPreference(
+        iad1tya.echo.music.playback.NetworkStreamQuality.WifiKey,
+        defaultValue = iad1tya.echo.music.playback.NetworkStreamQuality.Level.HIGH,
+    )
+    val (mobileStreamQuality, onMobileStreamQualityChange) = rememberEnumPreference(
+        iad1tya.echo.music.playback.NetworkStreamQuality.MobileKey,
+        defaultValue = iad1tya.echo.music.playback.NetworkStreamQuality.Level.HIGH,
+    )
+    var streamQualityDialogFor by remember { mutableStateOf<String?>(null) }
+    val streamQualityHigh = stringResource(R.string.stream_quality_high)
+    val streamQualitySaver = stringResource(R.string.stream_quality_saver)
+    val streamQualityForced = stringResource(R.string.stream_quality_forced_by_data_saver)
+    val streamQualityName: (iad1tya.echo.music.playback.NetworkStreamQuality.Level) -> String = {
+        if (it == iad1tya.echo.music.playback.NetworkStreamQuality.Level.SAVER) streamQualitySaver else streamQualityHigh
+    }
 
     val (fadeOnManualChange, onFadeOnManualChangeChange) = rememberPreference(
         key = iad1tya.echo.music.constants.FadeOnManualChangeKey,
@@ -372,6 +388,21 @@ fun PlayerSettings(
         )
     }
 
+    streamQualityDialogFor?.let { network ->
+        val mobile = network == "mobile"
+        EnumDialog(
+            onDismiss = { streamQualityDialogFor = null },
+            onSelect = {
+                if (mobile) onMobileStreamQualityChange(it) else onWifiStreamQualityChange(it)
+                streamQualityDialogFor = null
+            },
+            title = stringResource(if (mobile) R.string.stream_quality_mobile else R.string.stream_quality_wifi),
+            current = if (mobile) mobileStreamQuality else wifiStreamQuality,
+            values = iad1tya.echo.music.playback.NetworkStreamQuality.Level.entries.toList(),
+            valueText = { streamQualityName(it) }
+        )
+    }
+
     Column(
         Modifier
             .windowInsetsPadding(
@@ -434,6 +465,19 @@ fun PlayerSettings(
                         )
                     },
                     onClick = { onDataSaverEnabledChange(!dataSaverEnabled) }
+                ))
+                // Registry 811 (owner H6b): one quality for Wi-Fi, another for mobile data. Data Saver ON wins over both.
+                add(Material3SettingsItem(
+                    icon = painterResource(R.drawable.network_node),
+                    title = { Text(stringResource(R.string.stream_quality_wifi)) },
+                    description = { Text(if (dataSaverEnabled) streamQualityForced else streamQualityName(wifiStreamQuality)) },
+                    onClick = { streamQualityDialogFor = "wifi" }
+                ))
+                add(Material3SettingsItem(
+                    icon = painterResource(R.drawable.network_node),
+                    title = { Text(stringResource(R.string.stream_quality_mobile)) },
+                    description = { Text(if (dataSaverEnabled) streamQualityForced else streamQualityName(mobileStreamQuality)) },
+                    onClick = { streamQualityDialogFor = "mobile" }
                 ))
             }
         )

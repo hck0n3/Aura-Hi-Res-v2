@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Registry 811 (owner H6b): streaming quality per network (Settings ▸ Player ▸ Data saving). -->
+    <string name="stream_quality_wifi">Quality on Wi-Fi</string>
+    <string name="stream_quality_mobile">Quality on mobile data</string>
+    <string name="stream_quality_high">High (best available)</string>
+    <string name="stream_quality_saver">Saver (uses less data)</string>
+    <string name="stream_quality_forced_by_data_saver">Saver: set by Data saver mode</string>
+</resources>

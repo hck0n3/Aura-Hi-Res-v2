@@ -400,6 +400,8 @@ internal fun MusicService.refreshUrlIfNearExpiry(mediaId: String, cached: Cached
                 audioQuality = cached.delivered ?: audioQuality,
                 connectivityManager = connectivityManager,
                 context = this@refreshUrlIfNearExpiry,
+                // Registry 811: a renewal picks the tier the same way the resolve it renews did.
+                networkAwareQuality = true,
             ).getOrNull()
             val freshUrl = playback?.streamUrl
             if (!freshUrl.isNullOrBlank()) {
@@ -781,7 +783,9 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
                     knownArtist = knownArtist,
                     knownTitle = knownTitle,
                     knownDurationMs = knownDuration,
-                    preResolveDbMs = preResolveDbMs
+                    preResolveDbMs = preResolveDbMs,
+                    // Registry 811 (owner H6b): Wi-Fi / mobile-data quality, decided at this resolve.
+                    networkAwareQuality = true,
                 )
             }
         } finally {

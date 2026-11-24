@@ -2635,6 +2635,8 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/PlayerSettings.
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Modo ahorro de datos (hardcoded) — desc. «Fuerza el audio en Opus y desactiva letras automáticas, videos, precarga, canvas y scrobbling para gastar el mínimo de datos» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:415 | conmutador | ocasional | siempre |
+| **Calidad con Wi-Fi** — desc. la calidad elegida: «Alta (la mejor disponible)» o «Ahorro (gasta menos datos)»; con el modo ahorro de datos activado, «Ahorro: lo fija el modo ahorro de datos» (fila 811). Vale para toda red que no sea de datos móviles | Ajustes > Reproductor | PlayerSettings.kt:472 (diálogo 391) | navegación (EnumDialog de 2 opciones) | rara | siempre |
+| **Calidad con datos móviles** — desc. igual que la fila anterior (fila 811) | Ajustes > Reproductor | PlayerSettings.kt:478 (diálogo 391) | navegación (EnumDialog de 2 opciones) | rara | siempre |
 
 ### Grupo «Reproductor»
 
@@ -2645,7 +2647,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/PlayerSettings.
 | ~~Calidad de descarga~~ — **ya no está en la pantalla**: sin selector; `DownloadQualityKey` se fuerza a `YOUTUBE` al abrirla. Su entrada del buscador sigue apuntando aquí (`SearchableSettings.kt:379`) | Ajustes > Reproductor | PlayerSettings.kt:92-105 | — | — | — |
 | Transición suave — desc. «Transición suave entre canciones» (con insignia) | Ajustes > Reproductor | PlayerSettings.kt:462 | conmutador | ocasional | siempre; al activar muestra el diálogo «Función beta» (`PlayerSettings.kt:384`) |
 | Duración de la transición suave (slider en línea, 1–15 s) | Ajustes > Reproductor | PlayerSettings.kt:497 (slider 503) | acción secundaria (slider) | ocasional | solo si `crossfadeEnabled` |
-| Estilo de transición (hardcoded) — desc. muestra la curva activa. La curva 4 (la de por defecto) se llama **«Cruce natural (una baja mientras la otra sube)»** desde la fila 812 (antes «Ascenso (entra rápido, sale lento)»); el valor guardado sigue siendo 4 | Ajustes > Reproductor | PlayerSettings.kt:517 (diálogo 361) | navegación (EnumDialog de 9 curvas) | ocasional | solo si `crossfadeEnabled` |
+| Estilo de transición (hardcoded) — desc. muestra la curva activa. La curva 4 (la de por defecto) se llama **«Cruce natural (una baja mientras la otra sube)»** desde la fila 812 (antes «Ascenso (entra rápido, sale lento)»); el valor guardado sigue siendo 4 | Ajustes > Reproductor | PlayerSettings.kt:561 (diálogo 377) | navegación (EnumDialog de 9 curvas) | ocasional | solo si `crossfadeEnabled` |
 | Desactivar para álbumes sin pausas — desc. «No hacer transición suave si el álbum es sin pausas» | Ajustes > Reproductor | PlayerSettings.kt:518 | conmutador | rara | solo si `crossfadeEnabled` |
 | Entrada suave al cambiar de canción (hardcoded) — desc. «Al saltar o elegir otra canción a mano, la nueva entra enseguida con un fundido muy corto (estilo AIMP) en vez de golpe» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:543 | conmutador | ocasional | siempre |
 | Duración del historial (slider en línea, 5–120 s) | Ajustes > Reproductor | PlayerSettings.kt:556 (slider 565) | acción secundaria (slider) | rara | siempre |
@@ -3452,7 +3454,7 @@ Reparto por ruta de destino (todas existen en `NavigationBuilder.kt`, ninguna ro
 |---|---|
 | `settings/appearance` | 100 |
 | `settings/content` | 55 |
-| `settings/player` | 49 |
+| `settings/player` | 51 |
 | `settings/integrations/listen_together` | 31 |
 | `settings/ai` | 30 |
 | `settings/appearance/theme` | 26 |

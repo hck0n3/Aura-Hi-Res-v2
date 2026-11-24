@@ -385,6 +385,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // --- Reproductor (settings/player) : 51 ---
             Triple("Ahorro de datos", "Reproductor", "settings/player"),
             Triple("Modo ahorro de datos", "Reproductor", "settings/player"),
+            // Registry 811 (owner H6b): streaming quality per network, in the same «Ahorro de datos» group.
+            Triple(stringResource(R.string.stream_quality_wifi), "Reproductor", "settings/player"),
+            Triple(stringResource(R.string.stream_quality_mobile), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.audio_quality), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.download_quality_title), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.crossfade_beta_title), "Reproductor", "settings/player"),

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fila 811 (dueño H6b): calidad de transmisión por red (Ajustes ▸ Reproductor ▸ Ahorro de datos). -->
+    <string name="stream_quality_wifi">Calidad con Wi-Fi</string>
+    <string name="stream_quality_mobile">Calidad con datos móviles</string>
+    <string name="stream_quality_high">Alta (la mejor disponible)</string>
+    <string name="stream_quality_saver">Ahorro (gasta menos datos)</string>
+    <string name="stream_quality_forced_by_data_saver">Ahorro: lo fija el modo ahorro de datos</string>
+</resources>

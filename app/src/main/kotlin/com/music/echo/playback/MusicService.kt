@@ -12216,7 +12216,9 @@ class MusicService :
                             context = this@MusicService,
                             knownArtist = knownArtist,
                             knownTitle = dbSong?.song?.title,
-                            knownDurationMs = dbSong?.song?.duration?.let { if (it > 0) it * 1000L else null }
+                            knownDurationMs = dbSong?.song?.duration?.let { if (it > 0) it * 1000L else null },
+                            // Registry 811 (owner H6b): a preloaded URL is the one that will play, so it obeys the network choice too.
+                            networkAwareQuality = true,
                         )
 
                         playbackData.getOrNull()?.let { data ->

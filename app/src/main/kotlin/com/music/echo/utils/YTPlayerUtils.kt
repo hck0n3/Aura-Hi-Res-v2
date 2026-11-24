@@ -498,6 +498,10 @@ object YTPlayerUtils {
         // TELEMETRY ONLY: wall time the caller already spent on its own pre-resolve DB reads (the
         // MusicService resolver's runBlocking Room blocks), folded into the RESOLVE_TIMING line. -1 = n/a.
         preResolveDbMs: Long = -1,
+        // Registry 811 (owner H6b): opt-in for the LISTENING resolves only (playback, preload, refresh-ahead) — the
+        // per-network quality (NetworkStreamQuality) decides, now, whether this stream takes the saver pick. Downloads,
+        // export, Cast, preview and probes keep the default (false) and resolve exactly as before.
+        networkAwareQuality: Boolean = false,
     ): Result<PlaybackData> {
         // Slow-start telemetry: exactly ONE summary line per resolve, emitted in `finally` so a caller's
         // timeout-cancellation still leaves an attributable line (those ARE the slow starts). The line
@@ -505,9 +509,11 @@ object YTPlayerUtils {
         val timing = ResolveTiming(videoId)
         timing.dbMs = preResolveDbMs
         try {
+            val saverAudio = networkAwareQuality &&
+                iad1tya.echo.music.playback.NetworkStreamQuality.saverForCurrentNetwork(connectivityManager)
             val inner = playerResponseForPlaybackImpl(
                 videoId, playlistId, audioQuality, connectivityManager, context,
-                knownArtist, knownTitle, knownDurationMs, isDownload, preferSmallestAudio, timing,
+                knownArtist, knownTitle, knownDurationMs, isDownload, preferSmallestAudio, timing, saverAudio,
             )
             val result = if (inner.isFailure) newPipeAudioRescue(videoId, inner, preferSmallestAudio, timing) ?: inner else inner
             timing.success = result.isSuccess
@@ -529,6 +535,7 @@ object YTPlayerUtils {
         isDownload: Boolean,
         preferSmallestAudio: Boolean,
         timing: ResolveTiming,
+        saverAudio: Boolean,
     ): Result<PlaybackData> {
         // 2026-08-23 owner directive: LOSSLESS (Qobuz) and SAAVN (JioSaavn) are non-SimpMusic providers
         // and are removed — resolve them through the YouTube cascade instead of failing.
@@ -556,7 +563,7 @@ object YTPlayerUtils {
             authShaped.set(false)
             ageGated.set(false)
             val r = kotlinx.coroutines.withTimeoutOrNull(RESOLVE_TIMEOUT_MS) {
-                resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, preferSmallestAudio = preferSmallestAudio, noLogin = noLogin, authShaped = authShaped, ageGated = ageGated, timing = timing)
+                resolvePlaybackData(videoId, playlistId, audioQuality, connectivityManager, preferSmallestAudio = preferSmallestAudio, noLogin = noLogin, authShaped = authShaped, ageGated = ageGated, timing = timing, saverAudio = saverAudio)
             } ?: return Result.failure(StreamResolutionException(timeoutReason))
             return if (r.exceptionOrNull() is java.util.concurrent.CancellationException) {
                 Result.failure(StreamResolutionException(timeoutReason))
@@ -790,6 +797,8 @@ object YTPlayerUtils {
         // Slow-start telemetry sink, owned by playerResponseForPlayback. Null for the video-mode paths
         // (videoStreamUrl/videoStreamUrlDiag), which then simply record nothing.
         timing: ResolveTiming? = null,
+        // Registry 811 (owner H6b): this network wants the saver pick (NetworkStreamQuality). Default false = as before.
+        saverAudio: Boolean = false,
     ): Result<PlaybackData> = runCatching {
         if (timing != null) timing.attempts++
         // Per call, never shared (playback and the crossfade prefetch resolve concurrently): did every client attempt that
@@ -1193,6 +1202,7 @@ object YTPlayerUtils {
                         videoMaxHeight,
                         preferSmallestAudio,
                         muxedOnly,
+                        saverAudio = saverAudio,
                     )
 
                 if (format == null) {
@@ -1653,6 +1663,7 @@ object YTPlayerUtils {
         videoMaxHeight: Int? = null,
         preferSmallestAudio: Boolean = false,
         muxedOnly: Boolean = false,
+        saverAudio: Boolean = false,
     ): PlayerResponse.StreamingData.Format? {
         if (preferVideo && muxedOnly) {
             // The progressive list only (`formats`, never `adaptiveFormats`): itag 22 (720p) before 18 (360p), the
@@ -1786,7 +1797,8 @@ object YTPlayerUtils {
         // the highest-bitrate Opus (itag 251, ~160 kbps), so audio saved nothing at all. With Data Saver ON,
         // take the ~70 kbps Opus rendition (itag 250) when the track ships it, else the lowest-bitrate Opus
         // at or above ~48 kbps. OFF → the full-quality pick below, unchanged.
-        val dataSaverOn = PrefsBridge.peek(iad1tya.echo.music.constants.DataSaverEnabledKey) == true
+        // Registry 811 (owner H6b): the same saver pick when the network this stream uses is set to «Ahorro».
+        val dataSaverOn = PrefsBridge.peek(iad1tya.echo.music.constants.DataSaverEnabledKey) == true || saverAudio
         if (dataSaverOn) {
             val opus = audioPool?.filter { it.mimeType.startsWith("audio/webm") }.orEmpty()
             val saver = opus.firstOrNull { it.itag == 250 }
