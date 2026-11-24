@@ -88,4 +88,40 @@ class SpotifyMapperTest {
         )
         assertTrue("expected the real artist pair to still match well, got $score", score > 0.8)
     }
+    /** Row 832: the normalizer kept only a-z0-9, so a Korean title became "" and any two empty titles compared as identical. */
+    @Test
+    fun `a non-Latin title is compared on its own letters`() {
+        val same = SpotifyMapper.matchScore(
+            spotifyTitle = "좋은 날",
+            spotifyArtists = listOf("아이유"),
+            spotifyDurationMs = 234_000,
+            candidateTitle = "좋은 날",
+            candidateArtists = listOf("아이유"),
+            candidateDurationSec = 234,
+        )
+        val other = SpotifyMapper.matchScore(
+            spotifyTitle = "좋은 날",
+            spotifyArtists = listOf("아이유"),
+            spotifyDurationMs = 234_000,
+            candidateTitle = "밤편지",
+            candidateArtists = listOf("Someone Else"),
+            candidateDurationSec = 300,
+        )
+        assertTrue("expected an exact non-Latin match to score near 1, got $same", same > 0.95)
+        assertTrue("expected a different non-Latin song by another artist to score low, got $other", other < 0.5)
+    }
+
+    @Test
+    fun `nothing left after normalizing never counts as a title match`() {
+        val score = SpotifyMapper.matchScore(
+            spotifyTitle = "!!!",
+            spotifyArtists = listOf("Artist"),
+            spotifyDurationMs = 200_000,
+            candidateTitle = "???",
+            candidateArtists = listOf("Other"),
+            candidateDurationSec = 200,
+        )
+        // Only the duration can count (0.20); the empty titles used to add 0.45 between them.
+        assertTrue("expected empty titles not to match, got $score", score < 0.45)
+    }
 }
