@@ -31,4 +31,5 @@
     <string name="sub_cleanup_result">Quitadas: %1$d · Fallidas: %2$d · Sin intentar: %3$d</string>
     <string name="sub_cleanup_retry_failed">Reintentar las fallidas</string>
     <string name="sub_cleanup_reload">Volver a cargar la lista</string>
+    <string name="sub_cleanup_confirmed_badge">Ya quitada y confirmada; YouTube puede tardar en reflejarlo</string>
 </resources>

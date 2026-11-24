@@ -1,6 +1,7 @@
 package iad1tya.echo.music.utils
 
 import iad1tya.echo.music.db.entities.ArtistEntity
+import java.time.LocalDateTime
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -79,6 +80,19 @@ object PhantomSubscriptionPolicy {
         localRows.none { it.followedByUserAt != null } &&
             localRows.any { !it.isLocal && ArtistSyncPolicy.hasPendingUnfollow(it) }
 
+    /**
+     * Row 798: YouTube already confirmed the user's unfollow of [subscriptionId] inside its 30-day hold, yet the
+     * account still lists it (list lag). The read-back leaves that row as it is (`markArtistsSubscribedOnYtm` with
+     * `holdSince`) and no spelling reads «Suscrito», so the unfollow tap has nothing to toggle: the row is not
+     * selectable. [localRows] are the stored rows of every spelling of the channel.
+     */
+    fun removalConfirmed(subscriptionId: String, localRows: List<ArtistEntity>, now: LocalDateTime): Boolean {
+        val own = localRows.firstOrNull { it.id == subscriptionId } ?: return false
+        return !own.isLocal && localRows.none { it.followedByUserAt != null } &&
+            ArtistSyncPolicy.isConfirmedUnfollow(own) &&
+            !own.unfollowedByUserAt!!.isBefore(ArtistSyncPolicy.confirmedUnfollowHoldSince(now))
+    }
+
     /** One account subscription on the review screen. */
     data class Candidate(
         val id: String,
@@ -87,11 +101,15 @@ object PhantomSubscriptionPolicy {
         val channelId: String?,
         val verdict: Verdict,
         val removalPending: Boolean,
-    )
+        val removalConfirmed: Boolean = false,
+    ) {
+        /** Not selectable: its removal is already pending ([removalPending]) or confirmed ([removalConfirmed]). */
+        val blocked: Boolean get() = removalPending || removalConfirmed
+    }
 
     /** Ids of the suggested rows that can be selected: what «Seleccionar las sugeridas» selects. */
     fun suggestedSelection(candidates: List<Candidate>): Set<String> =
-        candidates.filter { it.verdict.suggested && !it.removalPending }.map { it.id }.toSet()
+        candidates.filter { it.verdict.suggested && !it.blocked }.map { it.id }.toSet()
 
     /** Screen order: suggested first, then by name. */
     fun screenOrder(candidates: List<Candidate>): List<Candidate> =

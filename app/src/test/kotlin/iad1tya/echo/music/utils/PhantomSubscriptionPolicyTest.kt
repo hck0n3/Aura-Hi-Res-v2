@@ -92,12 +92,47 @@ class PhantomSubscriptionPolicyTest {
         assertFalse(PhantomSubscriptionPolicy.removalPending(listOf(owed.copy(isLocal = true))))
     }
 
+    @Test
+    fun `a confirmed unfollow inside its hold is not removable again, outside it or re-followed it is`() {
+        val now = LocalDateTime.of(2026, 11, 24, 12, 0)
+        val unfollowedAt = now.minusDays(3)
+        // The shape row 798 leaves after YouTube confirmed the unsubscribe (ytmSyncedAt cleared, marker kept).
+        val confirmed = ArtistEntity(
+            id = "UCa",
+            name = "a",
+            unfollowedByUserAt = unfollowedAt,
+            unfollowConfirmedAt = unfollowedAt,
+            ytmSyncedAt = null,
+        )
+        assertTrue(PhantomSubscriptionPolicy.removalConfirmed("UCa", listOf(confirmed), now))
+        assertFalse(PhantomSubscriptionPolicy.removalPending(listOf(confirmed)))
+        // Older than the 30-day hold: the read-back turns the listing into a follow, so the tap can remove it.
+        val old = confirmed.copy(unfollowedByUserAt = now.minusDays(31), unfollowConfirmedAt = now.minusDays(31))
+        assertFalse(PhantomSubscriptionPolicy.removalConfirmed("UCa", listOf(old), now))
+        // A newer, unconfirmed unfollow is not confirmed.
+        assertFalse(PhantomSubscriptionPolicy.removalConfirmed("UCa", listOf(confirmed.copy(unfollowConfirmedAt = unfollowedAt.minusMinutes(1))), now))
+        // Another spelling still followed: the tap unfollows that one.
+        val followedAlias = ArtistEntity(id = "MPLAUCa", name = "a", followedByUserAt = now, ytmSyncedAt = now)
+        assertFalse(PhantomSubscriptionPolicy.removalConfirmed("UCa", listOf(confirmed, followedAlias), now))
+        // No row of the listed id: the tool inserts a followed one, so the tap works.
+        assertFalse(PhantomSubscriptionPolicy.removalConfirmed("MPLAUCa", listOf(confirmed), now))
+        assertFalse(PhantomSubscriptionPolicy.removalConfirmed("UCa", listOf(confirmed.copy(isLocal = true)), now))
+    }
+
     // ---- selection and planning (row 813) ----
 
     @Test
     fun `select suggested takes only suggested rows that are not already pending`() {
         val list = listOf(candidate("UC1", true), candidate("UC2", false), candidate("UC3", true, pending = true))
         assertEquals(setOf("UC1"), PhantomSubscriptionPolicy.suggestedSelection(list))
+    }
+
+    @Test
+    fun `a confirmed removal is blocked and never pre-selected`() {
+        val confirmed = candidate("UC4", true).copy(removalConfirmed = true)
+        assertTrue(confirmed.blocked)
+        assertFalse(candidate("UC1", true).blocked)
+        assertTrue(PhantomSubscriptionPolicy.suggestedSelection(listOf(confirmed)).isEmpty())
     }
 
     @Test

@@ -73,7 +73,7 @@ fun SubscriptionCleanupScreen(
     val planned = PhantomSubscriptionPolicy.planBatch(
         ordered = state.candidates.map { it.id },
         selected = state.selected,
-        blocked = state.candidates.filter { it.removalPending }.map { it.id }.toSet(),
+        blocked = state.candidates.filter { it.blocked }.map { it.id }.toSet(),
     ).size
     val suggestedCount = PhantomSubscriptionPolicy.suggestedSelection(state.candidates).size
     val running = state.phase == Phase.RUNNING
@@ -197,7 +197,7 @@ fun SubscriptionCleanupScreen(
                         }
                     }
                     items(state.candidates, key = { it.id }) { candidate ->
-                        val selectable = !running && !candidate.removalPending
+                        val selectable = !running && !candidate.blocked
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -222,6 +222,11 @@ fun SubscriptionCleanupScreen(
                                 when {
                                     candidate.removalPending -> Text(
                                         stringResource(R.string.sub_cleanup_pending_badge),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    candidate.removalConfirmed -> Text(
+                                        stringResource(R.string.sub_cleanup_confirmed_badge),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )

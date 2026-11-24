@@ -3094,7 +3094,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SubscriptionCle
 | «Tu cuenta no está suscrita a ningún artista.» | Revisar suscripciones | SubscriptionCleanupScreen.kt:177 | informativo | rara | lista vacía |
 | **Seleccionar las sugeridas (N)** / **Quitar la selección** | Revisar suscripciones | SubscriptionCleanupScreen.kt:182-187 | acción secundaria | rara | con lista; deshabilitados si no hay sugeridas / selección |
 | **Quitar N suscripciones** → diálogo | Revisar suscripciones | SubscriptionCleanupScreen.kt:189-195 | destructiva | rara | habilitado con al menos una seleccionada |
-| Fila de artista: casilla, avatar, nombre; «Probablemente no la hiciste tú» + «Sin me gusta, fuera de tus listas y de tu biblioteca, casi sin escuchas» (sugeridas) o «Ya la quitaste en Aura; falta que YouTube lo confirme» (no seleccionable) | Revisar suscripciones | SubscriptionCleanupScreen.kt:198-243 | conmutador (selección) | rara | una por suscripción; sugeridas primero |
+| Fila de artista: casilla, avatar, nombre; «Probablemente no la hiciste tú» + «Sin me gusta, fuera de tus listas y de tu biblioteca, casi sin escuchas» (sugeridas) o «Ya la quitaste en Aura; falta que YouTube lo confirme» / «Ya quitada y confirmada; YouTube puede tardar en reflejarlo» (no seleccionables) | Revisar suscripciones | SubscriptionCleanupScreen.kt:199-248 | conmutador (selección) | rara | una por suscripción; sugeridas primero |
 | Diálogo «¿Quitar N suscripciones?» — «Se quitan de tu cuenta de YouTube una a una. Solo las que seleccionaste.» + **Quitar** / **Cancelar** | Diálogo: Revisar suscripciones | SubscriptionCleanupScreen.kt:251-263 | destructiva / acción secundaria | rara | solo tras tocar «Quitar N suscripciones» |
 
 ---

@@ -87,6 +87,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
                 val interest = database.artistInterestRows()
                 val local = remote.flatMap { ArtistSyncPolicy.aliasIds(it.id) }.distinct()
                     .chunked(SQL_IN_CHUNK).flatMap { database.getArtistEntitiesByIds(it) }
+                val now = LocalDateTime.now()
                 val candidates = remote.map { item ->
                     val spellings = ArtistSyncPolicy.aliasIds(item.id).toSet()
                     Candidate(
@@ -98,13 +99,19 @@ class SubscriptionCleanupViewModel @Inject constructor(
                             PhantomSubscriptionPolicy.interestFor(item.id, item.title, interest),
                         ),
                         removalPending = PhantomSubscriptionPolicy.removalPending(local.filter { it.id in spellings }),
+                        removalConfirmed = PhantomSubscriptionPolicy.removalConfirmed(
+                            item.id,
+                            local.filter { it.id in spellings },
+                            now,
+                        ),
                     )
                 }
                 Timber.i(
-                    "SUB_CLEANUP_REVIEW total=%d suggested=%d pending=%d",
+                    "SUB_CLEANUP_REVIEW total=%d suggested=%d pending=%d confirmed=%d",
                     candidates.size,
                     candidates.count { it.verdict.suggested },
                     candidates.count { it.removalPending },
+                    candidates.count { it.removalConfirmed },
                 )
                 _state.value = UiState(phase = Phase.READY, candidates = PhantomSubscriptionPolicy.screenOrder(candidates))
             } catch (e: CancellationException) {
@@ -117,7 +124,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
     }
 
     fun toggleSelected(id: String) = _state.update { s ->
-        if (s.phase != Phase.READY || s.candidates.none { it.id == id && !it.removalPending }) return@update s
+        if (s.phase != Phase.READY || s.candidates.none { it.id == id && !it.blocked }) return@update s
         s.copy(selected = if (id in s.selected) s.selected - id else s.selected + id)
     }
 
@@ -134,7 +141,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
         val plan = PhantomSubscriptionPolicy.planBatch(
             ordered = s.candidates.map { it.id },
             selected = s.selected,
-            blocked = s.candidates.filter { it.removalPending }.map { it.id }.toSet(),
+            blocked = s.candidates.filter { it.blocked }.map { it.id }.toSet(),
         )
         if (plan.isEmpty()) return
         val byId = s.candidates.associateBy { it.id }
