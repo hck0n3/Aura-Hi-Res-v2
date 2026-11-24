@@ -17,9 +17,9 @@ final class LocalTone {
     /** Returns once the session reports the tone READY and playing. */
     static SessionProbe.Snapshot playFromApp(AuraDevice aura, SessionProbe probe) {
         aura.waitForToneInMediaStore();
-        // Cold, not warm: a warm start inherits whatever the previous scenario left open (run 45504112186: a scan
-        // sheet left by 3 covered the bar, so 4 never reached Home). Playback is started again below anyway.
-        aura.launchCold();
+        // Warm, not cold: the caller's SessionProbe is already bound to the running MusicService, and a force-stop
+        // would leave it disconnected (run 45511056672: state=1 mediaId=null after the tap).
+        aura.launchWarm();
         aura.settleOnHome(120_000);
         aura.openLocalSongs();
         UiObject2 row = aura.scanUntilToneListed();
