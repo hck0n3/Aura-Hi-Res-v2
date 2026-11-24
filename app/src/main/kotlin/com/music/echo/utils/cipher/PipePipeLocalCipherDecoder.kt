@@ -12,7 +12,7 @@ import timber.log.Timber
  * Aura's LOCAL on-device decoder for PipePipeExtractor — the SimpMusic v2.0.0 streaming-reliability
  * tier, adapted to this app's OWN cipher stack instead of theirs.
  *
- * PipePipeExtractor f8982ca9e7 exposes [YoutubeJavaScriptDecoder]: when a local decoder is
+ * PipePipeExtractor bba8d84453 exposes [YoutubeJavaScriptDecoder]: when a local decoder is
  * registered via [YoutubeApiDecoder.setLocalDecoder], every sig/n challenge is solved ON DEVICE
  * first; if the decoder THROWS, PipePipe falls through to its own api.pipepipe.dev server, and if
  * that also fails the existing BravePipe tier keeps the chain alive. Throwing is therefore the way
@@ -53,6 +53,9 @@ object PipePipeLocalCipherDecoder : YoutubeJavaScriptDecoder {
         // every PipePipe extraction fail and fall through to the next extractor. Register only when the
         // current hash is verified; otherwise clear it so PipePipe takes its own metadata path (what it
         // does with no local decoder at all). Same predicate as getPlayerData and the startup prewarm.
+        // Row 819: since PipePipe c9893e53 (in bba8d84453) that throw IS caught and PipePipe uses its server
+        // metadata instead, so the extraction no longer fails; the gate stays so a batch is never solved
+        // locally for a player whose sts the owner's table has not verified.
         val hash = currentHash()
         val verified = hash != null && verifiedStsForHash(hash) != null
         runCatching { YoutubeApiDecoder.setLocalDecoder(if (verified) this else null) }
@@ -85,9 +88,11 @@ object PipePipeLocalCipherDecoder : YoutubeJavaScriptDecoder {
      * All-or-nothing rule: a WRONG sts poisons the whole player response, so this returns data
      * ONLY when the owner's player table positively knows the CURRENT player hash. Otherwise it
      * throws. NOTE (2026-10-07, read in PipePipeExtractor f8982ca9e7): unlike decode/decodeBatch,
-     * PipePipe's getPlayerMetadata does NOT catch this throw — the extraction of that song fails. That
+     * PipePipe's getPlayerMetadata did NOT catch this throw — the extraction of that song failed. That
      * is why [reRegister] only registers this decoder for a verified hash (row 337); this throw stays as
-     * the last guard (a config removed between registration and this call).
+     * the last guard (a config removed between registration and this call). Since bba8d84453 (PipePipe
+     * c9893e53, row 819) getPlayerMetadata catches the ParsingException and falls back to its server's
+     * metadata, so this throw must stay a [ParsingException] to keep that fallback.
      */
     /**
      * The verified signatureTimestamp of [hash] in the owner's table, or null. The ONE predicate both
