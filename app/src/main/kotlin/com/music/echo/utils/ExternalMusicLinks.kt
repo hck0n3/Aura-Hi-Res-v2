@@ -10,15 +10,9 @@ import iad1tya.echo.music.spotifyimport.SpotifyImportRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import java.net.HttpURLConnection
 import java.net.URL
 import timber.log.Timber
@@ -49,8 +43,6 @@ object ExternalMusicLinks {
         /** Only a name is known (page title): search YouTube Music for it. */
         data class Query(override val kind: Kind, val text: String) : Resolved
     }
-
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     private val SHORT_HOSTS = setOf("spotify.link", "spotify.app.link", "link.deezer.com", "deezer.page.link", "on.soundcloud.com")
 
@@ -116,16 +108,17 @@ object ExternalMusicLinks {
             }
             // Registry row 846: Odesli's keyless public API answers 401 PUBLIC_API_ACCESS_DEPRECATED (checked 2026-11-24), so it
             // is no longer asked; each service's own public catalog gives the exact title, artist and duration instead.
-            val resolved = when {
-                uri.scheme == "spotify" -> {
+            val resolved = when (ExternalCatalog.sourceOf(uri.scheme, expandedHost)) {
+                ExternalCatalog.Source.SPOTIFY -> if (uri.scheme == "spotify") {
                     val parts = uri.schemeSpecificPart.split(":")
                     spotify(context, Uri.parse("https://open.spotify.com/${parts.getOrNull(0)}/${parts.getOrNull(1)}"))
+                } else {
+                    spotify(context, uri)
                 }
-                expandedHost == "open.spotify.com" -> spotify(context, uri)
-                expandedHost.endsWith("deezer.com") -> deezer(uri)
-                expandedHost.endsWith("apple.com") -> apple(uri)
-                expandedHost.endsWith("tidal.com") -> tidal(uri)
-                else -> pageQuery(uri, kindFromPath(uri))
+                ExternalCatalog.Source.DEEZER -> deezer(uri)
+                ExternalCatalog.Source.APPLE_MUSIC -> apple(uri)
+                ExternalCatalog.Source.TIDAL -> tidal(uri)
+                ExternalCatalog.Source.PAGE -> pageQuery(uri, kindFromPath(uri))
             }
             val outcome = when (resolved) {
                 null -> "null"
@@ -209,29 +202,23 @@ object ExternalMusicLinks {
 
     private fun deezer(uri: Uri): Resolved? {
         val segments = uri.pathSegments.filterNot { it.length == 2 } // language prefix: /es/track/…
-        val type = segments.getOrNull(0)
+        val type = segments.getOrNull(0)?.takeIf { it in setOf("track", "album", "playlist") }
+            ?: return pageQuery(uri, kindFromPath(uri))
         val id = segments.getOrNull(1)?.takeIf { it.all(Char::isDigit) } ?: return pageQuery(uri, kindFromPath(uri))
-        if (type !in setOf("track", "album", "playlist")) return pageQuery(uri, kindFromPath(uri))
-        val root = json.parseToJsonElement(fetch("https://api.deezer.com/$type/$id")).jsonObject
-        if (root["error"] != null) return pageQuery(uri, kindFromPath(uri))
-        fun JsonObject.toTrack(albumName: String?) = track(
-            id = "dz_${str("id")}",
-            title = str("title").orEmpty(),
-            artist = (this["artist"] as? JsonObject)?.str("name").orEmpty(),
-            durationMs = ((this["duration"]?.jsonPrimitive?.longOrNull ?: 0L) * 1000).toInt(),
-            album = albumName ?: (this["album"] as? JsonObject)?.str("title"),
-        )
+        val root = ExternalCatalog.deezerObject(fetch(ExternalCatalog.deezerItemUrl(type, id)))
+            ?: return pageQuery(uri, kindFromPath(uri))
         return when (type) {
             "track" -> {
-                val t = root.toTrack(null)
-                Resolved.Tracks(Kind.TRACK, t.name, t.artists.firstOrNull()?.name.orEmpty(), listOf(t))
+                val t = ExternalCatalog.deezerTrack(root, null) ?: return pageQuery(uri, Kind.TRACK)
+                Resolved.Tracks(Kind.TRACK, t.title, t.artist, listOf(t.toSpotifyTrack()))
             }
             else -> {
                 val title = root.str("title").orEmpty()
-                val data = (root["tracks"] as? JsonObject)?.get("data") as? JsonArray
-                val tracks = data.orEmpty().mapNotNull { (it as? JsonObject)?.toTrack(if (type == "album") title else null) }
+                val tracks = ExternalCatalog.deezerAllTracks(if (type == "album") title else null) { index ->
+                    ExternalCatalog.deezerObject(fetch(ExternalCatalog.deezerTracksUrl(type, id, index)))
+                }
                 val artist = (root["artist"] as? JsonObject)?.str("name").orEmpty()
-                Resolved.Tracks(if (type == "album") Kind.ALBUM else Kind.PLAYLIST, title, artist, tracks)
+                Resolved.Tracks(if (type == "album") Kind.ALBUM else Kind.PLAYLIST, title, artist, tracks.map { it.toSpotifyTrack() })
             }
         }
     }
@@ -242,36 +229,17 @@ object ExternalMusicLinks {
         val type = segments.firstOrNull { it in setOf("album", "song", "playlist", "music-video") }
         val trackId = uri.getQueryParameter("i")
         val lastId = segments.lastOrNull()
-        fun lookup(id: String, entity: String?): List<JsonObject> {
-            val url = "https://itunes.apple.com/lookup?id=$id&country=$country" + (entity?.let { "&entity=$it" } ?: "")
-            val results = json.parseToJsonElement(fetch(url)).jsonObject["results"]?.jsonArray.orEmpty()
-            return results.mapNotNull { it as? JsonObject }
-        }
-        fun JsonObject.toTrack() = track(
-            id = "am_${str("trackId")}",
-            title = str("trackName").orEmpty(),
-            artist = str("artistName").orEmpty(),
-            durationMs = (this["trackTimeMillis"]?.jsonPrimitive?.longOrNull ?: 0L).toInt(),
-            album = str("collectionName"),
-        )
+        fun lookup(id: String, withSongs: Boolean) =
+            ExternalCatalog.itunesResults(fetch(ExternalCatalog.itunesLookupUrl(id, country, withSongs)))
         return when {
             trackId != null || type == "song" -> {
-                val song = lookup(trackId ?: lastId ?: return null, null).firstOrNull { it.str("wrapperType") == "track" }
+                val t = ExternalCatalog.itunesSong(lookup(trackId ?: lastId ?: return null, withSongs = false))
                     ?: return pageQuery(uri, Kind.TRACK)
-                val t = song.toTrack()
-                Resolved.Tracks(Kind.TRACK, t.name, t.artists.firstOrNull()?.name.orEmpty(), listOf(t))
+                Resolved.Tracks(Kind.TRACK, t.title, t.artist, listOf(t.toSpotifyTrack()))
             }
             type == "album" && lastId != null -> {
-                val results = lookup(lastId, "song")
-                val collection = results.firstOrNull { it.str("wrapperType") == "collection" }
-                val tracks = results.filter { it.str("wrapperType") == "track" }
-                    .sortedWith(compareBy({ it["discNumber"]?.jsonPrimitive?.intOrNull ?: 1 }, { it["trackNumber"]?.jsonPrimitive?.intOrNull ?: 0 }))
-                    .map { it.toTrack() }
-                if (collection == null) {
-                    pageQuery(uri, Kind.ALBUM)
-                } else {
-                    Resolved.Tracks(Kind.ALBUM, collection.str("collectionName").orEmpty(), collection.str("artistName").orEmpty(), tracks)
-                }
+                val album = ExternalCatalog.itunesAlbum(lookup(lastId, withSongs = true)) ?: return pageQuery(uri, Kind.ALBUM)
+                Resolved.Tracks(Kind.ALBUM, album.title, album.artist, album.tracks.map { it.toSpotifyTrack() })
             }
             else -> pageQuery(uri, kindFromPath(uri))
         }
@@ -342,6 +310,8 @@ object ExternalMusicLinks {
             else -> Kind.TRACK
         }
     }
+
+    private fun ExternalCatalog.Track.toSpotifyTrack() = track(id, title, artist, durationMs, album)
 
     private fun track(id: String, title: String, artist: String, durationMs: Int = 0, album: String? = null) = SpotifyTrack(
         id = id,
