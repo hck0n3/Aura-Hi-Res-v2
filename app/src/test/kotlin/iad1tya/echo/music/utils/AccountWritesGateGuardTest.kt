@@ -48,7 +48,8 @@ class AccountWritesGateGuardTest {
     fun `the library songs pass adds to the account's library only with the upload switch on`() {
         val src = main("utils/SyncUtils.kt")
         val library = body(src, "private suspend fun executeSyncLibrarySongs() = withContext(Dispatchers.IO) {")
-        assertTrue(library.contains("val pushAllowed = isUploadSwitchOn()"))
+        // Row 835: nor while the devices own the library (another device's likes land in inLibrary through syncSetLiked).
+        assertTrue(library.contains("val pushAllowed = isUploadSwitchOn() && !iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices\n"))
         assertTrue(library.contains(".filterNot { !pushAllowed || !remoteComplete || it.id in remoteIds || it.song.isLocal }"))
         // The bounded batch of the owner report 2026-09-14 stays.
         assertTrue(library.contains(".take(MAX_LIBRARY_PUSH_PER_RUN)"))

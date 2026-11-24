@@ -1405,7 +1405,9 @@ class SyncUtils @Inject constructor(
                         Timber.d("Library songs: remote list incomplete, skipping push-up of local-only songs")
                     }
                     // Row 834: adding songs to the account's library in bulk is a write the user allows with the upload switch.
-                    val pushAllowed = isUploadSwitchOn()
+                    // Row 835: never while the devices own the library: a like another device sent (syncSetLiked) also stamps
+                    // inLibrary here, and pushing it would write that device's likes to this device's account.
+                    val pushAllowed = isUploadSwitchOn() && !iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices
                     localSongs
                         .filterNot { !pushAllowed || !remoteComplete || it.id in remoteIds || it.song.isLocal }
                         .take(MAX_LIBRARY_PUSH_PER_RUN)
