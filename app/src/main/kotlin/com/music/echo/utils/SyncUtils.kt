@@ -20,6 +20,7 @@ import iad1tya.echo.music.constants.LastFullSyncKey
 import iad1tya.echo.music.constants.SuppressedPlaylistIdsKey
 import iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey
 import iad1tya.echo.music.constants.YtmLastSyncKey
+import iad1tya.echo.music.constants.YtmUploadSyncKey
 import iad1tya.echo.music.constants.SYNC_COOLDOWN
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.ArtistEntity
@@ -346,6 +347,14 @@ class SyncUtils @Inject constructor(
         Timber.i("LIB_SYNC YouTube pull skipped (library synced between devices): %s", pass)
         return true
     }
+
+    /**
+     * Row 834: the library-upload switch ([YtmUploadSyncKey]) is the user's permission for Aura to write their library to the account.
+     * Fails closed like `LibraryUploadSync.isUploadEnabled`: an absent key or a failed read is "no".
+     */
+    private suspend fun isUploadSwitchOn(): Boolean = runCatching {
+        context.dataStore.data.first()[YtmUploadSyncKey] ?: false
+    }.getOrDefault(false)
 
     private suspend fun processOperation(operation: SyncOperation) {
         when (operation) {
@@ -1201,7 +1210,10 @@ class SyncUtils @Inject constructor(
                     // the account never confirmed is pushed again instead (bounded per sync).
                     val likeConfirmPrefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                     val confirmedBefore: Set<String>? = likeConfirmPrefs.getStringSet(LIKED_CONFIRMED_KEY, null)
-                    var pushBudget = LIKE_REPUSH_PER_SYNC
+                    // Row 834 (owner 2026-11-24: «que no sincronice otras cosas que no tengan nada que ver con lo que estoy
+                    // pidiendo»): this pass is a DOWN sync; sending local likes the account never had is a bulk write, so it
+                    // only runs with the upload switch on. A like the user tapped is retried by AccountPush either way.
+                    var pushBudget = if (isUploadSwitchOn()) LIKE_REPUSH_PER_SYNC else 0
                     localSongs.filterNot { it.id in remoteIds || it.song.isLocal }.forEach { song ->
                         try {
                             val likedEpochMs = AccountLibraryReconcile.toEpochMilli(song.song.likedDate)
