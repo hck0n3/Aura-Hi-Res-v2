@@ -44,39 +44,65 @@ suspend fun Result<PlaylistPage>.completed(): Result<PlaylistPage> = runCatching
     )
 }
 
+/**
+ * Registry row 837: [LibraryPage.continuation] of the result is non-null when the walk stopped early (request cap,
+ * failed page, loop guard, two empty pages in a row), so [LibraryPage.items] is NOT the whole remote list. It used to
+ * be forced to null, which made a cut-short read indistinguishable from a complete one.
+ */
 @JvmName("completedPlaylist")
-suspend fun Result<LibraryPage>.completed(): Result<LibraryPage> = runCatching {
+suspend fun Result<LibraryPage>.completed(maxRequests: Int = 50): Result<LibraryPage> = runCatching {
     val page = getOrThrow()
-    val items = page.items.toMutableList()
-    var continuation = page.continuation
+    val walk = walkContinuations(page.items, page.continuation, maxRequests) { continuation ->
+        YouTube.libraryContinuation(continuation).getOrNull()?.let { it.items to it.continuation }
+    }
+    LibraryPage(
+        items = walk.items,
+        continuation = walk.continuation
+    )
+}
+
+/** What [walkContinuations] read; [continuation] non-null = it stopped before the end of the list. */
+class ContinuationWalk<T>(val items: List<T>, val continuation: String?) {
+    val complete: Boolean get() = continuation == null
+}
+
+/**
+ * The pagination walk of [completed] (library twin), without the network so it can be tested: follows [start] for at
+ * most [maxRequests] pages; a failed page ([fetch] returns null), an already-seen token or two empty pages in a row
+ * stop it and leave the token it did not finish in [ContinuationWalk.continuation].
+ */
+suspend fun <T> walkContinuations(
+    first: List<T>,
+    start: String?,
+    maxRequests: Int,
+    fetch: suspend (String) -> Pair<List<T>, String?>?,
+): ContinuationWalk<T> {
+    val items = first.toMutableList()
+    var continuation = start
     val seenContinuations = mutableSetOf<String>()
     var requestCount = 0
-    val maxRequests = 50
     var consecutiveEmptyResponses = 0
-    
+
     while (continuation != null && requestCount < maxRequests) {
         if (continuation in seenContinuations) {
             break
         }
         seenContinuations.add(continuation)
         requestCount++
-        
-        val continuationPage = YouTube.libraryContinuation(continuation).getOrNull() ?: break
-        
-        if (continuationPage.items.isEmpty()) {
+
+        val (pageItems, next) = fetch(continuation) ?: break
+
+        if (pageItems.isEmpty()) {
             consecutiveEmptyResponses++
             if (consecutiveEmptyResponses >= 2) break
         } else {
             consecutiveEmptyResponses = 0
-            items += continuationPage.items
+            items += pageItems
         }
-        
-        continuation = continuationPage.continuation
+
+        continuation = next
     }
-    LibraryPage(
-        items = items,
-        continuation = null
-    )
+    return ContinuationWalk(items, continuation)
 }
 
 /**

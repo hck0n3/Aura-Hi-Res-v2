@@ -3086,7 +3086,7 @@ Diálogos de cierre de sesión (título «Cerrar sesión», mensaje «¿Deseas c
 
 ## 18.16b Ajustes > Cuentas > Revisar suscripciones — `settings/accounts/subscription_cleanup` (NUEVA, filas 813/814)
 
-Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SubscriptionCleanupScreen.kt` (ViewModel `viewmodels/SubscriptionCleanupViewModel.kt`). Lee UNA vez, al abrir, la lista de suscripciones de la cuenta (`FEmusic_library_corpus_artists`, paginada). No quita nada sin selección y confirmación.
+Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SubscriptionCleanupScreen.kt` (ViewModel `viewmodels/SubscriptionCleanupViewModel.kt`). Lee UNA vez, al abrir, la lista de suscripciones de la cuenta (`FEmusic_library_corpus_artists`, paginada hasta el final, tope 400 páginas; fila 837: si se corta antes, lo dice). No quita nada sin selección y confirmación.
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
@@ -3095,6 +3095,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SubscriptionCle
 | «Leyendo tus suscripciones…» | Revisar suscripciones | SubscriptionCleanupScreen.kt:115 | informativo | rara | mientras carga |
 | «Inicia sesión para revisar tus suscripciones.» + **Cuenta** (abre `login`) | Revisar suscripciones | SubscriptionCleanupScreen.kt:120-121 | acción primaria | rara | sin sesión |
 | «No se pudieron leer tus suscripciones…» + **Reintentar** | Revisar suscripciones | SubscriptionCleanupScreen.kt:126-127 | acción primaria | rara | si la lectura falla |
+| «Lista incompleta: YouTube devolvió solo N; vuelve a cargar para ver el resto» (en rojo) + **Volver a cargar la lista** (NUEVO, fila 837) | Revisar suscripciones | SubscriptionCleanupScreen.kt:133-145 | informativo / acción secundaria | rara | solo si la lectura se cortó antes del final (una página falló o se llegó al tope de 400 páginas); oculto mientras se quitan |
 | Progreso «Quitando N de M…» / «Deteniendo…», barra, «Quitadas · Fallidas» y **Detener** | Revisar suscripciones | SubscriptionCleanupScreen.kt:131-150 | informativo / acción secundaria | rara | mientras se quitan |
 | Resumen «Quitadas · Fallidas · Sin intentar» + **Reintentar las fallidas** + **Volver a cargar la lista** | Revisar suscripciones | SubscriptionCleanupScreen.kt:153-173 | acción primaria / secundaria | rara | tras una tanda («Reintentar» solo si hubo fallidas) |
 | «Tu cuenta no está suscrita a ningún artista.» | Revisar suscripciones | SubscriptionCleanupScreen.kt:177 | informativo | rara | lista vacía |

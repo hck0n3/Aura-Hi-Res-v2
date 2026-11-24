@@ -130,6 +130,19 @@ fun SubscriptionCleanupScreen(
                     }
                 }
                 Phase.READY, Phase.RUNNING -> {
+                    // Row 837: the read stopped before the end of the account's list; say so instead of passing it off as all.
+                    if (state.incomplete && !running) {
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    stringResource(R.string.sub_cleanup_incomplete, state.readCount),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                                OutlinedButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_RELOAD); viewModel.load() }) { Text(stringResource(R.string.sub_cleanup_reload)) }
+                            }
+                        }
+                    }
                     if (running) {
                         item {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

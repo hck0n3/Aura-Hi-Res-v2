@@ -57,6 +57,9 @@ class SubscriptionCleanupViewModel @Inject constructor(
         val failed: Int = 0,
         val stopping: Boolean = false,
         val lastResult: BatchResult? = null,
+        /** Row 837: the read stopped before the end of the account's list (failed page or [MAX_PAGES]); [readCount] it got. */
+        val incomplete: Boolean = false,
+        val readCount: Int = 0,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -81,8 +84,10 @@ class SubscriptionCleanupViewModel @Inject constructor(
                 return@launch
             }
             try {
-                // The same read LibraryUploadSync.fetchRemoteSubscriptionIds and the artist down-sync use (paginated).
-                val page = YouTube.library("FEmusic_library_corpus_artists").completed().getOrThrow()
+                // The same read LibraryUploadSync.fetchRemoteSubscriptionIds and the artist down-sync use, paged to the end
+                // (row 837: no 50-page cap here; the screen says so when the read stops early).
+                val page = YouTube.library("FEmusic_library_corpus_artists").completed(maxRequests = MAX_PAGES).getOrThrow()
+                val incomplete = page.continuation != null
                 val remote = page.items.filterIsInstance<ArtistItem>().distinctBy { ArtistSyncPolicy.channelKey(it.id) }
                 val interest = database.artistInterestRows()
                 val local = remote.flatMap { ArtistSyncPolicy.aliasIds(it.id) }.distinct()
@@ -108,14 +113,20 @@ class SubscriptionCleanupViewModel @Inject constructor(
                     )
                 }
                 Timber.i(
-                    "SUB_CLEANUP_REVIEW total=%d suggested=%d pending=%d confirmed=%d resend=%d",
+                    "SUB_CLEANUP_REVIEW total=%d suggested=%d pending=%d confirmed=%d resend=%d incomplete=%b",
                     candidates.size,
                     candidates.count { it.verdict.suggested },
                     candidates.count { it.removalPending },
                     candidates.count { it.removalConfirmed },
                     candidates.count { it.resendAllowed },
+                    incomplete,
                 )
-                _state.value = UiState(phase = Phase.READY, candidates = PhantomSubscriptionPolicy.screenOrder(candidates))
+                _state.value = UiState(
+                    phase = Phase.READY,
+                    candidates = PhantomSubscriptionPolicy.screenOrder(candidates),
+                    incomplete = incomplete,
+                    readCount = candidates.size,
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -282,5 +293,8 @@ class SubscriptionCleanupViewModel @Inject constructor(
 
     private companion object {
         const val SQL_IN_CHUNK = 500
+
+        /** Row 837: upper bound of continuation pages for one read; reaching it shows the «incomplete» notice. */
+        const val MAX_PAGES = 400
     }
 }
