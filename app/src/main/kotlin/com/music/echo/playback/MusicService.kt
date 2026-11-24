@@ -1513,6 +1513,12 @@ class MusicService :
     internal var pausedByPlaybackFailure: Boolean = false
         private set
 
+    // Registry 821: that failure pause was the system refusing the foreground start. Set and cleared with pausedByPlaybackFailure.
+    // Read by Listen Together: the room never re-plays such a guest by itself, only the user or the room's next command does.
+    @Volatile
+    internal var pausedByForegroundRefusal: Boolean = false
+        private set
+
     /** When a playback route (Bluetooth / car / dock) last appeared — the window in which a foreign PLAY is an echo. */
     @Volatile
     internal var lastRouteConnectedAtMs: Long = 0L
@@ -2372,6 +2378,7 @@ class MusicService :
                 runCatching {
                     if (::player.isInitialized && player.playWhenReady) {
                         pausedByPlaybackFailure = true
+                        pausedByForegroundRefusal = true
                         player.pause()
                     }
                     // The crossfade renders through SEPARATE ExoPlayer instances. If the refusal lands
@@ -8325,6 +8332,7 @@ class MusicService :
             pausedByNoisy = false
             deliberatePause = false
             pausedByPlaybackFailure = false
+            pausedByForegroundRefusal = false
         }
 
         if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {

@@ -215,6 +215,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** Row 796: what a guest off the room's track does about it, with bounded reloads. */
     private val trackGuard = GuestTrackGuard()
 
+    /** Row 821: the room's automatic re-plays of a guest its service paused on a failure, bounded and spaced out. */
+    private val failureResume = GuestFailureResumeGuard()
+
     /** Bumped when the guest's track must be looked at again ([recheckGuestTrack]); the bump itself is all [trackRecheck] does. */
     private val guestTrackCheck = MutableStateFlow(0)
 
@@ -354,6 +357,10 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     service,
                 )
             }
+            // Row 821: the backoff of the room's next automatic re-play counts from this pause.
+            if (!playWhenReady && state.inRoom && !state.isHost && serviceFlow.value?.pausedByPlaybackFailure == true) {
+                failureResume.onFailurePause(android.os.SystemClock.elapsedRealtime())
+            }
             if (!playWhenReady) return
             // Guest-side resume: the local player started playing while we are a guest and the apply
             // loop did NOT cause it — ask the server where the room is. This is what Metrolist's and
@@ -361,6 +368,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // pause, and stay paused" possible at all.
             if (!state.inRoom || state.isHost || roomsOwnCall) return
             // The user asked for music again: a room track this guest had given up on gets its reloads back (row 796).
+            failureResume.reset()
             trackGuard.reset()
             Timber.tag(TAG).i("Guest resumed — asking the server where the room is")
             session.requestSync()
@@ -490,6 +498,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         trackRecheck = null
                     }
                     setPausedLocally(false, PAUSED_LOCALLY_REASON_NONE, serviceFlow.value)
+                    failureResume.reset()
                     trackGuard.reset()
                     roomReceipt = null
                     syncLogGate.reset()
@@ -522,6 +531,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         receipt == null || receipt.trackId != track?.id || receipt.position != position ||
                         receipt.anchorServerTime != anchorServerTime || receipt.playing != playing
                     ) {
+                        // Row 821: and its automatic re-plays after a failure pause, and its one notice.
+                        failureResume.reset()
                         roomReceipt = RoomTimelineReceipt(track?.id, position, anchorServerTime, playing, android.os.SystemClock.elapsedRealtime())
                         // Row 796: a new room command (another track, a seek, play or pause) gives its track its reloads back.
                         trackGuard.onRoomCommand(track?.id)
@@ -554,7 +565,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         val reused = !sameTrack && remoteOnMain { advanceInPlace(service, track, queueIds, startAt, playing && !pausedLocally && hold == null) }
                         if (!reused) playTrack(service, track, keepPosition = startAt, playWhenReady = playing && !pausedLocally && hold == null)
                     }
-                    applyTransport(service, playing && !pausedLocally, position, track, anchorServerTime)
+                    applyTransport(service, playing && !pausedLocally, position, track, anchorServerTime, fromRoomCommand = true)
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Failed to apply remote state")
                 } finally {
@@ -754,12 +765,34 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         }
     }
 
+    /**
+     * Row 821: may an automatic path play this guest again after its service paused it on a failure? Says once, when the guest gives
+     * up, why it stays paused (shared log, numbers only; and a notice). Main thread only.
+     */
+    private fun failureResumeMayPlay(service: MusicService): Boolean =
+        when (val step = failureResume.decide(android.os.SystemClock.elapsedRealtime(), service.pausedByForegroundRefusal)) {
+            is GuestFailureResumeStep.Resume -> true
+            GuestFailureResumeStep.Wait, GuestFailureResumeStep.Hold -> false
+            is GuestFailureResumeStep.GiveUp -> {
+                Timber.tag(TAG).i(guestRetryExhaustedLogLine(step.attempts, step.reason))
+                runCatching {
+                    android.widget.Toast.makeText(
+                        service,
+                        iad1tya.echo.music.R.string.listen_together_guest_retry_exhausted,
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                }
+                false
+            }
+        }
+
     private suspend fun applyTransport(
         service: MusicService,
         roomPlaying: Boolean,
         position: Long,
         roomTrack: TrackInfo?,
         anchorServerTime: Long,
+        fromRoomCommand: Boolean = false,
     ): Boolean = remoteOnMain {
         // A synchronized start (W2) holds this device paused until its start time, whoever asks: [holdForSynchronizedStart] starts it.
         val isPlaying = roomPlaying && !syncStartHolds(session.state.value.syncStart, roomTrack?.id)
@@ -768,6 +801,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // Correct the position for however long the command spent in flight; ServerClock falls back
         // to the raw value whenever it is not calibrated yet.
         val player = runCatching { service.player }.getOrNull() ?: return@remoteOnMain false
+        // Row 821: a guest its service paused on a failure is played again by the room's automatic paths only a few times, spaced
+        // out, and never after a refused foreground start; the room's own commands still apply at once.
+        if (!fromRoomCommand && isPlaying && !player.playWhenReady && service.pausedByPlaybackFailure && !failureResumeMayPlay(service)) {
+            return@remoteOnMain false
+        }
         val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
         // Row 796: re-applied later (heartbeat, realign, recheck), an uncalibrated clock or a missing anchor no longer means «the
         // room is where its last command was»: see [roomPositionNow].
