@@ -37,7 +37,7 @@ class PaymentScreenTextsGuardTest {
             "oficial. No hay reembolsos.\"",
         "\"Tu suscripción no está activa. Renuévala para seguir usando Aura. El pago no es para escuchar " +
             "música: sostiene el proyecto y da acceso a la app oficial.\"",
-        "\"Suscribirme (desde US\$2 al mes con el plan anual, renovación automática)\"",
+        "\"Suscribirme (mensual, trimestral, semestral o anual: US\$24 al año, renovación automática)\"",
     )
 
     private val oldTexts = listOf(
@@ -54,6 +54,8 @@ class PaymentScreenTextsGuardTest {
         "\"Suscribirme (\$SUBSCRIPTION_PRICE al mes, renovación automática)\"",
         "Tu suscripción mensual no está activa.",
         "necesitas una suscripción mensual",
+        // Replaced by row 822 (27bdb48: the yearly plan is billed US$24 a year).
+        "\"Suscribirme (desde US\$2 al mes con el plan anual, renovación automática)\"",
     )
 
     @Test fun ownerPaymentTextsArePresent() {
