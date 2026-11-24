@@ -1047,7 +1047,10 @@ internal fun MusicService.performCrossfadeSwap() {
     // reader then falls back to the GLOBAL quality, the container guard compares that against a dbFormat
     // describing a fallback container, mismatches, and purges the playing track's cached bytes on every
     // re-open. With crossfade ON (the default here) every advance is a swap, so that was permanent.
+    val swapPreviousMediaId = currentPlayingMediaId
     currentPlayingMediaId = nextPlayer.currentMediaItem?.mediaId
+    // Registry 811: the swap skips onMediaItemTransition, so the stream tier exemption learns the song change here.
+    if (swapPreviousMediaId != currentPlayingMediaId) streamTierOpens.trackChanged(currentPlayingMediaId)
     // The UI's song identity ALSO only has two writers, and the other one lives in onEvents behind
     // TIMELINE_CHANGED/POSITION_DISCONTINUITY — neither fires for a swap, and the service listener is
     // attached to the incoming player only further down (after its own transition already happened).
