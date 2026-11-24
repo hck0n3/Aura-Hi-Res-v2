@@ -1460,11 +1460,12 @@ class SyncUtils @Inject constructor(
                     // remote list makes an unreadable response a no-op instead of a wipe; a user who really
                     // did delete everything upstream just keeps stale flags until a page comes back with
                     // content, which is the harmless direction to be wrong in.
-                    if (remoteSongs.isNotEmpty()) {
+                    // Row 837: nor from a read cut short (`page.continuation != null`): what it did not reach is not gone.
+                    if (remoteSongs.isNotEmpty() && page.continuation == null) {
                         val songsToRemove = localSongs.filterNot { it.id in remoteIds }
                         batchUpdateSongs(songsToRemove.map { it.song.toggleUploaded() })
                     } else if (localSongs.isNotEmpty()) {
-                        Timber.w("Uploads sync: remote page empty but ${localSongs.size} local uploads — skipping the un-flag pass")
+                        Timber.w("Uploads sync: remote list empty or incomplete (${remoteSongs.size} read) but ${localSongs.size} local uploads — skipping the un-flag pass")
                     }
 
                     // Decide new/changed in memory (no N+1) and write in batched transactions.
@@ -1610,10 +1611,12 @@ class SyncUtils @Inject constructor(
 
                     // Same guard as the uploaded-songs pass: an empty remote page must never un-flag a
                     // non-empty local set — an unreadable response would otherwise wipe the whole library.
-                    if (remoteAlbums.isEmpty() && localAlbums.isNotEmpty()) {
-                        Timber.w("Uploads sync: remote albums empty but ${localAlbums.size} local — skipping the un-flag pass")
+                    // Row 837: nor a read cut short (`page.continuation != null`).
+                    val readComplete = page.continuation == null
+                    if ((remoteAlbums.isEmpty() || !readComplete) && localAlbums.isNotEmpty()) {
+                        Timber.w("Uploads sync: remote albums empty or incomplete (${remoteAlbums.size} read) but ${localAlbums.size} local — skipping the un-flag pass")
                     }
-                    (if (remoteAlbums.isEmpty()) emptyList() else localAlbums.filterNot { it.id in remoteIds }).forEach { album ->
+                    (if (remoteAlbums.isEmpty() || !readComplete) emptyList() else localAlbums.filterNot { it.id in remoteIds }).forEach { album ->
                         try {
                             database.update(album.album.toggleUploaded())
                         } catch (e: Exception) {
