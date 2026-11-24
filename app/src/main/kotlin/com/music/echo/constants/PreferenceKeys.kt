@@ -1343,6 +1343,9 @@ val GlueCompressorEnabledKey = booleanPreferencesKey("mastering_glue_compressor_
 /** The ONE default of [GlueCompressorEnabledKey]. */
 const val GlueCompressorDefault = false
 
+/** Row 799 (owner decision H16, 2026-11-24) — one-shot: [GlueCompressorEnabledKey] written OFF once, even if saved ON. */
+val GlueCompressorOff20261124AppliedKey = booleanPreferencesKey("glue_compressor_off_20261124_applied")
+
 /** Mastering: TPDF dither + noise shaping on the 16-bit output. Default ON (inaudible, cleaner quiet passages). */
 val OutputDitherEnabledKey = booleanPreferencesKey("mastering_output_dither_enabled")
 
