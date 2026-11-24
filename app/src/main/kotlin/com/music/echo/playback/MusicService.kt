@@ -12050,8 +12050,8 @@ class MusicService :
         const val MAX_CONSECUTIVE_ERR = 5
         const val MAX_RETRY_COUNT = 10
         // Auto-resume after a network dead-end only if reconnection happens within this window, so a
-        // reconnection hours later re-buffers but never surprise-plays.
-        private const val STALE_RESUME_WINDOW_MS = 30 * 60 * 1000L
+        // reconnection later re-buffers but never surprise-plays. Row 800 (owner decision H12, 2026-11-24): 5 min (was 30).
+        private const val STALE_RESUME_WINDOW_MS = 5 * 60 * 1000L
         // One-shot delay before the dead-end safety re-check (covers a stable network that never re-emits).
         private const val DEAD_END_RECHECK_MS = 45_000L
         // How early (ms before the fade) to build + buffer the incoming player so the crossfade has no gap.
