@@ -95,6 +95,17 @@ class MasterKeyPolicyTest {
     }
 
     @Test
+    fun `a master key that typed a pairing code still restores the copies made under key and email`() {
+        val backup = read("$main/ui/screens/settings/BackupAndRestore.kt")
+        assertTrue(backup.contains("if (!iad1tya.echo.music.license.LicenseManager.isMasterKey(context)) return null"))
+        assertTrue(backup.contains("return iad1tya.echo.music.edge.BackupCrypto.secretFor(null, identity.first, identity.second)"))
+        assertTrue(backup.contains("if (download.exceptionOrNull()?.message == \"no-backup\" && older != null && older != secret) {"))
+        assertTrue(backup.contains("download = iad1tya.echo.music.edge.EdgeClient.backupDownload(context, older, tmp)"))
+        // the code still wins first: the space a typed code points to is tried before the older one
+        assertEquals("code:ABC", BackupCrypto.secretFor("ABC", "MASTER-KEY", "owner@mail.com"))
+    }
+
+    @Test
     fun `the license manager marks the key from every ACTIVE answer and the screen says why it does not pair`() {
         val manager = read("$main/license/LicenseManager.kt")
         assertTrue(manager.contains("MasterKeyPolicy.syncIdentity(purchaseIdentity(context), isMasterKey(context))"))
