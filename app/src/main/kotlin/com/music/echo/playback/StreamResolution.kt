@@ -400,7 +400,7 @@ internal fun MusicService.refreshUrlIfNearExpiry(mediaId: String, cached: Cached
                 audioQuality = cached.delivered ?: audioQuality,
                 connectivityManager = connectivityManager,
                 context = this@refreshUrlIfNearExpiry,
-                // Registry 811: a renewal picks the tier the same way the resolve it renews did.
+                // Registry 811: the tier of the network active now; a renewal on another itag is discarded below.
                 networkAwareQuality = true,
             ).getOrNull()
             val freshUrl = playback?.streamUrl
@@ -420,6 +420,15 @@ internal fun MusicService.refreshUrlIfNearExpiry(mediaId: String, cached: Cached
                 val freshDelivered = DeliveredQuality.fromMimeType(freshMime)
                 if (cached.delivered != null && freshDelivered != cached.delivered) {
                     Timber.tag(TAG).d("Refresh-ahead discarded: delivered quality drifted on renewal")
+                    return@launch
+                }
+                // Registry 811 (owner H6b): the renewal picks the tier of the network active NOW, which may not be the
+                // one of the URL it renews, and itags 251/250 are both Opus, so the check above cannot see it. A seek
+                // re-open of the playing song must read the same file (and cache key), so another itag is discarded too.
+                val renewedItag = cached.url.toUri().getQueryParameter("itag")
+                val freshItag = freshUrl.toUri().getQueryParameter("itag")
+                if (renewedItag != null && freshItag != null && freshItag != renewedItag) {
+                    Timber.tag(TAG).d("Refresh-ahead discarded: itag changed on renewal")
                     return@launch
                 }
                 songUrlCache[mediaId] = CachedStream(

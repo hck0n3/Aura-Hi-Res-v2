@@ -89,6 +89,16 @@ class NetworkStreamQualityTest {
     }
 
     @Test
+    fun `a URL renewal that lands on another itag is discarded`() {
+        // 251 and 250 are both Opus, so the delivered-quality drift check cannot see a tier change on renewal.
+        val resolution = main("playback/StreamResolution.kt")
+        assertTrue(resolution.contains("val renewedItag = cached.url.toUri().getQueryParameter(\"itag\")"))
+        assertTrue(resolution.contains("val freshItag = freshUrl.toUri().getQueryParameter(\"itag\")"))
+        assertTrue(resolution.contains("if (renewedItag != null && freshItag != null && freshItag != renewedItag) {"))
+        assertTrue(resolution.indexOf("if (renewedItag != null") < resolution.indexOf("networkSaver = playback.networkSaver,"))
+    }
+
+    @Test
     fun `the network is read at resolve time only - no callback, no polling`() {
         val q = main("playback/NetworkStreamQuality.kt")
         assertFalse(q.contains("registerNetworkCallback"))
