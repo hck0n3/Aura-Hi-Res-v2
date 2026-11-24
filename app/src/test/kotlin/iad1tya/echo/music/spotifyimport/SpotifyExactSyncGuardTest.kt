@@ -75,15 +75,38 @@ class SpotifyExactSyncGuardTest {
         assertTrue(src.contains(".putString(SPOTIFY_MIRROR_CREATED_PREFIX + playlist.id, browseId).commit()"))
     }
 
-    /** Row 833: reconcile only removes songs from a playlist Aura itself created for that Spotify source. */
+    /**
+     * Row 833: reconcile adds and removes songs only on Aura's own copy of that Spotify source (SpotifyMirrorOwnership); anything else
+     * may be the user's own playlist an older version linked by name, and gets neither.
+     */
     @Test
-    fun `mirror reconcile removes songs only from playlists Aura created`() {
+    fun `mirror reconcile touches only Aura's own copy`() {
         val src = body(upload, "    private suspend fun reconcileSpotifyMirrors() {")
-        assertTrue(src.contains("val createdByAura = prefs.getString(SPOTIFY_MIRROR_CREATED_PREFIX + playlistId, null) == browseId"))
-        assertTrue(src.contains("val extras = if (shrunkTooMuch || !createdByAura) {"))
+        val gate = src.indexOf("val aurasCopy = SpotifyMirrorOwnership.isAurasCopy(")
+        assertTrue(gate >= 0)
+        assertTrue(src.contains("storedFingerprint = prefs.getString(playlistId, null),"))
+        val skip = src.indexOf("if (!aurasCopy) {", gate)
+        assertTrue(skip > gate)
+        assertTrue(src.indexOf("continue", skip) < src.indexOf("YouTube.addToPlaylist(", skip))
+        assertEquals(1, Regex("""YouTube\.addToPlaylist\(""").findAll(src).count())
         assertEquals(1, Regex("""YouTube\.removeFromPlaylist\(""").findAll(src).count())
-        val removal = src.indexOf("YouTube.removeFromPlaylist(")
-        assertTrue(src.indexOf("for (song in extras) {") in 0 until removal)
+        assertTrue(src.indexOf("YouTube.addToPlaylist(") > skip)
+        assertTrue(src.indexOf("YouTube.removeFromPlaylist(") > skip)
+        // Row 317: removals on Aura's copy keep only the «less than half» guard.
+        assertTrue(src.contains("val extras = if (shrunkTooMuch) {"))
+        // A skipped mirror is not read again until its songs change (battery, rule 7).
+        assertTrue(src.contains("if (prefs.getString(SPOTIFY_MIRROR_SKIPPED_PREFIX + playlistId, null) == fingerprint) continue"))
+    }
+
+    /** Row 833: the created@ marker is written before the link, so a process death in between cannot lose it. */
+    @Test
+    fun `the created marker is written before the link is stored`() {
+        val src = body(upload, "    private suspend fun uploadPlaylists() {")
+        val create = src.indexOf("YouTube.createPlaylist(playlist.name)")
+        val marker = src.indexOf(".putString(SPOTIFY_MIRROR_CREATED_PREFIX + playlist.id, browseId).commit()")
+        val link = src.indexOf("database.update(playlist.copy(browseId = browseId, isAutoSync = true))")
+        assertTrue(create in 0 until marker)
+        assertTrue(marker in 0 until link)
     }
 
     /** Row 833: Spotify's «Liked Songs» are likes, never a playlist created (or kept in step) on the account. */

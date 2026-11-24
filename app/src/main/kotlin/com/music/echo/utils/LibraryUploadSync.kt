@@ -148,6 +148,9 @@ class LibraryUploadSync @Inject constructor(
         /** Row 833 — in [SPOTIFY_MIRROR_PREFS]: the browseId Aura itself created for a Spotify mirror (key + local playlist id). */
         private const val SPOTIFY_MIRROR_CREATED_PREFIX = "created@"
 
+        /** Row 833 — in [SPOTIFY_MIRROR_PREFS]: the mirror fingerprint last left untouched as not Aura's copy (no re-read until it changes). */
+        private const val SPOTIFY_MIRROR_SKIPPED_PREFIX = "skipped@"
+
         /** Gentle throttle between writes (rate limits + battery). */
         private const val REQUEST_DELAY_MS = 200L
 
@@ -779,15 +782,17 @@ class LibraryUploadSync @Inject constructor(
                     ?.takeIf { it.isNotBlank() }
                     ?: continue
 
+                // Row 833: marked as Aura's own copy BEFORE the link is stored, so a process death in between can never
+                // leave a linked mirror without its marker (a marker for a browseId the row never got is inert).
+                if (playlist.id.startsWith("SPOTIFY_")) {
+                    context.getSharedPreferences(SPOTIFY_MIRROR_PREFS, Context.MODE_PRIVATE).edit()
+                        .putString(SPOTIFY_MIRROR_CREATED_PREFIX + playlist.id, browseId).commit()
+                }
                 // Persist the link IMMEDIATELY, before pushing songs. If the process is killed here the
                 // playlist is already associated, so the next pass tops it up instead of creating a
                 // second copy — never a duplicate.
                 database.update(playlist.copy(browseId = browseId, isAutoSync = true))
                 claimed.add(browseId)
-                if (playlist.id.startsWith("SPOTIFY_")) {
-                    context.getSharedPreferences(SPOTIFY_MIRROR_PREFS, Context.MODE_PRIVATE).edit()
-                        .putString(SPOTIFY_MIRROR_CREATED_PREFIX + playlist.id, browseId).commit()
-                }
 
                 for (songId in songIds) {
                     if (!spend()) break
@@ -839,6 +844,7 @@ class LibraryUploadSync @Inject constructor(
                 if (localIds.isEmpty()) continue
                 val fingerprint = "$browseId|${localIds.size}|${localIds.joinToString(",").hashCode()}"
                 if (prefs.getString(playlistId, null) == fingerprint) continue
+                if (prefs.getString(SPOTIFY_MIRROR_SKIPPED_PREFIX + playlistId, null) == fingerprint) continue
 
                 val remote = runCatching { YouTube.playlist(browseId).completed() }
                     .getOrNull()?.getOrNull()?.songs
@@ -847,13 +853,29 @@ class LibraryUploadSync @Inject constructor(
                         continue
                     }
                 val localSet = localIds.toHashSet()
+                // Row 833: only Aura's own copy of this Spotify source is kept in step (songs added AND removed). One from before
+                // the created@ marker is adopted once when it can only be that copy; anything else may be the user's own playlist
+                // that an older version linked by name, and is left untouched.
+                val createdMarker = prefs.getString(SPOTIFY_MIRROR_CREATED_PREFIX + playlistId, null)
+                val aurasCopy = SpotifyMirrorOwnership.isAurasCopy(
+                    browseId = browseId,
+                    createdMarker = createdMarker,
+                    storedFingerprint = prefs.getString(playlistId, null),
+                    remoteIds = remote.map { it.id },
+                    localIds = localSet,
+                )
+                if (!aurasCopy) {
+                    Timber.i("SPOTIFY_MIRROR reconcile skipped: account playlist not known to be Aura's copy")
+                    prefs.edit().putString(SPOTIFY_MIRROR_SKIPPED_PREFIX + playlistId, fingerprint).apply()
+                    continue
+                }
+                if (createdMarker != browseId) {
+                    prefs.edit().putString(SPOTIFY_MIRROR_CREATED_PREFIX + playlistId, browseId).commit()
+                }
                 val remoteIds = remote.mapTo(HashSet()) { it.id }
                 val missing = localIds.filterNot { it in remoteIds }.distinct()
                 val shrunkTooMuch = localIds.size < remote.size / 2
-                // Row 833: songs are only ever removed from a playlist Aura created for this Spotify source, never from one
-                // linked by name before that rule (it may be the user's own playlist).
-                val createdByAura = prefs.getString(SPOTIFY_MIRROR_CREATED_PREFIX + playlistId, null) == browseId
-                val extras = if (shrunkTooMuch || !createdByAura) {
+                val extras = if (shrunkTooMuch) {
                     emptyList()
                 } else {
                     remote.filter { it.id !in localSet && it.setVideoId != null }
