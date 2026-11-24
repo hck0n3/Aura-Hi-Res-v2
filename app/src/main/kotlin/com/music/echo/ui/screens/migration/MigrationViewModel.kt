@@ -519,10 +519,18 @@ class MigrationViewModel @Inject constructor(
 
     // ── AMAZON MUSIC (read only) ─────────────────────────────────────────
 
+    /** The running library load, cancelled by [logoutAmazon] so it cannot write into a signed-out screen. */
+    private var amazonLoadJob: Job? = null
+
+    /** Bumped (on Main) whenever the Amazon session is dropped: a result read for an older one is discarded. */
+    private var amazonGeneration = 0
+
     /** Re-derives the Amazon sign-in from the encrypted vault, and lazily loads the library once. */
     fun refreshAmazonAuth() {
+        val startedIn = amazonGeneration
         viewModelScope.launch {
             val (authed, host) = withContext(Dispatchers.IO) { amazonClient.isSignedIn() to amazonClient.musicHost() }
+            if (startedIn != amazonGeneration) return@launch
             _amazonState.value = _amazonState.value.copy(authenticated = authed, musicHost = host)
             if (authed && _amazonState.value.collection.isEmpty() && !_amazonState.value.collectionLoading) {
                 loadAmazonCollection()
@@ -533,14 +541,17 @@ class MigrationViewModel @Inject constructor(
     /** Liked songs + every playlist the user owns, read to the last page (see AmazonMusicSource). */
     fun loadAmazonCollection() {
         _amazonState.value = _amazonState.value.copy(collectionLoading = true, error = null)
-        viewModelScope.launch {
+        val startedIn = amazonGeneration
+        amazonLoadJob = viewModelScope.launch {
             try {
                 val lists = withContext(Dispatchers.IO) { amazonSource.listPlaylists(null) }
+                if (startedIn != amazonGeneration) return@launch
                 Timber.tag("Migration").i("Amazon collection loaded: %d collections", lists.size)
                 _amazonState.value = _amazonState.value.copy(collection = lists, collectionLoading = false)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (startedIn != amazonGeneration) return@launch
                 // Only the failure KIND: never a response, cookie or list name (AGENTS rule 4).
                 Timber.tag("Migration").w("Amazon collection load failed: %s", e.javaClass.simpleName)
                 val gone = isAmazonSessionGone(e)
@@ -557,6 +568,8 @@ class MigrationViewModel @Inject constructor(
 
     /** «Cerrar sesión de Amazon»: the encrypted session and any Amazon cookie left in the WebView jar. */
     fun logoutAmazon() {
+        amazonLoadJob?.cancel()
+        amazonGeneration++
         viewModelScope.launch {
             withContext(Dispatchers.IO) { amazonClient.logout() }
             runCatching { expireAmazonWebCookies() }

@@ -138,6 +138,13 @@ class AmazonMusicClient(
     @Volatile
     private var loaded = false
 
+    /** Bumped by [logout]: a renewal that started before it must not write the old session back. */
+    @Volatile
+    private var generation = 0L
+
+    /** [logout] is not suspending and cannot take [lock]; it and [renewAndStore]'s check-then-save share this. */
+    private val sessionMonitor = Any()
+
     private fun session(): AmazonMusicSession? {
         if (!loaded) {
             cached = store.load()
@@ -152,7 +159,8 @@ class AmazonMusicClient(
     fun musicHost(): String? = session()?.musicHost
 
     /** «Cerrar sesión de Amazon»: forget everything Aura kept. */
-    fun logout() {
+    fun logout() = synchronized(sessionMonitor) {
+        generation++
         cached = null
         loaded = true
         store.clear()
@@ -187,10 +195,11 @@ class AmazonMusicClient(
         require(!query.trimStart().startsWith("mutation", ignoreCase = true)) {
             "Amazon Music is read-only in Aura"
         }
+        val startedIn = generation
         var current = session() ?: throw SourceError.NotAuthenticated(SourceType.AMAZON)
         var refreshed = false
         if (current.headers.isEmpty() || (current.expiresAtMs != 0L && current.expiresAtMs <= now() + EXPIRY_MARGIN_MS)) {
-            current = renewAndStore(current)
+            current = renewAndStore(current, startedIn)
             refreshed = true
         }
         for (attempt in 0 until MAX_ATTEMPTS) {
@@ -204,7 +213,7 @@ class AmazonMusicClient(
             when {
                 response.code == 401 || response.code == 403 -> {
                     if (!refreshed && current.cookies.isNotEmpty()) {
-                        current = renewAndStore(current)
+                        current = renewAndStore(current, startedIn)
                         refreshed = true
                         continue
                     }
@@ -225,7 +234,7 @@ class AmazonMusicClient(
                 }
                 if (AmazonMusicWeb.isAuthError(text)) {
                     if (!refreshed && current.cookies.isNotEmpty()) {
-                        current = renewAndStore(current)
+                        current = renewAndStore(current, startedIn)
                         refreshed = true
                         continue
                     }
@@ -259,10 +268,14 @@ class AmazonMusicClient(
         return body.obj("data") ?: JsonObject(emptyMap())
     }
 
-    private suspend fun renewAndStore(session: AmazonMusicSession): AmazonMusicSession = lock.withLock {
+    private suspend fun renewAndStore(session: AmazonMusicSession, startedIn: Long): AmazonMusicSession = lock.withLock {
         val renewed = renew(session, requirePandaToken = false)
-        store.save(renewed)
-        cached = renewed
+        synchronized(sessionMonitor) {
+            // The user signed out while Amazon was answering: the old session stays deleted.
+            if (generation != startedIn) throw SourceError.NotAuthenticated(SourceType.AMAZON)
+            store.save(renewed)
+            cached = renewed
+        }
         renewed
     }
 

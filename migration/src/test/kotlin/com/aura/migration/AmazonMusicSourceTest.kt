@@ -294,6 +294,30 @@ class AmazonMusicSourceTest {
     }
 
     @Test
+    fun `a sign-out while a renewal is in flight is not undone when Amazon answers`() = runBlocking {
+        val store = MemoryStore(signedInSession(expiresAtMs = now + 10_000L))
+        lateinit var amazon: AmazonMusicClient
+        val http = FakeHttp { r ->
+            if (r.url.endsWith("/pandaToken")) {
+                amazon.logout() // the user taps «Cerrar sesión de Amazon» while pandaToken is answering
+                ok("""{"accessToken":"fresh","expiresIn":3600}""", "session-token=NEW; Domain=.amazon.es; Path=/")
+            } else {
+                error("nothing may be queried with a session the user signed out of: ${r.url}")
+            }
+        }
+        amazon = client(http, store)
+        try {
+            amazon.query("Op", "query Op { ok }", JsonObject(emptyMap()))
+            fail("a renewal that outlived a sign-out must not be used")
+        } catch (e: SourceError.NotAuthenticated) {
+            assertEquals(SourceType.AMAZON, e.type)
+        }
+        assertNull("the deleted session is not written back", store.session)
+        assertEquals(0, store.saves)
+        assertFalse(amazon.isSignedIn())
+    }
+
+    @Test
     fun `server errors are retried and then reported, never swallowed into an empty list`() = runBlocking {
         var calls = 0
         val http = FakeHttp { calls++; AmazonHttpResponse(503, "") }

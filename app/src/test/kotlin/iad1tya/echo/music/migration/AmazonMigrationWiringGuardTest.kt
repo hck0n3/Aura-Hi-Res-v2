@@ -82,6 +82,25 @@ class AmazonMigrationWiringGuardTest {
         assertTrue(logout.contains("expireAmazonWebCookies()"))
     }
 
+    @Test
+    fun `a sign-out stops the library load so the old account cannot come back`() {
+        val vm = main("ui/screens/migration/MigrationViewModel.kt")
+        val logout = between(vm, "fun logoutAmazon()", "fun dismissAmazonError()")
+        val cancel = logout.indexOf("amazonLoadJob?.cancel()")
+        val bump = logout.indexOf("amazonGeneration++")
+        val clear = logout.indexOf("amazonClient.logout()")
+        assertTrue("the load is cancelled and the generation bumped before the vault is cleared", cancel in 0 until clear && bump in 0 until clear)
+
+        val load = between(vm, "fun loadAmazonCollection()", "fun logoutAmazon()")
+        assertTrue(load.contains("amazonLoadJob = viewModelScope.launch {"))
+        assertTrue(
+            "a result read for a session that was signed out is dropped",
+            Regex("""if \(startedIn != amazonGeneration\) return@launch""").findAll(load).count() == 2,
+        )
+        val refresh = between(vm, "fun refreshAmazonAuth()", "fun loadAmazonCollection()")
+        assertTrue(refresh.contains("if (startedIn != amazonGeneration) return@launch"))
+    }
+
     /** Source without string literals, so a log FORMAT may say «session» while its ARGUMENTS may not. */
     private fun withoutLiterals(code: String): String = code.replace(Regex("\"(?:\\\\.|[^\"\\\\])*\""), "\"\"")
 
