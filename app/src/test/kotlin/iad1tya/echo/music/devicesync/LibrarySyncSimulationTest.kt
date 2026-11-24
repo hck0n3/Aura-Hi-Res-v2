@@ -1243,6 +1243,20 @@ class LibrarySyncSimulationTest {
     }
 
     @Test
+    fun `what the brake holds is shown after a restart, offline, before any pull`() {
+        val (phone, tablet) = heldOnTablet()
+        phone.disconnect(); tablet.disconnect()
+        settle()
+        DeviceSyncHub.heldRemovals.value = emptyMap()
+        // The app restarts with no connection: the ledger alone says what is held, and «Borrados retenidos» must show it.
+        val restarted = Device("tablet", backend = tablet.backend, ledger = tablet.ledger, since = tablet.since)
+        restarted.sync.start()
+        eventually("the held counts are published without the room") { DeviceSyncHub.heldRemovals.value == mapOf("lk" to 40, "pm" to 30) }
+        assertEquals(70, runBlocking { restarted.sync.resolveHeld(apply = false) })
+        assertEquals("answered offline, nothing is held any more", emptyMap<String, Int>(), DeviceSyncHub.heldRemovals.value)
+    }
+
+    @Test
     fun `nothing held, nothing resolved`() {
         val phone = Device("phone")
         phone.backend.like("only")

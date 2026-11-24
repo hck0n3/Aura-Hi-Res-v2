@@ -86,6 +86,14 @@ class LibrarySync(
 
     fun start() {
         stopWatching = watchChanges { fast -> kick(fast) }
+        // Row 807: what the brake held persists in the ledger. Shown from the start, offline, with «Biblioteca» off or an outdated
+        // server too: «Borrados retenidos» must not say «Ninguno» while removals are still held.
+        scope.launch {
+            mutex.withLock {
+                runCatching { ledger(); publishHeldLocked() }
+                    .onFailure { Timber.tag(TAG).w("LIB_SYNC held removals not read: %s", it.javaClass.simpleName) }
+            }
+        }
     }
 
     fun stop() {
@@ -332,6 +340,7 @@ class LibrarySync(
 
     /** Row 807: what the brake holds, as counts per key family (`lk`, `dk`, `pl`, `pm`, `ab`, `pn`) — never which items. */
     private fun publishHeldLocked() {
+        if (stopped) return
         val ledger = ledgerMap ?: return
         DeviceSyncHub.heldRemovals.value =
             ledger.values.filter { LibrarySyncCore.isHeld(it) }.groupingBy { it.key.substringBefore(':') }.eachCount()
@@ -396,6 +405,8 @@ class LibrarySync(
         }.map { it.copy(parked = false) }
         released.forEach { ledger[it.key] = it }
         store.append(released)
+        // Row 807: a held removal whose item is already gone here is no longer held; the count must not wait for the next ack.
+        if (released.any { it.value == LibrarySyncCore.OFF }) publishHeldLocked()
         val fresh = LibrarySyncCore.localOps(current, ledger, clock())
         fresh.forEach { ledger[it.key] = it }
         store.append(fresh)
