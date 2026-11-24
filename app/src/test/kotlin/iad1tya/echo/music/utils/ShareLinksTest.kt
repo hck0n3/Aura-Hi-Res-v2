@@ -1,6 +1,9 @@
 package iad1tya.echo.music.utils
 
+import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ShareLinksTest {
@@ -96,5 +99,34 @@ class ShareLinksTest {
         assertEquals("https://music.youtube.com/channel/UCxyz", ExternalMusicLinks.songLinkWrappedYouTubeUrl(artist))
         val album = ShareLinks.albumShareText("OLAK5uy_abc", null, "B", emptyList(), songLinkEnabled = true).substringAfter('\n')
         assertEquals("https://music.youtube.com/playlist?list=OLAK5uy_abc", ExternalMusicLinks.songLinkWrappedYouTubeUrl(album))
+    }
+
+    // ── Registry row 847 (owner 2026-11-24, Odesli point 2): a link anyone opens in their own app, with no Odesli API ──
+
+    @Test
+    fun songLinkIsTheSongLinkPageOfTheYouTubeVideoId() {
+        // odesli.co/<YouTube Music link> redirects to exactly this page (checked 2026-11-24), which song.link serves without a key.
+        assertEquals("https://song.link/y/_KZEkEb_dvA", ShareLinks.songLink("_KZEkEb_dvA"))
+    }
+
+    @Test
+    fun viaSongLinkWrapsTheYouTubeMusicUrlUnchanged() {
+        assertEquals(
+            "https://song.link/https://music.youtube.com/playlist?list=OLAK5uy_abc",
+            ShareLinks.viaSongLink("https://music.youtube.com/playlist?list=OLAK5uy_abc"),
+        )
+        assertEquals("https://song.link/https://music.youtube.com/channel/UCxyz", ShareLinks.viaSongLink(ShareLinks.channel("UCxyz")))
+    }
+
+    @Test
+    fun songLinkSharingIsOnByDefaultAndMakesNoRequest() {
+        val root = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "settings.gradle.kts").isFile }
+        val src = File(root, "app/src/main/kotlin/com/music/echo/utils/ShareLinks.kt").readText()
+        assertTrue(src.contains("fun useSongLink(): Boolean = PrefsBridge.peek(ShareUseSongLinkKey) ?: true"))
+        assertTrue(src.contains("private const val SONG_LINK_BASE = \"https://song.link/y/\""))
+        assertFalse(src.contains("api.song.link"))
+        assertFalse(src.contains("HttpURLConnection"))
+        val settings = File(root, "app/src/main/kotlin/com/music/echo/ui/screens/settings/ContentSettings.kt").readText()
+        assertTrue(settings.contains("rememberPreference(key = iad1tya.echo.music.constants.ShareUseSongLinkKey, defaultValue = true)"))
     }
 }
