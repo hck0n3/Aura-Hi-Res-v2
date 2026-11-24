@@ -76,6 +76,12 @@ internal object ExternalCatalog {
         return tracks.take(MAX_TRACKS)
     }
 
+    /** The `tracks.data` list embedded in an `/album` or `/playlist` answer: what is left when the `/tracks` pages give nothing. */
+    fun deezerEmbeddedTracks(root: JsonObject, albumName: String?): List<Track> =
+        ((root["tracks"] as? JsonObject)?.get("data") as? JsonArray).orEmpty()
+            .mapNotNull { (it as? JsonObject)?.let { row -> deezerTrack(row, albumName) } }
+            .take(MAX_TRACKS)
+
     // ── Apple Music (iTunes Search API) ──────────────────────────────────────────────────────────
 
     /** `lookup` of a song id, or of an album id with its songs (`entity=song`, up to 200). */

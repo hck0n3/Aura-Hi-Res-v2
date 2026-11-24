@@ -106,6 +106,14 @@ class ExternalCatalogTest {
         assertEquals(3, calls)
     }
 
+    @Test
+    fun `the list embedded in an album or playlist answer is read when its pages give nothing`() {
+        val root = obj("""{"id":302127,"title":"Discovery","artist":{"name":"Daft Punk"},"tracks":{"data":[${row(1)},${row(2)}]}}""")
+        assertEquals(listOf("dz_1", "dz_2"), ExternalCatalog.deezerEmbeddedTracks(root, "Discovery").map { it.id })
+        assertEquals("Discovery", ExternalCatalog.deezerEmbeddedTracks(root, "Discovery").first().album)
+        assertEquals(emptyList<ExternalCatalog.Track>(), ExternalCatalog.deezerEmbeddedTracks(obj("""{"id":1,"title":"T"}"""), null))
+    }
+
     // ── Apple Music (iTunes lookup) ──────────────────────────────────────────────────────────────
 
     @Test

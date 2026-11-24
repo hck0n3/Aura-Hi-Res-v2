@@ -214,9 +214,11 @@ object ExternalMusicLinks {
             }
             else -> {
                 val title = root.str("title").orEmpty()
-                val tracks = ExternalCatalog.deezerAllTracks(if (type == "album") title else null) { index ->
-                    ExternalCatalog.deezerObject(fetch(ExternalCatalog.deezerTracksUrl(type, id, index)))
-                }
+                val albumName = if (type == "album") title else null
+                // A page that fails ends the list there; with nothing read, the list embedded in the answer above is used.
+                val tracks = ExternalCatalog.deezerAllTracks(albumName) { index ->
+                    runCatching { ExternalCatalog.deezerObject(fetch(ExternalCatalog.deezerTracksUrl(type, id, index))) }.getOrNull()
+                }.ifEmpty { ExternalCatalog.deezerEmbeddedTracks(root, albumName) }
                 val artist = (root["artist"] as? JsonObject)?.str("name").orEmpty()
                 Resolved.Tracks(if (type == "album") Kind.ALBUM else Kind.PLAYLIST, title, artist, tracks.map { it.toSpotifyTrack() })
             }
