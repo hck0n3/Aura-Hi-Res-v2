@@ -65,4 +65,17 @@ class AccountWritesGateGuardTest {
         assertTrue(playlist.contains("if (PlaylistSyncGuard.standDown("))
         assertTrue(playlist.contains("val pendingAdds = localRows.filter { it.map.setVideoId == null && it.song.id !in remoteIdSet }"))
     }
+
+    @Test
+    fun `the like upload does not re-like the account while the devices own the library`() {
+        val src = main("utils/LibraryUploadSync.kt")
+        val likes = body(src, "private suspend fun uploadLikedSongs() {")
+        val skip = likes.indexOf("if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {")
+        assertTrue(skip >= 0)
+        assertTrue("checked before anything is sent", skip < likes.indexOf("YouTube.likeVideo(songId, true)"))
+        // Verified with nothing pending: a skipped category must not keep YtmSyncWorker chaining continuations (rule 7).
+        assertTrue(likes.contains("likedSongs = _progress.value.likedSongs.copy(pending = 0, running = false, verified = true),"))
+        // The whole upload still sits behind the switch.
+        assertTrue(src.contains("if (uploadEnabled) {\n                uploadArtistSubscriptions(remoteArtistIds)"))
+    }
 }
