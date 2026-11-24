@@ -248,7 +248,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
                 ),
             )
         }
-        database.markArtistsSubscribedOnYtm(listOf(item.id), now)
+        database.markArtistsSubscribedOnYtm(listOf(item.id), now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))
         if (!database.toggleArtistFollow(item.id, fallback = null, shownFollowed = true)) {
             // No row reads «Suscrito» because the user's own unfollow of this channel is still owed to the account
             // (the read-back above re-armed it): the uploader sends it, so «Reintentar» waits for that pass.
