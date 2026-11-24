@@ -69,6 +69,16 @@ class ImportFollowsAccountsTest {
     }
 
     @Test
+    fun `signing in switches the lists at once, before any writer can edit them as the previous account's`() {
+        val login = main("ui/screens/LoginScreen.kt")
+        val email = login.indexOf("prefs[AccountEmailKey] = info.email.orEmpty()")
+        val adopt = login.indexOf("iad1tya.echo.music.utils.ImportFollowsAccounts.adopt(context)")
+        assertTrue(email >= 0)
+        assertTrue("adopted right after the new account's email is written", adopt > email)
+        assertTrue(adopt < login.indexOf("syncUtils.syncLibraryAfterLogin()"))
+    }
+
+    @Test
     fun `the switch logs counts only and first-time lists stay where they are`() {
         val src = main("utils/ImportFollowsAccounts.kt")
         val adopt = src.substringAfter("suspend fun adopt(context: Context) {")
