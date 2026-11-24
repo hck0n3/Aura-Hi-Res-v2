@@ -76,4 +76,30 @@ class TrackResolverRecordingTest {
         assertTrue("$result", result is MatchResult.Matched)
         assertEquals("song", (result as MatchResult.Matched).videoId)
     }
+
+    /** Answers only the album query with the studio song; every other query gets the piano upload. */
+    private class AlbumOnlyYtm(private val albumQuery: String) : YtmClient {
+        val queries = mutableListOf<String>()
+        private val piano = YtmCandidate(videoId = "piano", title = "A Song (Piano)", artists = listOf("Artist"), durationMs = 200_000L)
+        private val studio = YtmCandidate(
+            videoId = "studio", title = "A Song", artists = listOf("Artist"), album = "The Album", durationMs = 200_000L,
+        )
+        override suspend fun searchSongs(query: String, limit: Int): List<YtmCandidate> {
+            queries += query
+            return if (query == albumQuery) listOf(studio) else listOf(piano)
+        }
+        override suspend fun searchAll(query: String, limit: Int) = listOf(piano)
+        override suspend fun createPlaylist(name: String, description: String?) = ""
+        override suspend fun addToPlaylist(playlistId: String, videoIds: List<String>) {}
+    }
+
+    @Test
+    fun `a rejected recording above ACCEPT does not stop the album query from finding the studio song`() {
+        val withAlbum = source.copy(album = "The Album")
+        val ytm = AlbumOnlyYtm("A Song The Album")
+        val result = runBlocking { TrackResolver(ytm, MatchCache(EmptyDao())).resolve(withAlbum) }
+        assertTrue("album query was not issued: ${ytm.queries}", "A Song The Album" in ytm.queries)
+        assertTrue("$result", result is MatchResult.Matched)
+        assertEquals("studio", (result as MatchResult.Matched).videoId)
+    }
 }

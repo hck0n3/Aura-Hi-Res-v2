@@ -38,14 +38,14 @@ class TrackResolver(
         collect(ytm.searchSongs("${track.title} ${track.primaryArtist}"))
 
         // 3. Fallback A: version normalizada (quita ruido de titulo).
-        if (bestScore(track, pool.values) < Scorer.ACCEPT) {
+        if (bestAcceptableScore(track, pool.values) < Scorer.ACCEPT) {
             val q = "${TextNormalizer.normalize(track.title)} " +
                     TextNormalizer.normalizeArtist(track.primaryArtist)
             collect(ytm.searchSongs(q.trim()))
         }
 
         // 4. Fallback B: incluir album. Desambigua entre versiones.
-        if (bestScore(track, pool.values) < Scorer.ACCEPT && !track.album.isNullOrBlank()) {
+        if (bestAcceptableScore(track, pool.values) < Scorer.ACCEPT && !track.album.isNullOrBlank()) {
             collect(ytm.searchSongs("${track.title} ${track.album}"))
         }
 
@@ -58,8 +58,10 @@ class TrackResolver(
         return decide(track, pool.values.toList())
     }
 
-    private fun bestScore(track: SourceTrack, cands: Collection<YtmCandidate>): Float =
-        cands.maxOfOrNull { Scorer.score(track, it) } ?: Float.NEGATIVE_INFINITY
+    // Registry row 843: a high scorer that RecordingMatcher rejects (a «(Piano)» upload) must not stop the fallbacks that can still
+    // find the studio recording.
+    private fun bestAcceptableScore(track: SourceTrack, cands: Collection<YtmCandidate>): Float =
+        cands.filter { RecordingMatcher.accepts(track, it) }.maxOfOrNull { Scorer.score(track, it) } ?: Float.NEGATIVE_INFINITY
 
     private fun decide(track: SourceTrack, cands: List<YtmCandidate>): MatchResult {
         if (cands.isEmpty()) return MatchResult.NotFound(track)
