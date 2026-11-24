@@ -220,6 +220,7 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 68 | `settings/changelog` | `ChangelogScreen` | `:545` | sí |
 | 69 | `settings/commits` | `CommitScreen` | `:548` | ⚠️ **NO — ruta muerta** |
 | 70 | `ambient_mode` | `AmbientModeScreen` | `:553` | sí (menú de la cola) |
+| 71 | `settings/content/hidden` | `HiddenItemsScreen` («Ocultos», fila 811) | `:439` | sí (Ajustes > Contenido > Inicio y descubrimiento) |
 
 ## 1.5 Barra superior del esqueleto
 
@@ -2839,6 +2840,17 @@ Las cuatro pantallas donde viven los ajustes de letras se enlazan entre sí; **n
 | Mantener el estilo en autoplay (hardcoded) — desc. «El reproductor automático intenta seguir en la misma línea…» (hardcoded) | Ajustes > Contenido | ContentSettings.kt:1160 | conmutador | ocasional | siempre |
 | Aprender géneros con datos móviles — desc. «Usa datos móviles para aprender los géneros de tus artistas… Desactivado = solo con WiFi.» | Ajustes > Contenido | ContentSettings.kt:1181 | conmutador | rara | siempre |
 | Ordenar la pantalla de inicio al azar — desc. «Reordena al azar las secciones de inicio con prioridades ponderadas» | Ajustes > Contenido | ContentSettings.kt:1202 | conmutador | rara | siempre |
+| **Ocultos** — desc. «Lo que ocultaste con «No me gusta», «No recomendar» o «Menos de esto». Desde aquí lo deshaces» (fila 811) | Ajustes > Contenido | ContentSettings.kt:1279 | navegación → `settings/content/hidden` | rara | siempre |
+
+#### Pantalla «Ocultos» — `settings/content/hidden` (fila 811)
+
+Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/HiddenItemsScreen.kt`. Sigue en vivo el `DislikeStore`: un
+grupo por tipo (solo los que tienen algo), en este orden: «Canciones («No me gusta»)», «Artistas («No recomendar»)», «Álbumes
+(«No recomendar»)», «Listas («No recomendar»)», «Canciones («Menos de esto»)», «Artistas («Menos de esto»)». Cada fila muestra
+el nombre que tiene la base local o, si no lo tiene, el identificador con la nota «No está en tu biblioteca: se muestra su
+identificador»; a la derecha, el botón **Deshacer** (quita solo esa entrada; en una canción con «No me gusta» también quita el
+pulgar abajo de la cuenta, como el deshacer del reproductor). Sin nada oculto: «No has ocultado nada». Barra superior: título
+«Ocultos» y flecha atrás.
 
 ### Grupo «Otros»
 
@@ -3439,7 +3451,7 @@ Reparto por ruta de destino (todas existen en `NavigationBuilder.kt`, ninguna ro
 | Ruta | Entradas |
 |---|---|
 | `settings/appearance` | 100 |
-| `settings/content` | 53 |
+| `settings/content` | 55 |
 | `settings/player` | 49 |
 | `settings/integrations/listen_together` | 31 |
 | `settings/ai` | 30 |

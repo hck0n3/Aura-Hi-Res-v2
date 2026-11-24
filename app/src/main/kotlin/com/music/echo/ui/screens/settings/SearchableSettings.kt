@@ -317,6 +317,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.lyrics_romanization), "Contenido", "settings/content"),
             Triple(stringResource(R.string.randomize_home_order), "Contenido", "settings/content"),
             Triple(stringResource(R.string.randomize_home_order_desc), "Contenido", "settings/content"),
+            // Registry 811 (owner H6a): the «Ocultos» row of Inicio y descubrimiento.
+            Triple(stringResource(R.string.hidden_items_title), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.hidden_items_desc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.misc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_title), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_summary), "Contenido", "settings/content"),

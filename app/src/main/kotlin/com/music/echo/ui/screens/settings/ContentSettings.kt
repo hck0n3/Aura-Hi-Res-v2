@@ -1272,6 +1272,13 @@ fun ContentSettings(
                         )
                     },
                     onClick = { onRandomizeHomeOrderChange(!randomizeHomeOrder) }
+                ),
+                // Registry 811 (owner H6a): everything hidden from recommendations, with an undo per row.
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.thumb_down),
+                    title = { Text(stringResource(R.string.hidden_items_title)) },
+                    description = { Text(stringResource(R.string.hidden_items_desc)) },
+                    onClick = { navController.navigate("settings/content/hidden") }
                 )
             )
         )

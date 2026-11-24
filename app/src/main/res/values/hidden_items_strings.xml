@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Registry 811 (owner H6a): the «Ocultos» screen (Settings ▸ Content). -->
+    <string name="hidden_items_title">Hidden</string>
+    <string name="hidden_items_desc">What you hid with Dislike, Don\'t recommend or Show less. Undo it here</string>
+    <string name="hidden_items_empty">You haven\'t hidden anything</string>
+    <string name="hidden_items_undo">Undo</string>
+    <string name="hidden_items_not_in_library">Not in your library: shown by its id</string>
+    <string name="hidden_group_songs">Songs (Dislike)</string>
+    <string name="hidden_group_artists">Artists (Don\'t recommend)</string>
+    <string name="hidden_group_albums">Albums (Don\'t recommend)</string>
+    <string name="hidden_group_playlists">Playlists (Don\'t recommend)</string>
+    <string name="hidden_group_soft_songs">Songs (Show less)</string>
+    <string name="hidden_group_soft_artists">Artists (Show less)</string>
+</resources>

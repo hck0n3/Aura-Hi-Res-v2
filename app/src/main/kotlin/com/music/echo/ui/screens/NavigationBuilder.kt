@@ -435,6 +435,11 @@ fun NavGraphBuilder.navigationBuilder(
         RomanizationSettings(navController, scrollBehavior)
     }
 
+    // Registry 811 (owner H6a): «Ocultos», reached from Ajustes ▸ Contenido ▸ Inicio y descubrimiento.
+    composable("settings/content/hidden") {
+        iad1tya.echo.music.ui.screens.settings.HiddenItemsScreen(navController, scrollBehavior)
+    }
+
     composable("settings/ai") {
         AiSettings(navController, scrollBehavior)
     }
