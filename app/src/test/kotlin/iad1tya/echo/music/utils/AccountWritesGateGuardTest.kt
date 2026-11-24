@@ -43,4 +43,26 @@ class AccountWritesGateGuardTest {
         assertTrue(liked.contains("if (pushBudget > 0) {"))
         assertTrue(liked.contains("if (shouldPush || !everOnAccount) {"))
     }
+
+    @Test
+    fun `the library songs pass adds to the account's library only with the upload switch on`() {
+        val src = main("utils/SyncUtils.kt")
+        val library = body(src, "private suspend fun executeSyncLibrarySongs() = withContext(Dispatchers.IO) {")
+        assertTrue(library.contains("val pushAllowed = isUploadSwitchOn()"))
+        assertTrue(library.contains(".filterNot { !pushAllowed || !remoteComplete || it.id in remoteIds || it.song.isLocal }"))
+        // The bounded batch of the owner report 2026-09-14 stays.
+        assertTrue(library.contains(".take(MAX_LIBRARY_PUSH_PER_RUN)"))
+    }
+
+    @Test
+    fun `a playlist sync does not put the playlist's songs in the library`() {
+        val src = main("utils/SyncUtils.kt")
+        val playlist = body(src, "private suspend fun executeSyncPlaylist(browseId: String, playlistId: String) = withContext(Dispatchers.IO) {")
+        assertTrue(playlist.contains("if (existing[song.id] == null) database.insert(song)"))
+        assertFalse(playlist.contains("inLibrary = "))
+        assertFalse(playlist.contains("libraryNow"))
+        // Rows 343 and 511 stay: the stand-down before the rebuild and the user's pending adds kept at the end.
+        assertTrue(playlist.contains("if (PlaylistSyncGuard.standDown("))
+        assertTrue(playlist.contains("val pendingAdds = localRows.filter { it.map.setVideoId == null && it.song.id !in remoteIdSet }"))
+    }
 }

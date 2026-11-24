@@ -1404,8 +1404,10 @@ class SyncUtils @Inject constructor(
                     if (!remoteComplete) {
                         Timber.d("Library songs: remote list incomplete, skipping push-up of local-only songs")
                     }
+                    // Row 834: adding songs to the account's library in bulk is a write the user allows with the upload switch.
+                    val pushAllowed = isUploadSwitchOn()
                     localSongs
-                        .filterNot { !remoteComplete || it.id in remoteIds || it.song.isLocal }
+                        .filterNot { !pushAllowed || !remoteComplete || it.id in remoteIds || it.song.isLocal }
                         .take(MAX_LIBRARY_PUSH_PER_RUN)
                         .forEach { song ->
                         try {
@@ -2012,7 +2014,6 @@ class SyncUtils @Inject constructor(
 
                     Timber.d("syncPlaylist: Updating local playlist (remote: ${remoteIds.size}, local: ${localIds.size})")
 
-                    val libraryNow = LocalDateTime.now()
                     // Row 511 (owner 2026-10-29: «que la sincronización guarde solo los cambios que hice canción por canción, no
                     // que reemplace las listas»): a song the USER added in the app that YouTube does not have yet (no entry id:
                     // it was never matched with a remote entry) is that user's change, still on its way. The rebuild below used
@@ -2028,15 +2029,10 @@ class SyncUtils @Inject constructor(
                     database.withTransaction {
                         database.clearPlaylist(playlistId)
                         songs.forEachIndexed { idx, song ->
-                            val dbSong = existing[song.id]
-                            if (dbSong == null) {
-                                // New song → insert and drop it into the library so it surfaces in
-                                // Library → Songs (WHERE inLibrary IS NOT NULL).
-                                database.insert(song) { it.copy(inLibrary = libraryNow) }
-                            } else if (dbSong.inLibrary == null) {
-                                // Set inLibrary on existing songs that don't have it yet.
-                                database.update(dbSong.copy(inLibrary = libraryNow))
-                            }
+                            // Row 834: a song of a playlist is not a song saved to the library. Stamping `inLibrary` here put
+                            // every song of every saved playlist in Library ▸ Songs, and the library pass then added them to the
+                            // account's library one by one.
+                            if (existing[song.id] == null) database.insert(song)
                             database.insert(
                                 PlaylistSongMap(
                                     songId = song.id,
