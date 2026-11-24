@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fila 811 (dueño H6a): la pantalla «Ocultos» (Ajustes ▸ Contenido). -->
+    <string name="hidden_items_title">Ocultos</string>
+    <string name="hidden_items_desc">Lo que ocultaste con «No me gusta», «No recomendar» o «Menos de esto». Desde aquí lo deshaces</string>
+    <string name="hidden_items_empty">No has ocultado nada</string>
+    <string name="hidden_items_undo">Deshacer</string>
+    <string name="hidden_items_not_in_library">No está en tu biblioteca: se muestra su identificador</string>
+    <string name="hidden_group_songs">Canciones («No me gusta»)</string>
+    <string name="hidden_group_artists">Artistas («No recomendar»)</string>
+    <string name="hidden_group_albums">Álbumes («No recomendar»)</string>
+    <string name="hidden_group_playlists">Listas («No recomendar»)</string>
+    <string name="hidden_group_soft_songs">Canciones («Menos de esto»)</string>
+    <string name="hidden_group_soft_artists">Artistas («Menos de esto»)</string>
+</resources>

@@ -43,6 +43,9 @@ object ArtistSyncPolicy {
          * See [PENDING_UNFOLLOW_TTL_DAYS].
          */
         STALE_INTENT,
+
+        /** Row 798: YouTube already confirmed this unsubscribe ([isConfirmedUnfollow]); it is never sent again. */
+        CONFIRMED,
     }
 
     /**
@@ -140,6 +143,7 @@ object ArtistSyncPolicy {
         artist.isLocal -> UnsubscribeRefusal.LOCAL_ARTIST
         artist.unfollowedByUserAt == null -> UnsubscribeRefusal.NO_RECORDED_INTENT
         artist.followedByUserAt != null -> UnsubscribeRefusal.REFOLLOWED
+        isConfirmedUnfollow(artist) -> UnsubscribeRefusal.CONFIRMED
         artist.ytmSyncedAt == null -> UnsubscribeRefusal.NOT_SUBSCRIBED
         // The DAO predicate cannot express this (it has no clock), so the policy is the authority —
         // exactly the split the three-layer design was built for. `flushPendingUnsubscribes` retires
@@ -147,6 +151,24 @@ object ArtistSyncPolicy {
         isStale(artist, now) -> UnsubscribeRefusal.STALE_INTENT
         else -> null
     }
+
+    /**
+     * Row 798 (owner decision H15): YouTube confirmed the unsubscribe of the CURRENT unfollow marker. Mirrors the
+     * SQL `unfollowConfirmedAt IS NOT NULL AND unfollowConfirmedAt >= unfollowedByUserAt`.
+     */
+    fun isConfirmedUnfollow(artist: ArtistEntity): Boolean {
+        val unfollowedAt = artist.unfollowedByUserAt ?: return false
+        val confirmedAt = artist.unfollowConfirmedAt ?: return false
+        return !confirmedAt.isBefore(unfollowedAt)
+    }
+
+    /**
+     * Row 798: the start of the 30-day hold of a CONFIRMED unfollow ([PENDING_UNFOLLOW_TTL_DAYS], the same 30 days).
+     * A confirmed unfollow newer than this keeps the artist unfollowed in Aura even if the account lists it again
+     * (YouTube's list can lag behind the unsubscribe), but the account is never touched; an older one, still
+     * listed, is a subscription the user made on YouTube and is read back as a follow.
+     */
+    fun confirmedUnfollowHoldSince(now: LocalDateTime): LocalDateTime = now.minusDays(PENDING_UNFOLLOW_TTL_DAYS)
 
     /** True when a queued unfollow has outlived [PENDING_UNFOLLOW_TTL_DAYS]. */
     fun isStale(artist: ArtistEntity, now: LocalDateTime = LocalDateTime.now()): Boolean {
@@ -191,7 +213,20 @@ object ArtistSyncPolicy {
         now: LocalDateTime,
         aliasPendingUnfollow: Boolean = false,
     ): ArtistEntity =
-        if (artist.unfollowedByUserAt != null) {
+        // Row 798: a CONFIRMED unfollow is never re-armed as a pending unsubscribe. Inside its hold nothing changes;
+        // after it, the account listing the channel is the user's own re-subscription.
+        if (isConfirmedUnfollow(artist)) {
+            if (!artist.unfollowedByUserAt!!.isBefore(confirmedUnfollowHoldSince(now))) {
+                artist
+            } else {
+                artist.copy(
+                    followedByUserAt = artist.followedByUserAt ?: now,
+                    ytmSyncedAt = now,
+                    unfollowedByUserAt = null,
+                    unfollowConfirmedAt = null,
+                )
+            }
+        } else if (artist.unfollowedByUserAt != null) {
             artist.copy(ytmSyncedAt = now)
         } else if (artist.followedByUserAt == null && aliasPendingUnfollow) {
             artist.copy(ytmSyncedAt = now)
@@ -202,10 +237,12 @@ object ArtistSyncPolicy {
     /**
      * Row 716: the user unfollowed this row, has not followed it again, and the account was last seen holding it
      * (`ytmSyncedAt`) — the unfollow is still owed to the account, the same shape `DatabaseDao.artistsPendingUnsubscribe`
-     * reads. A confirmed unsubscribe clears `ytmSyncedAt` but keeps the marker (row 150(d)): that is no longer pending.
+     * reads. A confirmed unsubscribe clears `ytmSyncedAt` but keeps the marker (row 150(d)): that is no longer pending,
+     * and since row 798 it is marked as such ([isConfirmedUnfollow]).
      */
     fun hasPendingUnfollow(artist: ArtistEntity): Boolean =
-        artist.unfollowedByUserAt != null && artist.followedByUserAt == null && artist.ytmSyncedAt != null
+        artist.unfollowedByUserAt != null && artist.followedByUserAt == null && artist.ytmSyncedAt != null &&
+            !isConfirmedUnfollow(artist)
 
     /**
      * Row 716: the newest follow of ANOTHER stored spelling of [row]'s channel ([spellings] = the rows of [aliasIds])
@@ -233,6 +270,18 @@ object ArtistSyncPolicy {
      */
     fun afterUnsubscribed(artist: ArtistEntity): ArtistEntity =
         artist.copy(ytmSyncedAt = null, unfollowedByUserAt = null)
+
+    /**
+     * Row 798: what one row looks like once YouTube CONFIRMED the unsubscribe that delivered the marker [deliveredAt] —
+     * what `DatabaseDao.confirmArtistUnsubscribed` really writes, for the live tap and the upload pass alike. The marker
+     * stays (row 150(d)) and is stamped as confirmed, so the read-back never re-arms it ([afterRemoteSubscriptionSeen]).
+     * A row followed again, or unfollowed again AFTER [deliveredAt], is left alone: that newer tap was not delivered.
+     */
+    fun afterConfirmedUnsubscribe(artist: ArtistEntity, deliveredAt: LocalDateTime): ArtistEntity {
+        val unfollowedAt = artist.unfollowedByUserAt
+        return if (artist.followedByUserAt != null || unfollowedAt == null || unfollowedAt.isAfter(deliveredAt)) artist
+        else artist.copy(ytmSyncedAt = null, unfollowConfirmedAt = unfollowedAt)
+    }
 
     /**
      * Whether the LIVE call [ArtistEntity.toggleLike] just made has HONOURED the queued unfollow, so

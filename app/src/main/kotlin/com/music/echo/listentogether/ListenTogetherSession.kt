@@ -399,6 +399,9 @@ class ListenTogetherSession(
     /** Server wall time now, or null while the clock is not calibrated. */
     fun serverNow(): Long? = client.serverNow()
 
+    /** Whether rooms go to Aura's own server rather than a Metrolist-compatible one: what the shared log says (row 797). */
+    val isAuraRooms: Boolean get() = client.isAuraRooms
+
     /** Publishes the whole queue. Host only; guests take the host's order verbatim. */
     fun sendQueue(
         tracks: List<TrackInfo>,

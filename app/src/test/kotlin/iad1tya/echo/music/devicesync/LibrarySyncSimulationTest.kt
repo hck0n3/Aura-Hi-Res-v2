@@ -1189,4 +1189,81 @@ class LibrarySyncSimulationTest {
         settle(); settle()
         assertEquals("nothing echoes afterwards", head, room.head)
     }
+
+    // Row 807 (owner 2026-11-24, H10): what the brake held waits for the user's «Aplicar» / «Descartar».
+
+    /** The phone empties a list of 30 songs and 40 likes at once; the tablet's brake holds all 70 removals. */
+    private fun heldOnTablet(): Pair<Device, Device> {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        repeat(40) { phone.backend.like("h$it") }
+        phone.listWithSongs("LPheldheld", "Todo", 30, "m")
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the 40 likes and the list") { tablet.backend.likes.size == 40 && tablet.songsOf("LPheldheld").size == 30 }
+        settle()
+        val trips = DeviceSyncHub.heldTrip.value?.token ?: 0
+        phone.backend.likes.clear(); phone.backend.members.clear(); phone.changed()
+        eventually("the room has the removals") { (0 until 40).all { room.value("lk:h$it") == "0" } && (1..30).all { room.value("pm:LPheldheld:m$it") == "0" } }
+        eventually("the tablet held them") { tablet.ledger.stored.values.count { LibrarySyncCore.isHeld(it) } == 70 }
+        assertEquals("the tablet kept everything", 40, tablet.backend.likes.size)
+        assertEquals(30, tablet.songsOf("LPheldheld").size)
+        assertTrue("the app was told once, with the count", (DeviceSyncHub.heldTrip.value?.token ?: 0) > trips)
+        return phone to tablet
+    }
+
+    @Test
+    fun `Aplicar makes the held removals here through the same apply, and the room is left as it was`() {
+        val (phone, tablet) = heldOnTablet()
+        val head = room.head
+        val resolved = runBlocking { tablet.sync.resolveHeld(apply = true) }
+        assertEquals(70, resolved)
+        assertTrue("the likes are gone here too", tablet.backend.likes.isEmpty())
+        assertTrue("and the songs of the list", tablet.songsOf("LPheldheld").isEmpty())
+        assertEquals("the list itself was not removed (only its songs were)", setOf("LPheldheld"), tablet.backend.playlists.keys)
+        assertTrue("nothing is held any more", tablet.ledger.stored.values.none { LibrarySyncCore.isHeld(it) })
+        tablet.changed(); phone.changed()
+        settle(); settle()
+        assertEquals("nothing went back to the room", head, room.head)
+        assertTrue(phone.backend.likes.isEmpty())
+    }
+
+    @Test
+    fun `Descartar keeps the copies here and puts them back on the other device`() {
+        val (phone, tablet) = heldOnTablet()
+        val resolved = runBlocking { tablet.sync.resolveHeld(apply = false) }
+        assertEquals(70, resolved)
+        assertEquals("nothing was removed here", 40, tablet.backend.likes.size)
+        assertEquals(30, tablet.songsOf("LPheldheld").size)
+        eventually("the room has them again") { (0 until 40).all { room.value("lk:h$it") == "1" } && (1..30).all { room.value("pm:LPheldheld:m$it") == "1" } }
+        eventually("and the phone got them back") { phone.backend.likes.size == 40 && phone.songsOf("LPheldheld").size == 30 }
+        assertTrue("nothing is held any more", tablet.ledger.stored.values.none { LibrarySyncCore.isHeld(it) })
+        val head = room.head
+        phone.changed(); tablet.changed()
+        settle(); settle()
+        assertEquals("nothing echoes afterwards", head, room.head)
+    }
+
+    @Test
+    fun `what the brake holds is shown after a restart, offline, before any pull`() {
+        val (phone, tablet) = heldOnTablet()
+        phone.disconnect(); tablet.disconnect()
+        settle()
+        DeviceSyncHub.heldRemovals.value = emptyMap()
+        // The app restarts with no connection: the ledger alone says what is held, and «Borrados retenidos» must show it.
+        val restarted = Device("tablet", backend = tablet.backend, ledger = tablet.ledger, since = tablet.since)
+        restarted.sync.start()
+        eventually("the held counts are published without the room") { DeviceSyncHub.heldRemovals.value == mapOf("lk" to 40, "pm" to 30) }
+        assertEquals(70, runBlocking { restarted.sync.resolveHeld(apply = false) })
+        assertEquals("answered offline, nothing is held any more", emptyMap<String, Int>(), DeviceSyncHub.heldRemovals.value)
+    }
+
+    @Test
+    fun `nothing held, nothing resolved`() {
+        val phone = Device("phone")
+        phone.backend.like("only")
+        phone.connect()
+        eventually("the phone caught up") { room.value("lk:only") == "1" }
+        assertEquals(0, runBlocking { phone.sync.resolveHeld(apply = true) })
+        assertEquals(0, runBlocking { phone.sync.resolveHeld(apply = false) })
+        assertEquals(setOf("only"), phone.backend.likes)
+    }
 }

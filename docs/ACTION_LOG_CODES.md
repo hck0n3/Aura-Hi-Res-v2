@@ -140,6 +140,10 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 | `UI.DEVSET.CODE_REMOVE` | Quitar el código |
 | `UI.DEVSET.NAME` | Abrir el diálogo del nombre del aparato |
 | `UI.DEVSET.NAME_SAVE` | Guardar el nombre (el nombre NO se registra) |
+| `UI.DEVSET.HELD` | Abrir «Borrados retenidos» (fila 807) |
+| `UI.DEVSET.HELD_APPLY` | «Aplicar» los borrados retenidos: se quitan también aquí |
+| `UI.DEVSET.HELD_DISCARD` | «Descartar» los borrados retenidos: se conservan y vuelven a los otros aparatos |
+| `UI.DEVSET.HELD_REVIEW` | «Revisar» en el aviso de borrados retenidos |
 
 ## Escuchar juntos
 
@@ -454,3 +458,10 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 | `UI.YTMSYNC.IMPORT_SUBSCRIBE` | Suscribirse también en YouTube |
 | `UI.YTMSYNC.IMPORT_LOCAL_ONLY` | Solo en la app |
 | `UI.YTMSYNC.IMPORT_ASK_AGAIN` | Volver a preguntar |
+
+## Reproductor ▸ aviso «Sin conexión» (fila 795)
+
+| Código | Acción |
+|---|---|
+| `UI.PLR.OFFLINE_NOTICE` | Tocar el aviso «Sin conexión · sonando tu música sin conexión» (abre la explicación) |
+| `UI.PLR.OFFLINE_GO_ONLINE` | «Volver online» en esa explicación (apaga el modo sin conexión manual) |

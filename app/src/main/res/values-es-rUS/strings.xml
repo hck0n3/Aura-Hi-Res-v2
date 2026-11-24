@@ -301,4 +301,6 @@
     <string name="account_push_gave_up">No se pudo enviar un cambio a YouTube Music tras varios intentos.</string>
     <string name="added_to_playlist_toast">Añadido a «%s»</string>
     <string name="queue_closed_undo">Cola cerrada</string>
+    <string name="soft_dislike_undo_artist">Se recomendará menos a %1$s</string>
+    <string name="soft_dislike_undo_generic">Se mostrará menos de esto</string>
 </resources>

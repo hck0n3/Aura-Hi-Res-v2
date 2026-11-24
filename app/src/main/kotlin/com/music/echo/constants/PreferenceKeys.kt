@@ -377,6 +377,9 @@ val GridItemsSizeKey = stringPreferencesKey("gridItemSize")
 val SliderStyleKey = stringPreferencesKey("sliderStyle")
 val SquigglySliderKey = booleanPreferencesKey("squigglySlider")
 val GlobalHapticsKey = booleanPreferencesKey("globalHaptics")
+// Registry row 806 (owner decision H2): the ~100 ms tick while dragging. A NEW key, default OFF: GlobalHapticsKey keeps
+// the tap haptics and its stored value; nobody had a saved scroll choice to override.
+val ScrollHapticsKey = booleanPreferencesKey("scrollHaptics")
 val SwipeToSongKey = booleanPreferencesKey("SwipeToSong")
 val SwipeToRemoveSongKey = booleanPreferencesKey("SwipeToRemoveSong")
 val UseNewPlayerDesignKey= booleanPreferencesKey("useNewPlayerDesign")
@@ -1342,6 +1345,9 @@ val GlueCompressorEnabledKey = booleanPreferencesKey("mastering_glue_compressor_
 
 /** The ONE default of [GlueCompressorEnabledKey]. */
 const val GlueCompressorDefault = false
+
+/** Row 799 (owner decision H16, 2026-11-24) — one-shot: [GlueCompressorEnabledKey] written OFF once, even if saved ON. */
+val GlueCompressorOff20261124AppliedKey = booleanPreferencesKey("glue_compressor_off_20261124_applied")
 
 /** Mastering: TPDF dither + noise shaping on the 16-bit output. Default ON (inaudible, cleaner quiet passages). */
 val OutputDitherEnabledKey = booleanPreferencesKey("mastering_output_dither_enabled")

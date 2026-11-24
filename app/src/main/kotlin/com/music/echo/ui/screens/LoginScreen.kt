@@ -192,6 +192,9 @@ internal fun completeLogin(
                     prefs[AccountEmailKey] = info.email.orEmpty()
                     prefs[AccountChannelHandleKey] = info.channelHandle.orEmpty()
                 }
+                // Row 808 (H13): the import lists switch to this account now, before any writer (a Follow tap, the sync screen) edits
+                // them as if they were still the previous account's.
+                iad1tya.echo.music.utils.ImportFollowsAccounts.adopt(context)
                 syncUtils.syncLibraryAfterLogin()
 
                 Timber.d("Login: Successfully logged in as ${info.name}")

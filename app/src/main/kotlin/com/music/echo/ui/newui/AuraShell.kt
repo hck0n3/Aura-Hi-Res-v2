@@ -967,6 +967,8 @@ fun AuraMiniPlayer(
     val canSkipPrevious by playerConnection.canSkipPrevious.collectAsState()
     val currentSongForLike by playerConnection.currentSong.collectAsState(initial = null)
     val songLiked = currentSongForLike?.song?.liked == true
+    // Row 795: «SIN CONEXIÓN» in the artist line while the player goes on with offline music only (from the service's flow).
+    val offlineNotice by playerConnection.service.offlinePlaybackNotice.collectAsState()
     // Wide windows (new UI): the pill carries Spotify's «me gusta» and «salida de audio», and when it is narrow it
     // drops anterior/siguiente (still in the player and on the swipe) to leave the title room.
     val widePillMode = LocalAuraWidePlayerMode.current
@@ -1259,11 +1261,14 @@ fun AuraMiniPlayer(
                 // Row 348 (C2 audit, UI_INVENTORY §2.12): the classic mini player marks explicit songs; the
                 // Aura pill did not. Same "E" badge the Aura song rows use.
                 val explicit = mediaMetadata?.explicit == true
-                if (artists.isNotBlank() || explicit) {
+                // Row 795: only while THIS device plays; casting or controlling another device (row 537), it says nothing.
+                val offlineBadge = offlineNotice.visible && !isCasting
+                if (artists.isNotBlank() || explicit || offlineBadge) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
+                        AuraMiniOfflineBadge(visible = offlineBadge)
                         if (explicit) {
                             AuraTechnicalText(
                                 text = "E",

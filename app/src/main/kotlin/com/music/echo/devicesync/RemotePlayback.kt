@@ -29,7 +29,7 @@ object RemotePlayback {
 
     /**
      * How long the remote stays shown while the link to the room is down. Covers the client's first reconnect (a 4 s backoff plus the
-     * handshake; on coming back to the app there is no backoff). Chosen for this fix, not measured (to be confirmed by the owner).
+     * handshake; on coming back to the app there is no backoff). Chosen for this fix, not measured; confirmed by the owner 2026-11-24 (H24).
      */
     const val LINK_DROP_HOLD_MS = 10_000L
 
@@ -140,6 +140,47 @@ object RemotePlayback {
         playing.value = true
         DeviceSyncHub.controller?.control(t.deviceId, "playitem", trackId = trackId)
         return true
+    }
+
+    /**
+     * Pure (row 809): the songs of one «Reproducir a continuación» / «Añadir a la cola» sent to the controlled device, in chunks of at
+     * most [size], in their own order. The receiver puts them back together ([QueueOrderAssembler]) and applies the order whole.
+     */
+    fun <T> queueChunks(items: List<T>, size: Int): List<List<T>> = items.chunked(size)
+
+    /**
+     * Pure (row 809): the receiver's side of [queueChunks]. Chunks applied one by one broke the order: on an empty or IDLE player the
+     * first chunk to arrive built a new queue and started on it. [offer] returns the whole order once chunk [index] of [count] is the
+     * last one, null before; a chunk out of turn (another order, a gap) drops what was gathered, so a broken order is never applied.
+     */
+    class QueueOrderAssembler<T> {
+        private var order: String? = null
+        private var expected = 0
+        private val gathered = mutableListOf<T>()
+
+        fun offer(order: String, index: Int, count: Int, items: List<T>): List<T>? {
+            if (count <= 1) {
+                reset()
+                return items
+            }
+            if (index == 0) {
+                reset()
+                this.order = order
+            } else if (order != this.order || index != expected) {
+                reset()
+                return null
+            }
+            gathered += items
+            expected = index + 1
+            if (expected < count) return null
+            return gathered.toList().also { reset() }
+        }
+
+        private fun reset() {
+            order = null
+            expected = 0
+            gathered.clear()
+        }
     }
 
     private fun sendForCurrentSong(command: String): Boolean {
@@ -351,7 +392,7 @@ object RemotePlayback {
 
     /**
      * How long an in-app request to play still explains the start that follows it: a list or a search result can take a few seconds
-     * to load before the player starts. Chosen for this fix, not measured (to be confirmed by the owner).
+     * to load before the player starts. Chosen for this fix, not measured; confirmed by the owner 2026-11-24 (H24).
      */
     const val USER_START_WINDOW_MS = 30_000L
 

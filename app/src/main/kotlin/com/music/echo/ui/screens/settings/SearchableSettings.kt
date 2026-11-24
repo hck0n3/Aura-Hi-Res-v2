@@ -150,6 +150,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple("Panel del reproductor a la izquierda", "Rendimiento", "settings/performance"),
             // --- Apariencia (settings/appearance) : 99 ---
             Triple(stringResource(R.string.global_haptics), "Apariencia", "settings/appearance"),
+            Triple(stringResource(R.string.scroll_haptics), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.lyrics_text_position), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.left), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.center), "Apariencia", "settings/appearance"),
@@ -317,6 +318,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.lyrics_romanization), "Contenido", "settings/content"),
             Triple(stringResource(R.string.randomize_home_order), "Contenido", "settings/content"),
             Triple(stringResource(R.string.randomize_home_order_desc), "Contenido", "settings/content"),
+            // Registry 811 (owner H6a): the «Ocultos» row of Inicio y descubrimiento.
+            Triple(stringResource(R.string.hidden_items_title), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.hidden_items_desc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.misc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_title), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_summary), "Contenido", "settings/content"),
@@ -382,6 +386,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // --- Reproductor (settings/player) : 51 ---
             Triple("Ahorro de datos", "Reproductor", "settings/player"),
             Triple("Modo ahorro de datos", "Reproductor", "settings/player"),
+            // Registry 811 (owner H6b): streaming quality per network, in the same «Ahorro de datos» group.
+            Triple(stringResource(R.string.stream_quality_wifi), "Reproductor", "settings/player"),
+            Triple(stringResource(R.string.stream_quality_mobile), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.audio_quality), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.download_quality_title), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.crossfade_beta_title), "Reproductor", "settings/player"),
@@ -537,6 +544,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.logs_delete_all), "Registros", "settings/logs"),
             // --- Beta 9 completeness pass: every visible row of these screens is searchable ---
             Triple(stringResource(R.string.global_haptics_desc), "Apariencia", "settings/appearance"),
+            Triple(stringResource(R.string.scroll_haptics_desc), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.apple_music_inspired), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.hide_player_volume), "Apariencia", "settings/appearance"),
             Triple(stringResource(R.string.hide_player_volume_desc), "Apariencia", "settings/appearance"),
@@ -595,6 +603,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.device_sync_battery_desc), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_paired_title), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_lib_title), "Sincronizar dispositivos", "settings/device_sync"),
+            Triple(stringResource(R.string.device_sync_held_title), "Sincronizar dispositivos", "settings/device_sync/held"),
             Triple(stringResource(R.string.device_sync_code_create), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_code_enter), "Sincronizar dispositivos", "settings/device_sync"),
             Triple(stringResource(R.string.device_sync_code_remove), "Sincronizar dispositivos", "settings/device_sync"),

@@ -23,7 +23,6 @@ import iad1tya.echo.music.constants.ArtistSongSortTypeKey
 import iad1tya.echo.music.constants.ArtistSortDescendingKey
 import iad1tya.echo.music.constants.ArtistSortType
 import iad1tya.echo.music.constants.ArtistSortTypeKey
-import iad1tya.echo.music.constants.ExportedSongIdsKey
 import iad1tya.echo.music.constants.HideExplicitKey
 import iad1tya.echo.music.constants.HideVideoSongsKey
 import iad1tya.echo.music.constants.HideYoutubeShortsKey
@@ -47,6 +46,7 @@ import iad1tya.echo.music.extensions.reversed
 import iad1tya.echo.music.extensions.toEnum
 import iad1tya.echo.music.playback.DownloadUtil
 import iad1tya.echo.music.utils.SyncUtils
+import iad1tya.echo.music.utils.exportedSongIdsOnDeviceIn
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.likedFirst
 import iad1tya.echo.music.utils.reportException
@@ -61,6 +61,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -121,20 +122,22 @@ constructor(
     downloadUtil: DownloadUtil,
     private val syncUtils: SyncUtils,
 ) : ViewModel() {
+    // Row 801: one existence check for every sort and filter change (rule 7).
+    private val exportedIdsOnDevice = exportedSongIdsOnDeviceIn(viewModelScope, context)
+
     val allSongs =
         context.dataStore.data
             .map {
-                Triple(
+                Pair(
                     Triple(
                         it[SongFilterKey].toEnum(SongFilter.LIKED),
                         it[SongSortTypeKey].toEnum(SongSortType.CREATE_DATE),
                         (it[SongSortDescendingKey] ?: true),
                     ),
-                    it[ExportedSongIdsKey] ?: "",
                     Pair(it[HideExplicitKey] ?: false, it[HideVideoSongsKey] ?: false)
                 )
             }.distinctUntilChanged()
-            .flatMapLatest { (filterSort, exportedSongIds, hideConfig) ->
+            .flatMapLatest { (filterSort, hideConfig) ->
                 val (filter, sortType, descending) = filterSort
                 val (hideExplicit, hideVideoSongs) = hideConfig
                 (when (filter) {
@@ -142,8 +145,10 @@ constructor(
                     SongFilter.LIKED -> database.likedSongs(sortType, descending).map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
                     SongFilter.DOWNLOADED -> database.downloadedSongs(sortType, descending).map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
                     SongFilter.UPLOADED -> database.uploadedSongs(sortType, descending).map { it.filterExplicit(hideExplicit).filterVideoSongs(hideVideoSongs) }
-                    SongFilter.EXPORTED -> {
-                        val ids = exportedSongIds.split(",").filter { it.isNotBlank() }
+                    // Row 801 (H30): only exports whose file is still on the phone.
+                    SongFilter.EXPORTED -> exportedIdsOnDevice.flatMapLatest { ids ->
+                        // Until the first check answers: an empty list, not the previous filter's songs.
+                        if (ids == null) return@flatMapLatest flowOf(emptyList())
                         // `WHERE id IN (...)` comes back unordered, so the sort selector is applied here.
                         database.getSongsByIdsFlowChunked(ids).map {
                             it.filterExplicit(hideExplicit)

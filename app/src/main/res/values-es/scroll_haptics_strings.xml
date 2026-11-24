@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="scroll_haptics">Vibrar al desplazarte</string>
+    <string name="scroll_haptics_desc">Un toque suave cada 100 ms mientras arrastras una lista. Apagado por defecto; necesita «Vibración» activada</string>
+</resources>

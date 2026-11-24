@@ -175,6 +175,7 @@ class AxionEqViewModel @Inject constructor(
      */
     fun reEnableAutoEq() {
         if (_autoEqBands.value.isEmpty()) return
+        rememberPreampBeforeAutoEq()
         // The bands come back with the headroom AutoEq computed for them, not on top of whatever preamp was
         // set while the stage was OFF. Bands stored before autoeq_preamp existed keep the current preamp.
         if (prefs.contains("autoeq_preamp")) {
@@ -191,16 +192,35 @@ class AxionEqViewModel @Inject constructor(
      * profile back. Wired to the Auto-EQ screen's switch. Does NOT touch master [enabled] or the manual EQ.
      */
     fun disableAutoEq() {
+        restorePreampBeforeAutoEq()
         setAutoEqActive(false)
         if (_enabled.value) applyToService()
     }
 
     /** Remove the Auto-EQ correction stage entirely (manual EQ is untouched). Wired to "Quitar Auto-EQ". */
     fun clearAutoEq() {
+        restorePreampBeforeAutoEq()
         _autoEqBands.value = emptyList()
         persistAutoEqBands()
         setAutoEqActive(false)
         if (_enabled.value) applyToService()
+    }
+
+    /**
+     * Row 802 (owner 2026-11-24): the user's own preamp, saved when Auto-EQ goes from OFF to ON, so switching it OFF
+     * or removing it gives that level back instead of leaving the profile's headroom (−6.1 dB for an HD 650) and the
+     * music quieter. Changing profile while ON keeps the first saved value.
+     */
+    private fun rememberPreampBeforeAutoEq() {
+        if (!_autoEqActive.value) prefs.edit().putFloat("autoeq_preamp_before", _preamp.value).apply()
+    }
+
+    /** Puts back, once, the preamp [rememberPreampBeforeAutoEq] saved. Call while the stage is still ON. */
+    private fun restorePreampBeforeAutoEq() {
+        if (!_autoEqActive.value || !prefs.contains("autoeq_preamp_before")) return
+        _preamp.value = prefs.getFloat("autoeq_preamp_before", _preamp.value)
+            .coerceIn(EqConstants.PREAMP_MIN, EqConstants.PREAMP_MAX)
+        prefs.edit().putFloat("preampDb", _preamp.value).remove("autoeq_preamp_before").apply()
     }
 
     // Band gains in dB (new "band24_" keys; legacy 10-band "band_" keys are intentionally ignored).
@@ -485,6 +505,7 @@ class AxionEqViewModel @Inject constructor(
         val arr = FloatArray(n) { i ->
             gains.getOrElse(i) { 0f }.coerceIn(EqConstants.GAIN_MIN, EqConstants.GAIN_MAX)
         }
+        if (isAutoEq) rememberPreampBeforeAutoEq()
         _preamp.value = preampDb.coerceIn(EqConstants.PREAMP_MIN, EqConstants.PREAMP_MAX)
         _enabled.value = true
         if (isAutoEq) {

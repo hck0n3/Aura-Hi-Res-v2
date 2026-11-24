@@ -287,7 +287,12 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 Timber.tag(TAG).i("DEVICE_SYNC shuffle pulled contexts=%d", contexts)
             }
             "cmd" -> runCommand(msg.str("from").orEmpty(), msg.str("cmd").orEmpty(), msg["args"] as? JsonObject ?: JsonObject(emptyMap()))
-            "cmd_fail" -> DeviceSyncHub.notice("Ese dispositivo no está conectado ahora.")
+            "cmd_fail" -> {
+                // Row 809: the room already said the device is not there; the queue order's own fallback notice would say it twice.
+                // A long order is one `cmd` per chunk and the room refuses each: one notice per order, while its watch still waits.
+                if (msg.str("cmd") == CMD_QUEUE) { val watch = queueAckWatch; if (watch?.isActive != true) return; watch.cancel() }
+                DeviceSyncHub.notice("Ese dispositivo no está conectado ahora.")
+            }
             "library" -> {
                 // Row 536: with the library synced through the room there is nothing to ask YouTube for.
                 if (libraryEnabled) return
@@ -517,11 +522,25 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     // ── commands ───────────────────────────────────────────────────────────────────────────────────
 
     private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {
+        // Row 809: the controlled device confirms a queue order. It is an answer, not an order to this device: nothing below applies.
+        if (cmd == CMD_QUEUE_OK) {
+            val watch = queueAckWatch
+            // An answer after the «not sent» notice already showed: a «done» toast now would contradict it.
+            val late = watch != null && watch.isCompleted && !watch.isCancelled
+            watch?.cancel()
+            Timber.tag(TAG).i("DEVICE_SYNC queue order confirmed items=%d late=%b", args.int("n") ?: 0, late)
+            // The menu and the row swipe withhold their own confirmation (row 733) while another device is controlled: it comes now, once that device did it.
+            if (!late) {
+                val label = if ((args["next"] as? JsonPrimitive)?.booleanOrNull == true) iad1tya.echo.music.R.string.play_next else iad1tya.echo.music.R.string.add_to_queue
+                onMain { android.widget.Toast.makeText(appContext, label, android.widget.Toast.LENGTH_SHORT).show() }
+            }
+            return
+        }
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)
         lastOrderHereAt = System.currentTimeMillis()
         // The other device is addressing THIS one as the player: what it orders may start playback here.
         RemotePlayback.grantLocalStart()
-        if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like" || cmd == "playitem" || cmd == "volume" || cmd == "shuffle") {
+        if (cmd == "play" || cmd == "pause" || cmd == "next" || cmd == "prev" || cmd == "seek" || cmd == "dislike" || cmd == "like" || cmd == "playitem" || cmd == "volume" || cmd == "shuffle" || cmd == CMD_QUEUE) {
             // The device that sent the order is showing OUR timeline: tell it the new state as soon as the player has settled,
             // not at the next heartbeat (row 534).
             scope.launch {
@@ -577,6 +596,36 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 onMain {
                     if (service.player.currentMediaItem?.mediaId == id) service.toggleLike()
                     else Timber.tag(TAG).i("DEVICE_SYNC command like ignored: the song is no longer the current one")
+                }
+            }
+            // Row 809 (owner 2026-11-24, H24): «Reproducir a continuación» / «Añadir a la cola» tapped on the device that controls this one.
+            CMD_QUEUE -> {
+                val chunk = (args["items"] as? JsonArray).orEmpty().mapNotNull { e ->
+                    val i = e as? JsonObject ?: return@mapNotNull null
+                    val id = i.str("id")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    MediaMetadata(
+                        id = id,
+                        title = i.str("t").orEmpty(),
+                        artists = listOf(MediaMetadata.Artist(id = null, name = i.str("a").orEmpty())),
+                        duration = 0,
+                        thumbnailUrl = i.str("c")?.ifBlank { null },
+                    ).toMediaItem()
+                }
+                // A long order comes in chunks: it is applied whole, in its own order, once its last chunk is here.
+                val items = queueOrders.offer("$from/${args.str("q").orEmpty()}", args.int("i") ?: 0, args.int("of") ?: 1, chunk)
+                val guest = runCatching { service.listenTogetherManager.let { it.isInRoom && !it.isHost } }.getOrDefault(false)
+                // This device shows yet another one, or a Listen Together room owns its queue: not done, and not confirmed, so the
+                // controller tells its user instead.
+                if (items == null) {
+                    Timber.tag(TAG).i("DEVICE_SYNC command queue chunk %d of %d", (args.int("i") ?: 0) + 1, args.int("of") ?: 1)
+                } else if (items.isEmpty() || RemotePlayback.active || guest) {
+                    Timber.tag(TAG).i("DEVICE_SYNC command queue ignored items=%d remote=%b guest=%b", items.size, RemotePlayback.active, guest)
+                } else {
+                    val next = (args["next"] as? JsonPrimitive)?.booleanOrNull == true
+                    onMain { if (next) service.playNext(items) else service.addToQueue(items) }
+                    client.send(buildJsonObject {
+                        put("t", "cmd"); put("to", from); put("cmd", CMD_QUEUE_OK); put("args", buildJsonObject { put("n", items.size); put("next", next) })
+                    })
                 }
             }
             "handoff" -> if (handoffEnabled) {
@@ -758,6 +807,57 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         return sent
     }
 
+    @Volatile private var queueAckWatch: Job? = null
+
+    /** Row 809: the chunks of a queue order received here (touched only by the one collector of [client] messages). */
+    private val queueOrders = RemotePlayback.QueueOrderAssembler<MediaItem>()
+    private val queueSendLock = Any()
+
+    /**
+     * Row 809 (owner 2026-11-24, H24): «Reproducir a continuación» ([insertNext]) / «Añadir a la cola» while another device is controlled
+     * from here: the songs go to THAT device as a `queue` order (ids plus what it needs to show them). The Worker forwards any `cmd` kind as
+     * it is, so it needs no change. A device that does it answers `queue_ok`; an older app ignores an order it does not know (its
+     * `runCommand` has no branch for it), so without that answer within [RemotePlayback.ANSWER_WAIT_MS] the user gets the notice of
+     * before. False when nothing is controlled (the caller then edits its own queue as always).
+     */
+    fun queueOnRemote(items: List<MediaItem>, insertNext: Boolean): Boolean {
+        val target = RemotePlayback.target.value ?: return false
+        val sendable = items.filter { it.mediaId.isNotBlank() }
+        if (sendable.isEmpty()) return false
+        // The same size as the window a `take` carries, so one order stays far under the room's message limit.
+        val chunks = RemotePlayback.queueChunks(sendable, WINDOW_BEHIND + WINDOW_AHEAD + 1)
+        // Which order a chunk belongs to: the receiver applies an order only once all its chunks are there, in turn.
+        val order = System.currentTimeMillis().toString()
+        // One order at a time on the wire: two taps in a row on the IO pool would interleave their chunks and the receiver drop both.
+        scope.launch { synchronized(queueSendLock) {
+            // Armed before the first send, so an answer that comes back very fast still finds it to cancel.
+            queueAckWatch?.cancel()
+            val watch = scope.launch {
+                delay(RemotePlayback.ANSWER_WAIT_MS)
+                Timber.tag(TAG).i("DEVICE_SYNC queue order not confirmed: the controlled device does not know it")
+                DeviceSyncHub.notice(appContext.getString(iad1tya.echo.music.R.string.device_sync_queue_edit_not_sent, target.deviceName.ifBlank { "—" }))
+            }
+            queueAckWatch = watch
+            for ((index, chunk) in chunks.withIndex()) {
+                val sent = client.send(buildJsonObject {
+                    put("t", "cmd"); put("to", target.deviceId); put("cmd", CMD_QUEUE)
+                    put("args", buildJsonObject {
+                        put("items", buildJsonArray { chunk.forEach { add(nowItem(it)) } })
+                        put("next", insertNext)
+                        put("q", order); put("i", index); put("of", chunks.size)
+                    })
+                })
+                if (!sent) {
+                    watch.cancel()
+                    DeviceSyncHub.notice("Sin conexión con la sincronización.")
+                    return@launch
+                }
+            }
+            Timber.tag(TAG).i("DEVICE_SYNC queue order sent items=%d next=%b", sendable.size, insertNext)
+        } }
+        return true
+    }
+
     override fun sendTo(deviceId: String) {
         scope.launch {
             val state = buildNow()
@@ -777,6 +877,13 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     override fun syncLibraryNow() {
         library?.resync()
+    }
+
+    override fun resolveHeldRemovals(apply: Boolean) {
+        val lib = library ?: return
+        scope.launch {
+            runCatching { lib.resolveHeld(apply) }.onFailure { Timber.tag(TAG).w("LIB_SYNC held removals not resolved: %s", it.javaClass.simpleName) }
+        }
     }
 
     override fun libraryChanged(what: String) {
@@ -1016,5 +1123,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         const val WINDOW_AHEAD = 60
         const val PUSH_BATCH = 2_000
         const val CHUNK_IDS = 1_000
+        /** Row 809: a queue edit sent to the controlled device, and its answer (an older app ignores both). */
+        const val CMD_QUEUE = "queue"
+        const val CMD_QUEUE_OK = "queue_ok"
     }
 }

@@ -1802,6 +1802,7 @@ interface DatabaseDao {
         SELECT * FROM artist
         WHERE unfollowedByUserAt IS NOT NULL AND followedByUserAt IS NULL AND ytmSyncedAt IS NOT NULL
           AND isLocal = 0
+          AND (unfollowConfirmedAt IS NULL OR unfollowConfirmedAt < unfollowedByUserAt)
         LIMIT :limit
         """
     )
@@ -1848,6 +1849,7 @@ interface DatabaseDao {
         SELECT COUNT(*) FROM artist
         WHERE unfollowedByUserAt IS NOT NULL AND followedByUserAt IS NULL AND ytmSyncedAt IS NOT NULL
           AND isLocal = 0
+          AND (unfollowConfirmedAt IS NULL OR unfollowConfirmedAt < unfollowedByUserAt)
         """
     )
     suspend fun countPendingUnsubscribes(): Int
@@ -1866,10 +1868,13 @@ interface DatabaseDao {
      * Clear upstream subscription state once the LIVE call in [ArtistEntity.toggleLike] has carried out
      * the unsubscribe on YouTube. Keeps `unfollowedByUserAt` intact: it is the RETRY for an unsubscribe
      * that may not have landed, and registry #150(d) is the standing warning against clearing it here.
+     * Row 798: and stamps it as CONFIRMED (`unfollowConfirmedAt`), so the read-back never re-arms it into an
+     * unsubscribe of a subscription the user makes again on YouTube ([ArtistSyncPolicy.afterConfirmedUnsubscribe]).
+     * The upload pass confirms through this same function, keyed on the marker its call delivered.
      */
     @Query(
         """
-        UPDATE artist SET ytmSyncedAt = NULL
+        UPDATE artist SET ytmSyncedAt = NULL, unfollowConfirmedAt = unfollowedByUserAt
         WHERE id = :artistId
           AND followedByUserAt IS NULL
           AND unfollowedByUserAt IS NOT NULL
@@ -1901,11 +1906,21 @@ interface DatabaseDao {
      *    the marker, and must not block the alias forever): the account still listing the channel is that
      *    unfollow not having landed yet, and following the other spelling would resurrect «Suscrito» over it.
      *    `ArtistSyncPolicy.afterRemoteSubscriptionSeen(…, aliasPendingUnfollow)` is the mirror.
+     *  - Row 798: a CONFIRMED unfollow (`unfollowConfirmedAt >= unfollowedByUserAt`) is never re-armed: `ytmSyncedAt`
+     *    is not stamped on it, so the upload pass can never unsubscribe a channel the user re-subscribed to on
+     *    YouTube. Newer than [holdSince] (`ArtistSyncPolicy.confirmedUnfollowHoldSince`, 30 days) the row stays as
+     *    it is; older, the listing is his own re-subscription and is read back as a follow.
      */
     @Query(
         """
         UPDATE artist SET
             followedByUserAt = CASE
+                WHEN unfollowConfirmedAt IS NOT NULL AND unfollowedByUserAt IS NOT NULL
+                  AND unfollowConfirmedAt >= unfollowedByUserAt AND unfollowedByUserAt >= :holdSince
+                  THEN followedByUserAt
+                WHEN unfollowConfirmedAt IS NOT NULL AND unfollowedByUserAt IS NOT NULL
+                  AND unfollowConfirmedAt >= unfollowedByUserAt
+                  THEN COALESCE(followedByUserAt, :now)
                 WHEN unfollowedByUserAt IS NOT NULL THEN followedByUserAt
                 WHEN followedByUserAt IS NULL AND EXISTS (
                     SELECT 1 FROM artist AS spelling
@@ -1918,11 +1933,28 @@ interface DatabaseDao {
                 ) THEN NULL
                 ELSE COALESCE(followedByUserAt, :now)
             END,
-            ytmSyncedAt = :now
+            ytmSyncedAt = CASE
+                WHEN unfollowConfirmedAt IS NOT NULL AND unfollowedByUserAt IS NOT NULL
+                  AND unfollowConfirmedAt >= unfollowedByUserAt AND unfollowedByUserAt >= :holdSince
+                  THEN ytmSyncedAt
+                ELSE :now
+            END,
+            unfollowedByUserAt = CASE
+                WHEN unfollowConfirmedAt IS NOT NULL AND unfollowedByUserAt IS NOT NULL
+                  AND unfollowConfirmedAt >= unfollowedByUserAt AND unfollowedByUserAt < :holdSince
+                  THEN NULL
+                ELSE unfollowedByUserAt
+            END,
+            unfollowConfirmedAt = CASE
+                WHEN unfollowConfirmedAt IS NOT NULL AND unfollowedByUserAt IS NOT NULL
+                  AND unfollowConfirmedAt >= unfollowedByUserAt AND unfollowedByUserAt < :holdSince
+                  THEN NULL
+                ELSE unfollowConfirmedAt
+            END
         WHERE id IN (:ids)
         """
     )
-    suspend fun markArtistsSubscribedOnYtm(ids: List<String>, now: java.time.LocalDateTime)
+    suspend fun markArtistsSubscribedOnYtm(ids: List<String>, now: java.time.LocalDateTime, holdSince: java.time.LocalDateTime)
 
     /**
      * Row 716: the artist down-sync's metadata refresh, written column by column against the CURRENT row. It used

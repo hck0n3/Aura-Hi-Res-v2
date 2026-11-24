@@ -812,6 +812,8 @@ class MusicService :
     // ResolvingDataSource loader thread know "is this the current track?" WITHOUT a runBlocking hop to Main
     // (which could deadlock/stall stream resolution when Main is busy).
     @Volatile internal var currentPlayingMediaId: String? = null
+    // Registry 811: the songs the loader already opened in their current play (NetworkStreamQuality.OpenedThisPlay).
+    internal val streamTierOpens = NetworkStreamQuality.OpenedThisPlay()
     // Live EQ processor of the audible player. The loader thread primes Safe Volume here before
     // open() returns, so the first sample is already at the locked level.
     @Volatile internal var currentEqProcessor: CustomEqualizerAudioProcessor? = null
@@ -1087,6 +1089,9 @@ class MusicService :
     // The queue being restored at boot, until the player-STATE restore has applied its saved index and
     // shuffle to it (see the wait in onCreate). Main-thread only.
     private var pendingRestoreQueue: iad1tya.echo.music.playback.queues.Queue? = null
+    // Registry 810 (owner H4): true once the boot-time player-STATE restore (saved index, position, shuffle) has run, or
+    // was not needed. «Seguir escuchando» waits for it so its play lands on the real song, not the queue file's index.
+    val playerStateRestoreDone = MutableStateFlow(false)
     internal var contextSeedHistoryPool: List<iad1tya.echo.music.models.MediaMetadata>? = null
 
     // Row 344 — the language of the collection in [radioSeedPool] (TitleLanguage over its titles), computed once
@@ -1461,6 +1466,9 @@ class MusicService :
         val expiresAt: Long,
         val delivered: iad1tya.echo.music.constants.AudioQuality? = null,
         val requested: iad1tya.echo.music.constants.AudioQuality? = null,
+        // Registry 811 (owner H6b): the per-network tier this URL was resolved at (PlaybackData.networkSaver).
+        // null = written without one; NetworkStreamQuality.reusable then keeps the old behaviour (always reusable).
+        val networkSaver: Boolean? = null,
     )
 
     internal val songUrlCache = java.util.concurrent.ConcurrentHashMap<String, CachedStream>()
@@ -2674,6 +2682,15 @@ class MusicService :
         scope.launch {
             PlaybackOfflineSession.userRetries.collect { onOfflineSessionExited("user_retry") }
         }
+        // Row 795: the players' «Sin conexión» sign follows the session, its parked queue and the manual switch as they change.
+        scope.launch {
+            combine(
+                PlaybackOfflineSession.active,
+                offlineQueueParkedState,
+                dataStore.data.map { it[OfflineModeKey] ?: false }.distinctUntilChanged(),
+            ) { session, parked, manual -> OfflinePlaybackNotice.of(sessionActive = session, queueParked = parked, manual = manual) }
+                .collect { _offlinePlaybackNotice.value = it }
+        }
 
         
         var isFirstQualityEmit = true
@@ -3281,6 +3298,7 @@ class MusicService :
         scope.launch(Dispatchers.IO) { runCatching { iad1tya.echo.music.listentogether.RoomDurationRepair.runOnce(this@MusicService, database) } }
         // Registry 764: not persistentQueueHint — its collector has not emitted yet here, and a default of true would
         // restore a queue the user turned off. The snapshot is exact (blocking read only before its first emission).
+        var playerStateRestoreLaunched = false
         if (dataStore.getNonBlocking(PersistentQueueKey, true)) {
             val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
             if (queueFile.exists()) {
@@ -3354,6 +3372,7 @@ class MusicService :
                     }
                 }.onSuccess { playerState ->
                     
+                    playerStateRestoreLaunched = true
                     scope.launch {
                         delay(1000) 
                         // WAIT FOR THE RESTORED QUEUE TO LAND (owner 2026-10-04: "puse mis Me gusta — más de
@@ -3451,7 +3470,7 @@ class MusicService :
                                 suppressShuffleActivationReset = false
                             }
                         }
-                    }
+                    }.invokeOnCompletion { playerStateRestoreDone.value = true }
                 }.onFailure { error ->
                     Timber.tag(TAG).w(error, "Failed to read player state, clearing data")
                     // C3 — only the unreadable player-state file. The queue file is fine (it was read above)
@@ -3461,6 +3480,7 @@ class MusicService :
                 }
             }
         }
+        if (!playerStateRestoreLaunched) playerStateRestoreDone.value = true
 
         
         // #55 (battery/heat): this tick is deliberately NOT gated on isPlaying — a queue edited while paused
@@ -4002,6 +4022,13 @@ class MusicService :
     private var offlineSessionNoticeShown = false
     private var offlineStallJob: Job? = null
 
+    private val _offlinePlaybackNotice = MutableStateFlow(OfflinePlaybackNotice.NONE)
+    /** Row 795: the players' «Sin conexión» sign — the same three states as [offlineQueueModeNow]. Fed by events, never polled. */
+    val offlinePlaybackNotice: kotlinx.coroutines.flow.StateFlow<OfflinePlaybackNotice> get() = _offlinePlaybackNotice
+
+    /** Row 795: [offlineQueueParkedNow] for the sign, refreshed where the flag is written and when the queue changes. */
+    private val offlineQueueParkedState = MutableStateFlow(false)
+
     /** The same "que se ponga solo" switch as the UI's automatic offline mode (AutoOfflineModeKey, ON by default). */
     private fun offlineSessionAllowed(): Boolean =
         dataStore.get(iad1tya.echo.music.constants.AutoOfflineModeKey, true)
@@ -4081,6 +4108,10 @@ class MusicService :
     /** Row 717 (C4): the session timed out on this same queue and the offline queue goes on until a real return. */
     internal fun offlineQueueParkedNow(): Boolean = offlineQueueParked && offlineQueueSwap?.generation == queueGeneration
 
+    private fun publishOfflineQueueParked() {
+        offlineQueueParkedState.value = offlineQueueParkedNow()
+    }
+
     /** The queue goes on with offline music only: the session, its parked queue, or the manual switch (row 717). */
     private fun offlineQueueModeNow(): Boolean =
         PlaybackOfflineSession.isActive || offlineQueueParkedNow() || dataStore.get(OfflineModeKey, false)
@@ -4088,6 +4119,7 @@ class MusicService :
     private fun dropOfflineQueueSwap() {
         offlineQueueSwap = null
         offlineQueueParked = false
+        publishOfflineQueueParked()
         offlineProbeJob?.cancel()
     }
 
@@ -4238,6 +4270,7 @@ class MusicService :
             if (offlineQueueSwapIntact(parked)) {
                 parked.parked = false
                 offlineQueueParked = false
+                publishOfflineQueueParked()
                 Timber.tag(TAG).i("OFFLINE_QUEUE switch reused: the session came back on the same queue")
                 return true
             }
@@ -4413,6 +4446,7 @@ class MusicService :
         }
         swap.parked = true
         offlineQueueParked = true
+        publishOfflineQueueParked()
         Timber.tag(TAG).i("OFFLINE_QUEUE parked: no proof the network works")
         probeNetworkForParkedQueue(swap)
         return true
@@ -5191,7 +5225,10 @@ class MusicService :
                 )
                 // Only when OUR filters are the reason, and never on a restore (that runs with no one
                 // looking at the screen): a toast then explains an app that otherwise looks broken.
-                if (!isRestore && fetchedCount > 0) {
+                // Row 805: with a screen showing, the notice carries «Ver filtros» instead.
+                if (!isRestore && fetchedCount > 0 &&
+                    !ActionNotices.post(ActionNotices.Kind.QUEUE_EMPTY_AFTER_FILTERS)
+                ) {
                     runCatching {
                         Toast.makeText(
                             this@MusicService,
@@ -6312,8 +6349,9 @@ class MusicService :
     /**
      * Review C2: while another device is controlled from here the local player only holds its mirror (IDLE). «Reproducir a
      * continuación» took the empty-player branch on it (new queue + prepare + play), was paused by the remote-mode guard, reached no
-     * device and was lost at the next mirror update; «Añadir a la cola» prepared the mirror. The other device has no command to
-     * queue a song, so the edit is refused with a notice and the mirror is left untouched. True when refused.
+     * device and was lost at the next mirror update; «Añadir a la cola» prepared the mirror. Row 809: a tapped edit now goes to the
+     * other device first (`DeviceSyncEngine.queueOnRemote`); what is still refused here (automatic fills, the automix pool, no sync
+     * engine) is refused with a notice and the mirror is left untouched. True when refused.
      */
     internal fun refuseQueueEditInRemoteMode(notify: Boolean = true): Boolean {
         val target = iad1tya.echo.music.devicesync.RemotePlayback.target.value ?: return false
@@ -6327,6 +6365,8 @@ class MusicService :
     }
 
     fun playNext(items: List<MediaItem>) {
+        // Row 809 (H24): while another device is controlled from here, THAT device queues the songs.
+        if (deviceSync?.queueOnRemote(items, insertNext = true) == true) return
         if (refuseQueueEditInRemoteMode()) return
         if (player.mediaItemCount == 0 || player.playbackState == STATE_IDLE) {
             // Con el reproductor vacío esto NO es un "poner a continuación": construye una cola nueva
@@ -6431,6 +6471,8 @@ class MusicService :
     }
 
     fun addToQueue(items: List<MediaItem>) {
+        // Row 809 (H24): while another device is controlled from here, THAT device queues the songs.
+        if (deviceSync?.queueOnRemote(items, insertNext = false) == true) return
         if (refuseQueueEditInRemoteMode()) return
         if (dataStore.get(PreventDuplicateTracksInQueueKey, true)) {
             val itemIds = items.map { it.mediaId }.toSet()
@@ -7065,6 +7107,8 @@ class MusicService :
     }
 
     override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+        // Row 795: a new queue (new generation) is no longer the parked one; the sign follows.
+        publishOfflineQueueParked()
         // Self-inflicted shuffle-order re-applies change NOTHING the queue file stores (timeline order)
         // and must not schedule the next re-apply — see [applyingShuffleOrder].
         if (!applyingShuffleOrder) {
@@ -7159,6 +7203,7 @@ class MusicService :
         val previousMediaId = currentPlayingMediaId
         currentPlayingMediaId = mediaItem?.mediaId
         val trackChanged = previousMediaId != mediaItem?.mediaId
+        if (trackChanged) streamTierOpens.trackChanged(mediaItem?.mediaId)
         // A stale offline refusal earns one re-prepare per item: a new item starts with its own.
         if (trackChanged) staleRejectionRetryId = null
         // Review C4 (rule 7): a song change of an unprepared device-sync mirror is another device's, nothing was heard here. None of
@@ -9109,7 +9154,9 @@ class MusicService :
         // (Not for a video item: a burst of non-catalog videos looks like a dead session to the tracker — the log of
         // 2026-10-19 — and «sign in again» would be a false alarm; those fall back to video mode instead.)
         if (player.currentMetadata?.isVideoSong != true &&
-            iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint()
+            iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint() &&
+            // Row 805: with a screen showing, the notice carries «Volver a entrar» instead.
+            !ActionNotices.post(ActionNotices.Kind.SESSION_EXPIRED)
         ) {
             runCatching {
                 Toast.makeText(
@@ -12050,8 +12097,8 @@ class MusicService :
         const val MAX_CONSECUTIVE_ERR = 5
         const val MAX_RETRY_COUNT = 10
         // Auto-resume after a network dead-end only if reconnection happens within this window, so a
-        // reconnection hours later re-buffers but never surprise-plays.
-        private const val STALE_RESUME_WINDOW_MS = 30 * 60 * 1000L
+        // reconnection later re-buffers but never surprise-plays. Row 800 (owner decision H12, 2026-11-24): 5 min (was 30).
+        private const val STALE_RESUME_WINDOW_MS = 5 * 60 * 1000L
         // One-shot delay before the dead-end safety re-check (covers a stable network that never re-emits).
         private const val DEAD_END_RECHECK_MS = 45_000L
         // How early (ms before the fade) to build + buffer the incoming player so the crossfade has no gap.
@@ -12177,6 +12224,8 @@ class MusicService :
                 configuredLimit = dataStore.get(iad1tya.echo.music.constants.PreloadNextSongLimitKey, 2),
             )
             val preloadLyrics = dataStore.get(iad1tya.echo.music.constants.PreloadLyricsEnabledKey, true)
+            // Registry 811: read the network once per preload pass, and only if an entry's tier has to be checked.
+            val preloadSaverNow by lazy(LazyThreadSafetyMode.NONE) { NetworkStreamQuality.saverForCurrentNetwork(connectivityManager) }
             // Only the next N upcoming tracks per the slider (the current track is resolved on play by the
             // ResolvingDataSource). The plan drops fully-DOWNLOADED songs (they play straight from the
             // download cache — re-resolving could poison songUrlCache with a wrong-container URL) and never
@@ -12196,7 +12245,13 @@ class MusicService :
                 // serves entries with expiresAt in the future. containsKey (the old check) let an
                 // EXPIRED entry suppress the preload while playback still had to re-resolve, so
                 // the transition paid the full resolve stall (~2-3s of silence).
-                hasCachedUrl = { songUrlCache[it]?.let { entry -> entry.expiresAt > System.currentTimeMillis() } == true },
+                // Registry 811 (owner H6b): a URL resolved at the other network's tier is no reason to skip the preload.
+                hasCachedUrl = {
+                    songUrlCache[it]?.let { entry ->
+                        entry.expiresAt > System.currentTimeMillis() &&
+                            NetworkStreamQuality.reusable(entry.networkSaver, it == currentPlayingMediaId) { preloadSaverNow }
+                    } == true
+                },
             )
             for (plan in planned) {
                 val mediaId = plan.mediaId
@@ -12216,7 +12271,9 @@ class MusicService :
                             context = this@MusicService,
                             knownArtist = knownArtist,
                             knownTitle = dbSong?.song?.title,
-                            knownDurationMs = dbSong?.song?.duration?.let { if (it > 0) it * 1000L else null }
+                            knownDurationMs = dbSong?.song?.duration?.let { if (it > 0) it * 1000L else null },
+                            // Registry 811 (owner H6b): a preloaded URL is the one that will play, so it obeys the network choice too.
+                            networkAwareQuality = true,
                         )
 
                         playbackData.getOrNull()?.let { data ->
@@ -12232,6 +12289,7 @@ class MusicService :
                                 expiresAt = System.currentTimeMillis() + (data.streamExpiresInSeconds * 1000L),
                                 delivered = preQuality,
                                 requested = resolveQuality,
+                                networkSaver = data.networkSaver,
                             )
                             Timber.tag(TAG).d("Preloaded stream for $mediaId")
 

@@ -221,6 +221,7 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 68 | `settings/changelog` | `ChangelogScreen` | `:545` | sí |
 | 69 | `settings/commits` | `CommitScreen` | `:548` | ⚠️ **NO — ruta muerta** |
 | 70 | `ambient_mode` | `AmbientModeScreen` | `:553` | sí (menú de la cola) |
+| 71 | `settings/content/hidden` | `HiddenItemsScreen` («Ocultos», fila 811) | `:439` | sí (Ajustes > Contenido > Inicio y descubrimiento) |
 
 ## 1.5 Barra superior del esqueleto
 
@@ -528,6 +529,8 @@ La barra tiene **cuatro implementaciones distintas** según el ajuste de estilo.
 | **«Reproducción fallida»** + mensaje + código + **«Reintentar»** | Reproductor > sobre la portada | `app/.../ui/player/Thumbnail.kt:457` → `ui/player/PlaybackError.kt:121` | acción primaria | rara | solo si `playerConnection.error != null` |
 | Mensaje en lenguaje llano según la clase de fallo (P22A, fila 732): «Sin conexión…», «El modo sin conexión está activado…», «La conexión falló…», edad (cuenta / sin cuenta), «Tu sesión de YouTube caducó…», «YouTube no ofrece esta canción en tu país o para tu cuenta…» (+ el motivo de YouTube debajo), «YouTube rechazó esta canción…», «Aura no pudo cargar esta canción» (+ motivo), «No se pudo reproducir esta canción…» | Reproductor > tarjeta de error | `ui/player/PlaybackErrorAdvice.kt` (`kindOf`) → `ui/player/PlaybackError.kt` (`playbackErrorMessageRes`) | informativo | rara | según `PlaybackErrorClassifier`; la línea «Code: …» y el `ERR_BR` del registro no cambian |
 | **«Ver música sin conexión»** (abre Descargadas) / **«Iniciar sesión»** (abre Ajustes ▸ Cuentas) + «Reintentar» debajo como botón secundario | Reproductor > tarjeta de error | `ui/player/PlaybackError.kt` (botón principal + `TextButton`) ← `Thumbnail.kt` `onPlaybackErrorNavigate` ← `ui/newui/AuraPlayer.kt` (`navigateOnce` + `collapseAfterNavigate`) | navegación | rara | «Ver música sin conexión»: sin internet o modo sin conexión; «Iniciar sesión»: sesión rechazada o edad sin cuenta. En los demás casos el botón principal sigue siendo «Reintentar» |
+| Aviso **«Tu sesión de YouTube caducó…»** + botón **«Volver a entrar»** (abre Ajustes ▸ Cuentas) — fila 805, decisión H8; antes era un toast sin botón | Barra de avisos de la app (snackbar del `Scaffold` de `MainActivity`, el mismo de «Cola cerrada · Deshacer») | `playback/ActionNotices.kt` ← `MusicService.kt` (`onPlayerError`) → `MainActivity.kt` (colector de `ActionNotices.events`) | acción primaria | rara | tras una racha de canciones rechazadas por sesión caducada; **con la app en segundo plano, el reproductor expandido u otro aviso ya en pantalla sigue siendo el toast de siempre** (sin botón; en el reproductor la tarjeta de error ya trae «Iniciar sesión») |
+| Aviso **«No hay nada que reproducir: tus filtros de contenido…»** + botón **«Ver filtros»** (abre Ajustes ▸ Contenido, donde está «Ocultar vídeos») — fila 805, decisión H8; antes era un toast sin botón | Barra de avisos de la app (mismo snackbar) | `playback/ActionNotices.kt` ← `MusicService.kt` (`playQueue`) → `MainActivity.kt` | acción primaria | rara | cuando los filtros quitaron todas las canciones de la cola pedida (nunca al restaurar); igual: toast de siempre en segundo plano, con el reproductor expandido o con otro aviso ya en pantalla. El ahorro de datos, que también oculta vídeos, vive en Ajustes ▸ Reproductor |
 | Overlay **«−N segundos hacia atrás» / «+N segundos hacia adelante»** | Reproductor > centro de la portada | `app/.../ui/player/Thumbnail.kt:580` (impl. `:1036`) | informativo | ocasional | 1 s tras un doble toque lateral |
 
 ## 2.7 Reproductor > vídeo inmersivo (retrato)
@@ -1055,7 +1058,7 @@ Artista, Lista online, Explorar, y desde un **enlace compartido** (`MainActivity
 | Sugerir alojar | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:352` | acción primaria | rara | solo como invitado en una sala |
 | Reproducir a continuación | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:376-377` | acción primaria | diaria | solo si no eres invitado |
 | Añadir a la cola | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:392-393` | acción primaria | diaria | solo si no eres invitado |
-| **«Menos de esto»** *(hardcoded)* — «Se recomendará menos parecido a esto» | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:410-411` | conmutador (feedback) | ocasional | siempre; toast «Se mostrará menos de esto» `:424` |
+| **«Menos de esto»** *(hardcoded)* — «Se recomendará menos parecido a esto» | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:410-411` | conmutador (feedback) | ocasional | siempre; **fila 803:** en vez del toast, aviso «Se recomendará menos a X · Deshacer» (6 s, desde `MainActivity`; sin artista: «Se mostrará menos de esto»; sin «Deshacer» si la canción y el artista ya estaban marcados) que quita solo lo que marcó ese toque; con el reproductor abierto, o si ya hay en pantalla un aviso con acción («¿Continuar la cola anterior?», «Cola cerrada · Deshacer»), sale como toast sin «Deshacer» y no aparta ese aviso |
 | Eliminar del historial | Canción online > grupo 2 | `ui/menu/YouTubeSongMenu.kt:442` | destructiva | rara | solo si el ítem trae token de historial |
 | Fijar / Quitar de marcación rápida | Canción online > grupo 2 | `ui/menu/YouTubeSongMenu.kt:464` | conmutador | ocasional | siempre |
 | Añadir / Quitar de la biblioteca | Canción online > grupo 2 | `ui/menu/YouTubeSongMenu.kt:488-490` | conmutador | diaria | siempre |
@@ -1289,7 +1292,8 @@ la app entera de golpe.
 | Toque en la portada de la fila (`onThumbnailClick`) | «Añadir música» | `ui/component/Items.kt:487` / `:1133` | acción secundaria | ocasional | **solo lo usa la hoja «Añadir música»**, donde alterna la previsualización |
 | **Deslizar fila a la derecha → «Reproducir a continuación»** *(+ toast)* | Todas las listas de canciones | `ui/component/Items.kt:1732-1736` | acción primaria | ocasional | **solo si «Deslizar canción» está ON (OFF por defecto)** |
 | **Deslizar fila a la izquierda → «Añadir a la cola»** *(+ toast)* | Todas las listas de canciones | `ui/component/Items.kt:1738-1742` | acción primaria | ocasional | igual |
-| (Interfaz nueva) Los mismos dos deslizamientos en las filas Aura (`AuraSwipeSongBox`): derecha = «Reproducir a continuación», izquierda = «Añadir a la cola» — umbral **100 dp** desde la fila 773 (antes 300 px: la distancia cambiaba con la densidad de la pantalla) | Listas de canciones de la interfaz nueva | `ui/newui/AuraContent.kt` (`AuraSwipeSongBox`) | acción primaria | ocasional | igual («Deslizar canción», OFF por defecto) |
+| (Interfaz nueva) Los mismos dos deslizamientos en las filas Aura (`AuraSwipeSongBox`): derecha = «Reproducir a continuación», izquierda = «Añadir a la cola» — mientras se desliza, una píldora centrada sobre la fila dice la acción con **icono y texto** («Reproducir a continuación» / «Añadir a la cola», fila 806, decisión H1) — umbral **100 dp** desde la fila 773 (antes 300 px: la distancia cambiaba con la densidad de la pantalla) | Listas de canciones de la interfaz nueva | `ui/newui/AuraContent.kt` (`AuraSwipeSongBox`) | acción primaria | ocasional | igual («Deslizar canción», OFF por defecto) |
+| (Interfaz nueva) Deslizar fila en listas de biblioteca (`AuraLibrarySwipeActionsBox`): derecha = **«Me gusta» / «Quitar me gusta»** según la canción, izquierda = **«Añadir a lista de reproducción»** — mientras se desliza, la misma píldora con **icono y texto** de la acción (fila 806, decisión H1; antes solo icono); vibra al cruzar cada umbral (200 px) | Álbum, Lista online, Lista local, Artista ▸ canciones, colecciones (`AuraCollectionScreens`) | `ui/newui/AuraContent.kt` (`AuraLibrarySwipeActionsBox`, `AuraSwipeActionLabel`) | acción primaria | ocasional | siempre que la pantalla lo active |
 | Botón ▶ sobre la portada del álbum | Rejilla de álbumes | `ui/component/Items.kt:807-819` (def. `:1679-1706`) | acción primaria | diaria | solo si el álbum no está sonando |
 | Botón ▶ sobre la portada del álbum online | Rejilla online | `ui/component/Items.kt:1243-1261` | acción primaria | diaria | solo si es álbum y no está sonando |
 | Botón ▶ **decorativo** (sin acción) | Tarjetas de canción y de miniatura local | `ui/component/Items.kt:584`, `:1238`, `:1485-1508`, `:1510-1533` | informativo | constante | ⚠️ no es pulsable; el toque lo captura la tarjeta |
@@ -1611,6 +1615,7 @@ Sustituye el cuerpo entero del Inicio cuando el modo sin conexión está activo.
 | **Ajustes** → `settings/integrations/listen_together` | Juntos > tarjeta de ajustes | `ui/screens/ListenTogetherScreen.kt:422-426`, `:1369-1379` | navegación | ocasional | siempre |
 | **«How it Works»** + 3 pasos *(hardcoded, en inglés)* | Juntos > ayuda | `ui/screens/ListenTogetherScreen.kt:444-464` | informativo | rara | solo fuera de sala |
 | Diálogo **Administrar usuario**: **Expulsar** / **Bloquear permanentemente** / **Transferir propiedad** / **Cancelar** | Juntos > diálogo | `ui/screens/ListenTogetherScreen.kt:1399-1523` | destructiva | ocasional | ⚠️ **las tres acciones destructivas se ejecutan a un solo toque, sin confirmación** |
+| Diálogo **«¿Unirte a la sala X?»** + **Unirme** / **Cancelar** (fila 804, decisión H9) — al abrir un enlace de invitación (`echomusic://listen?code=…` o el enlace https de la sala) ya no entra solo: pregunta antes. El enlace solo lleva el código, así que el diálogo no puede nombrar al anfitrión. Atrás o tocar fuera = Cancelar | Cualquier pantalla > diálogo | `MainActivity.kt` (`pendingListenInvite`, diálogo junto a `OpenLinksDefaultPrompt`) | acción primaria | rara | solo al abrir un enlace de invitación |
 
 ## 14.2 Chat de la sala — **RETIRADO (`CommentTogether.kt` borrado; la ruta `listen_together/chat` ya no existe)**
 
@@ -1721,7 +1726,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | "Toggle sort order" (hardcoded, sin traducir) — invertir asc/desc | Biblioteca > cabecera | app/src/main/kotlin/com/music/echo/ui/component/SortHeader.kt:85-119 | conmutador | ocasional | siempre |
 | Canciones que me gustan → `auto_playlist/liked` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:333-339 (lista) / :655-661 (cuadrícula) | navegación | diaria | solo si `ShowLikedPlaylistKey` ON |
 | Descargado → `auto_playlist/downloaded` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:342-348 / :664-670 | navegación | diaria | solo si `ShowDownloadedPlaylistKey` ON |
-| Exportado → `auto_playlist/exported` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:351-357 / :673-679 | navegación | ocasional | solo si `ShowExportedPlaylistKey` ON |
+| Exportado → `auto_playlist/exported` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:351-357 / :673-679 | navegación | ocasional | solo si `ShowExportedPlaylistKey` ON · **fila 801:** lista solo los MP3 exportados cuyo archivo sigue en el teléfono (mismo filtro que Descargadas) |
 | En caché → `cache_playlist/cached` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:360-366 / :682-688 | navegación | ocasional | solo si `ShowCachedPlaylistKey` ON |
 | Subidas → `auto_playlist/uploaded` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:369-375 / :691-697 | navegación | rara | solo si `ShowUploadedPlaylistKey` ON |
 | Mi Top {N} → `top_playlist/{N}` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:378-384 / :700-706 | navegación | ocasional | solo si `ShowTopPlaylistKey` ON |
@@ -1749,7 +1754,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Biblioteca (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:210 | conmutador | diaria | siempre |
 | Subido (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:211 | conmutador | ocasional | siempre |
 | Descargado (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:212 | conmutador | diaria | siempre |
-| Exportado (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:213 | conmutador | ocasional | siempre |
+| Exportado (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:213 | conmutador | ocasional | siempre · **fila 801:** solo los MP3 exportados cuyo archivo sigue en el teléfono; mientras se comprueban, la lista sale vacía (no la del filtro anterior) |
 | Buscar en la biblioteca… (campo) | Canciones > búsqueda | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:225-244 (placeholder :239) | acción primaria | diaria | siempre |
 | (borrar búsqueda) (solo icono, cD = null) | Canciones > búsqueda | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:234-236 | acción secundaria | diaria | solo si `searchQuery.isNotEmpty()` |
 | (botón de orden) | Canciones > cabecera de lista | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:253-266 | acción secundaria | ocasional | siempre |
@@ -2477,7 +2482,8 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/AppearanceSetti
 |---|---|---|---|---|---|
 | Tema — desc. «Personaliza el tema de la app» | Ajustes > Apariencia | AppearanceSettings.kt:996 | navegación | ocasional | siempre |
 | Habilitar alta frecuencia de actualización — desc. «Forzar a la pantalla a funcionar a la frecuencia de actualización más alta permitida (p. ej., 120Hz)» | Ajustes > Apariencia | AppearanceSettings.kt:1004 | conmutador | rara | siempre |
-| Respuesta háptica — desc. «Vibra al tocar y al desplazarte por toda la app» | Ajustes > Apariencia | AppearanceSettings.kt:1027 | conmutador | rara | siempre |
+| Respuesta háptica — desc. «Vibra al tocar en toda la app» (antes «…y al desplazarte»: desde la fila 806 el desplazamiento tiene su propio interruptor) | Ajustes > Apariencia | AppearanceSettings.kt (`GlobalHapticsKey`) | conmutador | rara | siempre |
+| **Vibrar al desplazarte** — desc. «Un toque suave cada 100 ms mientras arrastras una lista. Apagado por defecto; necesita «Vibración» activada» (fila 806, decisión H2) | Ajustes > Apariencia (justo debajo de «Vibración») | AppearanceSettings.kt (`ScrollHapticsKey`) | conmutador | rara | siempre visible; **atenuado y sin efecto con «Vibración» apagada**; APAGADO por defecto |
 | Habilitar tema dinámico | Ajustes > Apariencia | AppearanceSettings.kt:1053 | conmutador | ocasional | solo si `!isUsingCustomColor` (sin color personalizado elegido) |
 
 ### Grupo «Minirreproductor»
@@ -2635,6 +2641,8 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/PlayerSettings.
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Modo ahorro de datos (hardcoded) — desc. «Fuerza el audio en Opus y desactiva letras automáticas, videos, precarga, canvas y scrobbling para gastar el mínimo de datos» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:415 | conmutador | ocasional | siempre |
+| **Calidad con Wi-Fi** — desc. la calidad elegida: «Alta (la mejor disponible)» o «Ahorro (gasta menos datos)»; con el modo ahorro de datos activado, «Ahorro: lo fija el modo ahorro de datos» (fila 811). Vale para toda red que no sea de datos móviles | Ajustes > Reproductor | PlayerSettings.kt:472 (diálogo 391) | navegación (EnumDialog de 2 opciones) | rara | siempre |
+| **Calidad con datos móviles** — desc. igual que la fila anterior (fila 811) | Ajustes > Reproductor | PlayerSettings.kt:478 (diálogo 391) | navegación (EnumDialog de 2 opciones) | rara | siempre |
 
 ### Grupo «Reproductor»
 
@@ -2645,7 +2653,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/PlayerSettings.
 | ~~Calidad de descarga~~ — **ya no está en la pantalla**: sin selector; `DownloadQualityKey` se fuerza a `YOUTUBE` al abrirla. Su entrada del buscador sigue apuntando aquí (`SearchableSettings.kt:379`) | Ajustes > Reproductor | PlayerSettings.kt:92-105 | — | — | — |
 | Transición suave — desc. «Transición suave entre canciones» (con insignia) | Ajustes > Reproductor | PlayerSettings.kt:462 | conmutador | ocasional | siempre; al activar muestra el diálogo «Función beta» (`PlayerSettings.kt:384`) |
 | Duración de la transición suave (slider en línea, 1–15 s) | Ajustes > Reproductor | PlayerSettings.kt:497 (slider 503) | acción secundaria (slider) | ocasional | solo si `crossfadeEnabled` |
-| Estilo de transición (hardcoded) — desc. muestra la curva activa | Ajustes > Reproductor | PlayerSettings.kt:512 (diálogo 359) | navegación (EnumDialog de 9 curvas) | ocasional | solo si `crossfadeEnabled` |
+| Estilo de transición (hardcoded) — desc. muestra la curva activa. La curva 4 (la de por defecto) se llama **«Cruce natural (una baja mientras la otra sube)»** desde la fila 812 (antes «Ascenso (entra rápido, sale lento)»); el valor guardado sigue siendo 4 | Ajustes > Reproductor | PlayerSettings.kt:561 (diálogo 377) | navegación (EnumDialog de 9 curvas) | ocasional | solo si `crossfadeEnabled` |
 | Desactivar para álbumes sin pausas — desc. «No hacer transición suave si el álbum es sin pausas» | Ajustes > Reproductor | PlayerSettings.kt:518 | conmutador | rara | solo si `crossfadeEnabled` |
 | Entrada suave al cambiar de canción (hardcoded) — desc. «Al saltar o elegir otra canción a mano, la nueva entra enseguida con un fundido muy corto (estilo AIMP) en vez de golpe» (hardcoded) | Ajustes > Reproductor | PlayerSettings.kt:543 | conmutador | ocasional | siempre |
 | Duración del historial (slider en línea, 5–120 s) | Ajustes > Reproductor | PlayerSettings.kt:556 (slider 565) | acción secundaria (slider) | rara | siempre |
@@ -2726,7 +2734,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqS
 | Atrás (barra superior «Ecualizador») | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:128 | navegación | constante | siempre |
 | Ecualizador (activar/desactivar) — desc. «Activa o desactiva el procesamiento de audio profesional» | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:299 | conmutador | ocasional | siempre |
 | «Auto-EQ activo — tu EQ se suma encima» (chip informativo) (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:346 | informativo | ocasional | solo si hay un perfil Auto-EQ aplicado |
-| Quitar Auto-EQ (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:349 | destructiva | rara | solo si hay un perfil Auto-EQ aplicado |
+| Quitar Auto-EQ (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:349 | destructiva | rara | solo si hay un perfil Auto-EQ aplicado · **fila 802:** devuelve el preamp que había antes de activar Auto-EQ |
 | Guardar (preajuste) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:392 | acción primaria | ocasional | siempre |
 | Exportar perfiles (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:424 | acción secundaria | rara | siempre (abre SAF `aura-eq-perfiles.json`) |
 | Importar (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:429 | acción secundaria | rara | siempre (abre SAF `application/json`) |
@@ -2755,7 +2763,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/autoeq/AutoEqS
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Auto-EQ activado (tarjeta de estado, hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:171 | informativo | ocasional | solo si hay un perfil aplicado |
+| Auto-EQ activado (tarjeta de estado, hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:171 | informativo | ocasional | solo si hay un perfil aplicado · **fila 802:** al apagarlo vuelve el preamp que había antes de activar Auto-EQ; al encenderlo, el del perfil |
 | «Para corrección pura, elige el preset Bypass» (pista, `autoeq_bypass_hint` ES+EN, fila 792) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:208 | informativo | ocasional | siempre |
 | «Catálogo: N modelos» / «Catálogo no cargado» (hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:191 | informativo | ocasional | siempre |
 | Actualizar base de datos / «Actualizando…» (hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:196 | acción secundaria | rara | siempre |
@@ -2840,6 +2848,17 @@ Las cuatro pantallas donde viven los ajustes de letras se enlazan entre sí; **n
 | Mantener el estilo en autoplay (hardcoded) — desc. «El reproductor automático intenta seguir en la misma línea…» (hardcoded) | Ajustes > Contenido | ContentSettings.kt:1160 | conmutador | ocasional | siempre |
 | Aprender géneros con datos móviles — desc. «Usa datos móviles para aprender los géneros de tus artistas… Desactivado = solo con WiFi.» | Ajustes > Contenido | ContentSettings.kt:1181 | conmutador | rara | siempre |
 | Ordenar la pantalla de inicio al azar — desc. «Reordena al azar las secciones de inicio con prioridades ponderadas» | Ajustes > Contenido | ContentSettings.kt:1202 | conmutador | rara | siempre |
+| **Ocultos** — desc. «Lo que ocultaste con «No me gusta», «No recomendar» o «Menos de esto». Desde aquí lo deshaces» (fila 811) | Ajustes > Contenido | ContentSettings.kt:1279 | navegación → `settings/content/hidden` | rara | siempre |
+
+#### Pantalla «Ocultos» — `settings/content/hidden` (fila 811)
+
+Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/HiddenItemsScreen.kt`. Sigue en vivo el `DislikeStore`: un
+grupo por tipo (solo los que tienen algo), en este orden: «Canciones («No me gusta»)», «Artistas («No recomendar»)», «Álbumes
+(«No recomendar»)», «Listas («No recomendar»)», «Canciones («Menos de esto»)», «Artistas («Menos de esto»)». Cada fila muestra
+el nombre que tiene la base local o, si no lo tiene, el identificador con la nota «No está en tu biblioteca: se muestra su
+identificador»; a la derecha, el botón **Deshacer** (quita solo esa entrada; en una canción con «No me gusta» también quita el
+pulgar abajo de la cuenta, como el deshacer del reproductor). Sin nada oculto: «No has ocultado nada». Barra superior: título
+«Ocultos» y flecha atrás.
 
 ### Grupo «Otros»
 
@@ -3460,8 +3479,8 @@ Reparto por ruta de destino (todas existen en `NavigationBuilder.kt`, ninguna ro
 | Ruta | Entradas |
 |---|---|
 | `settings/appearance` | 100 |
-| `settings/content` | 53 |
-| `settings/player` | 49 |
+| `settings/content` | 55 |
+| `settings/player` | 51 |
 | `settings/integrations/listen_together` | 31 |
 | `settings/ai` | 30 |
 | `settings/appearance/theme` | 26 |
@@ -3771,7 +3790,7 @@ para el volumen.
 | **Flechas arriba/abajo del mando en los Términos** | Desplaza el documento 260 px sin mover el foco de los botones | `legal/TermsScreens.kt:133-146` | solo con mando |
 | **Pellizco/zoom en el WebView de inicio de sesión** | Zoom de la página de Google | `ui/screens/LoginScreen.kt:229-231` | siempre |
 | **Salir de la app con vídeo reproduciéndose** | Entra en Picture-in-Picture con 3 controles remotos | `MainActivity.kt:450-471`, `:492-513` | solo en modo vídeo reproduciendo |
-| **Háptica global al pulsar y al arrastrar** | Vibración sutil en toda la app | `MainActivity.kt:751-776` | ajuste «Háptica» ON (por defecto) |
+| **Háptica global al pulsar y al arrastrar** | Vibración sutil al tocar en toda la app; el tic al arrastrar (cada 100 ms) solo con «Vibrar al desplazarte» ON, que desde la fila 806 viene APAGADO | `MainActivity.kt` (`pointerInput(globalHaptics, scrollHaptics)`) | ajuste «Háptica» ON (por defecto); el arrastre además necesita `ScrollHapticsKey` ON |
 | **Anillo de foco del mando (TV/coche)** | Halo + anillo + escala 1,06 en el elemento enfocado | `ui/utils/TvUi.kt:142-256` | solo TV/coche o vista dividida forzada |
 
 ## 21.6 Gestos de Biblioteca, Artista, Álbum y Listas
@@ -4285,8 +4304,12 @@ producto. Si el rediseño cambia iconografía, colores o nombres, hay que decidi
 |---|---|---|
 | **Buscar** | `search_input` | `utils/LauncherShortcuts.kt` (publicado en `MainActivity.onCreate`) → `MainActivity.kt:958`, `:2963` |
 | **Biblioteca** | `library` | ídem |
+| **Seguir escuchando** | reanuda la cola guardada (espera hasta 15 s a que vuelva tras un arranque en frío; si no hay cola, no hace nada) | `utils/LauncherShortcuts.kt` `ACTION_RESUME` → `MainActivity.handleDeepLinkIntent` → `LauncherShortcuts.play` (fila 810) |
+| **Aleatorio de Me gusta** | reproduce «Me gusta» en aleatorio, las no escuchadas primero (igual que el botón aleatorio de esa lista) | `ACTION_SHUFFLE_LIKED`, ídem (fila 810) |
+| **Descargado** | `auto_playlist/downloaded` | `ACTION_DOWNLOADED`, ídem (fila 810) |
 
-Son accesos directos **dinámicos** (fila 785): aparecen tras abrir la app una vez. El antiguo `res/xml/shortcuts.xml` apuntaba
+Son accesos directos **dinámicos** (fila 785): aparecen tras abrir la app una vez. Si el lanzador admite menos de cinco,
+se publican los primeros que caben en este orden (Buscar y Biblioteca primero). El antiguo `res/xml/shortcuts.xml` apuntaba
 al paquete de la app vieja (`iad1tya.echo.music`) y no abría esta.
 
 ## 25.4 Botones de la notificación de reproducción y de Android Auto
@@ -4424,5 +4447,26 @@ Toasts y mensajes que no salen de ningún botón y que, por eso, ningún mockup 
 | Toast «Conexión recuperada: volviste a tu cola» (R.string.offline_queue_restored) | Toda la app | `playback/MusicService.kt:4331-4332` | informativo | ocasional | igual, cuando se restauró la cola de antes |
 | Toast «La cola inteligente no encontró canciones nuevas para seguir (nunca repite lo que ya escuchaste), así que la cola terminó.» (R.string.smart_queue_no_new_songs) | Toda la app | `playback/RadioContinuationEngine.kt:1310` | informativo | rara | con conexión, una vez por cola, cuando la radio no encontró nada nuevo (fila 655) |
 | Toast «Solo el anfitrión puede cambiar la cola» (R.string.listen_together_guest_queue_locked) | Toda la app, como invitado de Escuchar juntos | `playback/PlayerConnection.kt:308` | informativo | ocasional | solo como invitado, al intentar cambiar la reproducción |
-| Aviso «Aún no se puede cambiar la cola de %1$s desde aquí. Toca «Continuar aquí» para añadir canciones en este dispositivo.» (R.string.device_sync_queue_edit_not_sent) | Mientras se controla otro dispositivo | `playback/MusicService.kt:6252-6254` → `devicesync/DeviceSyncHub.kt:99` | informativo | rara | al añadir a la cola mientras se controla otro dispositivo. ⚠️ **Hoy no se ve:** `DeviceSyncHub.notices` no tiene ningún colector en la app (comprobado con grep el 2026-11-23); lo mismo vale para los demás `DeviceSyncHub.notice(…)` |
+| Aviso «Aún no se puede cambiar la cola de %1$s desde aquí. Toca «Continuar aquí» para añadir canciones en este dispositivo.» (R.string.device_sync_queue_edit_not_sent) | Mientras se controla otro dispositivo | `playback/MusicService.kt:6252-6254` → `devicesync/DeviceSyncHub.kt:99` | informativo | rara | al añadir a la cola mientras se controla otro dispositivo. Desde la fila 809 se ve como aviso en la parte de abajo (`MainActivity.kt:1418-1424`, el mismo `snackbarHostState` del aviso de «Borrados retenidos»), igual que los demás `DeviceSyncHub.notice(…)` («Ese dispositivo no está conectado ahora.», «Sin conexión con la sincronización.», «… no responde…»); hasta entonces no tenían colector y no se veían |
 | Tarjeta de error del escaneo local: «Aura no tiene permiso para leer tu música: no se ha escaneado ni quitado nada de tu biblioteca.» / «No se encontró ninguna canción en este dispositivo, así que se conservan tus %1$d canciones locales…» / «No se ha quitado nada de tu biblioteca.» (R.string.local_songs_scan_no_permission / local_songs_scan_empty_kept / local_songs_scan_nothing_removed) | Biblioteca > Local | `viewmodels/LocalSongsViewModel.kt:111-113` → `ui/screens/library/LocalSongScreen.kt:1197` | informativo | rara | solo cuando un escaneo se negó a borrar (fila 694): sin permiso, sin pistas con canciones guardadas, o cualquier otro fallo del escáner |
+
+## Anexo 2026-11-24 (fila 795): aviso «Sin conexión» en el reproductor y en el mini (no se quitó ni se ocultó nada)
+
+Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión (anexo de la fila 775) SIGUEN igual.
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Chip «SIN CONEXIÓN · SONANDO TU MÚSICA SIN CONEXIÓN» (icono de nube tachada) → abre la explicación | Reproductor Aura > cabecera, bajo «Reproduciendo desde» / «Sonando en …», tras el chip del temporizador | `ui/newui/AuraPlayer.kt:1349` → `ui/newui/AuraOfflinePlaybackNotice.kt:51` | informativo / navegación | ocasional | mientras la sesión sin conexión del reproductor está activa, **o** su cola sin conexión sigue aparcada tras caducar (fila 717), **o** el modo sin conexión manual está encendido (`MusicService.offlinePlaybackNotice`); nunca mientras se envía a Cast o se controla otro dispositivo (fila 537) |
+| Diálogo «Sonando sin conexión»: explicación + «Cerrar» | Al tocar el chip | `ui/newui/AuraOfflinePlaybackNotice.kt` (`AuraOfflinePlaybackDialog`) | informativo | rara | igual; se cierra solo si el aviso desaparece |
+| «Volver online» (apaga el modo sin conexión manual) | Diálogo «Sonando sin conexión» | `ui/newui/AuraOfflinePlaybackNotice.kt` (`AuraOfflinePlaybackDialog`) | conmutador | rara | solo con el modo manual encendido; con la sesión automática no hay botón (vuelve sola) |
+| «SIN CONEXIÓN» (icono de nube tachada) en la línea del artista | Mini reproductor Aura | `ui/newui/AuraShell.kt:1271` → `ui/newui/AuraOfflinePlaybackNotice.kt:107` | informativo | ocasional | igual que el chip; sin toque propio (tocar la píldora abre el reproductor, donde está el chip) |
+
+## Anexo 2026-11-24 (filas 807-809): decisiones H10, H13 y H24 (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Ajustes ▸ Sincronizar dispositivos: fila «Borrados retenidos» (siempre visible, también en el buscador de ajustes) | «Ninguno: no hay nada esperándote» o «N retenidos · toca para revisarlos»; abre la pantalla de abajo | 807 |
+| Pantalla «Borrados retenidos» (`settings/device_sync/held`) | Explicación, cuántos hay de cada tipo (canciones que te gustan, listas, canciones en listas, álbumes guardados, fijados, no me gusta; sin títulos) y dos botones: «Descartar» (se conservan y vuelven a los otros dispositivos) y «Aplicar» (se quitan también aquí). Sin nada retenido solo dice «Ninguno» | 807 |
+| Aviso «Otro dispositivo quitó N elementos de golpe; no los quité aquí por seguridad.» con el botón «Revisar» (toda la app) | Sale una vez por cada tanda que el freno retiene; «Revisar» abre «Borrados retenidos». Antes este aviso se emitía pero ninguna pantalla lo mostraba | 807 |
+| «Reproducir a continuación» y «Añadir a la cola» (todos los menús) mientras se controla otro dispositivo | Las canciones se ponen en la cola del OTRO dispositivo (el que suena). Cuando ese dispositivo confirma, sale el toast de siempre con el nombre de la opción («Reproducir a continuación» / «Añadir a la cola», como en la fila 733); si tiene una versión vieja de la app, no la acepta (controla a otro, o es invitado de Escuchar juntos) y no confirma en 5 s, o no hay conexión, sale el aviso «Aún no se puede cambiar la cola de %1$s desde aquí…» / «Sin conexión con la sincronización.» abajo en la pantalla. El automix y los rellenos automáticos siguen sin tocar la cola del otro | 809 |
+| Sincronizar desde YouTube Music: filas «N artistas esperan tu confirmación para suscribirse en tu cuenta» y «N artistas solo en Aura — volver a preguntar» | Ahora son de la cuenta de Google conectada: al entrar con otra cuenta se ven las suyas (una cuenta nueva ve como «esperan confirmación» todo lo que la otra tenía retenido); al volver, las de la primera. Las filas, sus textos y sus botones no cambian | 808 |
