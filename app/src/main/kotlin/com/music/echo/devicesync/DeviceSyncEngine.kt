@@ -594,7 +594,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             }
             // Row 809 (owner 2026-11-24, H24): «Reproducir a continuación» / «Añadir a la cola» tapped on the device that controls this one.
             CMD_QUEUE -> {
-                val items = (args["items"] as? JsonArray).orEmpty().mapNotNull { e ->
+                val chunk = (args["items"] as? JsonArray).orEmpty().mapNotNull { e ->
                     val i = e as? JsonObject ?: return@mapNotNull null
                     val id = i.str("id")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                     MediaMetadata(
@@ -605,10 +605,14 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                         thumbnailUrl = i.str("c")?.ifBlank { null },
                     ).toMediaItem()
                 }
+                // A long order comes in chunks: it is applied whole, in its own order, once its last chunk is here.
+                val items = queueOrders.offer("$from/${args.str("q").orEmpty()}", args.int("i") ?: 0, args.int("of") ?: 1, chunk)
                 val guest = runCatching { service.listenTogetherManager.let { it.isInRoom && !it.isHost } }.getOrDefault(false)
                 // This device shows yet another one, or a Listen Together room owns its queue: not done, and not confirmed, so the
                 // controller tells its user instead.
-                if (items.isEmpty() || RemotePlayback.active || guest) {
+                if (items == null) {
+                    Timber.tag(TAG).i("DEVICE_SYNC command queue chunk %d of %d", (args.int("i") ?: 0) + 1, args.int("of") ?: 1)
+                } else if (items.isEmpty() || RemotePlayback.active || guest) {
                     Timber.tag(TAG).i("DEVICE_SYNC command queue ignored items=%d remote=%b guest=%b", items.size, RemotePlayback.active, guest)
                 } else {
                     val next = (args["next"] as? JsonPrimitive)?.booleanOrNull == true
@@ -799,6 +803,9 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
 
     @Volatile private var queueAckWatch: Job? = null
 
+    /** Row 809: the chunks of a queue order received here (touched only by the one collector of [client] messages). */
+    private val queueOrders = RemotePlayback.QueueOrderAssembler<MediaItem>()
+
     /**
      * Row 809 (owner 2026-11-24, H24): «Reproducir a continuación» ([insertNext]) / «Añadir a la cola» while another device is controlled
      * from here: the songs go to THAT device as a `queue` order (ids plus what it needs to show them). The Worker forwards any `cmd` kind as
@@ -811,7 +818,9 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         val sendable = items.filter { it.mediaId.isNotBlank() }
         if (sendable.isEmpty()) return false
         // The same size as the window a `take` carries, so one order stays far under the room's message limit.
-        val chunks = RemotePlayback.queueChunks(sendable, insertNext, WINDOW_BEHIND + WINDOW_AHEAD + 1)
+        val chunks = RemotePlayback.queueChunks(sendable, WINDOW_BEHIND + WINDOW_AHEAD + 1)
+        // Which order a chunk belongs to: the receiver applies an order only once all its chunks are there, in turn.
+        val order = System.currentTimeMillis().toString()
         scope.launch {
             // Armed before the first send, so an answer that comes back very fast still finds it to cancel.
             queueAckWatch?.cancel()
@@ -821,12 +830,13 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                 DeviceSyncHub.notice(appContext.getString(iad1tya.echo.music.R.string.device_sync_queue_edit_not_sent, target.deviceName.ifBlank { "—" }))
             }
             queueAckWatch = watch
-            for (chunk in chunks) {
+            for ((index, chunk) in chunks.withIndex()) {
                 val sent = client.send(buildJsonObject {
                     put("t", "cmd"); put("to", target.deviceId); put("cmd", CMD_QUEUE)
                     put("args", buildJsonObject {
                         put("items", buildJsonArray { chunk.forEach { add(nowItem(it)) } })
                         put("next", insertNext)
+                        put("q", order); put("i", index); put("of", chunks.size)
                     })
                 })
                 if (!sent) {

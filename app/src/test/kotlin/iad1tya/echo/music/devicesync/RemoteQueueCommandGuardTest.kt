@@ -38,9 +38,10 @@ class RemoteQueueCommandGuardTest {
     fun `the sender arms the fallback before sending and only while another device is controlled`() {
         val send = body(engine, "fun queueOnRemote(items: List<MediaItem>, insertNext: Boolean): Boolean {")
         assertTrue(send.contains("val target = RemotePlayback.target.value ?: return false"))
-        assertTrue(send.indexOf("delay(RemotePlayback.ANSWER_WAIT_MS)") in 0 until send.indexOf("for (chunk in chunks)"))
+        assertTrue(send.indexOf("delay(RemotePlayback.ANSWER_WAIT_MS)") in 0 until send.indexOf("for ((index, chunk) in chunks.withIndex())"))
         assertTrue(send.contains("R.string.device_sync_queue_edit_not_sent"))
-        assertTrue("chunks the size of a take window", send.contains("RemotePlayback.queueChunks(sendable, insertNext, WINDOW_BEHIND + WINDOW_AHEAD + 1)"))
+        assertTrue("chunks the size of a take window", send.contains("RemotePlayback.queueChunks(sendable, WINDOW_BEHIND + WINDOW_AHEAD + 1)"))
+        assertTrue("each chunk says which order it is and where it goes", send.contains("put(\"q\", order); put(\"i\", index); put(\"of\", chunks.size)"))
         assertTrue(engine.contains("const val CMD_QUEUE = \"queue\""))
         assertTrue(engine.contains("const val CMD_QUEUE_OK = \"queue_ok\""))
         assertTrue("the room's «not connected» cancels the second notice", engine.contains("if (msg.str(\"cmd\") == CMD_QUEUE) queueAckWatch?.cancel()"))
@@ -73,6 +74,8 @@ class RemoteQueueCommandGuardTest {
         val run = body(engine, "private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {")
         val branch = run.substringAfter("CMD_QUEUE -> {")
         assertTrue(branch.contains("if (items.isEmpty() || RemotePlayback.active || guest) {"))
+        assertTrue("the order is applied whole, never chunk by chunk", branch.contains("val items = queueOrders.offer(\"\$from/\${args.str(\"q\").orEmpty()}\", args.int(\"i\") ?: 0, args.int(\"of\") ?: 1, chunk)"))
+        assertTrue(branch.contains("if (items == null) {"))
         assertTrue(branch.contains("onMain { if (next) service.playNext(items) else service.addToQueue(items) }"))
         assertTrue(branch.contains("put(\"to\", from); put(\"cmd\", CMD_QUEUE_OK)"))
     }
@@ -87,14 +90,31 @@ class RemoteQueueCommandGuardTest {
     }
 
     @Test
-    fun `play next chunks go last first so the songs keep their order there`() {
+    fun `chunks go in their own order and the receiver applies the order whole, so an idle player starts on song 1`() {
         val songs = (1..5).toList()
-        assertEquals(listOf(listOf(1, 2), listOf(3, 4), listOf(5)), RemotePlayback.queueChunks(songs, insertNext = false, size = 2))
-        val next = RemotePlayback.queueChunks(songs, insertNext = true, size = 2)
-        assertEquals(listOf(listOf(5), listOf(3, 4), listOf(1, 2)), next)
-        // Each chunk lands right after the current song: replaying that gives the original order.
-        val queue = mutableListOf(0)
-        next.forEach { queue.addAll(1, it) }
-        assertEquals(listOf(0, 1, 2, 3, 4, 5), queue)
+        val chunks = RemotePlayback.queueChunks(songs, size = 2)
+        assertEquals(listOf(listOf(1, 2), listOf(3, 4), listOf(5)), chunks)
+        val receiver = RemotePlayback.QueueOrderAssembler<Int>()
+        val applied = chunks.mapIndexed { i, c -> receiver.offer("a/1", i, chunks.size, c) }
+        assertEquals(listOf(null, null, songs), applied)
+        // An empty or IDLE player builds its new queue from what it is given: the whole order, song 1 first.
+        assertEquals(1, applied.last()!!.first())
+    }
+
+    @Test
+    fun `a single-chunk order is applied at once and a broken order is never applied`() {
+        val receiver = RemotePlayback.QueueOrderAssembler<Int>()
+        assertEquals(listOf(7), receiver.offer("a/1", 0, 1, listOf(7)))
+        // An order without q/i/of (one chunk) as well.
+        assertEquals(listOf(8), receiver.offer("a/", 0, 1, listOf(8)))
+        // A gap: chunk 2 of 3 never came.
+        assertEquals(null, receiver.offer("a/2", 0, 3, listOf(1)))
+        assertEquals(null, receiver.offer("a/2", 2, 3, listOf(3)))
+        // Another order interleaved: the first one is dropped, the new one still completes.
+        assertEquals(null, receiver.offer("a/3", 0, 2, listOf(1)))
+        assertEquals(null, receiver.offer("b/4", 1, 2, listOf(9)))
+        assertEquals(null, receiver.offer("a/3", 1, 2, listOf(2)))
+        assertEquals(null, receiver.offer("a/5", 0, 2, listOf(1)))
+        assertEquals(listOf(1, 2), receiver.offer("a/5", 1, 2, listOf(2)))
     }
 }
