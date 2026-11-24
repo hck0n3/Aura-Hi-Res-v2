@@ -70,6 +70,11 @@ import kotlinx.coroutines.launch
  */
 const val SUBSCRIPTION_PRICE = "US$3.74"
 
+/** The other billing periods of the same Gumroad product; like [SUBSCRIPTION_PRICE], they must match it. */
+const val QUARTERLY_SUBSCRIPTION_PRICE = "US$10"
+const val SEMIANNUAL_SUBSCRIPTION_PRICE = "US$15"
+const val YEARLY_SUBSCRIPTION_PRICE = "US$24"
+
 private const val GUMROAD_URL = "https://toberto.gumroad.com/l/JR-MUSIC-PRO-OFFICIAL"
 
 /** Aura premium dark: Ground with a whisper of teal at the top. */
@@ -260,9 +265,9 @@ fun ActivationPromptScreen(
     LicenseScaffold(
         subtitle = if (demoExpired) "Tu prueba terminó" else "Bienvenido",
         hint = if (demoExpired) {
-            "Tu demo de 3 días terminó. Para seguir usando Aura necesitas una suscripción mensual. El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial."
+            "Tu demo de 3 días terminó. Para seguir usando Aura necesitas una suscripción: mensual, trimestral, semestral o anual. El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial."
         } else {
-            "Prueba gratis 3 días, sin tarjeta y sin cobros automáticos. Después, para seguir usando Aura necesitas una suscripción mensual."
+            "Prueba gratis 3 días, sin tarjeta y sin cobros automáticos. Después, para seguir usando Aura necesitas una suscripción: mensual, trimestral, semestral o anual."
         },
     ) {
         PrimaryButton("Ya me suscribí", onClick = onHaveSubscription)
@@ -408,15 +413,34 @@ fun SubscriptionEntryScreen(
             activate(key)
         }
         Spacer(Modifier.height(12.dp))
+        Text(
+            text = "Mensual: $SUBSCRIPTION_PRICE al mes + impuestos\n" +
+                "Trimestral: $QUARTERLY_SUBSCRIPTION_PRICE cada 3 meses + impuestos (US$3.33 al mes)\n" +
+                "Semestral: $SEMIANNUAL_SUBSCRIPTION_PRICE cada 6 meses + impuestos (US$2.50 al mes)",
+            color = AuraPalette.OnGroundMuted,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Anual: $YEARLY_SUBSCRIPTION_PRICE al año + impuestos (US$2 al mes, casi a mitad de precio)",
+            color = AuraPalette.Teal,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
         SecondaryOutlinedButton(
-            text = "Suscribirme: $SUBSCRIPTION_PRICE al mes + impuestos",
+            text = "Suscribirme (eliges el plan al pagar)",
             height = 48.dp,
             semiBold = true,
             onClick = { openGumroad(context) },
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Se renueva sola cada mes hasta que la canceles (en Gumroad o escribiendo a aurahires@gmail.com). El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial. No hay reembolsos.",
+            text = "Se renueva sola según el plan que elijas, hasta que la canceles (en Gumroad o escribiendo a aurahires@gmail.com). El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial. No hay reembolsos.",
             color = AuraPalette.OnGroundMuted,
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
@@ -436,7 +460,7 @@ fun RenewScreen(onActivated: () -> Unit) {
 
     LicenseScaffold(
         subtitle = "Suscripción vencida",
-        hint = "Tu suscripción mensual no está activa. Renuévala para seguir usando Aura. El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial.",
+        hint = "Tu suscripción no está activa. Renuévala para seguir usando Aura. El pago no es para escuchar música: sostiene el proyecto y da acceso a la app oficial.",
     ) {
         status?.let {
             StatusCard(it, Color(0xFFFFB74D))
@@ -485,7 +509,7 @@ fun DeviceBlockedScreen(onRetry: () -> Unit, onEnterEmail: () -> Unit = {}) {
         SecondaryOutlinedButton("Reintentar", onClick = onRetry)
         Spacer(Modifier.height(12.dp))
         SecondaryOutlinedButton(
-            text = "Suscribirme ($SUBSCRIPTION_PRICE al mes, renovación automática)",
+            text = "Suscribirme (desde US$2 al mes con el plan anual, renovación automática)",
             height = 48.dp,
             semiBold = true,
             onClick = { openGumroad(context) },

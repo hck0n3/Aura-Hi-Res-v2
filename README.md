@@ -147,8 +147,8 @@ Download the latest signed APK from the **[Releases page](https://github.com/hck
 
 - **`Aura-Hi-Res-v2-<version>.apk`** — universal build (all ABIs: arm64/armeabi-v7a/x86/x86_64). One download for every device: phones, Android TV, car head units and older 32-bit boxes.
 
-**Subscription / Suscripción:** after a free 3-day demo, the official build needs a paid monthly subscription (auto-renews until cancelled). The payment is not for listening to music: it sustains the project and gives access to the official build. See the [Terms](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) and the [Privacy policy](PRIVACIDAD.md).
-*Tras una demo gratuita de 3 días, la compilación oficial requiere una suscripción mensual de pago (se renueva sola hasta que la canceles). El pago no es para escuchar música: sostiene el proyecto y da acceso a la compilación oficial. Consulta los [Términos](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) y la [Política de privacidad](PRIVACIDAD.md).*
+**Subscription / Suscripción:** after a free 3-day demo, the official build needs a paid subscription: monthly, quarterly, every 6 months or yearly, as chosen on the purchase page (auto-renews at the end of each period until cancelled). The payment is not for listening to music: it sustains the project and gives access to the official build. See the [Terms](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) and the [Privacy policy](PRIVACIDAD.md).
+*Tras una demo gratuita de 3 días, la compilación oficial requiere una suscripción de pago: mensual, trimestral, semestral o anual, según el plan elegido en la página de compra (se renueva sola al final de cada periodo hasta que la canceles). El pago no es para escuchar música: sostiene el proyecto y da acceso a la compilación oficial. Consulta los [Términos](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) y la [Política de privacidad](PRIVACIDAD.md).*
 
 The app is developed with the help of AI tools under the developer's direction. / *La app se desarrolla con ayuda de herramientas de IA bajo la dirección del desarrollador.*
 

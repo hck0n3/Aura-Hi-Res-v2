@@ -1,12 +1,12 @@
 # Términos y Condiciones de Uso — Aura Hi-Res v2
 
-**Versión de los Términos: 3** · **Fecha de entrada en vigor: 22 de noviembre de 2026**
+**Versión de los Términos: 4** · **Fecha de entrada en vigor: 24 de noviembre de 2026**
 
 **Quién presta el servicio:** el desarrollador independiente de Aura Hi-Res v2, con residencia en Honduras (el "Desarrollador"). Contacto: aurahires@gmail.com.
 
 Estos Términos y Condiciones (los "Términos") regulan el uso de la aplicación **Aura Hi-Res v2** (la "Aplicación"), un reproductor de música para Android desarrollado y mantenido por el Desarrollador, y de los servicios en línea que el Desarrollador opera para ella. La Aplicación se desarrolla con ayuda de herramientas de inteligencia artificial (cláusula 20). Lea estos Términos con atención antes de usar la Aplicación. Si no está de acuerdo con ellos, no instale ni use la Aplicación.
 
-> **Lo más importante antes de aceptar:** la Aplicación tiene una demo gratuita de 3 días. Al terminar, **para seguir usando la Aplicación oficial necesita una suscripción de pago mensual** (USD 3.74 al mes en la fecha de estos Términos, más los impuestos que correspondan), que **se renueva sola cada mes hasta que la cancele**. Puede cancelarla cuando quiera (cláusula 10.6). **El pago no es para escuchar música:** sostiene el desarrollo y los servicios del proyecto y da acceso a la compilación oficial de la Aplicación.
+> **Lo más importante antes de aceptar:** la Aplicación tiene una demo gratuita de 3 días. Al terminar, **para seguir usando la Aplicación oficial necesita una suscripción de pago periódica: mensual, trimestral, semestral o anual, según el plan elegido en la página de compra** (en la fecha de estos Términos, desde USD 2 al mes con el plan anual, más los impuestos que correspondan), que **se renueva automáticamente al final de cada período hasta que la cancele**. Puede cancelarla cuando quiera (cláusula 10.6). **El pago no es para escuchar música:** sostiene el desarrollo y los servicios del proyecto y da acceso a la compilación oficial de la Aplicación.
 
 ---
 
@@ -117,7 +117,7 @@ Estos Términos y Condiciones (los "Términos") regulan el uso de la aplicación
 
 10.4. **Demo gratuita.** La demo dura 3 días desde que el Usuario pulsa "Probar gratis" y da acceso a todas las funciones. Para iniciarla hace falta conexión a internet. **No pide tarjeta ni ningún dato de pago, no se convierte automáticamente en una suscripción de pago y no genera ningún cargo.** Hay una demo por dispositivo: el servidor de licencias guarda un registro asociado al identificador técnico del dispositivo (cláusula 11.4), de modo que borrar los datos o reinstalar la Aplicación no la reinicia.
 
-10.5. **Precio y renovación automática.** El precio vigente se muestra en la Aplicación y en la página de pago de Gumroad antes de pagar. En la fecha de estos Términos es de **USD 3.74 al mes**, más los impuestos que puedan aplicarse según su ubicación, que se calculan y se muestran en la página de pago antes de confirmar. **La suscripción es mensual y se renueva automáticamente cada mes, con un cargo al mismo método de pago, hasta que usted la cancele.** Su banco o emisor de tarjeta puede cobrarle comisiones propias, por ejemplo por cambio de divisa.
+10.5. **Precio y renovación automática.** Los precios vigentes se muestran en la Aplicación y en la página de compra de Gumroad antes de pagar; los de la página de compra son los que se aplican. En la fecha de estos Términos son: **mensual, USD 3.74 al mes; trimestral, USD 10 cada 3 meses; semestral, USD 15 cada 6 meses; anual, USD 24 al año**, en todos los casos más los impuestos que puedan aplicarse según su ubicación, que se calculan y se muestran en la página de pago antes de confirmar. **La suscripción es periódica: mensual, trimestral, semestral o anual, según el plan elegido en la página de compra; se renueva automáticamente al final de cada período, con un cargo al mismo método de pago, hasta que usted la cancele.** Su banco o emisor de tarjeta puede cobrarle comisiones propias, por ejemplo por cambio de divisa.
 
 10.6. **Cómo cancelar.** Puede cancelar en cualquier momento, sin penalización y sin dar explicaciones:
 
@@ -284,9 +284,9 @@ Este resumen es solo una ayuda de lectura. **No sustituye a las cláusulas anter
 - **No somos YouTube ni Spotify** ni tenemos relación con ellos, ni con Google, Apple, Qobuz, Saavn ni ningún sello. Las marcas son de sus dueños.
 - **La música no es nuestra ni tuya.** Pertenece a artistas, sellos y plataformas. Úsala solo para escucharla tú. No compartas ni publiques lo que descargues o exportes (MP3 o video), ni lo uses comercialmente.
 - **Tú decides y tú respondes.** Usar un cliente no oficial, que además no muestra los anuncios de la plataforma, puede ir contra los términos de YouTube u otros servicios en tu país. Esa decisión es tuya, igual que cumplir la ley donde vives.
-- **3 días gratis, luego suscripción.** La demo es completa, no pide tarjeta y no se cobra sola. Después, para seguir usando la app oficial necesitas la suscripción: USD 3.74 al mes más impuestos, que se renueva sola cada mes hasta que la canceles.
+- **3 días gratis, luego suscripción.** La demo es completa, no pide tarjeta y no se cobra sola. Después, para seguir usando la app oficial necesitas la suscripción: mensual (USD 3.74), trimestral (USD 10), semestral (USD 15) o anual (USD 24, unos USD 2 al mes), más impuestos. Se renueva sola al final de cada período hasta que la canceles.
 - **El pago no es para escuchar música.** Sostiene el desarrollo y los servicios del proyecto y te da acceso a la app oficial. No compras música, no es una donación y el código sigue siendo libre (GPL-3.0).
-- **Cancelar.** Cancela cuando quieras en Gumroad o escribiéndonos; sigues teniendo acceso hasta que termine el mes pagado. **No hay reembolsos.** Desinstalar no cancela.
+- **Cancelar.** Cancela cuando quieras en Gumroad o escribiéndonos; sigues teniendo acceso hasta que termine el período pagado. **No hay reembolsos.** Desinstalar no cancela.
 - **Licencia.** Se verifica en línea; aguanta hasta 3 días sin conexión. Un dispositivo, o hasta 3 si activas con el correo de la compra.
 - **Tus cuentas se quedan en tu teléfono.** Tus sesiones de YouTube o Spotify no salen de tu dispositivo. Lo que sí sale: las peticiones a los servicios de música, la verificación de tu licencia, los Servicios Aura (activados por defecto, se pueden apagar), la sincronización entre tus dispositivos si activas con el correo, la traducción de letras (activada por defecto) y las funciones de IA que uses. No vendemos tus datos ni mostramos anuncios.
 - **Hecha con ayuda de IA.** El desarrollador usa herramientas de IA para programar y redactar, y revisa lo que entra. Dentro de la app, las funciones de IA solo envían lo que se explica en la cláusula 20.
