@@ -1054,7 +1054,7 @@ Artista, Lista online, Explorar, y desde un **enlace compartido** (`MainActivity
 | Sugerir alojar | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:352` | acción primaria | rara | solo como invitado en una sala |
 | Reproducir a continuación | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:376-377` | acción primaria | diaria | solo si no eres invitado |
 | Añadir a la cola | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:392-393` | acción primaria | diaria | solo si no eres invitado |
-| **«Menos de esto»** *(hardcoded)* — «Se recomendará menos parecido a esto» | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:410-411` | conmutador (feedback) | ocasional | siempre; toast «Se mostrará menos de esto» `:424` |
+| **«Menos de esto»** *(hardcoded)* — «Se recomendará menos parecido a esto» | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:410-411` | conmutador (feedback) | ocasional | siempre; **fila 803:** en vez del toast, aviso «Se recomendará menos a X · Deshacer» (6 s, desde `MainActivity`; sin artista: «Se mostrará menos de esto»; sin «Deshacer» si la canción y el artista ya estaban marcados) que quita solo lo que marcó ese toque |
 | Eliminar del historial | Canción online > grupo 2 | `ui/menu/YouTubeSongMenu.kt:442` | destructiva | rara | solo si el ítem trae token de historial |
 | Fijar / Quitar de marcación rápida | Canción online > grupo 2 | `ui/menu/YouTubeSongMenu.kt:464` | conmutador | ocasional | siempre |
 | Añadir / Quitar de la biblioteca | Canción online > grupo 2 | `ui/menu/YouTubeSongMenu.kt:488-490` | conmutador | diaria | siempre |

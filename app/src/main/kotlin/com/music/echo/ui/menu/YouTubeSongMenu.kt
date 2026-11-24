@@ -429,15 +429,16 @@ fun YouTubeSongMenu(
                             // queue's 30-day skip memory: that one rejects the artist outright (row 525). One edit on the
                             // process scope: the menu's own scope dies with the sheet a moment after this click.
                             val artistKey = iad1tya.echo.music.reco.SoftDislikeRank.artistKey(primary?.id, primary?.name)
+                            // Row 803: answered by the shell's «Se recomendará menos a X · Deshacer» (this sheet closes
+                            // now), which takes back only what this tap added.
+                            val artistName = primary?.name
                             context.applicationScope.launch {
-                                iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context)
+                                val store = iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context)
+                                val before = store.snapshot()
+                                store
                                     .softDislikeSongAndArtist(song.id, artistKey)
+                                iad1tya.echo.music.dislike.SoftDislikeUndo.offer(before, song.id, artistKey, artistName)
                             }
-                            android.widget.Toast.makeText(
-                                context,
-                                "Se mostrará menos de esto",
-                                android.widget.Toast.LENGTH_SHORT,
-                            ).show()
                             onDismiss()
                         }
                     )

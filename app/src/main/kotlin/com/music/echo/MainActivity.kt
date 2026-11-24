@@ -1543,6 +1543,49 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // Row 803: «Se recomendará menos a X · Deshacer» after «Menos de esto». The song menu is a sheet that has
+                // already closed, so the shell shows it, for the same 6 s window and clearing the way like «Cola cerrada».
+                val softDislikeGenericMessage = stringResource(R.string.soft_dislike_undo_generic)
+                LaunchedEffect(Unit) {
+                    iad1tya.echo.music.dislike.SoftDislikeUndo.offer.collectLatest { offer ->
+                        if (offer == null) return@collectLatest
+                        val remaining = iad1tya.echo.music.playback.DismissedQueueUndoRule.remainingMs(
+                            android.os.SystemClock.elapsedRealtime(),
+                            offer.expiresAtElapsed,
+                        )
+                        if (remaining == 0L) {
+                            iad1tya.echo.music.dislike.SoftDislikeUndo.drop(offer.token)
+                            return@collectLatest
+                        }
+                        val message = offer.artistName?.takeIf { it.isNotBlank() }
+                            ?.let { this@MainActivity.getString(R.string.soft_dislike_undo_artist, it) }
+                            ?: softDislikeGenericMessage
+                        val result = kotlinx.coroutines.withTimeoutOrNull(remaining) {
+                            val clearWay = launch {
+                                androidx.compose.runtime.snapshotFlow { snackbarHostState.currentSnackbarData }.first { data ->
+                                    if (data != null && data.visuals.message != message) data.dismiss()
+                                    data?.visuals?.message == message
+                                }
+                            }
+                            snackbarHostState.showSnackbar(
+                                message = message,
+                                actionLabel = if (offer.canUndo) queueClosedUndoLabel else null,
+                                duration = SnackbarDuration.Indefinite,
+                            ).also { clearWay.cancel() }
+                        }
+                        if (result == SnackbarResult.ActionPerformed) {
+                            this@MainActivity.applicationScope.launch {
+                                iad1tya.echo.music.dislike.SoftDislikeUndo.undo(
+                                    iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(this@MainActivity),
+                                    offer.token,
+                                )
+                            }
+                        } else {
+                            iad1tya.echo.music.dislike.SoftDislikeUndo.drop(offer.token)
+                        }
+                    }
+                }
+
                 var showSettingDialoge by remember { mutableStateOf(false) }
                 val (offlineMode, onOfflineModeChange) = rememberPreference(OfflineModeKey, defaultValue = false)
 
