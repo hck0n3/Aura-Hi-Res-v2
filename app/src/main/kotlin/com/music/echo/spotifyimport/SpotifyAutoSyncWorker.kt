@@ -45,7 +45,8 @@ class SpotifyAutoSyncWorker(
         try {
             val ctx = applicationContext
             val csv = ctx.dataStore.get(SpotifyAutoSyncSourceIdsKey, "")
-            val ids = csv.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            // Row 830: playlists only — an old schedule naming followed artists or saved albums drops them here.
+            val ids = SpotifyExactImportPolicy.scheduledIds(csv)
             if (ids.isEmpty()) return@withContext Result.success()
 
             val ep = EntryPointAccessors.fromApplication(ctx, SpotifyAutoSyncEntryPoint::class.java)

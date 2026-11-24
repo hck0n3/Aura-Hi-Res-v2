@@ -53,7 +53,7 @@ class PhantomArtistSubscriptionGuardTest {
         assertFalse(src.contains("YouTube.subscribeChannel("))
         assertFalse(src.contains("ArtistNameMatching.isLikelyMatch("))
 
-        val follow = body(src, "private suspend fun matchAndFollowArtistDetailed(spotifyArtist: SpotifyArtist): ItemMatchOutcome {")
+        val follow = body(src, "private suspend fun matchAndFollowArtistDetailed(spotifyArtist: SpotifyArtist, handledEarlier: Boolean): ItemMatchOutcome {")
         assertTrue(follow.contains("val name = ArtistNameMatching.normalize(spotifyArtist.name)"))
         assertTrue(follow.contains("name.isNotEmpty() && name == ArtistNameMatching.normalize(it.title)"))
         assertTrue(follow.contains("if (existing?.unfollowedByUserAt != null) return ItemMatchOutcome.Success"))

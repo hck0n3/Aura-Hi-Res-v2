@@ -9,9 +9,11 @@ package iad1tya.echo.music.spotifyimport
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -22,7 +24,9 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import iad1tya.echo.music.R
 import iad1tya.echo.music.utils.ImportFailureRow
+import iad1tya.echo.music.utils.ImportFollowsAccounts
 import iad1tya.echo.music.utils.ImportFailuresCsv
+import iad1tya.echo.music.constants.AccountEmailKey
 import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
 import iad1tya.echo.music.constants.SpotifyAccessTokenExpiresAtKey
 import iad1tya.echo.music.constants.SpotifyAccessTokenKey
@@ -971,44 +975,76 @@ class SpotifyImportRepository @Inject constructor(
         val completed = AtomicInteger(0)
         val imported = AtomicInteger(0)
         val failures = java.util.Collections.synchronizedList(ArrayList<SpotifyImportFailureUi>())
-        coroutineScope {
-            val semaphore = Semaphore(MAX_CONCURRENT_MATCHES)
-            artists.map { artist ->
-                async {
-                    semaphore.withPermit {
-                        val followResult =
-                            try {
-                                matchAndFollowArtistDetailed(artist)
-                            } catch (error: CancellationException) {
-                                throw error
-                            } catch (error: Throwable) {
-                                reportException(error)
-                                ItemMatchOutcome.Failure(SpotifyImportFailureReason.SEARCH_ERROR)
+        // Row 830: an artist the user removed on YouTube comes back unfollowed in Aura (ArtistSyncPolicy.followsGoneFromAccount clears
+        // the follow without an unfollow marker), and every pass used to follow it again. Each Google account keeps the Spotify ids a
+        // pass already handled; one of those is followed again only when no row for it is stored (matchAndFollowArtistDetailed).
+        val prefs = context.dataStore.data.first()
+        val importedKey = spotifyImportedArtistIdsKey(SpotifyExactImportPolicy.accountTag(ImportFollowsAccounts.tagOf(prefs[AccountEmailKey])))
+        val alreadyImported = prefs[importedKey].orEmpty()
+        val handled = java.util.Collections.synchronizedList(ArrayList<String>())
+        timber.log.Timber.i(
+            "ARTIST_IMPORT_PASS listed=%d new=%d",
+            artists.size,
+            artists.count { SpotifyExactImportPolicy.isNewSinceLastPass(it.id, alreadyImported) },
+        )
+        try {
+            coroutineScope {
+                val semaphore = Semaphore(MAX_CONCURRENT_MATCHES)
+                artists.map { artist ->
+                    async {
+                        semaphore.withPermit {
+                            val followResult =
+                                try {
+                                    matchAndFollowArtistDetailed(
+                                        artist,
+                                        handledEarlier = !SpotifyExactImportPolicy.isNewSinceLastPass(artist.id, alreadyImported),
+                                    )
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (error: Throwable) {
+                                    reportException(error)
+                                    ItemMatchOutcome.Failure(SpotifyImportFailureReason.SEARCH_ERROR)
+                                }
+                            when (followResult) {
+                                is ItemMatchOutcome.Success -> {
+                                    imported.incrementAndGet()
+                                    handled += artist.id
+                                }
+                                is ItemMatchOutcome.Failure -> failures += SpotifyImportFailureUi(
+                                    title = artist.name,
+                                    artists = artist.name,
+                                    album = "",
+                                    spotifyId = artist.id,
+                                    reason = followResult.reason,
+                                )
                             }
-                        when (followResult) {
-                            is ItemMatchOutcome.Success -> imported.incrementAndGet()
-                            is ItemMatchOutcome.Failure -> failures += SpotifyImportFailureUi(
-                                title = artist.name,
-                                artists = artist.name,
-                                album = "",
-                                spotifyId = artist.id,
-                                reason = followResult.reason,
+                            val completedCount = completed.incrementAndGet()
+                            onProgress(
+                                SpotifyImportProgressUi(
+                                    sourceTitle = source.title,
+                                    completedSources = sourceIndex,
+                                    totalSources = sourceCount,
+                                    matchedTracks = completedCount,
+                                    totalTracks = artists.size,
+                                    percent = progressPercent(sourceIndex, sourceCount, completedCount, artists.size),
+                                ),
                             )
                         }
-                        val completedCount = completed.incrementAndGet()
-                        onProgress(
-                            SpotifyImportProgressUi(
-                                sourceTitle = source.title,
-                                completedSources = sourceIndex,
-                                totalSources = sourceCount,
-                                matchedTracks = completedCount,
-                                totalTracks = artists.size,
-                                percent = progressPercent(sourceIndex, sourceCount, completedCount, artists.size),
-                            ),
+                    }
+                }.awaitAll()
+            }
+        } finally {
+            withContext(NonCancellable) {
+                runCatching {
+                    context.dataStore.edit {
+                        it[importedKey] = SpotifyExactImportPolicy.importedAfterPass(
+                            previous = it[importedKey].orEmpty(),
+                            listedNow = artists.map { artist -> artist.id },
+                            handledNow = handled.toList(),
                         )
                     }
-                }
-            }.awaitAll()
+                }.onFailure(::reportException)
+            }
         }
 
         onProgress(
@@ -1056,12 +1092,12 @@ class SpotifyImportRepository @Inject constructor(
     }
 
     /**
-     * Searches YouTube Music for [spotifyArtist], picks the first result whose
-     * normalized name is identical, then upserts it as a followed [ArtistEntity].
+     * Searches YouTube Music for [spotifyArtist], takes the ONE channel whose
+     * normalized name is identical (none if two channels share it), then upserts it as a followed [ArtistEntity].
      * The YouTube subscribe is left to the library upload pass. Success when the
-     * artist was matched and followed locally, or the user had unfollowed it.
+     * artist was matched and followed locally, or the user had unfollowed it, or [handledEarlier] and a row for it is still stored.
      */
-    private suspend fun matchAndFollowArtistDetailed(spotifyArtist: SpotifyArtist): ItemMatchOutcome {
+    private suspend fun matchAndFollowArtistDetailed(spotifyArtist: SpotifyArtist, handledEarlier: Boolean): ItemMatchOutcome {
         val searchResult = searchWithRateLimitBackoff {
             YouTube.search(
                 query = spotifyArtist.name,
@@ -1076,12 +1112,16 @@ class SpotifyImportRepository @Inject constructor(
             }
         }
 
-        val match = searchResult.items
+        val name = ArtistNameMatching.normalize(spotifyArtist.name)
+        val exactMatches = searchResult.items
             .filterIsInstance<ArtistItem>()
-            .firstOrNull {
-                val name = ArtistNameMatching.normalize(spotifyArtist.name)
-                name.isNotEmpty() && name == ArtistNameMatching.normalize(it.title)
-            }
+            .filter { name.isNotEmpty() && name == ArtistNameMatching.normalize(it.title) }
+        // Row 830: two different channels with exactly this name are namesakes — following the first one followed a stranger.
+        // Not followed; it goes to the failures list like an artist that was not found.
+        if (SpotifyExactImportPolicy.isAmbiguousArtist(exactMatches.map { it.id })) {
+            return ItemMatchOutcome.Failure(SpotifyImportFailureReason.LOW_SCORE)
+        }
+        val match = exactMatches.firstOrNull()
             ?: return ItemMatchOutcome.Failure(SpotifyImportFailureReason.NO_CANDIDATES)
 
         // Resolve the real channel id the same way SyncUtils does: search-result
@@ -1102,6 +1142,12 @@ class SpotifyImportRepository @Inject constructor(
         val thumbnail = match.thumbnail
         val existing = database.artist(match.id).first()?.artist
         if (existing?.unfollowedByUserAt != null) return ItemMatchOutcome.Success
+        // Row 830: the user's unfollow can sit on another spelling of this channel (UC… / MPLAUC…, row 716); any of them keeps it.
+        val spellings = SpotifyExactImportPolicy.storedSpellings(match.id, channelId)
+        if (database.getArtistEntitiesByIds(spellings).any { it.unfollowedByUserAt != null }) return ItemMatchOutcome.Success
+        // Row 830: an artist an earlier pass handled is followed again only when no row for any spelling survives (a backup from
+        // before the import was restored); a stored row that is not followed is the user's removal, and it stays removed.
+        if (handledEarlier && (existing != null || database.getArtistEntitiesByIds(spellings).isNotEmpty())) return ItemMatchOutcome.Success
         // Recorded before the follow is written, so the upload pass never sees the follow without it.
         if (existing?.followedByUserAt == null) {
             context.dataStore.edit {
@@ -1257,7 +1303,7 @@ class SpotifyImportRepository @Inject constructor(
     }
 
     /**
-     * Searches YouTube Music for [spotifyAlbum] (album + artist), picks the first close title match,
+     * Searches YouTube Music for [spotifyAlbum] (album + artist), picks the first result with the same title and artist,
      * and upserts it as a bookmarked [AlbumEntity] so it appears under Favorite Albums.
      */
     private suspend fun matchAndBookmarkAlbumDetailed(spotifyAlbum: SpotifyAlbum): ItemMatchOutcome {
@@ -1282,8 +1328,13 @@ class SpotifyImportRepository @Inject constructor(
         val match = searchResult.items
             .filterIsInstance<AlbumItem>()
             .firstOrNull { item ->
-                item.title.contains(spotifyAlbum.name, ignoreCase = true) ||
-                    spotifyAlbum.name.contains(item.title, ignoreCase = true)
+                // Row 830: equal normalized title AND one of the same artists; a «contains» title alone saved other artists' albums.
+                SpotifyExactImportPolicy.isSameAlbum(
+                    spotifyTitle = spotifyAlbum.name,
+                    spotifyArtists = spotifyAlbum.artists.map { it.name },
+                    youTubeTitle = item.title,
+                    youTubeArtists = item.artists.orEmpty().map { it.name },
+                )
             } ?: return ItemMatchOutcome.Failure(SpotifyImportFailureReason.NO_CANDIDATES)
 
         val existing = database.album(match.id).first()?.album
@@ -1504,6 +1555,9 @@ private fun parseSpotifyPlaylistId(input: String): String? {
     if (s.matches(SPOTIFY_BARE_ID)) return s
     return null
 }
+
+/** Row 830: the Spotify artist ids the «Artistas que sigues» import already handled, per Google account. */
+internal fun spotifyImportedArtistIdsKey(accountTag: String) = stringSetPreferencesKey("spotify_imported_artist_ids@$accountTag")
 
 sealed interface SpotifyImportSource {
     val id: String

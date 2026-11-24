@@ -1,6 +1,7 @@
 package iad1tya.echo.music.ui.screens.settings
 
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,12 +9,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -28,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -47,6 +53,7 @@ import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey
 import iad1tya.echo.music.constants.YtmLastSyncKey
 import iad1tya.echo.music.constants.YtmUploadSyncKey
+import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
@@ -334,15 +341,18 @@ private fun LibraryUploadSection(
     val pendingFollowsToConfirm = remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
     val (awaitingImportIds, _) = rememberPreference(ImportFollowsAwaitingConfirmKey, emptySet())
     val (localOnlyImportIds, _) = rememberPreference(ImportFollowsLocalOnlyKey, emptySet())
-    val awaitingImportCounted by androidx.compose.runtime.produceState(emptySet<String>(), awaitingImportIds) {
-        value = if (awaitingImportIds.isEmpty()) emptySet() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val awaitingImportArtists by androidx.compose.runtime.produceState(emptyList<ArtistEntity>(), awaitingImportIds) {
+        value = if (awaitingImportIds.isEmpty()) emptyList() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
                 database.artistsPendingSubscribe(Int.MAX_VALUE).filter {
                     iad1tya.echo.music.utils.ArtistSyncPolicy.maySubscribe(it) && it.id in awaitingImportIds
-                }.mapTo(HashSet()) { it.id }
-            }.getOrDefault(emptySet())
+                }.sortedBy { it.name.lowercase() }
+            }.getOrDefault(emptyList())
         }
     }
+    val awaitingImportCounted = remember(awaitingImportArtists) { awaitingImportArtists.mapTo(HashSet()) { it.id } }
+    // Row 831: the artists the user ticked in the «esperan confirmación» list. None is ticked when it opens.
+    val checkedImportIds = remember { androidx.compose.runtime.mutableStateOf(emptySet<String>()) }
     val awaitingImportCount = awaitingImportCounted.size
     val localOnlyImportCounted by androidx.compose.runtime.produceState(emptySet<String>(), localOnlyImportIds) {
         value = if (localOnlyImportIds.isEmpty()) emptySet() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -395,18 +405,56 @@ private fun LibraryUploadSection(
     }
 
     if (showImportFollowsConfirm.value) {
+        // Row 831: every held artist by name, with a checkbox, none ticked; each button acts on the ticked ones only.
+        val checked = checkedImportIds.value
+        val anyChecked = awaitingImportArtists.any { it.id in checked }
         iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showImportFollowsConfirm.value = false },
             title = { Text(stringResource(R.string.ytm_upload_toggle_title)) },
             text = {
-                Text(pluralStringResource(R.plurals.ytm_upload_import_awaiting, awaitingImportCount, awaitingImportCount))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(pluralStringResource(R.plurals.ytm_upload_import_awaiting, awaitingImportCount, awaitingImportCount))
+                    Text(stringResource(R.string.ytm_upload_import_pick_hint))
+                    // Row 831: one tap ticks (or clears) the whole list, so a long hold is not resolved row by row.
+                    val allChecked = awaitingImportCounted.isNotEmpty() && awaitingImportCounted.all { it in checked }
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            ActionLog.tap(ActionId.YTMSYNC_IMPORT_PICK_ALL)
+                            checkedImportIds.value = if (allChecked) emptySet() else awaitingImportCounted
+                        },
+                    ) {
+                        Text(
+                            stringResource(
+                                if (allChecked) R.string.ytm_upload_import_uncheck_all else R.string.ytm_upload_import_check_all,
+                            ),
+                        )
+                    }
+                    LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+                        items(awaitingImportArtists, key = { it.id }) { artist ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        ActionLog.tap(ActionId.YTMSYNC_IMPORT_PICK)
+                                        checkedImportIds.value = checkedImportIds.value.let { if (artist.id in it) it - artist.id else it + artist.id }
+                                    }
+                                    .padding(vertical = 2.dp),
+                            ) {
+                                Checkbox(checked = artist.id in checked, onCheckedChange = null)
+                                Text(artist.name, modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 androidx.compose.material3.TextButton(
+                    enabled = anyChecked,
                     onClick = {
                         ActionLog.tap(ActionId.YTMSYNC_IMPORT_SUBSCRIBE)
                         showImportFollowsConfirm.value = false
-                        val confirmed = awaitingImportCounted
+                        val confirmed = awaitingImportCounted intersect checkedImportIds.value
                         coroutineScope.launch {
                             runCatching {
                                 context.dataStore.edit {
@@ -422,14 +470,15 @@ private fun LibraryUploadSection(
                             }
                         }
                     },
-                ) { Text(stringResource(R.string.ytm_upload_import_subscribe)) }
+                ) { Text(stringResource(R.string.ytm_upload_import_subscribe_checked)) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(
+                    enabled = anyChecked,
                     onClick = {
                         ActionLog.tap(ActionId.YTMSYNC_IMPORT_LOCAL_ONLY)
                         showImportFollowsConfirm.value = false
-                        val keptLocal = awaitingImportCounted
+                        val keptLocal = awaitingImportCounted intersect checkedImportIds.value
                         coroutineScope.launch {
                             runCatching {
                                 context.dataStore.edit {
@@ -440,7 +489,7 @@ private fun LibraryUploadSection(
                             }
                         }
                     },
-                ) { Text(stringResource(R.string.ytm_upload_import_local_only)) }
+                ) { Text(stringResource(R.string.ytm_upload_import_local_only_checked)) }
             },
         )
     }
@@ -480,7 +529,11 @@ private fun LibraryUploadSection(
                 title = {
                     Text(pluralStringResource(R.plurals.ytm_upload_import_awaiting, awaitingImportCount, awaitingImportCount))
                 },
-                onClick = { ActionLog.tap(ActionId.YTMSYNC_IMPORT_FOLLOWS); showImportFollowsConfirm.value = true },
+                onClick = {
+                    ActionLog.tap(ActionId.YTMSYNC_IMPORT_FOLLOWS)
+                    checkedImportIds.value = emptySet()
+                    showImportFollowsConfirm.value = true
+                },
             ).takeIf { awaitingImportCount > 0 },
             Material3SettingsItem(
                 icon = painterResource(R.drawable.replay),

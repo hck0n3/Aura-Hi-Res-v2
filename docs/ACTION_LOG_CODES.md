@@ -455,9 +455,11 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 
 | Código | Acción |
 |---|---|
-| `UI.YTMSYNC.IMPORT_SUBSCRIBE` | Suscribirse también en YouTube |
-| `UI.YTMSYNC.IMPORT_LOCAL_ONLY` | Solo en la app |
+| `UI.YTMSYNC.IMPORT_SUBSCRIBE` | «Suscribir a los marcados» (fila 831: solo los artistas marcados) |
+| `UI.YTMSYNC.IMPORT_LOCAL_ONLY` | «Descartar los marcados» (fila 831: los marcados quedan solo en la app) |
 | `UI.YTMSYNC.IMPORT_ASK_AGAIN` | Volver a preguntar |
+| `UI.YTMSYNC.IMPORT_PICK` | Marcar / desmarcar un artista en la lista «esperan confirmación» (fila 831) |
+| `UI.YTMSYNC.IMPORT_PICK_ALL` | «Marcar todos» / «Desmarcar todos» en la lista «esperan confirmación» (fila 831) |
 
 ## Reproductor ▸ aviso «Sin conexión» (fila 795)
 

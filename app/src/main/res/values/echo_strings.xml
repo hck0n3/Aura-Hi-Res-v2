@@ -1559,4 +1559,10 @@
     <string name="device_sync_lib_synced">Up to date · %1$d items · %2$d waiting to send</string>
     <string name="device_sync_lib_failed">Could not sync (%1$s). Tap to retry</string>
     <string name="device_sync_remote_chip">Playing on %1$s · Continue here</string>
+    <!-- Row 831: the «waiting for confirmation» list of imported artists, by name with checkboxes -->
+    <string name="ytm_upload_import_pick_hint">Tick the artists you want. «Subscribe the ticked ones» adds them to your Google account; «Discard the ticked ones» keeps them only in Aura, without subscribing them.</string>
+    <string name="ytm_upload_import_subscribe_checked">Subscribe the ticked ones</string>
+    <string name="ytm_upload_import_local_only_checked">Discard the ticked ones</string>
+    <string name="ytm_upload_import_check_all">Tick all</string>
+    <string name="ytm_upload_import_uncheck_all">Untick all</string>
 </resources>
