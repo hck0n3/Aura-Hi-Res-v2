@@ -35,6 +35,12 @@ object PhantomSubscriptionPolicy {
     /** How long one unsubscribe may take to be confirmed by the account before it is reported as failed. */
     const val CONFIRM_TIMEOUT_MS = 30_000L
 
+    /**
+     * Row 829: a confirmed unfollow ([removalConfirmed]) the account still lists this long after it is taken as one
+     * YouTube did not apply (not list lag), and the user may send it again.
+     */
+    const val RESEND_AFTER_CONFIRMED_HOURS = 24L
+
     enum class Signal { NO_LIKED_SONGS, NOT_IN_YOUR_PLAYLISTS, NOT_IN_LIBRARY, FEW_PLAYS }
 
     data class Interest(val likedSongs: Int = 0, val playlistSongs: Int = 0, val librarySongs: Int = 0, val plays: Int = 0)
@@ -93,6 +99,28 @@ object PhantomSubscriptionPolicy {
             !own.unfollowedByUserAt!!.isBefore(ArtistSyncPolicy.confirmedUnfollowHoldSince(now))
     }
 
+    /** Row 829: confirmed unfollows older than this, still listed by the account, may be sent again ([resendAllowed]). */
+    fun resendSince(now: LocalDateTime): LocalDateTime = now.minusHours(RESEND_AFTER_CONFIRMED_HOURS)
+
+    /**
+     * Row 829: [removalConfirmed], and the confirmed unfollow is more than [RESEND_AFTER_CONFIRMED_HOURS] old — the
+     * account still listing it is no longer list lag, so the user may select it and send the unfollow again. The age
+     * is that of `unfollowConfirmedAt`, which holds the unfollow's own time (row 798), not the moment of the answer.
+     */
+    fun resendAllowed(subscriptionId: String, localRows: List<ArtistEntity>, now: LocalDateTime): Boolean {
+        if (!removalConfirmed(subscriptionId, localRows, now)) return false
+        val confirmedAt = localRows.first { it.id == subscriptionId }.unfollowConfirmedAt ?: return false
+        return confirmedAt.isBefore(resendSince(now))
+    }
+
+    /**
+     * Row 829: the hold the batch's account read-back (`markArtistsSubscribedOnYtm`) runs with for [candidate]. For a
+     * resend it is [resendSince], so the still-listed confirmed row reads «Suscrito» again and the manual unfollow tap
+     * sends it again; otherwise it is the 30-day hold every other read-back uses (row 798).
+     */
+    fun readBackHoldSince(candidate: Candidate, now: LocalDateTime): LocalDateTime =
+        if (candidate.resendAllowed) resendSince(now) else ArtistSyncPolicy.confirmedUnfollowHoldSince(now)
+
     /** One account subscription on the review screen. */
     data class Candidate(
         val id: String,
@@ -102,14 +130,21 @@ object PhantomSubscriptionPolicy {
         val verdict: Verdict,
         val removalPending: Boolean,
         val removalConfirmed: Boolean = false,
+        val resendAllowed: Boolean = false,
     ) {
-        /** Not selectable: its removal is already pending ([removalPending]) or confirmed ([removalConfirmed]). */
-        val blocked: Boolean get() = removalPending || removalConfirmed
+        /**
+         * Not selectable: its removal is already pending ([removalPending]) or confirmed ([removalConfirmed]) — unless
+         * that confirmation is old enough to send again ([resendAllowed], row 829).
+         */
+        val blocked: Boolean get() = removalPending || (removalConfirmed && !resendAllowed)
     }
 
-    /** Ids of the suggested rows that can be selected: what «Seleccionar las sugeridas» selects. */
+    /**
+     * Ids of the suggested rows that can be selected: what «Seleccionar las sugeridas» selects. A resend
+     * ([Candidate.resendAllowed]) is never bulk-selected: it needs its own tap (row 829).
+     */
     fun suggestedSelection(candidates: List<Candidate>): Set<String> =
-        candidates.filter { it.verdict.suggested && !it.blocked }.map { it.id }.toSet()
+        candidates.filter { it.verdict.suggested && !it.blocked && !it.removalConfirmed }.map { it.id }.toSet()
 
     /** Screen order: suggested first, then by name. */
     fun screenOrder(candidates: List<Candidate>): List<Candidate> =

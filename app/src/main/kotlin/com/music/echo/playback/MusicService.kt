@@ -3844,6 +3844,8 @@ class MusicService :
         if (player.currentMediaItem != null) {
             if (retryCount > 3) {
                 Timber.tag(TAG).d("Retry count > 3, attempting to refresh stream URL")
+                // Row 828 (S-003): the seek alone kept the cached URL; dropping it makes prepare() resolve afresh. Bytes stay.
+                player.currentMediaItem?.mediaId?.let { songUrlCache.remove(it) }
                 val currentPosition = player.currentPosition
                 player.seekTo(player.currentMediaItemIndex, currentPosition)
             }

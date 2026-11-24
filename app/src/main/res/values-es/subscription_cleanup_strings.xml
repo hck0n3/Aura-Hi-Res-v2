@@ -32,4 +32,5 @@
     <string name="sub_cleanup_retry_failed">Reintentar las fallidas</string>
     <string name="sub_cleanup_reload">Volver a cargar la lista</string>
     <string name="sub_cleanup_confirmed_badge">Ya quitada y confirmada; YouTube puede tardar en reflejarlo</string>
+    <string name="sub_cleanup_resend_badge">YouTube confirmó la baja hace más de 24 h pero aún la lista; puedes seleccionarla para volver a enviarla</string>
 </resources>

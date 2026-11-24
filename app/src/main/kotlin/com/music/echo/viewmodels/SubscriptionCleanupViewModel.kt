@@ -104,14 +104,16 @@ class SubscriptionCleanupViewModel @Inject constructor(
                             local.filter { it.id in spellings },
                             now,
                         ),
+                        resendAllowed = PhantomSubscriptionPolicy.resendAllowed(item.id, local.filter { it.id in spellings }, now),
                     )
                 }
                 Timber.i(
-                    "SUB_CLEANUP_REVIEW total=%d suggested=%d pending=%d confirmed=%d",
+                    "SUB_CLEANUP_REVIEW total=%d suggested=%d pending=%d confirmed=%d resend=%d",
                     candidates.size,
                     candidates.count { it.verdict.suggested },
                     candidates.count { it.removalPending },
                     candidates.count { it.removalConfirmed },
+                    candidates.count { it.resendAllowed },
                 )
                 _state.value = UiState(phase = Phase.READY, candidates = PhantomSubscriptionPolicy.screenOrder(candidates))
             } catch (e: CancellationException) {
@@ -253,7 +255,8 @@ class SubscriptionCleanupViewModel @Inject constructor(
                 ),
             )
         }
-        database.markArtistsSubscribedOnYtm(listOf(item.id), now, ArtistSyncPolicy.confirmedUnfollowHoldSince(now))
+        // Row 829: for a resend the read-back takes the listing as a follow again, so the tap below sends the unfollow again.
+        database.markArtistsSubscribedOnYtm(listOf(item.id), now, PhantomSubscriptionPolicy.readBackHoldSince(item, now))
         if (!database.toggleArtistFollow(item.id, fallback = null, shownFollowed = true)) {
             // No row reads «Suscrito» because the user's own unfollow of this channel is still owed to the account
             // (the read-back above re-armed it): the uploader sends it, so «Reintentar» waits for that pass.
