@@ -52,3 +52,15 @@ juntos a veces sincroniza y a veces no** («eso no me gusta»).
 | H27 | «YouTube» en lo funcional; locales como «sin conexión»; «Inicia sesión con YouTube Music» en Cuentas | Se mantiene «YouTube» donde es funcional (también en Cuentas); las canciones locales cuentan como sin conexión |
 | H28 | Wrapped: otros aparatos y artistas invitados | Sí a las escuchas de otros aparatos; los invitados no cuentan como artista principal |
 | H29 | «Resultados compatibles seleccionables» = interruptores por servicio (fila 676) | Sí, esa es la interpretación |
+
+## Respuestas del dueño (2026-11-24, segunda tanda)
+
+| # | Tema | Decisión del dueño |
+|---|---|---|
+| H21 | Gumroad | **No se crea producto nuevo**: el dueño cambia solo el **nombre** del producto en Gumroad. El enlace (`toberto.gumroad.com/l/JR-MUSIC-PRO-OFFICIAL`, `LicenseScreens.kt` `GUMROAD_URL`) y el `PRODUCT_ID` no cambian, así que las apps instaladas siguen funcionando. |
+| H23 | `player-watch.yml` | **Descartado** («no me sirve de nada»). En su lugar: un vigilante que, cuando la reproducción falle, **tome la solución de SimpMusic** (`github.com/maxrave-dev/simpmusic`). Diseño en curso. |
+| H26 | Mensaje cortado de la beta 14 | **Descartado** (el dueño no recuerda qué era). |
+| — | Herramienta de limpieza de suscripciones fantasma | **Ahora**, no en la Fase 9: el dueño lleva más de 4 meses con el fallo. |
+| A | Inicio de sesión | **A1**: «Inicia sesión con tu cuenta de Google» y sin «YouTube Music» en los textos visibles (sustituye a H27). |
+| B1 | Servidor de Escuchar juntos | **Sí**: dejar de usar el servidor compartido de Metrolist; salas solo de Aura. |
+| B2, B3 | Aleatorio del invitado; aviso tras 3 recargas | Sin respuesta todavía. |
