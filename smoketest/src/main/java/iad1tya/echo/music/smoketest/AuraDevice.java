@@ -313,12 +313,27 @@ final class AuraDevice {
         } catch (StaleObjectException e) {
             waitFor(() -> navCell(label), 15_000, "bottom bar cell '" + label + "'").click();
         }
-        long deadline = SystemClock.uptimeMillis() + 10_000;
+        long start = SystemClock.uptimeMillis();
+        long deadline = start + 10_000;
+        boolean retapped = false;
         while (SystemClock.uptimeMillis() < deadline) {
             UiObject2 now = device.findObject(By.selected(true).hasDescendant(By.text(exactly(label))));
             if (now != null) {
                 log("tab '" + label + "' selected");
                 return;
+            }
+            // A slow emulator can drop the first tap (run 45504112186): tap the cell once more halfway through.
+            if (!retapped && SystemClock.uptimeMillis() - start > 5_000) {
+                retapped = true;
+                UiObject2 again = navCell(label);
+                if (again != null) {
+                    try {
+                        again.click();
+                        log("tab '" + label + "' tapped again");
+                    } catch (StaleObjectException e) {
+                        // Recomposed: the next poll looks again.
+                    }
+                }
             }
             SystemClock.sleep(300);
         }
