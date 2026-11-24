@@ -29,10 +29,14 @@ internal fun exportedIdsWithFile(
     known: MutableMap<String, Boolean> = mutableMapOf(),
     fileExists: (String) -> Boolean,
 ): List<String> {
-    // [known] carries the answers of the previous pass: only a uri that is new (or changed) is checked again, and one
-    // that left the map is forgotten. An export writes its id and then its uri, so it costs one check, not a full pass.
+    // [known] carries the files found by the previous passes: only a uri that is new (or changed) or was missing is
+    // checked again, and one that left the map is forgotten. A missing file is not remembered, so a re-export to the
+    // same uri shows up on the next pass. An export writes its id and then its uri, so it costs one check, not a full pass.
     known.keys.retainAll(uris.values.toSet())
-    return ids.filter { id -> uris[id]?.let { uri -> known.getOrPut(uri) { fileExists(uri) } } == true }
+    return ids.filter { id ->
+        val uri = uris[id] ?: return@filter false
+        known[uri] == true || fileExists(uri).also { if (it) known[uri] = true }
+    }
 }
 
 /**

@@ -52,11 +52,28 @@ class ExportedSongsOnDeviceTest {
         val known = mutableMapOf<String, Boolean>()
         val onDisk = setOf("u1")
         exportedIdsWithFile(listOf("a", "b"), mapOf("a" to "u1", "b" to "u2"), known) { it in onDisk }
-        assertEquals(mapOf("u1" to true, "u2" to false), known)
+        assertEquals(mapOf("u1" to true), known)
         // «b» exported again to a new file: the old uri is dropped and the new one checked.
         val kept = exportedIdsWithFile(listOf("b", "a"), mapOf("a" to "u1", "b" to "u4"), known) { it == "u4" }
         assertEquals(listOf("b", "a"), kept)
         assertEquals(mapOf("u1" to true, "u4" to true), known)
+    }
+
+    @Test
+    fun `a song re-exported to the same uri after a pass that found it missing is listed again`() {
+        val known = mutableMapOf<String, Boolean>()
+        val onDisk = mutableSetOf("u1")
+        val asked = mutableListOf<String>()
+        val check: (String) -> Boolean = { asked += it; it in onDisk }
+        // «b» was deleted in a file manager: the pass hides it.
+        assertEquals(listOf("a"), exportedIdsWithFile(listOf("a", "b"), mapOf("a" to "u1", "b" to "u2"), known, check))
+        // Exported again under the same name: SAF hands back the same uri and the id moves to the front.
+        onDisk += "u2"
+        asked.clear()
+        val kept = exportedIdsWithFile(listOf("b", "a"), mapOf("b" to "u2", "a" to "u1"), known, check)
+        assertEquals(listOf("b", "a"), kept)
+        // Only the file that was missing is checked again; the one found before is not.
+        assertEquals(listOf("u2"), asked)
     }
 
     // ---- wiring -----------------------------------------------------------------------------------
