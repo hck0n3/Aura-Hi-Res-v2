@@ -346,7 +346,10 @@ fun PlayerSettings(
             1 -> "Suave (igual potencia)"
             2 -> "Suave larga (curva S)"
             3 -> "Exponencial (rápida)"
-            4 -> "Ascenso (entra rápido, sale lento)"
+            // Registry 812 (owner H17, 2026-11-24): the shape is CrossfadeMath curve 4 — both songs move together,
+            // one lowering while the other rises, equal power, done by 85% of the window. The old label described an
+            // earlier asymmetric tuning. Only the label changed: the stored value is still 4.
+            4 -> "Cruce natural (una baja mientras la otra sube)"
             5 -> "V (sale, luego entra)"
             6 -> "Logarítmica (muere de verdad)"
             7 -> "Respiro profundo (pausa marcada)"
