@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 object ActionNotices {
     enum class Kind(@StringRes val message: Int, @StringRes val action: Int, val route: String) {
         /** «Volver a entrar»: Ajustes ▸ Cuentas, the same destination as the playback error card's sign-in step. */
-        SESSION_EXPIRED(R.string.session_expired_sign_in_again, R.string.notice_action_sign_in_again, PlaybackErrorAdvice.Action.SIGN_IN.route),
+        SESSION_EXPIRED(R.string.session_expired_sign_in_again, R.string.notice_action_sign_in_again, requireNotNull(PlaybackErrorAdvice.Action.SIGN_IN.route)),
 
         /** «Ver filtros»: Ajustes ▸ Contenido, where «Ocultar vídeos» lives (the explicit filter's key is retired). */
         QUEUE_EMPTY_AFTER_FILTERS(R.string.queue_empty_after_filters, R.string.notice_action_view_filters, "settings/content"),
