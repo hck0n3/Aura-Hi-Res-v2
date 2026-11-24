@@ -4506,3 +4506,4 @@ Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión 
 | Cola Aura > cabecera: **Aleatorio** (`ui/newui/AuraQueue.kt:592`) | Igual: atenuado para el invitado y con el mismo aviso al tocarlo | 848 |
 | Reproductor Aura > menú «Más» > Reproducción: **Aleatorio** (`ui/newui/AuraPlayerMenu.kt:512`) | Sin cambios: para el invitado ya estaba oculto (junto a Repetir) antes de esta fila | 848 |
 | Notificación de reproducción y Android Auto: **Activar aleatorio** (§25.4, `CommandToggleShuffle`) | El botón sigue ahí; siendo invitado no cambia nada y sale el mismo aviso | 848 |
+| Al entrar en una sala como invitado (sin botón: lo hace la app) | El aleatorio se apaga solo mientras dure la sala y su icono se ve apagado en el reproductor, la cola y la notificación; al salir, o al pasar a anfitrión, vuelve como lo tenías | 849 |

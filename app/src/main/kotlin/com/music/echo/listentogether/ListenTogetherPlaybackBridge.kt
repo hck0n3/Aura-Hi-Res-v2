@@ -218,6 +218,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** Row 821: the room's automatic re-plays of a guest its service paused on a failure, bounded and spaced out. */
     private val failureResume = GuestFailureResumeGuard()
 
+    /** Row 849: shuffle held off while this device is a guest, the user's own given back afterwards. */
+    private val shuffleHold = GuestShuffleHold()
+
     /** Bumped when the guest's track must be looked at again ([recheckGuestTrack]); the bump itself is all [trackRecheck] does. */
     private val guestTrackCheck = MutableStateFlow(0)
 
@@ -305,6 +308,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { answerBufferBarrier() }
         scope.launch { holdForSynchronizedStart() }
         scope.launch { lockTempoInRoom() }
+        scope.launch { holdShuffleForGuests() }
     }
 
     /**
@@ -337,6 +341,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         timelineRevision.value++
         // A room joined before this player existed, or a rebuilt player, plays at the room's speed too.
         if (session.state.value.inRoom) lockRoomTempo(player)
+        // Row 849: and a guest's new player (or the first one) plays the room's order, not a shuffle of it.
+        applyGuestShuffle(session.state.value.let { it.inRoom && !it.isHost })
         Timber.tag(TAG).i("Listening to the service player")
     }
 
@@ -745,6 +751,22 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             .map { it.inRoom }
             .distinctUntilChanged()
             .collect { inRoom -> onMain { if (inRoom) lockRoomTempo(listeningTo) else unlockRoomTempo(listeningTo) } }
+    }
+
+    /** Row 849 (owner decision B2): only the host decides the order. On each change of role, never on a timer (rule 7). */
+    private suspend fun holdShuffleForGuests() {
+        session.state
+            .map { it.inRoom && !it.isHost }
+            .distinctUntilChanged()
+            .collect { guest -> onMain { applyGuestShuffle(guest) } }
+    }
+
+    /** Main thread only. Without a service the hold waits: [attachListener] applies it to the next player. */
+    private fun applyGuestShuffle(guest: Boolean) {
+        val service = serviceFlow.value ?: return
+        val shuffleOn = runCatching { service.player.shuffleModeEnabled }.getOrNull() ?: return
+        val wanted = shuffleHold.onRole(guest, shuffleOn) ?: return
+        service.setShuffleForRoom(wanted)
     }
 
     private fun lockRoomTempo(player: Player?) {

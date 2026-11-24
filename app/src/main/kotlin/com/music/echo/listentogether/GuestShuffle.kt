@@ -9,3 +9,24 @@ object GuestShuffle {
     /** Whether this device may turn shuffle on: outside a room, or as its host. */
     fun mayShuffle(inRoom: Boolean, isHost: Boolean): Boolean = !inRoom || isHost
 }
+
+/**
+ * Row 849: the user's own shuffle while this device is a guest. Becoming a guest remembers it and switches it off; no longer
+ * being one (leaving, being kicked, the room ending, or becoming the host) gives it back. Synchronized: the role and a new
+ * player arrive on different collectors.
+ */
+internal class GuestShuffleHold {
+    private var saved: Boolean? = null
+
+    /** The shuffle value to apply now, or null to leave the player as it is. */
+    @Synchronized
+    fun onRole(guest: Boolean, shuffleOn: Boolean): Boolean? {
+        if (guest) {
+            if (saved == null) saved = shuffleOn
+            return if (shuffleOn) false else null
+        }
+        val restore = saved ?: return null
+        saved = null
+        return if (restore != shuffleOn) restore else null
+    }
+}

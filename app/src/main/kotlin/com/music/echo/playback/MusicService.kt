@@ -8425,6 +8425,14 @@ class MusicService :
     }
 
     override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+        // Registry 849: a Listen Together guest never shuffles, whichever door turned it on (a synced device's order, the car's
+        // «Aleatorio» item, a list's shuffle start): straight back off, posted out of this flush, with no lap started and nothing
+        // saved as the user's choice. The back-off fires this callback again and does the rest.
+        if (shuffleModeEnabled && ::listenTogetherManager.isInitialized && listenTogetherManager.shouldBlockPlaybackChanges()) {
+            // Still a guest one message later: leaving the room in between gives the user's own back (the bridge), not this.
+            scope.launch { if (listenTogetherManager.shouldBlockPlaybackChanges()) setShuffleForRoom(false) }
+            return
+        }
         updateNotification()
         if (shuffleModeEnabled) {
             // Every enable that reaches this callback is a USER activation (a toggle, a Shuffle button,
@@ -8486,6 +8494,23 @@ class MusicService :
             beginShuffleSession(isUserActivation = true)
         } else {
             player.shuffleModeEnabled = true
+        }
+    }
+
+    /**
+     * Registry 849: the Listen Together bridge holds shuffle off while this device is a guest and gives the user's own back
+     * afterwards. Neither is his toggle: nothing is written to ShuffleModeKey, and giving it back does not reset a finished
+     * list's lap. Main thread, outside a listener flush (the two flags' synchronous-dispatch contract).
+     */
+    fun setShuffleForRoom(enabled: Boolean) {
+        if (player.shuffleModeEnabled == enabled) return
+        suppressShuffleModePersist = true
+        suppressShuffleActivationReset = true
+        try {
+            player.shuffleModeEnabled = enabled
+        } finally {
+            suppressShuffleModePersist = false
+            suppressShuffleActivationReset = false
         }
     }
 
