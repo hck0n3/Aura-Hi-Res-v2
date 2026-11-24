@@ -92,11 +92,14 @@ class SpotifyExactSyncGuardTest {
         val dao = main("db/DatabaseDao.kt")
         val pendingFilter = "AND isEditable = 1 AND id != 'AURA_AI_RECS' AND id != 'SPOTIFY_LIKED_SONGS'"
         assertEquals("pending list and its count must agree", 2, dao.split(pendingFilter).size - 1)
-        assertTrue(dao.contains("$pendingFilter\n        ORDER BY bookmarkedAt LIMIT :limit"))
+        assertTrue(dao.contains("$pendingFilter\n$emptyMirrorFilter\n        ORDER BY bookmarkedAt LIMIT :limit"))
         val reconcile = body(upload, "    private suspend fun reconcileSpotifyMirrors() {")
         assertTrue(reconcile.contains("it.playlist.id != \"SPOTIFY_LIKED_SONGS\""))
         assertTrue(repo.contains("override val localPlaylistId: String = \"SPOTIFY_LIKED_SONGS\""))
     }
+
+    private val emptyMirrorFilter = "          AND NOT (substr(id, 1, 8) = 'SPOTIFY_'\n" +
+        "            AND NOT EXISTS (SELECT 1 FROM playlist_song_map WHERE playlist_song_map.playlistId = playlist.id))"
 
     /** Row 833: an empty Spotify source never creates an empty playlist, here or on the account. */
     @Test
@@ -105,5 +108,17 @@ class SpotifyExactSyncGuardTest {
         assertTrue(mirror.contains("if (existing == null && tracks.isEmpty()) return@withTransaction"))
         val uploadPlaylists = body(upload, "    private suspend fun uploadPlaylists() {")
         assertTrue(uploadPlaylists.contains("if (songIds.isEmpty() && playlist.id.startsWith(\"SPOTIFY_\")) continue"))
+    }
+
+    /**
+     * Row 833: an empty Spotify mirror (left by an older version, or emptied by a pass that matched nothing) is not pending at all:
+     * the upload skips it, so counting it would keep the pass re-chaining itself (YtmSyncWorker) and the screen short of «todo listo».
+     */
+    @Test
+    fun `an empty Spotify mirror is neither listed nor counted as pending`() {
+        val dao = main("db/DatabaseDao.kt")
+        assertEquals("pending list and its count must agree", 2, dao.split(emptyMirrorFilter).size - 1)
+        val count = dao.substring(dao.indexOf("SELECT COUNT(*) FROM playlist\n        WHERE browseId IS NULL AND bookmarkedAt IS NOT NULL"))
+        assertTrue(count.substringBefore("suspend fun countPlaylistsPendingUpload()").contains(emptyMirrorFilter))
     }
 }

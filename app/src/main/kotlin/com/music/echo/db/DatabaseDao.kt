@@ -2007,13 +2007,17 @@ interface DatabaseDao {
      * EXCLUDED here — that is what makes re-running the upload unable to duplicate anything.
      * Excludes local-file playlists and the regenerated auto-recommendations playlist (a fixed-id row
      * this app rewrites in the background; uploading it would churn the account). Row 833: also the
-     * Spotify «Liked Songs» mirror — those are likes, not a playlist the user asked to have on the account.
+     * Spotify «Liked Songs» mirror — those are likes, not a playlist the user asked to have on the account —
+     * and an EMPTY Spotify mirror, which uploadPlaylists never creates on the account: counted as pending it
+     * would keep the pass re-chaining itself forever (YtmSyncWorker) and the screen short of «todo listo».
      */
     @Query(
         """
         SELECT * FROM playlist
         WHERE browseId IS NULL AND bookmarkedAt IS NOT NULL AND isLocal = 0
           AND isEditable = 1 AND id != 'AURA_AI_RECS' AND id != 'SPOTIFY_LIKED_SONGS'
+          AND NOT (substr(id, 1, 8) = 'SPOTIFY_'
+            AND NOT EXISTS (SELECT 1 FROM playlist_song_map WHERE playlist_song_map.playlistId = playlist.id))
         ORDER BY bookmarkedAt LIMIT :limit
         """
     )
@@ -2024,6 +2028,8 @@ interface DatabaseDao {
         SELECT COUNT(*) FROM playlist
         WHERE browseId IS NULL AND bookmarkedAt IS NOT NULL AND isLocal = 0
           AND isEditable = 1 AND id != 'AURA_AI_RECS' AND id != 'SPOTIFY_LIKED_SONGS'
+          AND NOT (substr(id, 1, 8) = 'SPOTIFY_'
+            AND NOT EXISTS (SELECT 1 FROM playlist_song_map WHERE playlist_song_map.playlistId = playlist.id))
         """
     )
     suspend fun countPlaylistsPendingUpload(): Int
