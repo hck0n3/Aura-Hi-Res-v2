@@ -141,13 +141,19 @@ class SpotifyExactImportPolicyTest {
     }
 
     @Test
-    fun `the followed-artists pass matches only new ids and records the set even when cancelled`() {
+    fun `the followed-artists pass re-follows a handled id only when its row is gone, and records the set even when cancelled`() {
         val repo = main("spotifyimport/SpotifyImportRepository.kt")
         val pass = repo.substringAfter("private suspend fun importFollowedArtists(").substringBefore("\n    }\n")
-        val gate = "if (!SpotifyExactImportPolicy.isNewSinceLastPass(artist.id, alreadyImported)) {"
-        assertTrue(pass.contains(gate))
-        assertTrue("the gate comes before the match", pass.indexOf(gate) < pass.indexOf("matchAndFollowArtistDetailed(artist)"))
+        assertTrue(pass.contains("handledEarlier = !SpotifyExactImportPolicy.isNewSinceLastPass(artist.id, alreadyImported),"))
         assertTrue(pass.contains("handled += artist.id"))
+        // A handled artist whose row survives (removed on YouTube: row kept, follow cleared) is not followed again; only one whose
+        // row is missing for every spelling (a backup from before the import was restored) is.
+        val follow = repo.substringAfter("private suspend fun matchAndFollowArtistDetailed(").substringBefore("\n    }\n")
+        val kept =
+            "if (handledEarlier && (existing != null || database.getArtistEntitiesByIds(spellings).isNotEmpty())) return ItemMatchOutcome.Success"
+        assertTrue(follow.contains(kept))
+        assertTrue(follow.indexOf(kept) < follow.indexOf("it[ImportFollowsAwaitingConfirmKey] ="))
+        assertTrue(follow.indexOf(kept) < follow.indexOf("database.withTransaction {"))
         val fin = pass.substringAfter("} finally {")
         assertTrue(fin.contains("withContext(NonCancellable) {"))
         assertTrue(fin.contains("it[importedKey] = SpotifyExactImportPolicy.importedAfterPass("))

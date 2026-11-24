@@ -57,8 +57,9 @@ object SpotifyExactImportPolicy {
     fun accountTag(googleAccountTag: String?): String = googleAccountTag ?: SIGNED_OUT_TAG
 
     /**
-     * Only a Spotify artist no earlier pass handled for this account is matched and followed. One handled before and since removed
-     * on YouTube (its follow cleared by the account read-back, without an unfollow marker) is therefore never followed again.
+     * True for a Spotify artist no earlier pass handled for this account: it is matched and followed. One handled before is followed
+     * again only when no row for it is stored (a backup from before the import was restored); one since removed on YouTube (row kept,
+     * its follow cleared by the account read-back without an unfollow marker) is therefore never followed again.
      */
     fun isNewSinceLastPass(spotifyArtistId: String, alreadyImported: Set<String>): Boolean = spotifyArtistId !in alreadyImported
 

@@ -977,7 +977,7 @@ class SpotifyImportRepository @Inject constructor(
         val failures = java.util.Collections.synchronizedList(ArrayList<SpotifyImportFailureUi>())
         // Row 830: an artist the user removed on YouTube comes back unfollowed in Aura (ArtistSyncPolicy.followsGoneFromAccount clears
         // the follow without an unfollow marker), and every pass used to follow it again. Each Google account keeps the Spotify ids a
-        // pass already handled; only the ones NEW since then are matched and followed.
+        // pass already handled; one of those is followed again only when no row for it is stored (matchAndFollowArtistDetailed).
         val prefs = context.dataStore.data.first()
         val importedKey = spotifyImportedArtistIdsKey(SpotifyExactImportPolicy.accountTag(ImportFollowsAccounts.tagOf(prefs[AccountEmailKey])))
         val alreadyImported = prefs[importedKey].orEmpty()
@@ -994,17 +994,16 @@ class SpotifyImportRepository @Inject constructor(
                     async {
                         semaphore.withPermit {
                             val followResult =
-                                if (!SpotifyExactImportPolicy.isNewSinceLastPass(artist.id, alreadyImported)) {
-                                    ItemMatchOutcome.Success
-                                } else {
-                                    try {
-                                        matchAndFollowArtistDetailed(artist)
-                                    } catch (error: CancellationException) {
-                                        throw error
-                                    } catch (error: Throwable) {
-                                        reportException(error)
-                                        ItemMatchOutcome.Failure(SpotifyImportFailureReason.SEARCH_ERROR)
-                                    }
+                                try {
+                                    matchAndFollowArtistDetailed(
+                                        artist,
+                                        handledEarlier = !SpotifyExactImportPolicy.isNewSinceLastPass(artist.id, alreadyImported),
+                                    )
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (error: Throwable) {
+                                    reportException(error)
+                                    ItemMatchOutcome.Failure(SpotifyImportFailureReason.SEARCH_ERROR)
                                 }
                             when (followResult) {
                                 is ItemMatchOutcome.Success -> {
@@ -1096,9 +1095,9 @@ class SpotifyImportRepository @Inject constructor(
      * Searches YouTube Music for [spotifyArtist], takes the ONE channel whose
      * normalized name is identical (none if two channels share it), then upserts it as a followed [ArtistEntity].
      * The YouTube subscribe is left to the library upload pass. Success when the
-     * artist was matched and followed locally, or the user had unfollowed it.
+     * artist was matched and followed locally, or the user had unfollowed it, or [handledEarlier] and a row for it is still stored.
      */
-    private suspend fun matchAndFollowArtistDetailed(spotifyArtist: SpotifyArtist): ItemMatchOutcome {
+    private suspend fun matchAndFollowArtistDetailed(spotifyArtist: SpotifyArtist, handledEarlier: Boolean): ItemMatchOutcome {
         val searchResult = searchWithRateLimitBackoff {
             YouTube.search(
                 query = spotifyArtist.name,
@@ -1146,6 +1145,9 @@ class SpotifyImportRepository @Inject constructor(
         // Row 830: the user's unfollow can sit on another spelling of this channel (UC… / MPLAUC…, row 716); any of them keeps it.
         val spellings = SpotifyExactImportPolicy.storedSpellings(match.id, channelId)
         if (database.getArtistEntitiesByIds(spellings).any { it.unfollowedByUserAt != null }) return ItemMatchOutcome.Success
+        // Row 830: an artist an earlier pass handled is followed again only when no row for any spelling survives (a backup from
+        // before the import was restored); a stored row that is not followed is the user's removal, and it stays removed.
+        if (handledEarlier && (existing != null || database.getArtistEntitiesByIds(spellings).isNotEmpty())) return ItemMatchOutcome.Success
         // Recorded before the follow is written, so the upload pass never sees the follow without it.
         if (existing?.followedByUserAt == null) {
             context.dataStore.edit {
