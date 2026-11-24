@@ -122,12 +122,15 @@ class SpotifyImportViewModel @Inject constructor(
             runCatching { repository.loadSources() }
                 .onSuccess { loadedSources ->
                     sources = loadedSources
-                    val selectedIds = loadedSources.mapTo(LinkedHashSet()) { it.id }
                     _uiState.update {
                         it.copy(
                             isAuthenticated = true,
                             sources = loadedSources.map(SpotifyImportSource::toUi),
-                            selectedSourceIds = selectedIds,
+                            // Row 830: nothing preselected (it used to tick every source, «Artistas que sigues» included).
+                            selectedSourceIds = SpotifyExactImportPolicy.initialSelection(
+                                loadedIds = loadedSources.map { source -> source.id },
+                                current = it.selectedSourceIds,
+                            ),
                             isLoading = false,
                         )
                     }

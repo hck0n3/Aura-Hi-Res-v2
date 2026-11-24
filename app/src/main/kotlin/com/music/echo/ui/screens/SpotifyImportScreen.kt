@@ -42,6 +42,7 @@ import iad1tya.echo.music.spotifyimport.SpotifyImportUiState
 import iad1tya.echo.music.spotifyimport.SpotifyImportSummaryUi
 import iad1tya.echo.music.spotifyimport.SpotifyImportSourceUi
 import iad1tya.echo.music.spotifyimport.SpotifyImportSourceType
+import iad1tya.echo.music.spotifyimport.SpotifyExactImportPolicy
 import iad1tya.echo.music.ui.component.DefaultDialog
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
@@ -82,9 +83,8 @@ fun SpotifyImportScreen(
     var showScheduleSourcesSheet by remember { mutableStateOf(false) }
     val (autoSyncFreq, setAutoSyncFreq) = rememberPreference(SpotifyAutoSyncFreqDaysKey, 0)
     val (autoSyncCsv, setAutoSyncCsv) = rememberPreference(SpotifyAutoSyncSourceIdsKey, "")
-    val autoSyncIds = remember(autoSyncCsv) {
-        autoSyncCsv.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-    }
+    // Row 830: a schedule keeps playlists only; a stored «Artistas que sigues» / «Álbumes guardados» drops on read.
+    val autoSyncIds = remember(autoSyncCsv) { SpotifyExactImportPolicy.scheduledIds(autoSyncCsv) }
 
     // Full-screen login (2026-09-04): the login is a NavHost screen now — coming back from it
     // must refresh the session state (the ViewModel is scoped to this screen's backStackEntry,
@@ -363,7 +363,7 @@ fun SpotifyImportScreen(
 
     if (showScheduleSourcesSheet && state.isAuthenticated) {
         SpotifyScheduledSourcesSheet(
-            sources = state.sources,
+            sources = state.sources.filter { SpotifyExactImportPolicy.isSchedulable(it.type) },
             selectedIds = autoSyncIds,
             onToggle = { id ->
                 val newSet = if (id in autoSyncIds) autoSyncIds - id else autoSyncIds + id
