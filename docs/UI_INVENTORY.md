@@ -829,9 +829,9 @@ Se abre desde `ui/player/Queue.kt:475` (barra colapsada) y `ui/player/Queue.kt:8
 | **Salir de la sala** | Escuchar juntos > pie (en sala) | `ui/menu/PlayerMenu.kt:1878` | destructiva | ocasional | solo en sala |
 | Nombre de usuario *(campo, «Ingresar nombre de usuario»)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1905-1908` | acción primaria | rara | solo fuera de sala |
 | Limpiar nombre *(solo icono)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1919-1920` | acción secundaria | rara | solo si el campo no está vacío |
-| Código de sala *(campo, «ABCD1234», contador n/8)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1943-1946` | acción primaria | rara | solo fuera de sala |
+| Código de sala *(campo, «ABC234», contador n/6 desde la fila 601; fila 818: pegar un código de 8 caracteres de Metrolist vacía el campo y muestra «Ese código no es de una sala de Aura…»)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1943-1946` | acción primaria | rara | solo fuera de sala |
 | Crear | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2067` | acción primaria | ocasional | `enabled` solo con nombre de usuario |
-| Unirse | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2104` | acción primaria | ocasional | `enabled` solo con código de 8 caracteres y nombre |
+| Unirse | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2104` | acción primaria | ocasional | `enabled` solo con código de 6 caracteres y nombre (filas 601 y 818) |
 | Cancelar | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2114` | navegación | ocasional | solo fuera de sala |
 | Esperando la aprobación del anfitrión | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:1986` | informativo | rara | mientras te unes |
 | *(mensaje de error de unión)* | Escuchar juntos > alta | `ui/menu/PlayerMenu.kt:2013` | informativo | rara | solo si hay error |
