@@ -1054,7 +1054,7 @@ Artista, Lista online, Explorar, y desde un **enlace compartido** (`MainActivity
 | Sugerir alojar | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:352` | acción primaria | rara | solo como invitado en una sala |
 | Reproducir a continuación | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:376-377` | acción primaria | diaria | solo si no eres invitado |
 | Añadir a la cola | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:392-393` | acción primaria | diaria | solo si no eres invitado |
-| **«Menos de esto»** *(hardcoded)* — «Se recomendará menos parecido a esto» | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:410-411` | conmutador (feedback) | ocasional | siempre; toast «Se mostrará menos de esto» `:424` |
+| **«Menos de esto»** *(hardcoded)* — «Se recomendará menos parecido a esto» | Canción online > grupo 1 | `ui/menu/YouTubeSongMenu.kt:410-411` | conmutador (feedback) | ocasional | siempre; **fila 803:** en vez del toast, aviso «Se recomendará menos a X · Deshacer» (6 s, desde `MainActivity`; sin artista: «Se mostrará menos de esto»; sin «Deshacer» si la canción y el artista ya estaban marcados) que quita solo lo que marcó ese toque; con el reproductor abierto, o si ya hay en pantalla un aviso con acción («¿Continuar la cola anterior?», «Cola cerrada · Deshacer»), sale como toast sin «Deshacer» y no aparta ese aviso |
 | Eliminar del historial | Canción online > grupo 2 | `ui/menu/YouTubeSongMenu.kt:442` | destructiva | rara | solo si el ítem trae token de historial |
 | Fijar / Quitar de marcación rápida | Canción online > grupo 2 | `ui/menu/YouTubeSongMenu.kt:464` | conmutador | ocasional | siempre |
 | Añadir / Quitar de la biblioteca | Canción online > grupo 2 | `ui/menu/YouTubeSongMenu.kt:488-490` | conmutador | diaria | siempre |
@@ -1720,7 +1720,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | "Toggle sort order" (hardcoded, sin traducir) — invertir asc/desc | Biblioteca > cabecera | app/src/main/kotlin/com/music/echo/ui/component/SortHeader.kt:85-119 | conmutador | ocasional | siempre |
 | Canciones que me gustan → `auto_playlist/liked` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:333-339 (lista) / :655-661 (cuadrícula) | navegación | diaria | solo si `ShowLikedPlaylistKey` ON |
 | Descargado → `auto_playlist/downloaded` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:342-348 / :664-670 | navegación | diaria | solo si `ShowDownloadedPlaylistKey` ON |
-| Exportado → `auto_playlist/exported` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:351-357 / :673-679 | navegación | ocasional | solo si `ShowExportedPlaylistKey` ON |
+| Exportado → `auto_playlist/exported` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:351-357 / :673-679 | navegación | ocasional | solo si `ShowExportedPlaylistKey` ON · **fila 801:** lista solo los MP3 exportados cuyo archivo sigue en el teléfono (mismo filtro que Descargadas) |
 | En caché → `cache_playlist/cached` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:360-366 / :682-688 | navegación | ocasional | solo si `ShowCachedPlaylistKey` ON |
 | Subidas → `auto_playlist/uploaded` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:369-375 / :691-697 | navegación | rara | solo si `ShowUploadedPlaylistKey` ON |
 | Mi Top {N} → `top_playlist/{N}` | Biblioteca > rejilla de auto-listas | app/src/main/kotlin/com/music/echo/ui/screens/library/LibraryMixScreen.kt:378-384 / :700-706 | navegación | ocasional | solo si `ShowTopPlaylistKey` ON |
@@ -1748,7 +1748,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Biblioteca (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:210 | conmutador | diaria | siempre |
 | Subido (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:211 | conmutador | ocasional | siempre |
 | Descargado (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:212 | conmutador | diaria | siempre |
-| Exportado (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:213 | conmutador | ocasional | siempre |
+| Exportado (sub-filtro) | Canciones > chips | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:213 | conmutador | ocasional | siempre · **fila 801:** solo los MP3 exportados cuyo archivo sigue en el teléfono; mientras se comprueban, la lista sale vacía (no la del filtro anterior) |
 | Buscar en la biblioteca… (campo) | Canciones > búsqueda | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:225-244 (placeholder :239) | acción primaria | diaria | siempre |
 | (borrar búsqueda) (solo icono, cD = null) | Canciones > búsqueda | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:234-236 | acción secundaria | diaria | solo si `searchQuery.isNotEmpty()` |
 | (botón de orden) | Canciones > cabecera de lista | app/src/main/kotlin/com/music/echo/ui/screens/library/LibrarySongsScreen.kt:253-266 | acción secundaria | ocasional | siempre |
@@ -2725,7 +2725,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqS
 | Atrás (barra superior «Ecualizador») | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:128 | navegación | constante | siempre |
 | Ecualizador (activar/desactivar) — desc. «Activa o desactiva el procesamiento de audio profesional» | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:299 | conmutador | ocasional | siempre |
 | «Auto-EQ activo — tu EQ se suma encima» (chip informativo) (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:346 | informativo | ocasional | solo si hay un perfil Auto-EQ aplicado |
-| Quitar Auto-EQ (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:349 | destructiva | rara | solo si hay un perfil Auto-EQ aplicado |
+| Quitar Auto-EQ (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:349 | destructiva | rara | solo si hay un perfil Auto-EQ aplicado · **fila 802:** devuelve el preamp que había antes de activar Auto-EQ |
 | Guardar (preajuste) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:392 | acción primaria | ocasional | siempre |
 | Exportar perfiles (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:424 | acción secundaria | rara | siempre (abre SAF `aura-eq-perfiles.json`) |
 | Importar (hardcoded) | Ajustes > Sonido > Ecualizador | AxionEqScreen.kt:429 | acción secundaria | rara | siempre (abre SAF `application/json`) |
@@ -2754,7 +2754,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/autoeq/AutoEqS
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
-| Auto-EQ activado (tarjeta de estado, hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:171 | informativo | ocasional | solo si hay un perfil aplicado |
+| Auto-EQ activado (tarjeta de estado, hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:171 | informativo | ocasional | solo si hay un perfil aplicado · **fila 802:** al apagarlo vuelve el preamp que había antes de activar Auto-EQ; al encenderlo, el del perfil |
 | «Para corrección pura, elige el preset Bypass» (pista, `autoeq_bypass_hint` ES+EN, fila 792) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:208 | informativo | ocasional | siempre |
 | «Catálogo: N modelos» / «Catálogo no cargado» (hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:191 | informativo | ocasional | siempre |
 | Actualizar base de datos / «Actualizando…» (hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:196 | acción secundaria | rara | siempre |
