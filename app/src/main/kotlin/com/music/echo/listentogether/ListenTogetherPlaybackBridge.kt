@@ -59,6 +59,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -198,8 +199,21 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     @Volatile
     private var pausedLocally = false
 
+    /** Row 796: what a guest off the room's track does about it, with bounded reloads. */
+    private val trackGuard = GuestTrackGuard()
+
+    /** Bumped when the guest's track must be looked at again ([recheckGuestTrack]); the bump itself is all [trackRecheck] does. */
+    private val guestTrackCheck = MutableStateFlow(0)
+
+    /** The pending delayed bump of [guestTrackCheck]. Main thread only. */
+    private var trackRecheck: kotlinx.coroutines.Job? = null
+
+    /** Row 797: which sync decisions reach the shared log. */
+    private val syncLogGate = SyncDecisionLogGate()
+
+    /** Row 796: when this guest received the room's current timeline; see [roomPositionNow]. */
     @Volatile
-    private var mismatchReload: Pair<String, Long>? = null
+    private var roomReceipt: RoomTimelineReceipt? = null
 
     /** True while this device, as host, waits paused at a synchronized start: that pause is the room's, not the host pausing it. */
     @Volatile
@@ -266,6 +280,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         scope.launch { guestPositionHeartbeat() }
         scope.launch { hostDriftHeartbeat() }
         scope.launch { realignGuestWhenAudioIsReady() }
+        scope.launch { recheckGuestTrack() }
         scope.launch { publishCurrentStateOnJoin() }
         scope.launch { publishStateWhenSomeoneArrives() }
         scope.launch { publishTrackChangesAsHost() }
@@ -324,6 +339,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             // SimpMusic's managers do (`requestSync` on guest play), and what makes "guests may
             // pause, and stay paused" possible at all.
             if (!state.inRoom || state.isHost || roomsOwnCall) return
+            // The user asked for music again: a room track this guest had given up on gets its reloads back (row 796).
+            trackGuard.reset()
             Timber.tag(TAG).i("Guest resumed — asking the server where the room is")
             session.requestSync()
             if (state.isPlaying || state.currentTrack == null) return
@@ -358,6 +375,13 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             reason: Int,
         ) {
             playerReadiness.value = mediaItem?.mediaId to (listeningTo?.playbackState ?: Player.STATE_IDLE)
+            // Row 796: a guest whose player moved off the room's track by itself (an error or offline skip, a synced dislike, the
+            // end of the song) is looked at now, not at the next heartbeat. The room's own loads are not: they ARE the room's track.
+            val state = session.state.value
+            val roomTrackId = state.currentTrack?.id
+            if (state.inRoom && !state.isHost && applyingOnMain == 0 && !roomTrackId.isNullOrBlank() && mediaItem?.mediaId != roomTrackId) {
+                scheduleTrackRecheck(0L)
+            }
         }
 
         override fun onTimelineChanged(
@@ -428,9 +452,15 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // Salir de la sala (o pasar a ser anfitrión) con la velocidad recortada la
                     // dejaría así para siempre: el ajuste solo se toca desde aquí, y aquí ya no se
                     // entra. Devolverla es parte de apagar la corrección, no un detalle.
-                    onMain { restoreUserTempo() }
+                    onMain {
+                        restoreUserTempo()
+                        trackRecheck?.cancel()
+                        trackRecheck = null
+                    }
                     pausedLocally = false
-                    mismatchReload = null
+                    trackGuard.reset()
+                    roomReceipt = null
+                    syncLogGate.reset()
                     realignGate.reset()
                     lastAppliedTrackId = null
                     lastAppliedQueueIds = emptyList()
@@ -454,6 +484,16 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     // with the track unchanged, and is applied normally.
                     val playing = if (trackChanged && !isPlaying) lastRoomPlaying else isPlaying
                     lastRoomPlaying = playing
+                    // Row 796: when this timeline reached this device, for re-applying it later without a server clock.
+                    val receipt = roomReceipt
+                    if (
+                        receipt == null || receipt.trackId != track?.id || receipt.position != position ||
+                        receipt.anchorServerTime != anchorServerTime || receipt.playing != playing
+                    ) {
+                        roomReceipt = RoomTimelineReceipt(track?.id, position, anchorServerTime, playing, android.os.SystemClock.elapsedRealtime())
+                        // Row 796: a new room command (another track, a seek, play or pause) gives its track its reloads back.
+                        trackGuard.onRoomCommand(track?.id)
+                    }
                     // A synchronized start (W2): the room's track loads PAUSED at the start position; the hold starts it on time.
                     val hold = session.state.value.syncStart?.takeIf { syncStartHolds(it, track?.id) }
                     if (trackChanged && track != null) {
@@ -568,6 +608,35 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     }
 
     /**
+     * Row 796: looks at the guest's track again when its player left the room's track by itself, or when [GuestTrackGuard] said to
+     * look again later — the heartbeat's own path through [applyTransport], one pass per request, never a loop of its own.
+     */
+    private suspend fun recheckGuestTrack() {
+        guestTrackCheck.drop(1).collect {
+            val state = session.state.value
+            if (!state.inRoom || state.isHost) return@collect
+            val service = serviceFlow.value ?: return@collect
+            remoteDepth.incrementAndGet()
+            try {
+                applyTransport(service, state.isPlaying && !pausedLocally, state.position, state.currentTrack, state.lastActionServerTime)
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Failed to recheck the room's track")
+            } finally {
+                remoteDepth.decrementAndGet()
+            }
+        }
+    }
+
+    /** Asks [recheckGuestTrack] for one pass in [inMs], replacing any pass still pending. Main thread only. */
+    private fun scheduleTrackRecheck(inMs: Long) {
+        trackRecheck?.cancel()
+        trackRecheck = bridgeScope?.launch {
+            delay(inMs)
+            guestTrackCheck.update { it + 1 }
+        }
+    }
+
+    /**
      * The host's side of the heartbeat: re-anchors the room when the host has drifted from what it last told it.
      *
      * The host publishes its position only on events. When its audio starts later than the change_track it published at 0 (a slow
@@ -668,18 +737,44 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // to the raw value whenever it is not calibrated yet.
         val player = runCatching { service.player }.getOrNull() ?: return@remoteOnMain false
         val localDuration = if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) player.duration else 0L
-        val corrected = capToTrack(session.positionAt(position, isPlaying, anchorServerTime), roomTrack, localDuration)
+        // Row 796: re-applied later (heartbeat, realign, recheck), an uncalibrated clock or a missing anchor no longer means «the
+        // room is where its last command was»: see [roomPositionNow].
+        val roomPosition = roomPositionNow(
+            trackId = roomTrack?.id,
+            position = position,
+            playing = isPlaying,
+            anchorServerTime = anchorServerTime,
+            serverNow = session.serverNow(),
+            receipt = roomReceipt,
+            nowMs = android.os.SystemClock.elapsedRealtime(),
+        )
+        val corrected = capToTrack(roomPosition, roomTrack, localDuration)
         if (roomTrack != null && roomTrack.id.isNotBlank() && player.currentMediaItem?.mediaId != roomTrack.id) {
             val previous = player.previousMediaItemIndex
             val cameFromRoomTrack = previous != androidx.media3.common.C.INDEX_UNSET && player.getMediaItemAt(previous).mediaId == roomTrack.id
-            if (cameFromRoomTrack && roomTrack.duration > 0L && corrected >= roomTrack.duration - TRACK_END_HANDOFF_MS) return@remoteOnMain false
-            val attempt = roomTrack.id to anchorServerTime
-            if (mismatchReload == attempt) return@remoteOnMain false
-            mismatchReload = attempt
-            playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
+            // A state read before the hop to this thread may be older than the track the room has since moved to: never reload that.
+            if (session.state.value.currentTrack?.id != roomTrack.id) return@remoteOnMain false
+            // Row 796: bounded reloads, then hold — never a song the room did not choose, and never a reload loop.
+            val step = trackGuard.decide(
+                roomTrackId = roomTrack.id,
+                loadedId = player.currentMediaItem?.mediaId,
+                cameFromRoomTrack = cameFromRoomTrack,
+                roomPositionMs = roomPosition,
+                roomDurationMs = roomTrack.duration,
+                roomPlaying = isPlaying,
+                nowMs = android.os.SystemClock.elapsedRealtime(),
+            )
+            // Row 797: numbers only (rule 4). A reload is bounded per track; a hold is written only when it actually stops the music.
+            if (step is GuestTrackStep.Reload) Timber.tag(TAG).i("SYNC_TRACK server=%s step=reload attempt=%d", serverKind(), step.attempt)
+            if (step == GuestTrackStep.Hold && player.playWhenReady) Timber.tag(TAG).i("SYNC_TRACK server=%s step=hold", serverKind())
+            when (step) {
+                is GuestTrackStep.Reload -> playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
+                is GuestTrackStep.Wait -> scheduleTrackRecheck(step.inMs)
+                GuestTrackStep.Hold -> if (player.playWhenReady) player.pause()
+                GuestTrackStep.OnRoomTrack -> Unit
+            }
             return@remoteOnMain false
         }
-        if (roomTrack != null && player.currentMediaItem?.mediaId == roomTrack.id) mismatchReload = null
         // ALCANZAR ESTIRANDO EL TIEMPO, como Sonos / AirPlay 2 — no saltando.
         //
         // 🔴 PETICIÓN DEL DUEÑO (2026-09-17): *"hazlo entonces como lo hace Sonos o AirPlay"*, tras
@@ -708,6 +803,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 errorMs = errorMs,
                 targetMs = corrected,
             )
+            // Row 797: one line per decision that changes (repeats throttled), numbers only: why this device drifted.
+            val label = syncActionLabel(action)
+            if (syncLogGate.shouldLog(label, android.os.SystemClock.elapsedRealtime())) {
+                Timber.tag(TAG).i(
+                    "SYNC_DECISION server=%s drift_ms=%d action=%s speed=%.4f clock=%b anchored=%b",
+                    serverKind(),
+                    errorMs,
+                    label,
+                    SyncCorrection.playerSpeed(userTempo, action),
+                    session.serverNow() != null,
+                    anchorServerTime > 0L,
+                )
+            }
             trimEnd?.cancel()
             trimEnd = null
             if (action is SyncAction.Resync) {
@@ -1325,6 +1433,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             )
         }.getOrDefault(0)
 
+    /** Which kind of server the room is on, as the shared log names it. */
+    private fun serverKind(): String = if (runCatching { session.isAuraRooms }.getOrDefault(false)) "aura" else "metrolist"
+
     private fun capToTrack(position: Long, track: TrackInfo?, localDurationMs: Long = 0L): Long {
         val duration = localDurationMs.takeIf { it > 0L } ?: track?.duration ?: 0L
         return if (duration > TRACK_END_MARGIN_MS) position.coerceAtMost(duration - TRACK_END_MARGIN_MS) else position
@@ -1348,8 +1459,6 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         const val HOST_QUEUE_WINDOW = 25
 
         const val TRACK_END_MARGIN_MS = 500L
-
-        const val TRACK_END_HANDOFF_MS = 2_000L
 
         /** Every device's speed inside a room: the protocol shared with Metrolist carries no tempo. */
         const val ROOM_TEMPO = 1f
