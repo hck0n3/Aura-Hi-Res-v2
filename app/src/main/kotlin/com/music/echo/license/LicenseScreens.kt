@@ -509,7 +509,7 @@ fun DeviceBlockedScreen(onRetry: () -> Unit, onEnterEmail: () -> Unit = {}) {
         SecondaryOutlinedButton("Reintentar", onClick = onRetry)
         Spacer(Modifier.height(12.dp))
         SecondaryOutlinedButton(
-            text = "Suscribirme (desde US$2 al mes con el plan anual, renovación automática)",
+            text = "Suscribirme (mensual, trimestral, semestral o anual: US$24 al año, renovación automática)",
             height = 48.dp,
             semiBold = true,
             onClick = { openGumroad(context) },

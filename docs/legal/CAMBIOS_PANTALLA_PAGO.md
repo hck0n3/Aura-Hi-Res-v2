@@ -38,7 +38,7 @@ verificación de la licencia no depende del periodo, así que el Worker y `PRODU
 | Alta: botón de Gumroad | «Suscribirme: US$3.74 al mes + impuestos» | «Suscribirme (eliges el plan al pagar)» |
 | Alta: nota bajo el botón | «Se renueva sola cada mes hasta que la canceles…» | «Se renueva sola según el plan que elijas, hasta que la canceles…» (sigue «No hay reembolsos.») |
 | Renovación (`hint`) | «Tu suscripción mensual no está activa…» | «Tu suscripción no está activa…» |
-| Equipo bloqueado: botón | «Suscribirme (US$3.74 al mes, renovación automática)» | «Suscribirme (desde US$2 al mes con el plan anual, renovación automática)» |
+| Equipo bloqueado: botón | «Suscribirme (US$3.74 al mes, renovación automática)» | «Suscribirme (mensual, trimestral, semestral o anual: US$24 al año, renovación automática)» |
 
 Fuera de esta pantalla: Acerca de ▸ «Suscripción y demo», el `README.md` y los Términos (versión 4, cláusulas
 «Lo más importante», 10.5 y el resumen) dicen los cuatro periodos y la renovación al final de cada periodo.
