@@ -967,6 +967,16 @@ class LibraryUploadSync @Inject constructor(
 
     private suspend fun uploadLikedAlbums() {
         if (!budgetLeft()) return
+        // Rows 834/835: the same skip as uploadLikedSongs. While the devices own the library the account's albums are not read
+        // down (SyncUtils, row 536), so an album unsaved on YouTube would be saved again, and an album another device saved
+        // (syncSetAlbumSaved) would be saved to this device's account.
+        if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {
+            Timber.i("LIB_SYNC YouTube album upload skipped (library synced between devices)")
+            _progress.value = _progress.value.copy(
+                likedAlbums = _progress.value.likedAlbums.copy(pending = 0, running = false, verified = true),
+            )
+            return
+        }
         _progress.value = _progress.value.copy(likedAlbums = _progress.value.likedAlbums.copy(running = true))
 
         val localAlbums = runCatching { database.likedAlbumsSyncable() }.getOrNull().orEmpty()

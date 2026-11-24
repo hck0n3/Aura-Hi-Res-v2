@@ -76,6 +76,12 @@ class AccountWritesGateGuardTest {
         assertTrue("checked before anything is sent", skip < likes.indexOf("YouTube.likeVideo(songId, true)"))
         // Verified with nothing pending: a skipped category must not keep YtmSyncWorker chaining continuations (rule 7).
         assertTrue(likes.contains("likedSongs = _progress.value.likedSongs.copy(pending = 0, running = false, verified = true),"))
+        // Row 835: the album upload skips the same way (an album unsaved on YouTube, or saved on another device, is not saved here).
+        val albums = body(src, "private suspend fun uploadLikedAlbums() {")
+        val albumSkip = albums.indexOf("if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {")
+        assertTrue(albumSkip >= 0)
+        assertTrue("checked before anything is sent", albumSkip < albums.indexOf("YouTube.likePlaylist(playlistId, true)"))
+        assertTrue(albums.contains("likedAlbums = _progress.value.likedAlbums.copy(pending = 0, running = false, verified = true),"))
         // The whole upload still sits behind the switch.
         assertTrue(src.contains("if (uploadEnabled) {\n                uploadArtistSubscriptions(remoteArtistIds)"))
     }
