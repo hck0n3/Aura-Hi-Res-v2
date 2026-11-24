@@ -2674,12 +2674,13 @@ class MusicService :
         scope.launch {
             PlaybackOfflineSession.userRetries.collect { onOfflineSessionExited("user_retry") }
         }
-        // Row 795: the players' «Sin conexión» sign follows the session and the manual switch as they change.
+        // Row 795: the players' «Sin conexión» sign follows the session, its parked queue and the manual switch as they change.
         scope.launch {
             combine(
                 PlaybackOfflineSession.active,
+                offlineQueueParkedState,
                 dataStore.data.map { it[OfflineModeKey] ?: false }.distinctUntilChanged(),
-            ) { session, manual -> OfflinePlaybackNotice.of(sessionActive = session, manual = manual) }
+            ) { session, parked, manual -> OfflinePlaybackNotice.of(sessionActive = session, queueParked = parked, manual = manual) }
                 .collect { _offlinePlaybackNotice.value = it }
         }
 
@@ -4011,8 +4012,11 @@ class MusicService :
     private var offlineStallJob: Job? = null
 
     private val _offlinePlaybackNotice = MutableStateFlow(OfflinePlaybackNotice.NONE)
-    /** Row 795: the players' «Sin conexión» sign — the offline session or the manual switch. Fed by events, never polled. */
+    /** Row 795: the players' «Sin conexión» sign — the same three states as [offlineQueueModeNow]. Fed by events, never polled. */
     val offlinePlaybackNotice: kotlinx.coroutines.flow.StateFlow<OfflinePlaybackNotice> get() = _offlinePlaybackNotice
+
+    /** Row 795: [offlineQueueParkedNow] for the sign, refreshed where the flag is written and when the queue changes. */
+    private val offlineQueueParkedState = MutableStateFlow(false)
 
     /** The same "que se ponga solo" switch as the UI's automatic offline mode (AutoOfflineModeKey, ON by default). */
     private fun offlineSessionAllowed(): Boolean =
@@ -4093,6 +4097,10 @@ class MusicService :
     /** Row 717 (C4): the session timed out on this same queue and the offline queue goes on until a real return. */
     internal fun offlineQueueParkedNow(): Boolean = offlineQueueParked && offlineQueueSwap?.generation == queueGeneration
 
+    private fun publishOfflineQueueParked() {
+        offlineQueueParkedState.value = offlineQueueParkedNow()
+    }
+
     /** The queue goes on with offline music only: the session, its parked queue, or the manual switch (row 717). */
     private fun offlineQueueModeNow(): Boolean =
         PlaybackOfflineSession.isActive || offlineQueueParkedNow() || dataStore.get(OfflineModeKey, false)
@@ -4100,6 +4108,7 @@ class MusicService :
     private fun dropOfflineQueueSwap() {
         offlineQueueSwap = null
         offlineQueueParked = false
+        publishOfflineQueueParked()
         offlineProbeJob?.cancel()
     }
 
@@ -4250,6 +4259,7 @@ class MusicService :
             if (offlineQueueSwapIntact(parked)) {
                 parked.parked = false
                 offlineQueueParked = false
+                publishOfflineQueueParked()
                 Timber.tag(TAG).i("OFFLINE_QUEUE switch reused: the session came back on the same queue")
                 return true
             }
@@ -4425,6 +4435,7 @@ class MusicService :
         }
         swap.parked = true
         offlineQueueParked = true
+        publishOfflineQueueParked()
         Timber.tag(TAG).i("OFFLINE_QUEUE parked: no proof the network works")
         probeNetworkForParkedQueue(swap)
         return true
@@ -7077,6 +7088,8 @@ class MusicService :
     }
 
     override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+        // Row 795: a new queue (new generation) is no longer the parked one; the sign follows.
+        publishOfflineQueueParked()
         // Self-inflicted shuffle-order re-applies change NOTHING the queue file stores (timeline order)
         // and must not schedule the next re-apply — see [applyingShuffleOrder].
         if (!applyingShuffleOrder) {

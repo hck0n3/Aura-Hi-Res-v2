@@ -31,15 +31,38 @@ class OfflinePlayerNoticeGuardTest {
                 "val offlinePlaybackNotice: kotlinx.coroutines.flow.StateFlow<OfflinePlaybackNotice> get() = _offlinePlaybackNotice",
             ),
         )
-        val marker = "// Row 795: the players' «Sin conexión» sign follows the session and the manual switch as they change."
+        val marker = "// Row 795: the players' «Sin conexión» sign follows the session, its parked queue and the manual switch as they change."
         assertTrue(service.contains(marker))
         val feed = service.substringAfter(marker).substringBefore(".collect { _offlinePlaybackNotice.value = it }")
         assertTrue(feed.contains("PlaybackOfflineSession.active,"))
+        assertTrue(feed.contains("offlineQueueParkedState,"))
         assertTrue(feed.contains("dataStore.data.map { it[OfflineModeKey] ?: false }.distinctUntilChanged(),"))
-        assertTrue(feed.contains("OfflinePlaybackNotice.of(sessionActive = session, manual = manual)"))
+        assertTrue(feed.contains("OfflinePlaybackNotice.of(sessionActive = session, queueParked = parked, manual = manual)"))
         assertFalse("no polling", feed.contains("delay("))
         assertFalse("reads the manual switch, never writes it (row 284)", feed.contains("edit"))
         assertEquals("one place writes the sign", 1, Regex("""_offlinePlaybackNotice\.value =""").findAll(service).count())
+    }
+
+    @Test
+    fun `the parked offline queue keeps the sign, from the same predicate as offlineQueueModeNow`() {
+        val service = main("playback/MusicService.kt")
+        // The predicate the sign mirrors (row 717): the parked queue is still offline music only.
+        assertTrue(
+            service.contains(
+                "PlaybackOfflineSession.isActive || offlineQueueParkedNow() || dataStore.get(OfflineModeKey, false)",
+            ),
+        )
+        assertTrue(service.contains("private val offlineQueueParkedState = MutableStateFlow(false)"))
+        val publish = service.substringAfter("private fun publishOfflineQueueParked() {").substringBefore("}")
+        assertTrue(publish.contains("offlineQueueParkedState.value = offlineQueueParkedNow()"))
+        // Every write of the flag is published at once, and a new queue (new generation) refreshes it.
+        val writes = Regex("""offlineQueueParked = (true|false)\n\s*publishOfflineQueueParked\(\)""").findAll(service).count()
+        assertEquals("each write of offlineQueueParked is followed by the publish", 3, writes)
+        assertEquals("no other write of the flag", 3, Regex("""(?<!var )offlineQueueParked = (true|false)""").findAll(service).count())
+        val timeline = service.substringAfter("override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {")
+            .substringBefore("if (!applyingShuffleOrder) {")
+        assertTrue(timeline.contains("publishOfflineQueueParked()"))
+        assertEquals("one place writes the parked state", 1, Regex("""offlineQueueParkedState\.value =""").findAll(service).count())
     }
 
     @Test
