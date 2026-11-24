@@ -69,7 +69,11 @@ object LauncherShortcuts {
             ACTION_RESUME -> {
                 // Cold start: MusicService restores the saved queue asynchronously, so wait for its song to land
                 // (a StateFlow emission, not a poll) before pressing play; PlayerConnection.play prepares an idle player.
-                val restored = withTimeoutOrNull(RESUME_WAIT_MS) { connection.mediaMetadata.first { it != null } }
+                // Then the player-STATE restore, which seeks to the saved song and position after the queue lands.
+                val restored = withTimeoutOrNull(RESUME_WAIT_MS) {
+                    connection.mediaMetadata.first { it != null }
+                    connection.service.playerStateRestoreDone.first { it }
+                }
                 if (restored == null) {
                     Timber.tag(TAG).w("Resume shortcut: no saved queue to resume")
                     return

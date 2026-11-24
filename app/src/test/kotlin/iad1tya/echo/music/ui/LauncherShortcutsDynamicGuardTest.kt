@@ -35,7 +35,14 @@ class LauncherShortcutsDynamicGuardTest {
     @Test
     fun `playing waits on events with a bound, never on a timer`() {
         val s = main("utils/LauncherShortcuts.kt")
-        assertTrue(s.contains("withTimeoutOrNull(RESUME_WAIT_MS) { connection.mediaMetadata.first { it != null } }"))
+        assertTrue(s.contains("val restored = withTimeoutOrNull(RESUME_WAIT_MS) {"))
+        assertTrue(s.contains("connection.mediaMetadata.first { it != null }"))
+        // Play only after the saved index/position are applied, or it starts the queue file's (stale) song first.
+        assertTrue(s.contains("connection.service.playerStateRestoreDone.first { it }"))
+        val service = main("playback/MusicService.kt")
+        assertTrue(service.contains("val playerStateRestoreDone = MutableStateFlow(false)"))
+        assertTrue(service.contains("}.invokeOnCompletion { playerStateRestoreDone.value = true }"))
+        assertTrue(service.contains("if (!playerStateRestoreLaunched) playerStateRestoreDone.value = true"))
         assertFalse("rule 7: no polling", s.contains("delay("))
         assertFalse("rule 7: no polling", s.contains("while ("))
         // Same queue as the «Me gusta» screen's shuffle button.

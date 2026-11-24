@@ -1087,6 +1087,9 @@ class MusicService :
     // The queue being restored at boot, until the player-STATE restore has applied its saved index and
     // shuffle to it (see the wait in onCreate). Main-thread only.
     private var pendingRestoreQueue: iad1tya.echo.music.playback.queues.Queue? = null
+    // Registry 810 (owner H4): true once the boot-time player-STATE restore (saved index, position, shuffle) has run, or
+    // was not needed. «Seguir escuchando» waits for it so its play lands on the real song, not the queue file's index.
+    val playerStateRestoreDone = MutableStateFlow(false)
     internal var contextSeedHistoryPool: List<iad1tya.echo.music.models.MediaMetadata>? = null
 
     // Row 344 — the language of the collection in [radioSeedPool] (TitleLanguage over its titles), computed once
@@ -3284,6 +3287,7 @@ class MusicService :
         scope.launch(Dispatchers.IO) { runCatching { iad1tya.echo.music.listentogether.RoomDurationRepair.runOnce(this@MusicService, database) } }
         // Registry 764: not persistentQueueHint — its collector has not emitted yet here, and a default of true would
         // restore a queue the user turned off. The snapshot is exact (blocking read only before its first emission).
+        var playerStateRestoreLaunched = false
         if (dataStore.getNonBlocking(PersistentQueueKey, true)) {
             val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
             if (queueFile.exists()) {
@@ -3357,6 +3361,7 @@ class MusicService :
                     }
                 }.onSuccess { playerState ->
                     
+                    playerStateRestoreLaunched = true
                     scope.launch {
                         delay(1000) 
                         // WAIT FOR THE RESTORED QUEUE TO LAND (owner 2026-10-04: "puse mis Me gusta — más de
@@ -3454,7 +3459,7 @@ class MusicService :
                                 suppressShuffleActivationReset = false
                             }
                         }
-                    }
+                    }.invokeOnCompletion { playerStateRestoreDone.value = true }
                 }.onFailure { error ->
                     Timber.tag(TAG).w(error, "Failed to read player state, clearing data")
                     // C3 — only the unreadable player-state file. The queue file is fine (it was read above)
@@ -3464,6 +3469,7 @@ class MusicService :
                 }
             }
         }
+        if (!playerStateRestoreLaunched) playerStateRestoreDone.value = true
 
         
         // #55 (battery/heat): this tick is deliberately NOT gated on isPlaying — a queue edited while paused
