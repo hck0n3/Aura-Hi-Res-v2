@@ -2967,6 +2967,24 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        // Registry 810 (owner H4): «Descargado» opens the downloaded list; «Seguir escuchando» / «Aleatorio de Me gusta»
+        // play once the player connection exists (on a cold start the service binds after this runs).
+        val shortcutAction = intent.action
+        if (shortcutAction != null && shortcutAction in iad1tya.echo.music.utils.LauncherShortcuts.ACTIONS) {
+            intent.action = null
+            if (shortcutAction == iad1tya.echo.music.utils.LauncherShortcuts.ACTION_DOWNLOADED) {
+                runCatching { navController.navigateToReentryTarget("auto_playlist/downloaded") }
+                return
+            }
+            // Dispatchers.Main, not .immediate: a resume must land AFTER the restore's own playWhenReady = false.
+            lifecycleScope.launch(Dispatchers.Main) {
+                val connection = androidx.compose.runtime.snapshotFlow { playerConnection }
+                    .first { it != null } ?: return@launch
+                iad1tya.echo.music.utils.LauncherShortcuts.play(shortcutAction, connection, database, this@MainActivity)
+            }
+            return
+        }
+
         // Playlist widget: a card tap opens the app on that playlist/collection. Without this branch the
         // activity launched and the intent fell through, so the app just opened wherever it had been.
         // navigateToReentryTarget also stops N taps on the same card from stacking N copies of the

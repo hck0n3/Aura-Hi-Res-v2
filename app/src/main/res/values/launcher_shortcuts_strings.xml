@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Registry 810 (owner H4): dynamic launcher shortcuts (long-press the app icon). -->
+    <string name="shortcut_resume">Keep listening</string>
+    <string name="shortcut_shuffle_liked">Shuffle liked songs</string>
+    <string name="shortcut_downloaded">Downloaded</string>
+</resources>

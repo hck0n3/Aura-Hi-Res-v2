@@ -4264,8 +4264,12 @@ producto. Si el rediseño cambia iconografía, colores o nombres, hay que decidi
 |---|---|---|
 | **Buscar** | `search_input` | `utils/LauncherShortcuts.kt` (publicado en `MainActivity.onCreate`) → `MainActivity.kt:958`, `:2963` |
 | **Biblioteca** | `library` | ídem |
+| **Seguir escuchando** | reanuda la cola guardada (espera hasta 15 s a que vuelva tras un arranque en frío; si no hay cola, no hace nada) | `utils/LauncherShortcuts.kt` `ACTION_RESUME` → `MainActivity.handleDeepLinkIntent` → `LauncherShortcuts.play` (fila 810) |
+| **Aleatorio de Me gusta** | reproduce «Me gusta» en aleatorio, las no escuchadas primero (igual que el botón aleatorio de esa lista) | `ACTION_SHUFFLE_LIKED`, ídem (fila 810) |
+| **Descargado** | `auto_playlist/downloaded` | `ACTION_DOWNLOADED`, ídem (fila 810) |
 
-Son accesos directos **dinámicos** (fila 785): aparecen tras abrir la app una vez. El antiguo `res/xml/shortcuts.xml` apuntaba
+Son accesos directos **dinámicos** (fila 785): aparecen tras abrir la app una vez. Si el lanzador admite menos de cinco,
+se publican los primeros que caben en este orden (Buscar y Biblioteca primero). El antiguo `res/xml/shortcuts.xml` apuntaba
 al paquete de la app vieja (`iad1tya.echo.music`) y no abría esta.
 
 ## 25.4 Botones de la notificación de reproducción y de Android Auto
