@@ -2976,6 +2976,9 @@ class MainActivity : ComponentActivity() {
                 runCatching { navController.navigateToReentryTarget("auto_playlist/downloaded") }
                 return
             }
+            // Reopened from Recents after the process died: Android hands back the shortcut that started the task. Only a
+            // real tap may replace the queue or start the music.
+            if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return
             // Dispatchers.Main, not .immediate: a resume must land AFTER the restore's own playWhenReady = false.
             lifecycleScope.launch(Dispatchers.Main) {
                 val connection = androidx.compose.runtime.snapshotFlow { playerConnection }

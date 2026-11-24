@@ -54,6 +54,10 @@ class LauncherShortcutsDynamicGuardTest {
         // Not .immediate: the resume must land after the queue restore's own playWhenReady = false.
         assertTrue(a.contains("lifecycleScope.launch(Dispatchers.Main) {"))
         assertTrue(a.contains("iad1tya.echo.music.utils.LauncherShortcuts.play(shortcutAction, connection, database, this@MainActivity)"))
+        // Reopening from Recents re-delivers the shortcut that started the task: it must not replace the queue or play.
+        val historyGate = a.indexOf("if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return")
+        assertTrue(historyGate > a.indexOf("navController.navigateToReentryTarget(\"auto_playlist/downloaded\")"))
+        assertTrue(historyGate < a.indexOf("iad1tya.echo.music.utils.LauncherShortcuts.play(shortcutAction, connection, database, this@MainActivity)"))
     }
 
     @Test
