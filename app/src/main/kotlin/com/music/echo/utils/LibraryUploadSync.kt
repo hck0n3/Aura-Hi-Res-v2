@@ -952,6 +952,16 @@ class LibraryUploadSync @Inject constructor(
 
     private suspend fun uploadLikedSongs() {
         if (!budgetLeft()) return
+        // Row 834: while the library is kept between devices the account's likes are not read down (SyncUtils, row 536), so an
+        // unlike made on YouTube is still liked here, and «missing on the account» below would like it again. Nothing left
+        // to do here this pass: verified with nothing pending, so the worker does not chain continuations for it.
+        if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {
+            Timber.i("LIB_SYNC YouTube like upload skipped (library synced between devices)")
+            _progress.value = _progress.value.copy(
+                likedSongs = _progress.value.likedSongs.copy(pending = 0, running = false, verified = true),
+            )
+            return
+        }
         _progress.value = _progress.value.copy(likedSongs = _progress.value.likedSongs.copy(running = true))
 
         val localLiked = runCatching { database.likedSongIdsSyncable() }.getOrNull().orEmpty()
@@ -996,6 +1006,16 @@ class LibraryUploadSync @Inject constructor(
 
     private suspend fun uploadLikedAlbums() {
         if (!budgetLeft()) return
+        // Rows 834/835: the same skip as uploadLikedSongs. While the devices own the library the account's albums are not read
+        // down (SyncUtils, row 536), so an album unsaved on YouTube would be saved again, and an album another device saved
+        // (syncSetAlbumSaved) would be saved to this device's account.
+        if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {
+            Timber.i("LIB_SYNC YouTube album upload skipped (library synced between devices)")
+            _progress.value = _progress.value.copy(
+                likedAlbums = _progress.value.likedAlbums.copy(pending = 0, running = false, verified = true),
+            )
+            return
+        }
         _progress.value = _progress.value.copy(likedAlbums = _progress.value.likedAlbums.copy(running = true))
 
         val localAlbums = runCatching { database.likedAlbumsSyncable() }.getOrNull().orEmpty()

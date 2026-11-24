@@ -186,7 +186,7 @@ object AccountPush {
 
     /**
      * Record the user's action and send it NOW. Safe from any thread, never throws, a no-op when
-     * signed out (the sync reconciles that case by itself when they sign in).
+     * signed out (row 834: the liked-songs sync sends such a like later only with the library-upload switch on).
      */
     fun submit(op: AccountPushPolicy.Op, id: String) {
         if (appContext == null || id.isBlank()) return
@@ -241,6 +241,21 @@ object AccountPush {
         Timber.i("SYNC_PUSH kind=%s status=queued", op.logKind)
         scheduleWorker()
         toastFailure(gaveUp = false)
+    }
+
+    /**
+     * Row 835: `App.forgetAccount` (logout, account switch). Everything waiting here was queued for the account being detached:
+     * none of it may be sent, or veto a sync, under the next one.
+     */
+    fun forgetAccount() {
+        if (appContext == null) return
+        synchronized(lock) {
+            ensureLoaded()
+            if (entries.isNotEmpty()) Timber.i("SYNC_PUSH dropped %d entries of the detached account", entries.size)
+            entries.clear()
+            accountTag = null
+            persist()
+        }
     }
 
     /** The live follow finished. Logged only: a follow that did not land is the uploader's pending SUBSCRIBE. */
@@ -368,7 +383,9 @@ object AccountPush {
         val mutex = keyLocks.getOrPut(key) { Mutex() }
         mutex.withLock {
             while (true) {
-                val e = synchronized(lock) { ensureLoaded(); entries[key] } ?: return
+                // Row 835: the retry worker and flush reach here without a submit; an entry of the account that was signed in
+                // when it was queued is dropped (not sent with another account's cookie) the moment the account has changed.
+                val e = synchronized(lock) { ensureLoaded(); adoptAccount(); entries[key] } ?: return
                 if (e.confirmedAt != 0L) return
                 if (e.op == AccountPushPolicy.Op.ARTIST_UNSUBSCRIBE_PASS) return
                 if (!force && e.nextAttemptAt > System.currentTimeMillis()) return

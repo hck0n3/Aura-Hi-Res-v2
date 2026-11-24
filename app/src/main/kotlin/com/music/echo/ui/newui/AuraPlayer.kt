@@ -988,7 +988,9 @@ private fun AuraPlayerShape(
                         text = stringResource(if (followed) R.string.subscribed else R.string.subscribe),
                         selected = followed,
                         onClick = { followArtistFromPlayer(artist, followed) },
-                        firstTap = true,
+                        // Row 836: a plain tap only. `firstTap` fires on any lift inside the chip, so a scroll or swipe that
+                        // ended on it subscribed the account.
+                        firstTap = false,
                     )
                 }
             }
@@ -1831,7 +1833,8 @@ private fun AuraPlayerShape(
                                         text = stringResource(if (followed) R.string.subscribed else R.string.subscribe),
                                         selected = followed,
                                         onClick = { followArtistFromPlayer(artist, followed) },
-                                        firstTap = true,
+                                        // Row 836: a plain tap only (see the chooser row above).
+                                        firstTap = false,
                                     )
                                 } else if (followable.isNotEmpty()) {
                                     // The chip says what the chooser will show: «Suscrito» when all are followed, «Suscrito a N

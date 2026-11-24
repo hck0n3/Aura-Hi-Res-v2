@@ -20,6 +20,7 @@ import iad1tya.echo.music.constants.LastFullSyncKey
 import iad1tya.echo.music.constants.SuppressedPlaylistIdsKey
 import iad1tya.echo.music.constants.YtmAutoSyncFreqDaysKey
 import iad1tya.echo.music.constants.YtmLastSyncKey
+import iad1tya.echo.music.constants.YtmUploadSyncKey
 import iad1tya.echo.music.constants.SYNC_COOLDOWN
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.ArtistEntity
@@ -346,6 +347,14 @@ class SyncUtils @Inject constructor(
         Timber.i("LIB_SYNC YouTube pull skipped (library synced between devices): %s", pass)
         return true
     }
+
+    /**
+     * Row 834: the library-upload switch ([YtmUploadSyncKey]) is the user's permission for Aura to write their library to the account.
+     * Fails closed like `LibraryUploadSync.isUploadEnabled`: an absent key or a failed read is "no".
+     */
+    private suspend fun isUploadSwitchOn(): Boolean = runCatching {
+        context.dataStore.data.first()[YtmUploadSyncKey] ?: false
+    }.getOrDefault(false)
 
     private suspend fun processOperation(operation: SyncOperation) {
         when (operation) {
@@ -1201,7 +1210,11 @@ class SyncUtils @Inject constructor(
                     // the account never confirmed is pushed again instead (bounded per sync).
                     val likeConfirmPrefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
                     val confirmedBefore: Set<String>? = likeConfirmPrefs.getStringSet(LIKED_CONFIRMED_KEY, null)
-                    var pushBudget = LIKE_REPUSH_PER_SYNC
+                    // Row 834 (owner 2026-11-24: «que no sincronice otras cosas que no tengan nada que ver con lo que estoy
+                    // pidiendo»): this pass is a DOWN sync; sending local likes the account never had is a bulk write, so it
+                    // only runs with the upload switch on. A like tapped while signed in is retried by AccountPush; one tapped
+                    // while signed out, or one AccountPush gave up on, stays liked here but is not sent with the switch off.
+                    var pushBudget = if (isUploadSwitchOn()) LIKE_REPUSH_PER_SYNC else 0
                     localSongs.filterNot { it.id in remoteIds || it.song.isLocal }.forEach { song ->
                         try {
                             val likedEpochMs = AccountLibraryReconcile.toEpochMilli(song.song.likedDate)
@@ -1392,8 +1405,12 @@ class SyncUtils @Inject constructor(
                     if (!remoteComplete) {
                         Timber.d("Library songs: remote list incomplete, skipping push-up of local-only songs")
                     }
+                    // Row 834: adding songs to the account's library in bulk is a write the user allows with the upload switch.
+                    // Row 835: never while the devices own the library: a like another device sent (syncSetLiked) also stamps
+                    // inLibrary here, and pushing it would write that device's likes to this device's account.
+                    val pushAllowed = isUploadSwitchOn() && !iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices
                     localSongs
-                        .filterNot { !remoteComplete || it.id in remoteIds || it.song.isLocal }
+                        .filterNot { !pushAllowed || !remoteComplete || it.id in remoteIds || it.song.isLocal }
                         .take(MAX_LIBRARY_PUSH_PER_RUN)
                         .forEach { song ->
                         try {
@@ -2003,7 +2020,6 @@ class SyncUtils @Inject constructor(
 
                     Timber.d("syncPlaylist: Updating local playlist (remote: ${remoteIds.size}, local: ${localIds.size})")
 
-                    val libraryNow = LocalDateTime.now()
                     // Row 511 (owner 2026-10-29: «que la sincronización guarde solo los cambios que hice canción por canción, no
                     // que reemplace las listas»): a song the USER added in the app that YouTube does not have yet (no entry id:
                     // it was never matched with a remote entry) is that user's change, still on its way. The rebuild below used
@@ -2019,15 +2035,10 @@ class SyncUtils @Inject constructor(
                     database.withTransaction {
                         database.clearPlaylist(playlistId)
                         songs.forEachIndexed { idx, song ->
-                            val dbSong = existing[song.id]
-                            if (dbSong == null) {
-                                // New song → insert and drop it into the library so it surfaces in
-                                // Library → Songs (WHERE inLibrary IS NOT NULL).
-                                database.insert(song) { it.copy(inLibrary = libraryNow) }
-                            } else if (dbSong.inLibrary == null) {
-                                // Set inLibrary on existing songs that don't have it yet.
-                                database.update(dbSong.copy(inLibrary = libraryNow))
-                            }
+                            // Row 834: a song of a playlist is not a song saved to the library. Stamping `inLibrary` here put
+                            // every song of every saved playlist in Library ▸ Songs, and the library pass then added them to the
+                            // account's library one by one.
+                            if (existing[song.id] == null) database.insert(song)
                             database.insert(
                                 PlaylistSongMap(
                                     songId = song.id,

@@ -482,7 +482,7 @@
     <string name="device_sync_code_copied">Código copiado</string>
     <string name="device_sync_code_invalid">Ese código no está completo</string>
     <string name="device_sync_code_remove">Desemparejar este dispositivo</string>
-    <string name="device_sync_code_dialog_hint">AAAA-BBBB-CCCC-DDDD-EEEE</string>
+    <string name="device_sync_code_dialog_hint">ABCD-EFGH-…</string>
     <string name="device_sync_name">Nombre de este dispositivo</string>
     <string name="device_sync_name_default">Automático</string>
     <string name="device_sync_shuffle">Sincronizar el aleatorio</string>

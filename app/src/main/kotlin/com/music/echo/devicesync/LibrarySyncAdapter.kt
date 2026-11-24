@@ -167,6 +167,9 @@ class LibrarySyncAdapter(
                         browseId = if (ownId) null else key,
                         bookmarkedAt = LocalDateTime.now(),
                         isEditable = true,
+                        // Row 835: a list another device made and never put on YouTube stays off this device's account too (the
+                        // library upload skips `isLocal`); if that device links it later, step 2b links it here as well.
+                        isLocal = ownId,
                     )
                     database.insert(entity)
                     targets.add(LibrarySyncCore.PlaylistRow(entity.id, entity.browseId))
@@ -198,32 +201,28 @@ class LibrarySyncAdapter(
 
         // 4. Likes.
         val now = LocalDateTime.now()
-        val changedLikes = ArrayList<Pair<String, Boolean>>()
+        // Row 835: what arrives here is NOT sent to this device's YouTube account (it may be another account): the device where the
+        // user tapped already sent it to its own.
         for ((id, liked) in plan.likes) {
             if (liked && database.syncSongExists(id) == 0) {
                 unresolved++
                 unplaced += LibrarySyncCore.likeKey(id)
                 continue
             }
-            if (database.syncIsLiked(id) != liked) changedLikes += id to liked
             database.syncSetLiked(id, liked, if (liked) now else null)
             applied++
         }
-        mirrorLikesToAccount(changedLikes)
 
         // 4b. Saved albums.
-        val changedAlbums = ArrayList<Pair<String, Boolean>>()
         for ((id, saved) in plan.albumSaves) {
             if (saved && database.syncAlbumExists(id) == 0) {
                 unresolved++
                 unplaced += LibrarySyncCore.albumKey(id)
                 continue
             }
-            if (database.syncIsAlbumSaved(id) != saved) changedAlbums += id to saved
             database.syncSetAlbumSaved(id, if (saved) now else null)
             applied++
         }
-        mirrorAlbumsToAccount(changedAlbums)
 
         // 5. Dislikes.
         for ((set, id, on) in plan.dislikes) {
@@ -275,39 +274,7 @@ class LibrarySyncAdapter(
         return ApplyResult(applied, unresolved, unplaced)
     }
 
-    /**
-     * Owner 2026-10-30: «todo lo que me gusta que aparezca de inmediato también en YouTube». The device where the like was made
-     * already sent it; this covers the case where THAT device could not (signed out of YouTube, no network at that moment) and this
-     * one can. YouTube ignores a like that is already there. A first sync that brings thousands of likes is NOT replayed against the
-     * account one by one (that is the YouTube sync's job): only the few changes a person makes live.
-     */
-    private fun mirrorLikesToAccount(changed: List<Pair<String, Boolean>>) {
-        if (changed.isEmpty() || changed.size > MIRROR_MAX) return
-        for ((id, liked) in changed) {
-            iad1tya.echo.music.utils.AccountPush.submit(
-                if (liked) iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_LIKE else iad1tya.echo.music.utils.AccountPushPolicy.Op.SONG_UNLIKE,
-                id,
-            )
-        }
-        Timber.tag("DeviceSync").i("LIB_SYNC likes mirrored to account=%d", changed.size)
-    }
-
-    /** Same as [mirrorLikesToAccount] for saved albums: the account save/unsave for the few that changed, when the other device could not send it. */
-    private suspend fun mirrorAlbumsToAccount(changed: List<Pair<String, Boolean>>) {
-        if (changed.isEmpty() || changed.size > MIRROR_MAX) return
-        for ((id, saved) in changed) {
-            val playlistId = database.syncAlbumPlaylistId(id) ?: continue
-            iad1tya.echo.music.utils.AccountPush.submit(
-                if (saved) iad1tya.echo.music.utils.AccountPushPolicy.Op.PLAYLIST_SAVE else iad1tya.echo.music.utils.AccountPushPolicy.Op.PLAYLIST_UNSAVE,
-                playlistId,
-            )
-        }
-        Timber.tag("DeviceSync").i("LIB_SYNC albums mirrored to account=%d", changed.size)
-    }
-
     private companion object {
-        const val MIRROR_MAX = 25
-
         /** How many of the latest listens are offered to the other devices; older ones already went out when they were new. */
         const val PLAY_SYNC_LIMIT = 300
     }

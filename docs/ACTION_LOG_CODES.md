@@ -1913,6 +1913,8 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.MAIN.TOPBAR_ACCOUNT` | Botón «Cuenta» de la barra superior |
 | `UI.MAIN.INVITE_JOIN` | «Unirme» en «¿Unirte a la sala …?» (enlace de invitación) |
 | `UI.MAIN.INVITE_CANCEL` | «Cancelar» en «¿Unirte a la sala …?» |
+| `UI.MAIN.PAIR_JOIN` | «Unirme» en «¿Emparejar este aparato con otra sala de sincronización?» (enlace o QR de emparejamiento, fila 836) |
+| `UI.MAIN.PAIR_CANCEL` | «Cancelar» en «¿Emparejar este aparato con otra sala de sincronización?» |
 
 ### Cast (versión con Google Play)
 

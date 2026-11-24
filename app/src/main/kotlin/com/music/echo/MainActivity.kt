@@ -346,6 +346,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_OPEN_UPDATE = "extra_open_update"
         const val EXTRA_UPDATE_TAG = "extra_update_tag"
         private const val STATE_PENDING_LISTEN_INVITE = "pending_listen_invite"
+        private const val STATE_PENDING_PAIR_CODE = "pending_pair_code"
 
         /**
          * The generic "a notification was tapped, go to what it is about" door.
@@ -380,6 +381,8 @@ class MainActivity : ComponentActivity() {
     private var pendingIntent: Intent? = null
     // Registry row 804 (owner decision H9): the room code of an opened invite link, waiting for «Unirme».
     private var pendingListenInvite by mutableStateOf<String?>(null)
+    // Registry row 836: the normalized code of an opened pairing link (echomusic://pair), waiting for «Unirme».
+    private var pendingPairCode by mutableStateOf<String?>(null)
 
     private var playerConnection by mutableStateOf<PlayerConnection?>(null)
     // True while the app is in Android Picture-in-Picture mode (video floating window).
@@ -522,6 +525,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         pendingListenInvite?.let { outState.putString(STATE_PENDING_LISTEN_INVITE, it) }
+        pendingPairCode?.let { outState.putString(STATE_PENDING_PAIR_CODE, it) }
     }
 
     // Picture-in-Picture: when the user leaves the app while a video is playing, float it in a PiP window
@@ -624,6 +628,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         pendingListenInvite = savedInstanceState?.getString(STATE_PENDING_LISTEN_INVITE)
+        pendingPairCode = savedInstanceState?.getString(STATE_PENDING_PAIR_CODE)
         ContextCompat.registerReceiver(
             this, pipReceiver, IntentFilter(PIP_ACTION), ContextCompat.RECEIVER_NOT_EXPORTED,
         )
@@ -2993,6 +2998,29 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     }
+
+                    // Registry row 836: «¿Emparejar este aparato con otra sala de sincronización?» before a pairing link changes the room.
+                    pendingPairCode?.let { code ->
+                        iad1tya.echo.music.ui.component.AuraAlertDialog(
+                            onDismissRequest = { pendingPairCode = null },
+                            title = { Text(stringResource(R.string.qr_pair_confirm_title)) },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    ActionLog.tap(ActionId.MAIN_PAIR_JOIN)
+                                    pendingPairCode = null
+                                    lifecycleScope.launch {
+                                        this@MainActivity.dataStore.edit { it[iad1tya.echo.music.devicesync.DeviceSyncCodeKey] = code }
+                                        android.widget.Toast.makeText(this@MainActivity, R.string.qr_pair_done, android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }) { Text(stringResource(R.string.qr_pair_confirm_join)) }
+                            },
+                            dismissButton = {
+                                androidx.compose.material3.TextButton(onClick = { ActionLog.tap(ActionId.MAIN_PAIR_CANCEL); pendingPairCode = null }) {
+                                    Text(stringResource(R.string.cancel))
+                                }
+                            },
+                        )
+                    }
                     } // SHELL GLASS (A1): close of the CompositionLocalProvider(LocalShellHazeState)
                 }
             }
@@ -3227,17 +3255,15 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        // Row 615: the QR of a pairing code (echomusic://pair?code=AAAA-BBBB-…) read by any camera app: the code is adopted and the engine,
-        // which watches DeviceSyncCodeKey, pairs this device by itself. Only a FULL code counts; anything else is told, never half-applied.
+        // Row 615: the QR of a pairing code (echomusic://pair?code=…) read by any camera app; the engine, which watches DeviceSyncCodeKey,
+        // pairs this device once the code is saved. Only a FULL code counts; anything else is told, never half-applied. Row 836: an opened
+        // link never saves the code on its own (it replaces the room, the licence one included); the dialog in setContent asks first.
         if (uri.scheme == "echomusic" && uri.host.equals("pair", ignoreCase = true)) {
             val normalized = iad1tya.echo.music.devicesync.SyncCode.fromPairLink(uri.toString())
             if (normalized == null) {
                 android.widget.Toast.makeText(this, R.string.qr_pair_invalid, android.widget.Toast.LENGTH_SHORT).show()
             } else {
-                lifecycle.coroutineScope.launch {
-                    this@MainActivity.dataStore.edit { it[iad1tya.echo.music.devicesync.DeviceSyncCodeKey] = normalized }
-                    android.widget.Toast.makeText(this@MainActivity, R.string.qr_pair_done, android.widget.Toast.LENGTH_SHORT).show()
-                }
+                pendingPairCode = normalized
             }
             return
         }
