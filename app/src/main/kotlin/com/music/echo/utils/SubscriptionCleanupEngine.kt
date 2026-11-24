@@ -57,6 +57,8 @@ class SubscriptionCleanupEngine(
         val lastResult: BatchResult? = null,
         /** Row 839: a run a process death cut short (restored at start-up, see [restore]); null once handled. */
         val interrupted: SavedRun? = null,
+        /** Row 838: which run of this process the fields above belong to (1, 2, …; 0 = none yet). See [firstRunFor]. */
+        val seq: Int = 0,
     )
 
     private val _state = MutableStateFlow(State())
@@ -104,7 +106,7 @@ class SubscriptionCleanupEngine(
             if (_state.value.active || total == 0) return false
             started = true
             stopRequested.value = false
-            _state.value = State(active = true, total = total)
+            _state.value = State(active = true, total = total, seq = _state.value.seq + 1)
         }
         scope.launch {
             try {
@@ -213,10 +215,18 @@ class SubscriptionCleanupEngine(
         private const val SAVED_VERSION = "v1"
 
         /**
-         * Row 838: the ids [run] ended with as confirmed removed (none while it is active). [start] wipes them, so a
-         * list folds them in for good before it starts another run; otherwise they come back, still selected.
+         * Row 838: the first run a list read of the account belongs to — the one active when the read starts, else the
+         * next one. A run that ended before the read never hides or marks its rows: the read is newer than that run.
          */
-        fun removedBy(run: State): Set<String> = if (run.active) emptySet() else run.lastResult?.removed.orEmpty().toSet()
+        fun firstRunFor(run: State): Int = if (run.active) run.seq else run.seq + 1
+
+        /**
+         * Row 838: the ids [run] ended with as confirmed removed (none while it is active, none for a list read after it
+         * ended — see [firstRunFor]). [start] wipes them, so a list folds them in for good before it starts another run;
+         * otherwise they come back, still selected.
+         */
+        fun removedBy(run: State, fromRun: Int): Set<String> =
+            if (run.active || run.seq < fromRun) emptySet() else run.lastResult?.removed.orEmpty().toSet()
 
         /** A one-way hash of the account tag (SAPISID): enough to tell «same account», useless as a credential. */
         fun accountKey(tag: String): String =

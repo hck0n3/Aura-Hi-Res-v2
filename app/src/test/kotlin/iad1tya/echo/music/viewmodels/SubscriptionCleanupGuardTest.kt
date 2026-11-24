@@ -166,8 +166,8 @@ class SubscriptionCleanupGuardTest {
     @Test
     fun `every new run first folds what the last one removed into the list`() {
         val vm = src(vmPath)
-        assertTrue(vm.contains("val gone = SubscriptionCleanupEngine.removedBy(runner.state.value)"))
-        assertTrue(vm.contains("_state.update { s -> s.copy(candidates = s.candidates.filterNot { it.id in gone }, selected = s.selected - gone) }"))
+        assertTrue(vm.contains("val gone = SubscriptionCleanupEngine.removedBy(run, s.marksFromRun)"))
+        assertTrue(vm.contains("if (gone.isEmpty()) s else s.copy(candidates = s.candidates.filterNot { it.id in gone }, selected = s.selected - gone)"))
         listOf("fun removeSelected() {", "fun retryFailed() {", "fun continueInterrupted() {").forEach { name ->
             val body = vm.substringAfter(name).substringBefore("\n    }\n")
             val start = Regex("""runner\.(start|retryFailed)\(""").find(body)?.range?.first ?: -1
@@ -179,6 +179,20 @@ class SubscriptionCleanupGuardTest {
             Regex("""runner\.(start|retryFailed)\(""").findAll(vm).count(),
             Regex("""absorbLastRun\(\)\n""").findAll(vm).count(),
         )
+    }
+
+    @Test
+    fun `a run that ended before the list was read neither hides nor marks its rows`() {
+        val vm = src(vmPath)
+        val load = vm.substringAfter("fun load() {").substringBefore("\n    }\n")
+        assertTrue(load.contains("val marksFrom = SubscriptionCleanupEngine.firstRunFor(run)"))
+        assertTrue(load.contains("val fresh = UiState(marksFromRun = marksFrom, summaryFromRun = if (firstRead) run.seq else marksFrom)"))
+        assertFalse("every state of the read keeps the thresholds", load.contains("_state.value = UiState("))
+        val merge = vm.substringAfter("private fun merge(").substringBefore("\n    }\n")
+        assertTrue(merge.contains("val gone = SubscriptionCleanupEngine.removedBy(run, list.marksFromRun)"))
+        assertTrue(merge.contains("lastResult = run.lastResult?.takeIf { run.seq >= list.summaryFromRun },"))
+        assertTrue(merge.contains("removedIds = if (ours) run.removedIds else emptySet(),"))
+        assertTrue(merge.contains("failedIds = if (ours) run.failedIds else emptySet(),"))
     }
 
     @Test

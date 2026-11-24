@@ -66,6 +66,10 @@ class SubscriptionCleanupViewModel @Inject constructor(
         val refused: Boolean = false,
         /** Row 839: a run of this account a process death cut short: «Se detuvo: X de N; toca Continuar». */
         val interrupted: SubscriptionCleanupEngine.SavedRun? = null,
+        /** Row 838: the first run whose marks and removals apply to this list read ([SubscriptionCleanupEngine.firstRunFor]). */
+        val marksFromRun: Int = 0,
+        /** Row 838: the first run whose summary goes with this list: on (re)opening the screen, also one that ended meanwhile. */
+        val summaryFromRun: Int = 0,
     )
 
     /** The list as read from the account (and the selection); the run's part comes from [runner]. */
@@ -74,6 +78,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, merge(_state.value, runner.state.value))
 
     private var job: Job? = null
+    private var firstRead = true
 
     init {
         load()
@@ -82,9 +87,15 @@ class SubscriptionCleanupViewModel @Inject constructor(
     fun load() {
         if (job?.isActive == true) return
         job = viewModelScope.launch(Dispatchers.IO) {
-            _state.value = UiState(phase = Phase.LOADING)
+            // Row 838: a run that ended before this read neither hides nor marks its rows (the read is newer); its
+            // summary is shown only with the first read after the screen opens, «Recargar» drops it.
+            val run = runner.state.value
+            val marksFrom = SubscriptionCleanupEngine.firstRunFor(run)
+            val fresh = UiState(marksFromRun = marksFrom, summaryFromRun = if (firstRead) run.seq else marksFrom)
+            firstRead = false
+            _state.value = fresh.copy(phase = Phase.LOADING)
             if (accountTag() == null) {
-                _state.value = UiState(phase = Phase.SIGNED_OUT)
+                _state.value = fresh.copy(phase = Phase.SIGNED_OUT)
                 return@launch
             }
             try {
@@ -125,7 +136,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
                     candidates.count { it.resendAllowed },
                     incomplete,
                 )
-                _state.value = UiState(
+                _state.value = fresh.copy(
                     phase = Phase.READY,
                     candidates = PhantomSubscriptionPolicy.screenOrder(candidates),
                     incomplete = incomplete,
@@ -135,7 +146,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Timber.w("SUB_CLEANUP_REVIEW failed: %s", e.javaClass.simpleName)
-                _state.value = UiState(phase = Phase.LOAD_FAILED)
+                _state.value = fresh.copy(phase = Phase.LOAD_FAILED)
             }
         }
     }
@@ -219,17 +230,21 @@ class SubscriptionCleanupViewModel @Inject constructor(
      * before another run starts and wipes that run's summary. [merge] only hides the last run's ids.
      */
     private fun absorbLastRun() {
-        val gone = SubscriptionCleanupEngine.removedBy(runner.state.value)
-        if (gone.isEmpty()) return
-        _state.update { s -> s.copy(candidates = s.candidates.filterNot { it.id in gone }, selected = s.selected - gone) }
+        val run = runner.state.value
+        _state.update { s ->
+            val gone = SubscriptionCleanupEngine.removedBy(run, s.marksFromRun)
+            if (gone.isEmpty()) s else s.copy(candidates = s.candidates.filterNot { it.id in gone }, selected = s.selected - gone)
+        }
     }
 
     /**
      * The list joined with the run: RUNNING while the runner is active, its counters and marks, and — once it ended —
-     * its summary, with what the account confirmed taken out of the list (and of the selection).
+     * its summary, with what the account confirmed taken out of the list (and of the selection). Row 838: marks and
+     * removals only from a run this list belongs to ([UiState.marksFromRun]), the summary from [UiState.summaryFromRun].
      */
     private fun merge(list: UiState, run: SubscriptionCleanupEngine.State): UiState {
-        val gone = SubscriptionCleanupEngine.removedBy(run)
+        val ours = run.seq >= list.marksFromRun
+        val gone = SubscriptionCleanupEngine.removedBy(run, list.marksFromRun)
         return list.copy(
             phase = if (run.active) Phase.RUNNING else list.phase,
             candidates = list.candidates.filterNot { it.id in gone },
@@ -239,9 +254,9 @@ class SubscriptionCleanupViewModel @Inject constructor(
             removed = run.removed,
             failed = run.failed,
             stopping = run.stopping,
-            lastResult = run.lastResult,
-            removedIds = run.removedIds,
-            failedIds = run.failedIds,
+            lastResult = run.lastResult?.takeIf { run.seq >= list.summaryFromRun },
+            removedIds = if (ours) run.removedIds else emptySet(),
+            failedIds = if (ours) run.failedIds else emptySet(),
             listPhase = list.phase,
             refused = list.refused && run.active,
             interrupted = run.interrupted?.takeIf { !run.active && runner.isCurrentAccount(it) },

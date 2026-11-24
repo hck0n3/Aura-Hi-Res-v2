@@ -79,21 +79,43 @@ class SubscriptionCleanupEngineTest {
         // The screen's list and selection, folded the way SubscriptionCleanupViewModel.absorbLastRun does before a run.
         var candidates = listOf("a", "b", "c")
         var selected = setOf("a", "b", "c")
+        val fromRun = SubscriptionCleanupEngine.firstRunFor(engine.state.value)
         fun absorb() {
-            val gone = SubscriptionCleanupEngine.removedBy(engine.state.value)
+            val gone = SubscriptionCleanupEngine.removedBy(engine.state.value, fromRun)
             candidates = candidates.filterNot { it in gone }
             selected = selected - gone
         }
         assertTrue(engine.start(listOf("a", "b", "c"), unsubscribe = { id -> id != "c" }))
-        assertTrue("nothing counts as removed while the run is active", SubscriptionCleanupEngine.removedBy(engine.state.value).isEmpty())
-        assertEquals(setOf("a", "b"), SubscriptionCleanupEngine.removedBy(engine.finished()))
+        assertTrue("nothing counts as removed while the run is active", SubscriptionCleanupEngine.removedBy(engine.state.value, fromRun).isEmpty())
+        assertEquals(setOf("a", "b"), SubscriptionCleanupEngine.removedBy(engine.finished(), fromRun))
         absorb()
         assertTrue(engine.start(listOf("c"), unsubscribe = { false }))
-        assertTrue("the retry wiped the summary", SubscriptionCleanupEngine.removedBy(engine.state.value).isEmpty())
+        assertTrue("the retry wiped the summary", SubscriptionCleanupEngine.removedBy(engine.state.value, fromRun).isEmpty())
         engine.finished()
         absorb()
         assertEquals(listOf("c"), candidates)
         assertEquals(setOf("c"), selected)
+    }
+
+    @Test
+    fun `a list read belongs to the run active when it starts or to later ones, never to one that already ended`() = runBlocking {
+        val engine = Fixture().engine(this)
+        assertEquals(0, engine.state.value.seq)
+        assertEquals(1, SubscriptionCleanupEngine.firstRunFor(engine.state.value))
+        val gate = CompletableDeferred<Boolean>()
+        assertTrue(engine.start(listOf("a"), unsubscribe = { gate.await() }))
+        assertEquals(1, engine.state.value.seq)
+        val readDuringRun = SubscriptionCleanupEngine.firstRunFor(engine.state.value)
+        assertEquals("a read while run 1 goes on belongs to run 1", 1, readDuringRun)
+        gate.complete(true)
+        val end = engine.finished()
+        assertEquals(setOf("a"), SubscriptionCleanupEngine.removedBy(end, readDuringRun))
+        val readAfter = SubscriptionCleanupEngine.firstRunFor(end)
+        assertEquals(2, readAfter)
+        assertTrue("a newer read is not hidden by run 1", SubscriptionCleanupEngine.removedBy(end, readAfter).isEmpty())
+        assertTrue(engine.start(listOf("b"), unsubscribe = { true }))
+        assertEquals(2, engine.state.value.seq)
+        assertEquals(setOf("b"), SubscriptionCleanupEngine.removedBy(engine.finished(), readAfter))
     }
 
     @Test
