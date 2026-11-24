@@ -208,6 +208,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     /** The pending delayed bump of [guestTrackCheck]. Main thread only. */
     private var trackRecheck: kotlinx.coroutines.Job? = null
 
+    /** Row 797: which sync decisions reach the shared log. */
+    private val syncLogGate = SyncDecisionLogGate()
+
     /** Row 796: when this guest received the room's current timeline; see [roomPositionNow]. */
     @Volatile
     private var roomReceipt: RoomTimelineReceipt? = null
@@ -457,6 +460,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     pausedLocally = false
                     trackGuard.reset()
                     roomReceipt = null
+                    syncLogGate.reset()
                     realignGate.reset()
                     lastAppliedTrackId = null
                     lastAppliedQueueIds = emptyList()
@@ -754,6 +758,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 roomPlaying = isPlaying,
                 nowMs = android.os.SystemClock.elapsedRealtime(),
             )
+            // Row 797: numbers only (rule 4). A reload is bounded per track; a hold is written only when it actually stops the music.
+            if (step is GuestTrackStep.Reload) Timber.tag(TAG).i("SYNC_TRACK server=%s step=reload attempt=%d", serverKind(), step.attempt)
+            if (step == GuestTrackStep.Hold && player.playWhenReady) Timber.tag(TAG).i("SYNC_TRACK server=%s step=hold", serverKind())
             when (step) {
                 is GuestTrackStep.Reload -> playTrack(service, roomTrack, keepPosition = corrected, playWhenReady = isPlaying)
                 is GuestTrackStep.Wait -> scheduleTrackRecheck(step.inMs)
@@ -790,6 +797,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 errorMs = errorMs,
                 targetMs = corrected,
             )
+            // Row 797: one line per decision that changes (repeats throttled), numbers only: why this device drifted.
+            val label = syncActionLabel(action)
+            if (syncLogGate.shouldLog(label, android.os.SystemClock.elapsedRealtime())) {
+                Timber.tag(TAG).i(
+                    "SYNC_DECISION server=%s drift_ms=%d action=%s speed=%.4f clock=%b anchored=%b",
+                    serverKind(),
+                    errorMs,
+                    label,
+                    SyncCorrection.playerSpeed(userTempo, action),
+                    session.serverNow() != null,
+                    anchorServerTime > 0L,
+                )
+            }
             trimEnd?.cancel()
             trimEnd = null
             if (action is SyncAction.Resync) {
@@ -1406,6 +1426,9 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(context),
             )
         }.getOrDefault(0)
+
+    /** Which kind of server the room is on, as the shared log names it. */
+    private fun serverKind(): String = if (runCatching { session.isAuraRooms }.getOrDefault(false)) "aura" else "metrolist"
 
     private fun capToTrack(position: Long, track: TrackInfo?, localDurationMs: Long = 0L): Long {
         val duration = localDurationMs.takeIf { it > 0L } ?: track?.duration ?: 0L
