@@ -1398,3 +1398,6 @@ val OpenLinksPromptShownKey = booleanPreferencesKey("open_links_default_prompt_s
 
 // One-shot (registry 765): Listen Together durations stored in milliseconds were repaired (RoomDurationRepair).
 val RoomDurationRepairDoneKey = booleanPreferencesKey("room_duration_repair_done")
+
+// Registry row 841: account lists (AccountReadLists) whose last read did not reach the end; the sync screen says «lista incompleta».
+val YtmAccountReadsIncompleteKey = stringSetPreferencesKey("ytm_account_reads_incomplete")

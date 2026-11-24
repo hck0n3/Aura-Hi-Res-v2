@@ -1202,6 +1202,7 @@ class SyncUtils @Inject constructor(
                     // Row 840: a read cut short (`songsContinuation != null`) is not the account's list: what it did not
                     // reach is neither unliked nor missing, so nothing below is dropped, re-sent or taken as the reference.
                     val remoteComplete = page.songsContinuation == null
+                    libraryUploadSync.noteAccountRead(AccountReadLists.LIKED_SONGS, remoteComplete)
                     val localSongs = database.likedSongsByNameAsc().first()
                     val nowEpochMs = System.currentTimeMillis()
                     val lastLikedSyncMs = context.dataStore.data.first()[LastLikedSyncTimeKey] ?: 0L
@@ -1350,6 +1351,7 @@ class SyncUtils @Inject constructor(
                     // Row 840: only with the account's WHOLE list — a read cut short would unlike everything past the cut.
                     val localLiked = database.likedSongsByNameAsc().first()
                     val readComplete = page.songsContinuation == null
+                    libraryUploadSync.noteAccountRead(AccountReadLists.LIKED_SONGS, readComplete)
                     if (!readComplete) {
                         Timber.w("mirrorLikedSongs: remote list incomplete (%d read); nothing unliked", remoteSongs.size)
                     }
@@ -1558,6 +1560,7 @@ class SyncUtils @Inject constructor(
                 try {
                     val remoteAlbums = page.items.filterIsInstance<AlbumItem>().reversed()
                     val remoteIds = remoteAlbums.map { it.id }.toSet()
+                    libraryUploadSync.noteAccountRead(AccountReadLists.LIKED_ALBUMS, page.continuation == null)
                     val localAlbums = database.albumsLikedByNameAsc().first()
 
                     // Additive only: do NOT un-favorite local albums that aren't in the remote account.
@@ -1719,6 +1722,7 @@ class SyncUtils @Inject constructor(
                 try {
                     val remoteArtists = page.items.filterIsInstance<ArtistItem>()
                     val remoteIds = remoteArtists.map { it.id }.toSet()
+                    libraryUploadSync.noteAccountRead(AccountReadLists.ARTISTS, page.continuation == null)
 
                     // REMOVED — this pushed local follows UP as real YouTube subscriptions, and it was
                     // subscribing the user to artists they never chose.
@@ -1886,6 +1890,7 @@ class SyncUtils @Inject constructor(
                 try {
                     val remotePlaylists = page.items.filterIsInstance<PlaylistItem>()
                         .filterNot { it.id == "LM" || it.id == "SE" }
+                    libraryUploadSync.noteAccountRead(AccountReadLists.PLAYLISTS, page.continuation == null)
 
                     updateState { copy(playlists = SyncStatus.Completed) }
                     Timber.d("Synced ${remotePlaylists.size} saved playlists")

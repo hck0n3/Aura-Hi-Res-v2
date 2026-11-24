@@ -14,6 +14,7 @@ import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
 import iad1tya.echo.music.constants.ImportFollowsLocalOnlyKey
 import iad1tya.echo.music.constants.ImportFollowsPendingHeldV1Key
 import iad1tya.echo.music.constants.InnerTubeCookieKey
+import iad1tya.echo.music.constants.YtmAccountReadsIncompleteKey
 import iad1tya.echo.music.constants.YtmUploadLastCompletedKey
 import iad1tya.echo.music.constants.YtmUploadProgressKey
 import iad1tya.echo.music.constants.YtmUploadSyncKey
@@ -278,6 +279,19 @@ class LibraryUploadSync @Inject constructor(
         held - settled
     }
 
+    /**
+     * Registry row 841: records whether the last read of the account [list] ([AccountReadLists]) reached its end, so the
+     * sync screen says «al menos N · lista incompleta» instead of a number that looks exact. Called by every read of those
+     * lists (the sync pulls in SyncUtils and this pass); a read that failed outright records nothing.
+     */
+    suspend fun noteAccountRead(list: String, complete: Boolean) {
+        runCatching {
+            context.dataStore.edit {
+                it[YtmAccountReadsIncompleteKey] = AccountReadLists.afterRead(it[YtmAccountReadsIncompleteKey].orEmpty(), list, complete)
+            }
+        }.onFailure { if (it is CancellationException) throw it else Timber.w(it, "Could not record an account read") }
+    }
+
     // ---- the pass ------------------------------------------------------------------------------
 
     /**
@@ -462,6 +476,7 @@ class LibraryUploadSync @Inject constructor(
     private suspend fun fetchRemoteSubscriptionIds(): Set<String> {
         val page = runCatching { YouTube.library("FEmusic_library_corpus_artists").completed(maxRequests = FULL_READ_MAX_PAGES) }
             .getOrNull()?.getOrNull() ?: return emptySet()
+        noteAccountRead(AccountReadLists.ARTISTS, page.continuation == null)
         val ids = page.items.filterIsInstance<ArtistItem>().map { it.id }
         if (ids.isNotEmpty()) {
             // Backfill for the v39->v40 columns: an artist the account is genuinely subscribed to IS a
@@ -731,6 +746,7 @@ class LibraryUploadSync @Inject constructor(
         // Row 840: without the account's WHOLE list a same-name playlist past the cut looks absent, and creating one would
         // put a duplicate on the account. Only linking happens then; creating waits for a read that reaches the end.
         val remoteListComplete = remotePage != null && remotePage.continuation == null
+        if (remotePage != null) noteAccountRead(AccountReadLists.PLAYLISTS, remoteListComplete)
 
         // browseIds already claimed locally must never be handed to a second local playlist.
         val claimed = runCatching {
@@ -995,6 +1011,7 @@ class LibraryUploadSync @Inject constructor(
             return
         }
         val remoteIds = remotePage.songs.map { it.id }.toSet()
+        noteAccountRead(AccountReadLists.LIKED_SONGS, remotePage.songsContinuation == null)
         if (remotePage.songsContinuation != null) {
             // Row 840: a read cut short. What it reached is synced (a lower bound); the rest is unknown, not missing, so
             // nothing is sent and the category stays unverified instead of reporting a number that looks exact.
@@ -1059,6 +1076,7 @@ class LibraryUploadSync @Inject constructor(
             return
         }
         val remote = remotePage.items.filterIsInstance<AlbumItem>()
+        noteAccountRead(AccountReadLists.LIKED_ALBUMS, remotePage.continuation == null)
         // Match on BOTH ids: the local row keys albums by browseId while the like itself is applied to
         // the album's audio playlistId, and the two are not interchangeable.
         val remoteIds = HashSet<String>(remote.size * 2)
