@@ -100,6 +100,10 @@ class SyncFullReadGuardTest {
         assertTrue(liked.contains("val remoteComplete = page.songsContinuation == null"))
         assertTrue(liked.contains("localSongs.filterNot { !remoteComplete || it.id in remoteIds || it.song.isLocal }.forEach { song ->"))
         assertTrue(liked.contains("if (remoteComplete && remoteIds.isNotEmpty()) {\n                        likeConfirmPrefs.edit().putStringSet(LIKED_CONFIRMED_KEY"))
+        // The drop decision compares likedDate with this time: a cut-short read must not move it (a failed re-like would then drop).
+        // Only the very first stamp is written regardless, so the HALLAZGO-061 cold-start recovery does not re-run on every start.
+        assertTrue(liked.contains("if (remoteComplete || lastLikedSyncMs <= 0L) context.dataStore.edit { it[LastLikedSyncTimeKey] = nowEpochMs }"))
+        assertFalse(liked.contains("\n                    context.dataStore.edit { it[LastLikedSyncTimeKey] = nowEpochMs }"))
 
         val mirror = body(sync, "private suspend fun executeMirrorLikedSongs() = withContext(Dispatchers.IO) {")
         assertTrue(mirror.contains("val readComplete = page.songsContinuation == null"))

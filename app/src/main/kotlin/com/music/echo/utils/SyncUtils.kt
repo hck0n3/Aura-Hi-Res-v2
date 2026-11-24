@@ -1263,7 +1263,10 @@ class SyncUtils @Inject constructor(
                     if (remoteComplete && remoteIds.isNotEmpty()) {
                         likeConfirmPrefs.edit().putStringSet(LIKED_CONFIRMED_KEY, HashSet(remoteIds)).apply()
                     }
-                    context.dataStore.edit { it[LastLikedSyncTimeKey] = nowEpochMs }
+                    // Row 840: the reference time of the drop decision above moves only with a whole read, like LIKED_CONFIRMED_KEY.
+                    // The first stamp is still written (HALLAZGO-061 recovery reads 0 as «never synced»); nothing is dropped
+                    // before a whole read fills LIKED_CONFIRMED_KEY, and that read stamps the time too.
+                    if (remoteComplete || lastLikedSyncMs <= 0L) context.dataStore.edit { it[LastLikedSyncTimeKey] = nowEpochMs }
                     updateState { copy(likedSongs = SyncStatus.Completed) }
                     Timber.d("Synced ${remoteSongs.size} liked songs")
                 } catch (e: Exception) {
