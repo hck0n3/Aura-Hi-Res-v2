@@ -3484,7 +3484,7 @@ Reparto por ruta de destino (todas existen en `NavigationBuilder.kt`, ninguna ro
 |---|---|
 | `settings/appearance` | 100 |
 | `settings/content` | 55 |
-| `settings/player` | 51 |
+| `settings/player` | 49 |
 | `settings/integrations/listen_together` | 31 |
 | `settings/ai` | 30 |
 | `settings/appearance/theme` | 26 |
@@ -3927,7 +3927,7 @@ Los diálogos del **reproductor** están en §3.8, §4.3, §5.1, §5.2, §7.1 y 
 | `EnumDialog` de curva de transición (9 curvas) | Reproductor | PlayerSettings.kt:359 |
 | Diálogo «Función beta» del crossfade | Reproductor | PlayerSettings.kt:385 |
 | ~~Diálogo «¿Activar Saavn (320 kbps)?» (hardcoded)~~ — ya no existe (sin selector de calidad) | Reproductor | — |
-| ~~Diálogo «Activar audio sin pérdida» (advertencia)~~ — ya no existe (sin selector de calidad) | Reproductor | — |
+| ~~Diálogo «Activar audio sin pérdida» (advertencia)~~ — ya no existe (sin selector de calidad); sus dos entradas del buscador de Ajustes también se quitaron (fila 827) | Reproductor | — |
 | Diálogo de configuración de proxy | Contenido | ContentSettings.kt:198 |
 | Diálogo de idioma de contenido | Contenido | ContentSettings.kt:321 |
 | Diálogo de país de contenido | Contenido | ContentSettings.kt:341 |

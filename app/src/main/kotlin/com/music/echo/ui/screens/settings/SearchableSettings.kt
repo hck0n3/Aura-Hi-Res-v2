@@ -383,7 +383,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.ai_setup_guide), "Traducción de letras IA", "settings/ai"),
             Triple("Recomendado para ti (IA)", "Traducción de letras IA", "settings/ai"),
             Triple("Refrescar ahora", "Traducción de letras IA", "settings/ai"),
-            // --- Reproductor (settings/player) : 51 ---
+            // --- Reproductor (settings/player) : 49 ---
             Triple("Ahorro de datos", "Reproductor", "settings/player"),
             Triple("Modo ahorro de datos", "Reproductor", "settings/player"),
             // Registry 811 (owner H6b): streaming quality per network, in the same «Ahorro de datos» group.
@@ -393,8 +393,6 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.download_quality_title), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.crossfade_beta_title), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.crossfade_beta_message), "Reproductor", "settings/player"),
-            Triple(stringResource(R.string.enable_lossless_audio), "Reproductor", "settings/player"),
-            Triple(stringResource(R.string.lossless_audio_warning), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.player), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.crossfade), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.crossfade_desc), "Reproductor", "settings/player"),
