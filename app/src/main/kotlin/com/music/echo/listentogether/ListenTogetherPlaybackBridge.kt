@@ -486,8 +486,11 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                     lastRoomPlaying = playing
                     // Row 796: when this timeline reached this device, for re-applying it later without a server clock.
                     val receipt = roomReceipt
-                    if (receipt == null || receipt.position != position || receipt.anchorServerTime != anchorServerTime || receipt.playing != playing) {
-                        roomReceipt = RoomTimelineReceipt(position, anchorServerTime, playing, android.os.SystemClock.elapsedRealtime())
+                    if (
+                        receipt == null || receipt.trackId != track?.id || receipt.position != position ||
+                        receipt.anchorServerTime != anchorServerTime || receipt.playing != playing
+                    ) {
+                        roomReceipt = RoomTimelineReceipt(track?.id, position, anchorServerTime, playing, android.os.SystemClock.elapsedRealtime())
                     }
                     // A synchronized start (W2): the room's track loads PAUSED at the start position; the hold starts it on time.
                     val hold = session.state.value.syncStart?.takeIf { syncStartHolds(it, track?.id) }
@@ -735,6 +738,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         // Row 796: re-applied later (heartbeat, realign, recheck), an uncalibrated clock or a missing anchor no longer means «the
         // room is where its last command was»: see [roomPositionNow].
         val roomPosition = roomPositionNow(
+            trackId = roomTrack?.id,
             position = position,
             playing = isPlaying,
             anchorServerTime = anchorServerTime,

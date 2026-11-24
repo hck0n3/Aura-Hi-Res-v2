@@ -2,8 +2,9 @@ package iad1tya.echo.music.listentogether
 
 import kotlin.math.max
 
-/** When this guest received the room's timeline ([position] at [anchorServerTime], [playing]), on its own monotonic clock. */
+/** When this guest received the room's timeline ([trackId] at [position] at [anchorServerTime], [playing]), on its own monotonic clock. */
 internal data class RoomTimelineReceipt(
+    val trackId: String?,
     val position: Long,
     val anchorServerTime: Long,
     val playing: Boolean,
@@ -19,9 +20,11 @@ internal data class RoomTimelineReceipt(
  * position, which is right for a command that just arrived but wrong for one re-applied seconds later: the heartbeat then took the
  * room to be where it was when the last command arrived and jumped the guest BACK by up to 15 s, every 15 s. So the fallback is the
  * time since this device received that same timeline, on its monotonic clock ([receipt]): off by one network leg at most, never by
- * the time since the last command. A receipt for another position or anchor, or for a paused room, is not used.
+ * the time since the last command. A receipt for another track, position or anchor, or for a paused room, is not used: two commands
+ * for different tracks can carry the same position and anchor (0 and 0 while the host's clock is uncalibrated).
  */
 internal fun roomPositionNow(
+    trackId: String?,
     position: Long,
     playing: Boolean,
     anchorServerTime: Long,
@@ -31,7 +34,7 @@ internal fun roomPositionNow(
 ): Long {
     if (!playing) return position
     if (anchorServerTime > 0L && serverNow != null) return position + max(0L, serverNow - anchorServerTime)
-    if (receipt != null && receipt.playing && receipt.position == position && receipt.anchorServerTime == anchorServerTime) {
+    if (receipt != null && receipt.playing && receipt.trackId == trackId && receipt.position == position && receipt.anchorServerTime == anchorServerTime) {
         return position + max(0L, nowMs - receipt.receivedAtMs)
     }
     return position
