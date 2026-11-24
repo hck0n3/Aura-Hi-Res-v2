@@ -587,15 +587,21 @@ fun AuraQueue(
                             contentDescription = stringResource(R.string.shuffle),
                             onClick = {
                                 ActionLog.tap(ActionId.QUEUE_SHUFFLE)
-                                if (shuffleModeEnabled) {
+                                if (isListenTogetherGuest) {
+                                    // Row 848: greyed for a guest, but a tap says why instead of doing nothing.
+                                    iad1tya.echo.music.listentogether.explainGuestShuffleLocked(context)
+                                } else if (shuffleModeEnabled) {
                                     playerConnection.player.shuffleModeEnabled = false
                                 } else {
                                     playerConnection.service.toggleShuffleOrReshuffle()
                                 }
                             },
-                            enabled = !isListenTogetherGuest,
                             size = 22.dp,
-                            tint = if (shuffleModeEnabled) AuraPalette.Teal else AuraPalette.OnGroundDisabled,
+                            tint = when {
+                                isListenTogetherGuest -> AuraPalette.OnGroundDisabled.copy(alpha = AuraPalette.OnGroundDisabled.alpha * 0.35f)
+                                shuffleModeEnabled -> AuraPalette.Teal
+                                else -> AuraPalette.OnGroundDisabled
+                            },
                         )
                         // 3-state, like the classic control. The render has no "repeat one" glyph, so that
                         // third state borrows the app's own `repeat_one` drawable rather than being invisible.

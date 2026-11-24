@@ -4497,3 +4497,12 @@ Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión 
 | Ajustes ▸ Sincronizar dispositivos ▸ «Mostrar código QR»: texto de ayuda | «…Aura se abre y pregunta antes de emparejar» (antes: «…y se empareja sola») | 836 |
 | Biblioteca ▸ Canciones | Sincronizar una lista de YouTube ya no mete sus canciones en Biblioteca ▸ Canciones (siguen en la lista). Las que ya estaban se quedan | 834 |
 | Sincronizar desde YouTube Music: categoría «Me gusta (canciones)» del informe de subida (`YtmSyncScreen.kt:538`) | Mientras la biblioteca se sincroniza entre aparatos, esa categoría no se sube y sale sin pendientes | 834 |
+
+## Anexo 2026-11-24 (filas 848-849): el invitado de una sala de Escuchar juntos no pone el aleatorio (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Reproductor Aura > transporte: **Aleatorio** (`ui/newui/AuraPlayer.kt:2065`) | Siendo invitado sigue atenuado, como antes, pero ahora responde al toque con el aviso «En una sala solo el anfitrión decide el orden» (antes, deshabilitado, no hacía nada). El anfitrión y fuera de una sala, igual que siempre | 848 |
+| Cola Aura > cabecera: **Aleatorio** (`ui/newui/AuraQueue.kt:592`) | Igual: atenuado para el invitado y con el mismo aviso al tocarlo | 848 |
+| Reproductor Aura > menú «Más» > Reproducción: **Aleatorio** (`ui/newui/AuraPlayerMenu.kt:512`) | Sin cambios: para el invitado ya estaba oculto (junto a Repetir) antes de esta fila | 848 |
+| Notificación de reproducción y Android Auto: **Activar aleatorio** (§25.4, `CommandToggleShuffle`) | El botón sigue ahí; siendo invitado no cambia nada y sale el mismo aviso | 848 |

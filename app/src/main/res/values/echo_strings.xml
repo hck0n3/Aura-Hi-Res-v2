@@ -434,6 +434,7 @@
     <string name="listen_together_room_paused_host_only">The room is paused: only the host can resume it</string>
     <string name="listen_together_guest_retry_exhausted">This song could not be played on this device; tap play to try again</string>
     <string name="listen_together_not_aura_code">That code is not from an Aura room. Listen Together now uses only Aura rooms: ask the host for a new 6-character code</string>
+    <string name="listen_together_guest_shuffle_locked">In a room only the host decides the order</string>
     <string name="audio_offload_disabled_by_mastering">Disabled because the soft compressor, phone speaker protection or a changed stereo width is active</string>
 
     <!-- Google Cast -->

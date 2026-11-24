@@ -673,6 +673,7 @@
     <string name="listen_together_room_paused_host_only">La sala está en pausa: solo el anfitrión puede reanudar</string>
     <string name="listen_together_guest_retry_exhausted">No se pudo reproducir esta canción en este aparato; toca play para reintentar</string>
     <string name="listen_together_not_aura_code">Ese código no es de una sala de Aura. Escuchar juntos ahora solo usa las salas de Aura: pide al anfitrión un código nuevo de 6 caracteres</string>
+    <string name="listen_together_guest_shuffle_locked">En una sala solo el anfitrión decide el orden</string>
     <string name="audio_offload_disabled_by_mastering">Desactivado porque el compresor suave, la protección del altavoz del teléfono o un ancho estéreo cambiado están activos</string>
     <string name="crossfade">Transición suave</string>
     <string name="hide_youtube_shorts">Ocultar Shorts</string>

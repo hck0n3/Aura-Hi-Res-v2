@@ -2060,7 +2060,10 @@ private fun AuraPlayerShape(
                         contentDescription = stringResource(R.string.shuffle),
                         onClick = {
                             ActionLog.tap(ActionId.PLR_SHUFFLE)
-                            if (shuffleModeEnabled) {
+                            if (isListenTogetherGuest) {
+                                // Row 848: greyed for a guest, but a tap says why instead of doing nothing.
+                                iad1tya.echo.music.listentogether.explainGuestShuffleLocked(context)
+                            } else if (shuffleModeEnabled) {
                                 // OFF (toggle). Reshuffle = turn on again → beginShuffleSession.
                                 playerConnection.player.shuffleModeEnabled = false
                             } else {
@@ -2070,10 +2073,13 @@ private fun AuraPlayerShape(
                                 onShuffleWithMemory()
                             }
                         },
-                        enabled = !isListenTogetherGuest,
                         firstTap = true,
                         size = if (dense) 22.dp else 24.dp,
-                        tint = if (shuffleModeEnabled) transportAccent else AuraPalette.OnGroundFaint,
+                        tint = when {
+                            isListenTogetherGuest -> AuraPalette.OnGroundFaint.copy(alpha = AuraPalette.OnGroundFaint.alpha * 0.35f)
+                            shuffleModeEnabled -> transportAccent
+                            else -> AuraPalette.OnGroundFaint
+                        },
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
                     AuraIconButton(

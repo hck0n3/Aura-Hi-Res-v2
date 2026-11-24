@@ -115,6 +115,10 @@ constructor(
         controller: MediaSession.ControllerInfo,
         playerCommand: Int,
     ): Int {
+        // Registry 848: a Listen Together guest cannot shuffle from outside the app either (a watch, the car, another controller).
+        if (playerCommand == androidx.media3.common.Player.COMMAND_SET_SHUFFLE_MODE && refusesGuestShuffle()) {
+            return SessionResult.RESULT_ERROR_PERMISSION_DENIED
+        }
         // Registry 786: external next / previous / seek obey remote mode and the Listen Together guest lock, like the in-app buttons.
         val transport = ExternalTransportPolicy.kindOf(playerCommand)
         if (transport != null && this::service.isInitialized) {
@@ -227,6 +231,15 @@ constructor(
         }
     }
 
+    /** Registry 848: true (and the reason shown) when this device is a Listen Together guest, who may not shuffle. */
+    private fun refusesGuestShuffle(): Boolean {
+        if (!this::service.isInitialized) return false
+        val manager = runCatching { service.listenTogetherManager }.getOrNull() ?: return false
+        if (iad1tya.echo.music.listentogether.GuestShuffle.mayShuffle(manager.isInRoom, manager.isHost)) return false
+        iad1tya.echo.music.listentogether.explainGuestShuffleLocked(context)
+        return true
+    }
+
     override fun onCustomCommand(
         session: MediaSession,
         controller: MediaSession.ControllerInfo,
@@ -237,8 +250,10 @@ constructor(
             MediaSessionConstants.ACTION_TOGGLE_LIKE -> toggleLike()
             MediaSessionConstants.ACTION_TOGGLE_START_RADIO -> toggleStartRadio()
             MediaSessionConstants.ACTION_TOGGLE_LIBRARY -> toggleLibrary()
-            MediaSessionConstants.ACTION_TOGGLE_SHUFFLE -> session.player.shuffleModeEnabled =
-                !session.player.shuffleModeEnabled
+            // Registry 848: the notification's and the car's shuffle button, refused with the reason for a Listen Together guest.
+            MediaSessionConstants.ACTION_TOGGLE_SHUFFLE -> if (!refusesGuestShuffle()) {
+                session.player.shuffleModeEnabled = !session.player.shuffleModeEnabled
+            }
 
             MediaSessionConstants.ACTION_TOGGLE_REPEAT_MODE -> session.player.toggleRepeatMode()
         }
