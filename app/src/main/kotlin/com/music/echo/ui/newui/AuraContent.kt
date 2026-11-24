@@ -1668,7 +1668,8 @@ fun AuraSwipeSongBox(
                         offset.floatValue >= threshold -> {
                             if (player?.shouldBlockPlaybackChanges?.invoke() != true) {
                                 player?.playNext(listOf(mediaItem))
-                                android.widget.Toast
+                                // Row 809: while another device is controlled, its `queue_ok` confirms instead.
+                                if (!iad1tya.echo.music.devicesync.RemotePlayback.active) android.widget.Toast
                                     .makeText(context, R.string.play_next, android.widget.Toast.LENGTH_SHORT)
                                     .show()
                             }
@@ -1678,7 +1679,7 @@ fun AuraSwipeSongBox(
                         offset.floatValue <= -threshold -> {
                             if (player?.shouldBlockPlaybackChanges?.invoke() != true) {
                                 player?.addToQueue(listOf(mediaItem))
-                                android.widget.Toast
+                                if (!iad1tya.echo.music.devicesync.RemotePlayback.active) android.widget.Toast
                                     .makeText(context, R.string.add_to_queue, android.widget.Toast.LENGTH_SHORT)
                                     .show()
                             }

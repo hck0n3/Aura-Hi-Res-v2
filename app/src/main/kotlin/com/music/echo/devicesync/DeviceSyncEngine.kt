@@ -289,7 +289,8 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
             "cmd" -> runCommand(msg.str("from").orEmpty(), msg.str("cmd").orEmpty(), msg["args"] as? JsonObject ?: JsonObject(emptyMap()))
             "cmd_fail" -> {
                 // Row 809: the room already said the device is not there; the queue order's own fallback notice would say it twice.
-                if (msg.str("cmd") == CMD_QUEUE) queueAckWatch?.cancel()
+                // A long order is one `cmd` per chunk and the room refuses each: one notice per order, while its watch still waits.
+                if (msg.str("cmd") == CMD_QUEUE) { val watch = queueAckWatch; if (watch?.isActive != true) return; watch.cancel() }
                 DeviceSyncHub.notice("Ese dispositivo no está conectado ahora.")
             }
             "library" -> {
@@ -523,11 +524,16 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
     private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {
         // Row 809: the controlled device confirms a queue order. It is an answer, not an order to this device: nothing below applies.
         if (cmd == CMD_QUEUE_OK) {
-            queueAckWatch?.cancel()
-            Timber.tag(TAG).i("DEVICE_SYNC queue order confirmed items=%d", args.int("n") ?: 0)
-            // The menu withholds its own confirmation (row 733) while another device is controlled: it comes now, once that device did it.
-            val label = if ((args["next"] as? JsonPrimitive)?.booleanOrNull == true) iad1tya.echo.music.R.string.play_next else iad1tya.echo.music.R.string.add_to_queue
-            onMain { android.widget.Toast.makeText(appContext, label, android.widget.Toast.LENGTH_SHORT).show() }
+            val watch = queueAckWatch
+            // An answer after the «not sent» notice already showed: a «done» toast now would contradict it.
+            val late = watch != null && watch.isCompleted && !watch.isCancelled
+            watch?.cancel()
+            Timber.tag(TAG).i("DEVICE_SYNC queue order confirmed items=%d late=%b", args.int("n") ?: 0, late)
+            // The menu and the row swipe withhold their own confirmation (row 733) while another device is controlled: it comes now, once that device did it.
+            if (!late) {
+                val label = if ((args["next"] as? JsonPrimitive)?.booleanOrNull == true) iad1tya.echo.music.R.string.play_next else iad1tya.echo.music.R.string.add_to_queue
+                onMain { android.widget.Toast.makeText(appContext, label, android.widget.Toast.LENGTH_SHORT).show() }
+            }
             return
         }
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)

@@ -45,7 +45,8 @@ class RemoteQueueCommandGuardTest {
         assertTrue("one order at a time on the wire", send.indexOf("scope.launch { synchronized(queueSendLock) {") in 0 until send.indexOf("for ((index, chunk) in chunks.withIndex())"))
         assertTrue(engine.contains("const val CMD_QUEUE = \"queue\""))
         assertTrue(engine.contains("const val CMD_QUEUE_OK = \"queue_ok\""))
-        assertTrue("the room's «not connected» cancels the second notice", engine.contains("if (msg.str(\"cmd\") == CMD_QUEUE) queueAckWatch?.cancel()"))
+        // The room answers each chunk of a long order with its own cmd_fail: only the first one, while the watch waits, gives a notice.
+        assertTrue("the room's «not connected» cancels the second notice, once per order", engine.contains("if (msg.str(\"cmd\") == CMD_QUEUE) { val watch = queueAckWatch; if (watch?.isActive != true) return; watch.cancel() }"))
     }
 
     @Test
@@ -67,7 +68,21 @@ class RemoteQueueCommandGuardTest {
         val ack = run.substringAfter("if (cmd == CMD_QUEUE_OK) {").substringBefore("return")
         assertTrue(ack.contains("iad1tya.echo.music.R.string.play_next else iad1tya.echo.music.R.string.add_to_queue"))
         assertTrue(ack.contains("android.widget.Toast.makeText(appContext, label, android.widget.Toast.LENGTH_SHORT).show()"))
+        // An answer after the watch already showed «not sent» gives no «done» toast.
+        assertTrue(ack.contains("val late = watch != null && watch.isCompleted && !watch.isCancelled"))
+        assertTrue(ack.indexOf("if (!late) {") in 0 until ack.indexOf("val label = "))
         assertTrue("the answer says which edit it was", run.contains("put(\"n\", items.size); put(\"next\", next)"))
+    }
+
+    @Test
+    fun `a row swipe while another device is controlled leaves the confirmation to its queue_ok, like the menus`() {
+        val classic = read("app/src/main/kotlin/com/music/echo/ui/component/Items.kt")
+        val aura = read("app/src/main/kotlin/com/music/echo/ui/newui/AuraContent.kt")
+        val gate = "if (!iad1tya.echo.music.devicesync.RemotePlayback.active) "
+        assertTrue(classic.contains(gate + "Toast.makeText(ctx, R.string.play_next, Toast.LENGTH_SHORT).show()"))
+        assertTrue(classic.contains(gate + "Toast.makeText(ctx, R.string.add_to_queue, Toast.LENGTH_SHORT).show()"))
+        assertTrue(aura.contains(gate + "android.widget.Toast\n                                    .makeText(context, R.string.play_next,"))
+        assertTrue(aura.contains(gate + "android.widget.Toast\n                                    .makeText(context, R.string.add_to_queue,"))
     }
 
     @Test
