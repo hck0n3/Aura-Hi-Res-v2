@@ -36,7 +36,7 @@ object SpotifyTrackMatcher {
     fun <T> pick(source: SourceTrack, candidates: List<Pair<T, YtmCandidate>>): T? {
         val title = TextNormalizer.normalize(source.title)
         if (title.isEmpty()) return null
-        val artists = source.artists.filter { TextNormalizer.normalizeArtist(it).isNotEmpty() }
+        val artists = source.artists.filter { artistKey(it).isNotEmpty() }
         if (artists.isEmpty()) return null
 
         val ranked = candidates.mapNotNull { (item, candidate) -> evaluate(source, title, artists, item, candidate) }
@@ -62,9 +62,9 @@ object SpotifyTrackMatcher {
         // order): the best-matching pair is the one scored.
         var bestPair: Triple<String, String, Float>? = null
         for (s in artists) {
-            val ns = TextNormalizer.normalizeArtist(s)
+            val ns = artistKey(s)
             for (c in candidate.artists) {
-                val nc = TextNormalizer.normalizeArtist(c)
+                val nc = artistKey(c)
                 if (nc.isEmpty()) continue
                 val sim = Similarity.best(ns, nc)
                 if (bestPair == null || sim > bestPair.third) bestPair = Triple(s, c, sim)
@@ -77,8 +77,15 @@ object SpotifyTrackMatcher {
             source.copy(artists = listOf(sourceArtist)),
             candidate.copy(artists = listOf(candidateArtist)),
         )
-        return Scored(item, score, candidateTitle, TextNormalizer.normalizeArtist(candidateArtist), candidate.durationMs)
+        return Scored(item, score, candidateTitle, artistKey(candidateArtist), candidate.durationMs)
     }
+
+    /**
+     * normalizeArtist cuts from a standalone «x», «y», «and», «&» or «,» to the end, a LEADING one included: «X Ambassadors» and
+     * «X Japan» come out empty, so none of their songs would ever match. Such a name is compared whole instead (row 832).
+     */
+    private fun artistKey(name: String): String =
+        TextNormalizer.normalizeArtist(name).ifEmpty { TextNormalizer.normalize(name) }
 
     /** Every word of the shorter title is in the longer one («se le ve» / «se le ve with x»), never a word swapped for another. */
     private fun sameWords(a: String, b: String): Boolean {

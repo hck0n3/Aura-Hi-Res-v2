@@ -160,4 +160,23 @@ class SpotifyTrackMatcherTest {
             ),
         )
     }
+
+    @Test
+    fun `an artist whose name starts with a separator word still matches`() {
+        // normalizeArtist empties «X Ambassadors» and «X Japan» (it cuts from a standalone «x»): they are compared whole.
+        assertEquals(
+            "a",
+            SpotifyTrackMatcher.pick(src("Renegades", "X Ambassadors"), listOf(cand("a", "Renegades", "X Ambassadors"))),
+        )
+        assertNull(
+            SpotifyTrackMatcher.pick(src("Renegades", "X Ambassadors"), listOf(cand("a", "Renegades", "X Japan"))),
+        )
+        assertEquals(
+            "b",
+            SpotifyTrackMatcher.pick(
+                src("Unsung Hero", "X Ambassadors"),
+                listOf(cand("a", "Unsung Hero", "X Japan"), cand("b", "Unsung Hero", "X Ambassadors")),
+            ),
+        )
+    }
 }
