@@ -82,6 +82,8 @@ import iad1tya.echo.music.ui.screens.migration.openAuthUrl
 import iad1tya.echo.music.ui.screens.migration.openExternal
 import iad1tya.echo.music.utils.rememberPreference
 import java.util.Locale
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Migrar lista — "Interfaz nueva"
@@ -310,13 +312,14 @@ fun AuraMigrationScreen(
                 TextButton(
                     enabled = deezerInput.isNotBlank(),
                     onClick = {
+                        ActionLog.tap(ActionId.MIG_DEEZER_CONTINUE)
                         viewModel.prepareDeezerImport(deezerInput.trim())
                         showDeezerDialog = false
                     },
                 ) { Text(stringResource(R.string.migrate_continue)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeezerDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.MIG_DEEZER_CANCEL); showDeezerDialog = false }) {
                     Text(stringResource(android.R.string.cancel))
                 }
             },
@@ -329,7 +332,7 @@ fun AuraMigrationScreen(
                 onDismiss = { viewModel.dismissError() },
                 title = { Text(stringResource(R.string.migrate_error_title)) },
                 buttons = {
-                    TextButton(onClick = { viewModel.dismissError() }) {
+                    TextButton(onClick = { ActionLog.tap(ActionId.MIG_ERROR_OK); viewModel.dismissError() }) {
                         Text(stringResource(android.R.string.ok))
                     }
                 },
@@ -368,7 +371,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraPickerContent(
         item(key = "aura_migrate_yt_login", contentType = "aura_migrate_yt_login") {
             AuraActionButton(
                 text = stringResource(R.string.migrate_youtube_login),
-                onClick = onYouTubeLogin,
+                onClick = { ActionLog.tap(ActionId.MIG_YOUTUBE_LOGIN); onYouTubeLogin() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .animateItem(),
@@ -395,25 +398,25 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraPickerContent(
                 icon = AuraIcons.Download,
                 title = stringResource(R.string.migrate_source_file),
                 description = stringResource(R.string.migrate_source_file_desc),
-                onClick = onFile,
+                onClick = { ActionLog.tap(ActionId.MIG_SOURCE_FILE); onFile() },
             )
             AuraSourceRow(
                 icon = AuraIcons.Share,
                 title = stringResource(R.string.migrate_source_deezer),
                 description = stringResource(R.string.migrate_source_deezer_desc),
-                onClick = onDeezer,
+                onClick = { ActionLog.tap(ActionId.MIG_SOURCE_DEEZER); onDeezer() },
             )
             AuraSourceRow(
                 icon = AuraIcons.Library,
                 title = stringResource(R.string.migrate_source_tidal),
                 description = stringResource(R.string.migrate_source_tidal_desc),
-                onClick = onTidal,
+                onClick = { ActionLog.tap(ActionId.MIG_SOURCE_TIDAL); onTidal() },
             )
             AuraSourceRow(
                 icon = AuraIcons.Album,
                 title = stringResource(R.string.migrate_source_apple),
                 description = stringResource(R.string.migrate_source_apple_desc),
-                onClick = onApple,
+                onClick = { ActionLog.tap(ActionId.MIG_SOURCE_APPLE); onApple() },
             )
         }
     }
@@ -465,7 +468,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraCollectionContent
         items(state.collection, key = { "${it.origin}_${it.kind}_${it.id}" }) { playlist ->
             AuraCollectionRow(
                 playlist = playlist,
-                onClick = { onPick(playlist) },
+                onClick = { ActionLog.tap(ActionId.MIG_PICK_PLAYLIST); onPick(playlist) },
                 modifier = Modifier.animateItem(),
             )
         }
@@ -474,7 +477,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraCollectionContent
     item(key = "aura_migrate_collection_back", contentType = "aura_migrate_collection_back") {
         AuraLinkButton(
             text = stringResource(R.string.migrate_collection_back),
-            onClick = onBack,
+            onClick = { ActionLog.tap(ActionId.MIG_BACK_TO_SOURCES); onBack() },
             modifier = Modifier
                 .fillMaxWidth()
                 .animateItem(),
@@ -613,12 +616,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraConfirmContent(
             ) {
                 AuraQuietButton(
                     text = stringResource(android.R.string.cancel),
-                    onClick = onCancel,
+                    onClick = { ActionLog.tap(ActionId.MIG_LIBRARY_CANCEL); onCancel() },
                     modifier = Modifier.weight(1f),
                 )
                 AuraActionButton(
                     text = stringResource(R.string.migrate_continue),
-                    onClick = onContinue,
+                    onClick = { ActionLog.tap(ActionId.MIG_LIBRARY_CONTINUE); onContinue() },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -737,7 +740,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
         item(key = "aura_migrate_review_cta", contentType = "aura_migrate_review_cta") {
             AuraActionButton(
                 text = stringResource(R.string.migrate_review_ambiguous, state.ambiguousPending),
-                onClick = onReview,
+                onClick = { ActionLog.tap(ActionId.MIG_REVIEW_AMBIGUOUS); onReview() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .animateItem(),
@@ -748,7 +751,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
         item(key = "aura_migrate_export_csv", contentType = "aura_migrate_export_csv") {
             AuraQuietButton(
                 text = stringResource(R.string.migrate_export_failures_csv),
-                onClick = onSaveFailuresCsv,
+                onClick = { ActionLog.tap(ActionId.MIG_EXPORT_FAILURES); onSaveFailuresCsv() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .animateItem(),
@@ -757,7 +760,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
         item(key = "aura_migrate_share_csv", contentType = "aura_migrate_share_csv") {
             AuraLinkButton(
                 text = stringResource(R.string.spotify_import_share_failures_csv),
-                onClick = onShareFailuresCsv,
+                onClick = { ActionLog.tap(ActionId.MIG_SHARE_FAILURES); onShareFailuresCsv() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .animateItem(),
@@ -768,7 +771,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
         item(key = "aura_migrate_open_library", contentType = "aura_migrate_open_library") {
             AuraQuietButton(
                 text = stringResource(R.string.migrate_open_in_library),
-                onClick = onOpenLibrary,
+                onClick = { ActionLog.tap(ActionId.MIG_OPEN_LIBRARY); onOpenLibrary() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .animateItem(),
@@ -778,7 +781,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraDoneContent(
     item(key = "aura_migrate_another", contentType = "aura_migrate_another") {
         AuraLinkButton(
             text = stringResource(R.string.migrate_another),
-            onClick = onMigrateAnother,
+            onClick = { ActionLog.tap(ActionId.MIG_ANOTHER); onMigrateAnother() },
             modifier = Modifier
                 .fillMaxWidth()
                 .animateItem(),
@@ -846,7 +849,7 @@ private fun AuraAmbiguousReview(
             AuraDivider()
             AuraActionButton(
                 text = stringResource(R.string.migrate_review_add),
-                onClick = onApply,
+                onClick = { ActionLog.tap(ActionId.MIG_REVIEW_ADD); onApply() },
                 enabled = anyChosen && !state.appendingResolved,
                 loading = state.appendingResolved,
                 modifier = Modifier
@@ -880,7 +883,7 @@ private fun AuraAmbiguousCard(
             AuraCandidateRow(
                 candidate = candidate,
                 selected = item.chosenVideoId == candidate.videoId,
-                onClick = { onChoose(candidate.videoId) },
+                onClick = { ActionLog.tap(ActionId.MIG_REVIEW_CHOOSE); onChoose(candidate.videoId) },
             )
         }
         AuraLinkButton(
@@ -889,7 +892,7 @@ private fun AuraAmbiguousCard(
             } else {
                 stringResource(R.string.migrate_review_skip)
             },
-            onClick = onSkip,
+            onClick = { ActionLog.tap(ActionId.MIG_REVIEW_SKIP); onSkip() },
             modifier = Modifier.align(Alignment.End),
         )
     }
@@ -1100,6 +1103,7 @@ fun AuraMigrationTidalScreen(navController: NavController) {
                             AuraQuietButton(
                                 text = stringResource(R.string.migrate_tidal_open_dashboard),
                                 onClick = {
+                                    ActionLog.tap(ActionId.MIG_TIDAL_DASHBOARD)
                                     openExternal(context, "https://developer.tidal.com/dashboard")
                                 },
                                 modifier = Modifier.weight(1f),
@@ -1107,6 +1111,7 @@ fun AuraMigrationTidalScreen(navController: NavController) {
                             AuraActionButton(
                                 text = stringResource(R.string.migrate_tidal_save),
                                 onClick = {
+                                    ActionLog.tap(ActionId.MIG_TIDAL_CLIENT_SAVE)
                                     setSavedClientId(clientIdField.trim())
                                     showClientIdEditor = false
                                 },
@@ -1128,7 +1133,7 @@ fun AuraMigrationTidalScreen(navController: NavController) {
                         )
                         AuraLinkButton(
                             text = stringResource(R.string.migrate_tidal_clientid_change),
-                            onClick = { showClientIdEditor = true },
+                            onClick = { ActionLog.tap(ActionId.MIG_TIDAL_CLIENT_CHANGE); showClientIdEditor = true },
                         )
                     }
                 }
@@ -1149,7 +1154,7 @@ fun AuraMigrationTidalScreen(navController: NavController) {
                             )
                             AuraActionButton(
                                 text = stringResource(R.string.migrate_tidal_login),
-                                onClick = { viewModel.beginTidalLogin() },
+                                onClick = { ActionLog.tap(ActionId.MIG_TIDAL_LOGIN); viewModel.beginTidalLogin() },
                                 enabled = !tidalState.loggingIn,
                                 loading = tidalState.loggingIn,
                                 modifier = Modifier.fillMaxWidth(),
@@ -1173,7 +1178,7 @@ fun AuraMigrationTidalScreen(navController: NavController) {
                             action = {
                                 AuraLinkButton(
                                     text = stringResource(android.R.string.ok),
-                                    onClick = { viewModel.dismissTidalError() },
+                                    onClick = { ActionLog.tap(ActionId.MIG_TIDAL_ERROR_OK); viewModel.dismissTidalError() },
                                 )
                             },
                         )
@@ -1214,7 +1219,7 @@ private fun AuraTidalConnectedCard(
             )
             AuraLinkButton(
                 text = stringResource(R.string.migrate_tidal_logout),
-                onClick = onLogout,
+                onClick = { ActionLog.tap(ActionId.MIG_TIDAL_LOGOUT); onLogout() },
             )
         }
 
@@ -1230,11 +1235,11 @@ private fun AuraTidalConnectedCard(
                 state.collection.forEach { playlist ->
                     // TidalSource returns the user's LIBRARY (favourites / saved albums / followed
                     // artists) alongside real playlists, and the row is what makes that visible.
-                    AuraCollectionRow(playlist = playlist, onClick = { onPickPlaylist(playlist) })
+                    AuraCollectionRow(playlist = playlist, onClick = { ActionLog.tap(ActionId.MIG_TIDAL_PICK); onPickPlaylist(playlist) })
                 }
                 AuraLinkButton(
                     text = stringResource(R.string.migrate_tidal_reload),
-                    onClick = onReload,
+                    onClick = { ActionLog.tap(ActionId.MIG_TIDAL_RELOAD); onReload() },
                 )
             }
 
@@ -1246,7 +1251,7 @@ private fun AuraTidalConnectedCard(
                 )
                 AuraLinkButton(
                     text = stringResource(R.string.migrate_tidal_reload),
-                    onClick = onReload,
+                    onClick = { ActionLog.tap(ActionId.MIG_TIDAL_RELOAD); onReload() },
                 )
             }
         }
@@ -1267,7 +1272,7 @@ private fun AuraTidalConnectedCard(
         )
         AuraActionButton(
             text = stringResource(R.string.migrate_tidal_import),
-            onClick = onImportUrl,
+            onClick = { ActionLog.tap(ActionId.MIG_TIDAL_IMPORT_URL); onImportUrl() },
             enabled = urlField.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -1368,7 +1373,7 @@ fun AuraMigrationAppleScreen(navController: NavController) {
 
                 AuraActionButton(
                     text = stringResource(R.string.migrate_apple_open_privacy),
-                    onClick = { openExternal(context, AppleMusicGuide.PRIVACY_URL) },
+                    onClick = { ActionLog.tap(ActionId.MIG_APPLE_PRIVACY); openExternal(context, AppleMusicGuide.PRIVACY_URL) },
                     modifier = Modifier.fillMaxWidth(),
                 )
 

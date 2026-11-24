@@ -15,6 +15,8 @@ import iad1tya.echo.music.utils.LibraryPinKind
 import iad1tya.echo.music.utils.LibraryPins
 import iad1tya.echo.music.utils.LibraryPinsStore
 import iad1tya.echo.music.utils.rememberLibraryPins
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * The «Anclar en Biblioteca» row every playlist / album / artist menu carries (owner 2026-10-20: pin them to the Library's
@@ -46,6 +48,7 @@ fun libraryPinMenuItem(pin: LibraryPin, onDismiss: () -> Unit): Material3MenuIte
             )
         },
         onClick = {
+            ActionLog.tap(ActionId.PIN_TOGGLE)
             if (!full) {
                 LibraryPinsStore.updateDetached(context) { current -> LibraryPins.toggled(current, pin) }
             }

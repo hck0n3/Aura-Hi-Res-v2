@@ -69,6 +69,8 @@ import iad1tya.echo.music.viewmodels.PlaylistsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun AddToPlaylistDialog(
@@ -185,7 +187,7 @@ fun AddToPlaylistDialog(
                     AuraGlassRow(
                         title = stringResource(R.string.create_playlist),
                         icon = R.drawable.add,
-                        onClick = { showCreatePlaylistDialog = true },
+                        onClick = { ActionLog.tap(ActionId.ADDPL_CREATE); showCreatePlaylistDialog = true },
                     )
                 }
               } else {
@@ -203,6 +205,7 @@ fun AddToPlaylistDialog(
                     },
                     shape = listItemShape(index = 0, count = totalItemsCount),
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.ADDPL_CREATE_EMPTY)
                         showCreatePlaylistDialog = true
                     }
                 )
@@ -231,7 +234,7 @@ fun AddToPlaylistDialog(
                         },
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
+                                IconButton(onClick = { ActionLog.tap(ActionId.ADDPL_SEARCH_CLEAR); searchQuery = "" }) {
                                     Icon(
                                         painter = painterResource(R.drawable.close),
                                         contentDescription = null,
@@ -332,6 +335,7 @@ fun AddToPlaylistDialog(
                             Modifier
                         }
                         ).clickable {
+                        ActionLog.tap(ActionId.ADDPL_PICK)
                         selectedPlaylist = playlist
                         coroutineScope.launch(Dispatchers.IO) {
                             songIds = onGetSong(playlist)
@@ -380,6 +384,7 @@ fun AddToPlaylistDialog(
                 buttons = {
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.ADDPL_SKIP_DUPLICATES)
                             showDuplicateDialog = false
                             // Capture before dismissing: the dialog resets this state when reopened.
                             val playlist = selectedPlaylist!!
@@ -415,6 +420,7 @@ fun AddToPlaylistDialog(
 
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.ADDPL_ADD_ANYWAY)
                             showDuplicateDialog = false
                             // Capture before dismissing: the dialog resets this state when reopened.
                             val playlist = selectedPlaylist!!
@@ -446,6 +452,7 @@ fun AddToPlaylistDialog(
 
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.ADDPL_DUPLICATES_CANCEL)
                             showDuplicateDialog = false
                         }
                     ) {

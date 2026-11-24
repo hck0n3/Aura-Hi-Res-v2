@@ -320,6 +320,8 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.util.Locale
 import javax.inject.Inject
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Suppress("DEPRECATION", "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
 @AndroidEntryPoint
@@ -2179,6 +2181,7 @@ class MainActivity : ComponentActivity() {
                                             // default (top-bar) config leaves the feature with no way to reach it.
                                             if (listenTogetherInTopBar) {
                                                 IconButton(onClick = {
+                                                    ActionLog.tap(ActionId.MAIN_TOPBAR_TOGETHER)
                                                     navController.navigate(Screens.ListenTogether.route) {
                                                         launchSingleTop = true
                                                     }
@@ -2190,7 +2193,7 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                             if (showHistoryButton) {
-                                                IconButton(onClick = { navController.navigate("history") }) {
+                                                IconButton(onClick = { ActionLog.tap(ActionId.MAIN_TOPBAR_HISTORY); navController.navigate("history") }) {
                                                     Icon(
                                                         painter = painterResource(R.drawable.music_history),
                                                         contentDescription = stringResource(R.string.history)
@@ -2213,7 +2216,7 @@ class MainActivity : ComponentActivity() {
                                                     contentDescription = stringResource(R.string.offline_mode)
                                                 )
                                             }
-                                             IconButton(onClick = { showSettingDialoge = true }) {
+                                             IconButton(onClick = { ActionLog.tap(ActionId.MAIN_TOPBAR_ACCOUNT); showSettingDialoge = true }) {
                                                 if (accountImageUrl != null) {
                                                     AsyncImage(
                                                         model = accountImageUrl,
@@ -2977,13 +2980,14 @@ class MainActivity : ComponentActivity() {
                             title = { Text(stringResource(R.string.listen_invite_confirm_title, code)) },
                             confirmButton = {
                                 androidx.compose.material3.TextButton(onClick = {
+                                    ActionLog.tap(ActionId.MAIN_INVITE_JOIN)
                                     pendingListenInvite = null
                                     val username = this@MainActivity.dataStore.get(ListenTogetherUsernameKey, "").ifBlank { "Guest" }
                                     listenTogetherManager.joinRoom(code, username)
                                 }) { Text(stringResource(R.string.listen_invite_join)) }
                             },
                             dismissButton = {
-                                androidx.compose.material3.TextButton(onClick = { pendingListenInvite = null }) {
+                                androidx.compose.material3.TextButton(onClick = { ActionLog.tap(ActionId.MAIN_INVITE_CANCEL); pendingListenInvite = null }) {
                                     Text(stringResource(R.string.cancel))
                                 }
                             },

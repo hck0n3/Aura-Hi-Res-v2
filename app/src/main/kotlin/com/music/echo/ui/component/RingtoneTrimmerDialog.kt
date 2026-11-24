@@ -18,6 +18,8 @@ import androidx.compose.ui.res.stringResource
 import iad1tya.echo.music.R
 import iad1tya.echo.music.utils.makeTimeString
 import kotlinx.coroutines.delay
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,6 +120,7 @@ fun RingtoneTrimmerDialog(
                     } else {
                         IconButton(
                             onClick = {
+                                ActionLog.tap(ActionId.RINGTONE_PREVIEW)
                                 if (isPlaying) {
                                     exoPlayer.pause()
                                     isPlaying = false
@@ -183,6 +186,7 @@ fun RingtoneTrimmerDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    ActionLog.tap(ActionId.RINGTONE_SET)
                     exoPlayer.stop()
                     onConfirm((rangeSec.start * 1000).toLong(), (rangeSec.endInclusive * 1000).toLong())
                 },
@@ -192,6 +196,7 @@ fun RingtoneTrimmerDialog(
         },
         dismissButton = {
             TextButton(onClick = {
+                ActionLog.tap(ActionId.RINGTONE_CANCEL)
                 exoPlayer.stop()
                 onDismiss()
             }) {

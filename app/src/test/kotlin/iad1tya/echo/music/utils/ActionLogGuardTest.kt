@@ -73,8 +73,12 @@ class ActionLogGuardTest {
         return out.toString()
     }
 
+    /** The flavour source sets (Cast lives in `gms`) hold buttons too (row 824). */
+    private val flavourDirs = listOf("gms", "foss").map { File(root, "app/src/$it/kotlin/com/music/echo") }
+
     private val sources: List<File> by lazy {
-        mainDir.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        (listOf(mainDir) + flavourDirs.filter { it.isDirectory })
+            .flatMap { dir -> dir.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }
     }
 
     /** Argument text of every `ActionLog.<fn>(…)` call, with the file it is in. Balanced parentheses, so nested calls are kept. */

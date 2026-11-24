@@ -56,6 +56,8 @@ import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.ui.component.TextFieldDialog
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -183,7 +185,7 @@ fun AiSettings(
         iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showProviderHelpDialog = false },
             confirmButton = {
-                TextButton(onClick = { showProviderHelpDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SETAI_PROVIDER_HELP_OK); showProviderHelpDialog = false }) {
                     Text(stringResource(android.R.string.ok))
                 }
             },
@@ -209,7 +211,7 @@ fun AiSettings(
         iad1tya.echo.music.ui.component.AuraAlertDialog(
             onDismissRequest = { showTranslateModeHelpDialog = false },
             confirmButton = {
-                TextButton(onClick = { showTranslateModeHelpDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SETAI_TRANSLATE_MODE_HELP_OK); showTranslateModeHelpDialog = false }) {
                     Text(stringResource(android.R.string.ok))
                 }
             },
@@ -472,6 +474,7 @@ fun AiSettings(
                     description = { Text("Vuelve a generar las recomendaciones en segundo plano.") },
                     enabled = aiRecsEnabled,
                     onClick = {
+                        ActionLog.tap(ActionId.SETAI_RECS_REFRESH)
                         AutoRecoPlaylistWorker.runNow(context)
                         Toast.makeText(
                             context,
@@ -492,9 +495,9 @@ fun AiSettings(
                     icon = painterResource(R.drawable.explore_outlined),
                     title = { Text(stringResource(R.string.ai_provider)) },
                     description = { Text(aiProvider) },
-                    onClick = { showProviderDialog = true },
+                    onClick = { ActionLog.tap(ActionId.SETAI_PROVIDER); showProviderDialog = true },
                     trailingContent = {
-                        IconButton(onClick = { showProviderHelpDialog = true }) {
+                        IconButton(onClick = { ActionLog.tap(ActionId.SETAI_PROVIDER_HELP); showProviderHelpDialog = true }) {
                             Icon(
                                 painterResource(R.drawable.info),
                                 contentDescription = stringResource(R.string.ai_provider_help),
@@ -508,7 +511,7 @@ fun AiSettings(
                         icon = painterResource(R.drawable.link),
                         title = { Text(stringResource(R.string.ai_base_url)) },
                         description = { Text(openRouterBaseUrl.ifBlank { stringResource(R.string.not_set) }) },
-                        onClick = { showBaseUrlDialog = true }
+                        onClick = { ActionLog.tap(ActionId.SETAI_BASE_URL); showBaseUrlDialog = true }
                     )
                 } else {
                     null
@@ -534,7 +537,7 @@ fun AiSettings(
                                         stringResource(R.string.not_set)
                                 )
                             },
-                            onClick = { showDeeplApiKeyDialog = true }
+                            onClick = { ActionLog.tap(ActionId.SETAI_DEEPL_API_KEY); showDeeplApiKeyDialog = true }
                         )
                     )
                     add(
@@ -551,7 +554,7 @@ fun AiSettings(
                                     }
                                 )
                             },
-                            onClick = { showDeeplFormalityDialog = true }
+                            onClick = { ActionLog.tap(ActionId.SETAI_DEEPL_FORMALITY); showDeeplFormalityDialog = true }
                         )
                     )
                 } else {
@@ -569,7 +572,7 @@ fun AiSettings(
                                         stringResource(R.string.ai_key_optional_hint)
                                 )
                             },
-                            onClick = { showApiKeyDialog = true }
+                            onClick = { ActionLog.tap(ActionId.SETAI_API_KEY); showApiKeyDialog = true }
                         )
                     )
                     // The model row must ALWAYS be reachable. It used to be hidden for the "Custom"
@@ -582,6 +585,7 @@ fun AiSettings(
                             title = { Text(stringResource(R.string.ai_model)) },
                             description = { Text(openRouterModel.ifBlank { stringResource(R.string.not_set) }) },
                             onClick = {
+                                ActionLog.tap(ActionId.SETAI_MODEL)
                                 if (aiProvider == "Custom") {
                                     showCustomModelInput = true
                                 } else {
@@ -613,9 +617,9 @@ fun AiSettings(
                                     }
                                 )
                             },
-                            onClick = { showTranslateModeDialog = true },
+                            onClick = { ActionLog.tap(ActionId.SETAI_TRANSLATION_MODE); showTranslateModeDialog = true },
                             trailingContent = {
-                                IconButton(onClick = { showTranslateModeHelpDialog = true }) {
+                                IconButton(onClick = { ActionLog.tap(ActionId.SETAI_TRANSLATION_MODE_HELP); showTranslateModeHelpDialog = true }) {
                                     Icon(
                                         painterResource(R.drawable.info),
                                         contentDescription = null,
@@ -631,7 +635,7 @@ fun AiSettings(
                         icon = painterResource(R.drawable.language),
                         title = { Text(stringResource(R.string.ai_target_language)) },
                         description = { Text(LanguageCodeToName[translateLanguage] ?: translateLanguage) },
-                        onClick = { showLanguageDialog = true }
+                        onClick = { ActionLog.tap(ActionId.SETAI_TARGET_LANGUAGE); showLanguageDialog = true }
                     )
                 )
                 add(
@@ -680,7 +684,7 @@ fun AiSettings(
     iad1tya.echo.music.ui.component.AuraTopAppBar(
         title = { Text(stringResource(R.string.ai_lyrics_translation)) },
         navigationIcon = {
-            IconButton(onClick = { navController.navigateUp() }) {
+            IconButton(onClick = { ActionLog.tap(ActionId.SETAI_BACK); navController.navigateUp() }) {
                 Icon(
                     painterResource(R.drawable.arrow_back),
                     contentDescription = null

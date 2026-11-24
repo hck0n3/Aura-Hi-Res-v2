@@ -123,6 +123,8 @@ import androidx.compose.runtime.setValue
 import kotlin.math.sin
 import kotlin.math.sqrt
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,7 +202,7 @@ fun AxionEqScreen(
             iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.echo_equalizer)) },
                 navigationIcon = {
-                    iad1tya.echo.music.ui.component.IconButton(onClick = onBackClick, onLongClick = null) {
+                    iad1tya.echo.music.ui.component.IconButton(onClick = { ActionLog.tap(ActionId.EQ_BACK); onBackClick() }, onLongClick = null) {
                         Icon(painter = painterResource(R.drawable.arrow_back), contentDescription = null)
                     }
                 },
@@ -627,7 +629,7 @@ private fun EqFftMeter(
             .clip(AbsoluteSmoothCornerShape(20.dp, 60))
             .background(plate)
             .border(1.dp, line, AbsoluteSmoothCornerShape(20.dp, 60))
-            .then(if (needsPermission) Modifier.clickable { onPermissionClick() } else Modifier)
+            .then(if (needsPermission) Modifier.clickable { ActionLog.tap(ActionId.EQ_METER_PERMISSION); onPermissionClick() } else Modifier)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -874,7 +876,7 @@ private fun ColumnScope.EqMainContent(
                         },
                     )
                 },
-                onClick = { viewModel.setEnabled(!enabled) },
+                onClick = { ActionLog.tap(ActionId.EQ_ENABLE); viewModel.setEnabled(!enabled) },
             ),
         ),
     )
@@ -942,19 +944,19 @@ private fun ColumnScope.EqMainContent(
                 modifier = Modifier.weight(1f),
             )
             androidx.compose.material3.TextButton(
-                onClick = { viewModel.clearAutoEq() },
+                onClick = { ActionLog.tap(ActionId.EQ_AUTOEQ_CLEAR); viewModel.clearAutoEq() },
             ) {
                 Text("Quitar Auto-EQ")
             }
         }
         iad1tya.echo.music.ui.component.AuraOutlinedButton(
-            onClick = onAutoEqClick,
+            onClick = { ActionLog.tap(ActionId.EQ_AUTOEQ_CHANGE); onAutoEqClick() },
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
         ) { Text("Cambiar Auto-EQ (por auricular)") }
     } else {
         iad1tya.echo.music.ui.component.AuraOutlinedButton(
-            onClick = onAutoEqClick,
+            onClick = { ActionLog.tap(ActionId.EQ_AUTOEQ_OPEN); onAutoEqClick() },
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
         ) { Text("Auto-EQ (por auricular)") }
@@ -1004,7 +1006,7 @@ private fun ColumnScope.EqMainContent(
         exit = shrinkVertically() + fadeOut(),
     ) {
         iad1tya.echo.music.ui.component.AuraOutlinedButton(
-            onClick = onSaveClick,
+            onClick = { ActionLog.tap(ActionId.EQ_PROFILE_SAVE); onSaveClick() },
             shape = MaterialTheme.shapes.medium,
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
         ) {
@@ -1081,7 +1083,7 @@ private fun ColumnScope.EqMainContent(
                 description = {
                     Text("Mide dentro del motor la ganancia en cada frecuencia y el pico con ruido rosa a −0.1 dBFS, y lo compara con la curva dibujada.")
                 },
-                onClick = { viewModel.runVerification() },
+                onClick = { ActionLog.tap(ActionId.EQ_VERIFY); viewModel.runVerification() },
             ),
         ),
     )
@@ -1089,7 +1091,7 @@ private fun ColumnScope.EqMainContent(
 
     // Assign EQ profiles to output devices (phone / Bluetooth), applied automatically on connect.
     iad1tya.echo.music.ui.component.AuraOutlinedButton(
-        onClick = onDeviceClick,
+        onClick = { ActionLog.tap(ActionId.EQ_PER_DEVICE); onDeviceClick() },
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
     ) { Text("EQ por dispositivo") }
@@ -1106,12 +1108,12 @@ private fun ColumnScope.EqMainContent(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         iad1tya.echo.music.ui.component.AuraOutlinedButton(
-            onClick = { exportLauncher.launch("aura-eq-perfiles.json") },
+            onClick = { ActionLog.tap(ActionId.EQ_EXPORT); exportLauncher.launch("aura-eq-perfiles.json") },
             modifier = Modifier.weight(1f),
             shape = MaterialTheme.shapes.medium,
         ) { Text("Exportar perfiles") }
         iad1tya.echo.music.ui.component.AuraOutlinedButton(
-            onClick = { importLauncher.launch(arrayOf("application/json")) },
+            onClick = { ActionLog.tap(ActionId.EQ_IMPORT); importLauncher.launch(arrayOf("application/json")) },
             modifier = Modifier.weight(1f),
             shape = MaterialTheme.shapes.medium,
         ) { Text("Importar") }
@@ -1342,7 +1344,7 @@ private fun DeviceEqDialog(
                         )
                         Box {
                             iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                                onClick = { expanded = true },
+                                onClick = { ActionLog.tap(ActionId.EQ_DEVICE_PROFILE_OPEN); expanded = true },
                                 enabled = customProfiles.isNotEmpty(),
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = MaterialTheme.shapes.small,
@@ -1356,6 +1358,7 @@ private fun DeviceEqDialog(
                                 DropdownMenuItem(
                                     text = { Text("Ninguno") },
                                     onClick = {
+                                        ActionLog.tap(ActionId.EQ_DEVICE_PROFILE_NONE)
                                         // Clear mapping only — never touches master EQ enable.
                                         assignments[out.key] = null
                                         store.assign(context, out.key, null)
@@ -1366,6 +1369,7 @@ private fun DeviceEqDialog(
                                     DropdownMenuItem(
                                         text = { Text(p.name) },
                                         onClick = {
+                                            ActionLog.tap(ActionId.EQ_DEVICE_PROFILE_PICK)
                                             assignments[out.key] = p.id
                                             store.assign(context, out.key, p.id)
                                             expanded = false
@@ -1378,7 +1382,7 @@ private fun DeviceEqDialog(
                 }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onDismiss) { Text("Listo") }
+                TextButton(onClick = { ActionLog.tap(ActionId.EQ_PER_DEVICE_DONE); onDismiss() }) { Text("Listo") }
             }
         }
     }
@@ -1645,7 +1649,7 @@ private fun FactoryPresetGrid(
                                 color = if (isSelected) accent else line,
                                 shape = shape,
                             )
-                            .clickable(enabled = enabled) { onPresetClick(preset) }
+                            .clickable(enabled = enabled) { ActionLog.tap(ActionId.EQ_PRESET); onPresetClick(preset) }
                             .padding(horizontal = 10.dp, vertical = 10.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
@@ -1799,7 +1803,7 @@ private fun BandEqCard(
                 for (b in 0 until bandCountForPanel) {
                     FilterChip(
                         selected = sel == b,
-                        onClick = { selectedBand = b },
+                        onClick = { ActionLog.tap(ActionId.EQ_BAND); selectedBand = b },
                         enabled = enabled,
                         label = { Text(EqConstants.FREQUENCY_LABELS[b]) },
                     )
@@ -1816,6 +1820,7 @@ private fun BandEqCard(
                 listOf(-3f to "−3", -1f to "−1", 0f to "0", 1f to "+1", 3f to "+3").forEach { (step, label) ->
                     iad1tya.echo.music.ui.component.AuraOutlinedButton(
                         onClick = {
+                            ActionLog.tap(ActionId.EQ_BAND_GAIN_STEP)
                             onBandChange(sel, if (step == 0f) 0f else selGain + step)
                             onBandCommit()
                         },
@@ -1860,7 +1865,7 @@ private fun BandEqCard(
             ) { Text("Mantén presionado para escuchar sin EQ") }
             // Guaranteed-audible check: an extreme curve for 5 s, then back to the user's tuning.
             iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                onClick = onAudibleDemo,
+                onClick = { ActionLog.tap(ActionId.EQ_AUDIBLE_DEMO); onAudibleDemo() },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Prueba audible (5 s): graves −9 · agudos +9") }
             Text("Ancho de banda (Q)", style = MaterialTheme.typography.labelSmall)
@@ -1873,17 +1878,17 @@ private fun BandEqCard(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                    onClick = { onBandQChange(sel, selQ - 0.05f); onBandCommit() },
+                    onClick = { ActionLog.tap(ActionId.EQ_BAND_Q_DOWN); onBandQChange(sel, selQ - 0.05f); onBandCommit() },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                 ) { Text("Q −0.05") }
                 iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                    onClick = { onBandQChange(sel, EqConstants.Q.toFloat()); onBandCommit() },
+                    onClick = { ActionLog.tap(ActionId.EQ_BAND_Q_DEFAULT); onBandQChange(sel, EqConstants.Q.toFloat()); onBandCommit() },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                 ) { Text("Q 1.41") }
                 iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                    onClick = { onBandQChange(sel, selQ + 0.05f); onBandCommit() },
+                    onClick = { ActionLog.tap(ActionId.EQ_BAND_Q_UP); onBandQChange(sel, selQ + 0.05f); onBandCommit() },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                 ) { Text("Q +0.05") }
@@ -1899,7 +1904,7 @@ private fun BandEqCard(
                 typeOptions.forEachIndexed { i, (code, label) ->
                     SegmentedButton(
                         selected = selType == code,
-                        onClick = { if (enabled) onBandTypeChange(sel, code) },
+                        onClick = { ActionLog.tap(ActionId.EQ_BAND_TYPE); if (enabled) onBandTypeChange(sel, code) },
                         enabled = enabled,
                         shape = SegmentedButtonDefaults.itemShape(index = i, count = typeOptions.size),
                     ) { Text(label, maxLines = 1) }
@@ -1908,7 +1913,7 @@ private fun BandEqCard(
         }
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = onReset, enabled = enabled) {
+            iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = { ActionLog.tap(ActionId.EQ_BANDS_RESET); onReset() }, enabled = enabled) {
                 Icon(Icons.Rounded.Replay, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.eq_reset))
@@ -1927,13 +1932,13 @@ private fun EqModeToggle(
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         SegmentedButton(
             selected = eqMode == EqMode.GRAPHIC,
-            onClick = { if (enabled) onModeChange(EqMode.GRAPHIC) },
+            onClick = { ActionLog.tap(ActionId.EQ_MODE_GRAPHIC); if (enabled) onModeChange(EqMode.GRAPHIC) },
             enabled = enabled,
             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
         ) { Text("Gráfico") }
         SegmentedButton(
             selected = eqMode == EqMode.PARAMETRIC,
-            onClick = { if (enabled) onModeChange(EqMode.PARAMETRIC) },
+            onClick = { ActionLog.tap(ActionId.EQ_MODE_PARAMETRIC); if (enabled) onModeChange(EqMode.PARAMETRIC) },
             enabled = enabled,
             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
         ) { Text("Paramétrico") }
@@ -2240,7 +2245,7 @@ private fun PeqGraphEditor(
                 // Remove the selected band (floored at MIN_BANDS by the VM; disabled here too).
                 val canRemove = enabled && bands.size > PeqConstants.MIN_BANDS
                 TextButton(
-                    onClick = { if (canRemove) onRemoveBand(selectedIndex) },
+                    onClick = { ActionLog.tap(ActionId.EQ_BAND_REMOVE); if (canRemove) onRemoveBand(selectedIndex) },
                     enabled = canRemove,
                 ) {
                     Icon(
@@ -2258,7 +2263,7 @@ private fun PeqGraphEditor(
         // ── Add a band  |  reset the whole PEQ to flat defaults ──────────────────────────────────
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                onClick = onAddBand,
+                onClick = { ActionLog.tap(ActionId.EQ_BAND_ADD); onAddBand() },
                 enabled = enabled && bands.size < PeqConstants.MAX_BANDS,
                 modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.medium,
@@ -2268,7 +2273,7 @@ private fun PeqGraphEditor(
                 Text("Añadir banda")
             }
             iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                onClick = onReset,
+                onClick = { ActionLog.tap(ActionId.EQ_PARAMETRIC_RESET); onReset() },
                 enabled = enabled,
                 modifier = Modifier.weight(1f),
                 shape = MaterialTheme.shapes.medium,
@@ -2328,7 +2333,7 @@ private fun PeqTypeSelector(
         types.forEachIndexed { i, type ->
             SegmentedButton(
                 selected = selected == type,
-                onClick = { if (enabled) onTypeChange(type) },
+                onClick = { ActionLog.tap(ActionId.EQ_FILTER_TYPE); if (enabled) onTypeChange(type) },
                 enabled = enabled,
                 shape = SegmentedButtonDefaults.itemShape(index = i, count = types.size),
             ) { Text(labels[type] ?: type.name) }
@@ -2546,7 +2551,7 @@ private fun CustomPresetRow(
                 modifier = Modifier.padding(start = 4.dp),
             )
             if (enabled) {
-                androidx.compose.material3.IconButton(onClick = onEditClick, modifier = Modifier.size(24.dp)) {
+                androidx.compose.material3.IconButton(onClick = { ActionLog.tap(ActionId.EQ_PROFILES_EDIT); onEditClick() }, modifier = Modifier.size(24.dp)) {
                     Icon(
                         imageVector = Icons.Rounded.Edit,
                         contentDescription = null,
@@ -2569,7 +2574,7 @@ private fun CustomPresetRow(
                 val selected = bandGains.indices.all { abs(bandGains[it] - gains[it]) < 0.5f }
                 FilterChip(
                     selected = selected,
-                    onClick = { if (enabled) onApplyProfile(profile) },
+                    onClick = { ActionLog.tap(ActionId.EQ_PROFILE_APPLY); if (enabled) onApplyProfile(profile) },
                     enabled = enabled,
                     label = { Text(profile.name) },
                 )
@@ -2631,11 +2636,11 @@ private fun SavePresetDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                TextButton(onClick = onDismiss, shape = actionShape) {
+                TextButton(onClick = { ActionLog.tap(ActionId.EQ_PROFILE_SAVE_CANCEL); onDismiss() }, shape = actionShape) {
                     Text(text = stringResource(R.string.cancel))
                 }
                 iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                    onClick = { if (name.isNotBlank()) onSave(name) },
+                    onClick = { ActionLog.tap(ActionId.EQ_PROFILE_SAVE_CONFIRM); if (name.isNotBlank()) onSave(name) },
                     enabled = name.isNotBlank(),
                     shape = actionShape,
                 ) {
@@ -2703,6 +2708,7 @@ private fun ManagePresetsDialog(
                                     .fillMaxWidth()
                                     .clip(MaterialTheme.shapes.small)
                                     .clickable {
+                                        ActionLog.tap(ActionId.EQ_PROFILE_SELECT)
                                         if (isSelected) selectedIds.remove(profile.id)
                                         else selectedIds.add(profile.id)
                                     }
@@ -2736,12 +2742,12 @@ private fun ManagePresetsDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                TextButton(onClick = onDismiss, shape = actionShape) {
+                TextButton(onClick = { ActionLog.tap(ActionId.EQ_PROFILES_DELETE_CANCEL); onDismiss() }, shape = actionShape) {
                     Text(text = stringResource(R.string.cancel))
                 }
                 if (selectedIds.isNotEmpty()) {
                     iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                        onClick = { onDeleteSelected(selectedIds.toList()) },
+                        onClick = { ActionLog.tap(ActionId.EQ_PROFILES_DELETE); onDeleteSelected(selectedIds.toList()) },
                         shape = actionShape,
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.error,

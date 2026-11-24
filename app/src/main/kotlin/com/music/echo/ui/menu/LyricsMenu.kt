@@ -81,6 +81,8 @@ import iad1tya.echo.music.constants.DeeplFormalityKey
 import iad1tya.echo.music.lyrics.LyricsTranslationHelper
 import iad1tya.echo.music.utils.rememberPreference
 import androidx.compose.runtime.collectAsState
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,6 +199,7 @@ fun LyricsMenu(
             buttons = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LYRMENU_SEARCH_CANCEL)
                         showSearchDialog = false
                         if (startWithSearch) onDismiss()
                     },
@@ -208,6 +211,7 @@ fun LyricsMenu(
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LYRMENU_SEARCH_WEB)
                         showSearchDialog = false
                         onDismiss()
                         try {
@@ -230,6 +234,7 @@ fun LyricsMenu(
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LYRMENU_SEARCH_RUN)
                         
                         
                         viewModel.search(
@@ -286,6 +291,7 @@ fun LyricsMenu(
                     Modifier
                         .fillMaxWidth()
                         .clickable {
+                            ActionLog.tap(ActionId.LYRMENU_RESULT_PICK)
                             onDismiss()
                             viewModel.cancelSearch()
                             database.query {
@@ -347,6 +353,7 @@ fun LyricsMenu(
 
                     IconButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LYRMENU_RESULT_EXPAND)
                             expandedItemIndex = if (expandedItemIndex == index) -1 else index
                         },
                     ) {
@@ -425,6 +432,7 @@ fun LyricsMenu(
                         },
                         text = stringResource(R.string.edit),
                         onClick = {
+                            ActionLog.tap(ActionId.LYRMENU_EDIT)
                             showEditDialog = true
                         }
                     ),
@@ -438,6 +446,7 @@ fun LyricsMenu(
                         },
                         text = stringResource(R.string.refetch),
                         onClick = {
+                            ActionLog.tap(ActionId.LYRMENU_REFETCH)
                             onDismiss()
                             viewModel.refetchLyrics(mediaMetadataProvider(), lyricsProvider())
                         }
@@ -452,6 +461,7 @@ fun LyricsMenu(
                         },
                         text = stringResource(R.string.search),
                         onClick = {
+                            ActionLog.tap(ActionId.LYRMENU_SEARCH)
                             showSearchDialog = true
                         }
                     ),
@@ -470,6 +480,7 @@ fun LyricsMenu(
                             },
                             text = stringResource(R.string.restore_previous_lyrics),
                             onClick = {
+                                ActionLog.tap(ActionId.LYRMENU_RESTORE)
                                 onDismiss()
                                 database.query { restoreSupersededLyrics(entity.id) }
                             }
@@ -495,6 +506,7 @@ fun LyricsMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.LYRMENU_AI_TRANSLATE)
                                     if (hasTranslations) {
                                         
                                         lyricsProvider()?.let { lyrics ->
@@ -544,6 +556,7 @@ fun LyricsMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.LYRMENU_OFFSET)
                                 onDismiss()
                                 onShowOffsetDialog()
                             },
@@ -567,6 +580,7 @@ fun LyricsMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.LYRMENU_ROMANIZE)
                                 isChecked = !isChecked
                                 songProvider()?.let { song ->
                                     database.query {

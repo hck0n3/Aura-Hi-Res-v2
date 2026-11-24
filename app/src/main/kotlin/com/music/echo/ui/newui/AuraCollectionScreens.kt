@@ -116,6 +116,8 @@ import iad1tya.echo.music.viewmodels.CachePlaylistViewModel
 import iad1tya.echo.music.viewmodels.TopPlaylistViewModel
 import java.time.LocalDateTime
 import java.util.Locale
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Auto-colecciones — "Interfaz nueva"
@@ -413,8 +415,9 @@ internal fun AuraSongCollectionScaffold(
                         typeIcon = AuraIcons.Video,
                         typeLabel = videoLabel,
                         contentDescription = song.song.title,
-                        onClick = playFromFiltered,
+                        onClick = { ActionLog.tap(ActionId.COLL_VIDEO); playFromFiltered() },
                         onLongClick = {
+                            ActionLog.tap(ActionId.COLL_VIDEO_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             if (inSelectMode) {
                                 onCheckedChange(!selected)
@@ -479,6 +482,7 @@ internal fun AuraSongCollectionScaffold(
                         genre = trackGenres.of(song.artists.map { it.name }),
                         showGenreColumn = showGenreColumn,
                         onClick = {
+                            ActionLog.tap(ActionId.COLL_SONG)
                             when {
                                 inSelectMode -> onCheckedChange(!selected)
                                 song.song.id == mediaMetadata?.id -> playerConnection.togglePlayPause()
@@ -493,6 +497,7 @@ internal fun AuraSongCollectionScaffold(
                             }
                         },
                         onLongClick = {
+                            ActionLog.tap(ActionId.COLL_SONG_SELECT)
                             if (!inSelectMode) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 inSelectMode = true
@@ -578,6 +583,7 @@ internal fun AuraSongCollectionScaffold(
                     contentDescription = stringResource(R.string.cd_selection_actions),
                     enabled = selection.isNotEmpty(),
                     onClick = {
+                        ActionLog.tap(ActionId.COLL_SELECTION_MENU)
                         menuState.show {
                             SelectionSongMenu(
                                 songSelection = filteredSongs.filter { it.id in selection },
@@ -764,6 +770,7 @@ internal fun AuraCollectionHeader(
                 icon = AuraIcons.Play,
                 label = stringResource(R.string.play),
                 onClick = {
+                    ActionLog.tap(ActionId.COLL_PLAY)
                     playerConnection.playQueue(
                         ListQueue(
                             title = queueTitle,
@@ -790,13 +797,13 @@ internal fun AuraCollectionHeader(
             AuraHeaderCircleButton(
                 icon = AuraIcons.Search,
                 contentDescription = stringResource(R.string.search),
-                onClick = onSearch,
+                onClick = { ActionLog.tap(ActionId.COLL_SEARCH); onSearch() },
                 modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
             )
             AuraHeaderCircleButton(
                 icon = AuraIcons.More,
                 contentDescription = stringResource(R.string.cd_collection_more_options),
-                onClick = onMenu,
+                onClick = { ActionLog.tap(ActionId.COLL_MORE); onMenu() },
                 modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
             )
         }
@@ -889,7 +896,7 @@ internal fun AuraExpandableText(
                     .padding(top = 4.dp)
                     .clip(AuraShapes.Pill)
                     .auraClickableInternal(
-                        onClick = { expanded = !expanded },
+                        onClick = { ActionLog.tap(ActionId.COLL_DESCRIPTION); expanded = !expanded },
                         contentDescription = null,
                     )
                     .padding(vertical = 8.dp, horizontal = 4.dp),
@@ -1046,6 +1053,7 @@ internal fun AuraInlineSearchField(
                 icon = AuraIcons.Plus,
                 contentDescription = stringResource(R.string.search_clear_query),
                 onClick = {
+                    ActionLog.tap(ActionId.COLL_SEARCH_CLEAR)
                     onValueChange("")
                     onSearch()
                 },
@@ -1094,7 +1102,7 @@ internal fun <T : Enum<T>> AuraInlineSortControl(
                     .clip(AuraShapes.Pill)
                     .background(AuraPalette.SurfaceFill)
                     .auraClickableInternal(
-                        onClick = { expanded = true },
+                        onClick = { ActionLog.tap(ActionId.COLL_SORT_OPEN); expanded = true },
                         contentDescription = stringResource(R.string.cd_change_sort_order),
                     )
                     .padding(horizontal = 14.dp, vertical = 9.dp),
@@ -1327,11 +1335,12 @@ fun AuraTopPlaylistScreen(
                 )
             },
             buttons = {
-                TextButton(onClick = { showRemoveDownloadDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.COLL_REMOVE_DOWNLOAD_CANCEL); showRemoveDownloadDialog = false }) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.COLL_REMOVE_DOWNLOAD_CONFIRM)
                         showRemoveDownloadDialog = false
                         songs?.forEach { song ->
                             DownloadService.sendRemoveDownload(

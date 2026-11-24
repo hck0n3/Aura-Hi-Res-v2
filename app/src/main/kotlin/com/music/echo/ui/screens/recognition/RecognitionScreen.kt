@@ -107,6 +107,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /** One request to show the recognition window. [nonce] makes a repeated request (a second tap, a notification) distinct. */
 data class RecognitionWindowRequest(val autoStart: Boolean, val nonce: Int)
@@ -559,14 +561,14 @@ private fun RecognitionWindowHeader(
                 .weight(1f)
                 .padding(start = 4.dp),
         )
-        IconButton(onClick = onHistory) {
+        IconButton(onClick = { ActionLog.tap(ActionId.REC_HISTORY); onHistory() }) {
             Icon(
                 painter = painterResource(R.drawable.history),
                 contentDescription = stringResource(R.string.recognition_history),
                 tint = ink,
             )
         }
-        IconButton(onClick = onClose) {
+        IconButton(onClick = { ActionLog.tap(ActionId.REC_CLOSE); onClose() }) {
             Icon(
                 painter = painterResource(R.drawable.close),
                 contentDescription = stringResource(R.string.close),
@@ -625,7 +627,7 @@ private fun ReadyState(
                 .size(168.dp)
                 .clip(CircleShape)
                 .background(micHalo(skin))
-                .clickable { onStartRecognition() },
+                .clickable { ActionLog.tap(ActionId.REC_START); onStartRecognition() },
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -707,7 +709,7 @@ private fun ListeningState(
                     .size(132.dp)
                     .clip(CircleShape)
                     .micFill(skin)
-                    .clickable { onCancel() },
+                    .clickable { ActionLog.tap(ActionId.REC_STOP); onCancel() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -727,7 +729,7 @@ private fun ListeningState(
         )
 
         iad1tya.echo.music.ui.component.AuraOutlinedButton(
-            onClick = onCancel,
+            onClick = { ActionLog.tap(ActionId.REC_CANCEL); onCancel() },
             shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.outlinedShape,
         ) {
             Text(stringResource(R.string.cancel))
@@ -964,14 +966,14 @@ private fun SuccessState(
                 AuraGlassSlab {
                     AuraGlassRow(
                         title = stringResource(R.string.play_on_app),
-                        onClick = { onPlayOnApp(result) },
+                        onClick = { ActionLog.tap(ActionId.REC_PLAY); onPlayOnApp(result) },
                         icon = R.drawable.play,
                         iconTint = AuraPalette.Teal,
                     )
                     AuraGlassDivider(inset = 56.dp)
                     AuraGlassRow(
                         title = stringResource(R.string.action_like),
-                        onClick = onToggleLike,
+                        onClick = { ActionLog.tap(ActionId.REC_LIKE); onToggleLike() },
                         enabled = isResolved,
                         icon = if (isLiked) R.drawable.favorite else R.drawable.favorite_border,
                         iconTint = if (isLiked) MaterialTheme.colorScheme.error else AuraPalette.OnGround,
@@ -982,20 +984,20 @@ private fun SuccessState(
                     AuraGlassDivider(inset = 56.dp)
                     AuraGlassRow(
                         title = stringResource(R.string.add_to_playlist),
-                        onClick = onAddToPlaylist,
+                        onClick = { ActionLog.tap(ActionId.REC_ADD_TO_PLAYLIST); onAddToPlaylist() },
                         enabled = isResolved,
                         icon = R.drawable.playlist_add,
                     )
                     AuraGlassDivider(inset = 56.dp)
                     AuraGlassRow(
                         title = stringResource(R.string.re_listen),
-                        onClick = onTryAgain,
+                        onClick = { ActionLog.tap(ActionId.REC_AGAIN); onTryAgain() },
                         icon = R.drawable.mic,
                     )
                     AuraGlassDivider(inset = 56.dp)
                     AuraGlassRow(
                         title = stringResource(R.string.close),
-                        onClick = onClose,
+                        onClick = { ActionLog.tap(ActionId.REC_RESULT_CLOSE); onClose() },
                         icon = R.drawable.close,
                     )
                 }
@@ -1004,7 +1006,7 @@ private fun SuccessState(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Button(
-                    onClick = { onPlayOnApp(result) },
+                    onClick = { ActionLog.tap(ActionId.REC_PLAY_WIDE); onPlayOnApp(result) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.shape,
                 ) {
@@ -1022,7 +1024,7 @@ private fun SuccessState(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     FilledTonalButton(
-                        onClick = onToggleLike,
+                        onClick = { ActionLog.tap(ActionId.REC_LIKE_WIDE); onToggleLike() },
                         enabled = isResolved,
                         modifier = Modifier.weight(1f),
                         shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.filledTonalShape,
@@ -1045,7 +1047,7 @@ private fun SuccessState(
                     }
 
                     FilledTonalButton(
-                        onClick = onAddToPlaylist,
+                        onClick = { ActionLog.tap(ActionId.REC_ADD_TO_PLAYLIST_WIDE); onAddToPlaylist() },
                         enabled = isResolved,
                         modifier = Modifier.weight(1f),
                         shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.filledTonalShape,
@@ -1066,7 +1068,7 @@ private fun SuccessState(
                 }
 
                 FilledTonalButton(
-                    onClick = onTryAgain,
+                    onClick = { ActionLog.tap(ActionId.REC_AGAIN_WIDE); onTryAgain() },
                     modifier = Modifier.fillMaxWidth(),
                     shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.filledTonalShape,
                 ) {
@@ -1080,7 +1082,7 @@ private fun SuccessState(
                 }
 
                 iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                    onClick = onClose,
+                    onClick = { ActionLog.tap(ActionId.REC_RESULT_CLOSE_WIDE); onClose() },
                     modifier = Modifier.fillMaxWidth(),
                     shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.outlinedShape,
                 ) {
@@ -1147,7 +1149,7 @@ private fun NoMatchState(
         )
 
         Button(
-            onClick = onTryAgain,
+            onClick = { ActionLog.tap(ActionId.REC_TRY_AGAIN); onTryAgain() },
             shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.shape,
         ) {
             Icon(
@@ -1202,7 +1204,7 @@ private fun ErrorState(
         )
 
         Button(
-            onClick = onTryAgain,
+            onClick = { ActionLog.tap(ActionId.REC_TRY_AGAIN_ERROR); onTryAgain() },
             shape = if (skin.enabled) AuraShapes.Pill else androidx.compose.material3.ButtonDefaults.shape,
         ) {
             Icon(

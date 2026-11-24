@@ -355,8 +355,9 @@ fun AuraSearchResultScreen(
                         selected = picked.isYt(item),
                         isActive = active,
                         isPlaying = isPlaying,
-                        onClick = { picked = AuraSearchPick.Yt(item) },
+                        onClick = { ActionLog.tap(ActionId.SEARCH_RESULT_WIDE); picked = AuraSearchPick.Yt(item) },
                         onLongClick = {
+                            ActionLog.tap(ActionId.SEARCH_RESULT_WIDE_LONG)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             picked = AuraSearchPick.Yt(item)
                         },
@@ -369,6 +370,7 @@ fun AuraSearchResultScreen(
                         isPlaying = isPlaying,
                         onClick = { onItemClick(item) },
                         onLongClick = {
+                            ActionLog.tap(ActionId.SEARCH_RESULT_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             openMenu(item)
                         },
@@ -418,8 +420,9 @@ fun AuraSearchResultScreen(
                                         else -> false
                                     },
                                     isPlaying = isPlaying,
-                                    onClick = { picked = AuraSearchPick.Yt(item) },
+                                    onClick = { ActionLog.tap(ActionId.SEARCH_RESULT_GRID_WIDE); picked = AuraSearchPick.Yt(item) },
                                     onLongClick = {
+                                        ActionLog.tap(ActionId.SEARCH_RESULT_GRID_WIDE_LONG)
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         picked = AuraSearchPick.Yt(item)
                                     },
@@ -538,7 +541,7 @@ fun AuraSearchResultScreen(
                                             selected = false,
                                             isActive = false,
                                             isPlaying = false,
-                                            onClick = { openShow() },
+                                            onClick = { ActionLog.tap(ActionId.SEARCH_PODCAST); openShow() },
                                             modifier = Modifier
                                                 .animateItem()
                                                 .padding(horizontal = AuraSpacing.Gutter - 8.dp),
@@ -548,7 +551,7 @@ fun AuraSearchResultScreen(
                                             title = show.title,
                                             subtitle = show.author,
                                             contentDescription = show.title,
-                                            onClick = { openShow() },
+                                            onClick = { ActionLog.tap(ActionId.SEARCH_PODCAST_MENU); openShow() },
                                             artwork = {
                                                 AuraCover(
                                                     thumbnailUrl = show.artworkUrl,
@@ -631,6 +634,7 @@ fun AuraSearchResultScreen(
                             text = stringResource(labelRes),
                             selected = searchFilter == filter,
                             onClick = {
+                                ActionLog.tap(ActionId.SEARCH_FILTER)
                                 if (viewModel.filter.value != filter) viewModel.filter.value = filter
                                 // Only the scroller that is on screen: an unattached state has nothing to animate.
                                 coroutineScope.launch {

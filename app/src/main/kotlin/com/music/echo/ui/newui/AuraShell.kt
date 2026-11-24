@@ -270,7 +270,7 @@ fun AuraGlobalActions(
         AuraIconButton(
             icon = AuraIcons.Mic,
             contentDescription = stringResource(R.string.recognition),
-            onClick = onRecognitionClick,
+            onClick = { ActionLog.tap(ActionId.NAV_TOPBAR_RECOGNITION); onRecognitionClick() },
             size = 20.dp,
             tint = AuraPalette.OnGroundFaint,
         )
@@ -278,7 +278,7 @@ fun AuraGlobalActions(
             AuraIconButton(
                 icon = AuraIcons.People,
                 contentDescription = stringResource(R.string.together),
-                onClick = onListenTogetherClick,
+                onClick = { ActionLog.tap(ActionId.NAV_TOPBAR_TOGETHER); onListenTogetherClick() },
                 size = 20.dp,
                 tint = AuraPalette.OnGroundFaint,
             )
@@ -287,7 +287,7 @@ fun AuraGlobalActions(
             AuraIconButton(
                 icon = AuraIcons.History,
                 contentDescription = stringResource(R.string.history),
-                onClick = onHistoryClick,
+                onClick = { ActionLog.tap(ActionId.NAV_TOPBAR_HISTORY); onHistoryClick() },
                 size = 20.dp,
                 tint = AuraPalette.OnGroundFaint,
             )
@@ -297,7 +297,7 @@ fun AuraGlobalActions(
         AuraIconButton(
             icon = if (offlineMode) AuraIcons.CloudOff else AuraIcons.Cloud,
             contentDescription = stringResource(R.string.offline_mode),
-            onClick = onOfflineToggle,
+            onClick = { ActionLog.tap(ActionId.NAV_TOPBAR_OFFLINE); onOfflineToggle() },
             size = 20.dp,
             tint = if (offlineMode) AuraPalette.Teal else AuraPalette.OnGroundFaint,
         )
@@ -317,7 +317,7 @@ fun AuraGlobalActions(
                     .clickable(
                         onClickLabel = accountLabel,
                         role = Role.Button,
-                        onClick = onAccountClick,
+                        onClick = { ActionLog.tap(ActionId.NAV_TOPBAR_ACCOUNT); onAccountClick() },
                     )
                     .auraButtonName(accountLabel),
                 contentAlignment = Alignment.Center,
@@ -334,7 +334,7 @@ fun AuraGlobalActions(
             AuraIconButton(
                 icon = AuraIcons.Settings,
                 contentDescription = accountLabel,
-                onClick = onAccountClick,
+                onClick = { ActionLog.tap(ActionId.NAV_TOPBAR_ACCOUNT_ICON); onAccountClick() },
                 size = 20.dp,
                 tint = AuraPalette.OnGroundFaint,
             )
@@ -614,7 +614,7 @@ fun AuraNavigationBar(
                         label = stringResource(screen.titleId),
                         selected = selected,
                         showLabel = !interactiveGlass,
-                        onClick = { onItemClick(screen, selected) },
+                        onClick = { auraNavTap(screen); onItemClick(screen, selected) },
                         modifier = Modifier.onGloballyPositioned { coordinates ->
                             cellWidths[index] = with(density) { coordinates.size.width.toDp() }
                             cellOffsets[index] = with(density) { coordinates.positionInParent().x.toDp() }
@@ -854,7 +854,7 @@ fun AuraWideNavCapsule(
                 icon = auraNavIcon(screen),
                 label = stringResource(screen.titleId),
                 selected = selected,
-                onClick = { onItemClick(screen, selected) },
+                onClick = { auraNavTap(screen); onItemClick(screen, selected) },
                 modifier = Modifier.background(
                     if (selected) AuraPalette.NavIndicator else Color.Transparent,
                     AuraShapes.Highlight,
@@ -1538,4 +1538,15 @@ private fun Modifier.pointerInputSwipe(
         onDragCancel = { onEnd() },
         onHorizontalDrag = { _, dragAmount -> onDrag(dragAmount) },
     )
+}
+
+/** Registry row 823: one log code per bottom-bar tab. */
+private fun auraNavTap(screen: Screens) {
+    when (screen) {
+        Screens.Home -> ActionLog.tap(ActionId.NAV_HOME)
+        Screens.Novedades -> ActionLog.tap(ActionId.NAV_NOVEDADES)
+        Screens.Library -> ActionLog.tap(ActionId.NAV_LIBRARY)
+        Screens.Search -> ActionLog.tap(ActionId.NAV_SEARCH)
+        Screens.ListenTogether -> ActionLog.tap(ActionId.NAV_TOGETHER)
+    }
 }

@@ -337,11 +337,12 @@ fun PlaylistMenu(
                 )
             },
             buttons = {
-                TextButton(onClick = { showMp3ChoiceDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.PLMENU_MP3_CANCEL); showMp3ChoiceDialog = false }) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.PLMENU_MP3_PICK)
                         showMp3ChoiceDialog = false
                         // Nothing pre-ticked: the picker opens empty every time (owner 2026-10-19).
                         selectedMp3Ids = emptySet()
@@ -352,6 +353,7 @@ fun PlaylistMenu(
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.PLMENU_MP3_ALL)
                         showMp3ChoiceDialog = false
                         openMp3FolderPicker(songs)
                     },
@@ -390,6 +392,7 @@ fun PlaylistMenu(
                         )
                     },
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.PLMENU_MP3_SELECT_ALL)
                         selectedMp3Ids =
                             if (selectedMp3Ids.size == songs.size) emptySet()
                             else songs.map { it.id }.toSet()
@@ -413,6 +416,7 @@ fun PlaylistMenu(
                         )
                     },
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.PLMENU_MP3_SONG)
                         selectedMp3Ids =
                             if (checked) selectedMp3Ids - song.id else selectedMp3Ids + song.id
                     },
@@ -424,13 +428,14 @@ fun PlaylistMenu(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    TextButton(onClick = { showMp3SelectDialog = false }) {
+                    TextButton(onClick = { ActionLog.tap(ActionId.PLMENU_MP3_SELECT_CANCEL); showMp3SelectDialog = false }) {
                         Text(text = stringResource(android.R.string.cancel))
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     TextButton(
                         enabled = selectedMp3Ids.isNotEmpty(),
                         onClick = {
+                            ActionLog.tap(ActionId.PLMENU_MP3_SELECT_CONTINUE)
                             showMp3SelectDialog = false
                             openMp3FolderPicker(songs.filter { it.id in selectedMp3Ids })
                         },
@@ -512,6 +517,7 @@ fun PlaylistMenu(
             buttons = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.PLMENU_REMOVE_DOWNLOAD_CANCEL)
                         showRemoveDownloadDialog = false
                     },
                 ) {
@@ -520,6 +526,7 @@ fun PlaylistMenu(
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.PLMENU_REMOVE_DOWNLOAD_CONFIRM)
                         showRemoveDownloadDialog = false
                         songs.forEach { song ->
                             DownloadService.sendRemoveDownload(
@@ -607,6 +614,7 @@ fun PlaylistMenu(
                     Spacer(Modifier.height(16.dp))
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.PLMENU_DELETE_ALSO_YOUTUBE)
                             deletePlaylistLocally(true)
                             coroutineScope.launch(Dispatchers.IO) {
                                 // Surface a remote failure: this used to be fire-and-forget, so YouTube
@@ -628,7 +636,7 @@ fun PlaylistMenu(
                         Text(text = stringResource(R.string.delete_playlist_from_youtube_too))
                     }
                     TextButton(
-                        onClick = { deletePlaylistLocally(false) },
+                        onClick = { ActionLog.tap(ActionId.PLMENU_DELETE_LOCAL_ONLY); deletePlaylistLocally(false) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(text = stringResource(R.string.delete_playlist_local_only))
@@ -638,6 +646,7 @@ fun PlaylistMenu(
             buttons = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.PLMENU_DELETE_CANCEL)
                         showDeletePlaylistDialog = false
                     }
                 ) {
@@ -647,7 +656,7 @@ fun PlaylistMenu(
                 // Pure local playlist: keep the simple confirm (no YouTube option).
                 if (ytBrowseId == null) {
                     TextButton(
-                        onClick = { deletePlaylistLocally(false) }
+                        onClick = { ActionLog.tap(ActionId.PLMENU_DELETE_CONFIRM); deletePlaylistLocally(false) }
                     ) {
                         Text(text = stringResource(android.R.string.ok))
                     }
@@ -684,6 +693,7 @@ fun PlaylistMenu(
                 MenuLikeButton(
                     liked = dbPlaylist?.playlist?.bookmarkedAt != null,
                     onClick = {
+                        ActionLog.tap(ActionId.PLMENU_LIKE)
                         database.query {
                             dbPlaylist?.playlist?.toggleLike()?.let { update(it) }
                         }

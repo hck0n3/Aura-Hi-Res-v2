@@ -41,6 +41,8 @@ import iad1tya.echo.music.ui.component.NavigationTitle
 import iad1tya.echo.music.ui.component.shimmer.ListItemPlaceHolder
 import iad1tya.echo.music.ui.component.shimmer.ShimmerHost
 import iad1tya.echo.music.viewmodels.MoodAndGenresViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +89,7 @@ fun MoodAndGenresScreen(
                                 MoodAndGenresButton(
                                     title = it.title,
                                     onClick = {
+                                        ActionLog.tap(ActionId.MOODS_ITEM)
                                         navController.navigate("youtube_browse/${it.endpoint.browseId}?params=${it.endpoint.params}")
                                     },
                                     modifier =
@@ -110,7 +113,7 @@ fun MoodAndGenresScreen(
         title = { Text(stringResource(R.string.mood_and_genres)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.MOODS_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

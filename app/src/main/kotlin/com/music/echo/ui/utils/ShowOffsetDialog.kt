@@ -39,6 +39,8 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.R
 import iad1tya.echo.music.db.entities.SongEntity
 import kotlinx.coroutines.FlowPreview
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(FlowPreview::class)
 @Composable
@@ -170,6 +172,7 @@ fun ShowOffsetDialog(songProvider: () -> SongEntity?) {
 
                 IconButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LYROFFSET_RESET)
                         lyricsOffset = 0
                         textFieldValue = "0"
                     }
@@ -191,6 +194,7 @@ fun ShowOffsetDialog(songProvider: () -> SongEntity?) {
         ) {
             IconButton(
                 onClick = {
+                    ActionLog.tap(ActionId.LYROFFSET_DECREASE)
                     lyricsOffset = (lyricsOffset - 50).coerceIn(-3000, 3000)
                     textFieldValue = lyricsOffset.toString()
                 }
@@ -215,6 +219,7 @@ fun ShowOffsetDialog(songProvider: () -> SongEntity?) {
 
             IconButton(
                 onClick = {
+                    ActionLog.tap(ActionId.LYROFFSET_INCREASE)
                     lyricsOffset = (lyricsOffset + 50).coerceIn(-3000, 3000)
                     textFieldValue = lyricsOffset.toString()
                 }

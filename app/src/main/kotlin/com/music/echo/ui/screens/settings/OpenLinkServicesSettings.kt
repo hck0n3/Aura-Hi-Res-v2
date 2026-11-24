@@ -19,6 +19,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import iad1tya.echo.music.R
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.OpenLinkServices
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Row 676: the rows of Ajustes ▸ Contenido ▸ Abrir enlaces that say which links Aura opens. YouTube / YouTube Music
@@ -78,7 +80,7 @@ fun openLinkServiceItems(): List<Material3SettingsItem> {
                     ),
                 )
             },
-            onClick = { toggle(!on) },
+            onClick = { ActionLog.tap(ActionId.OPENLINKS_SERVICE); toggle(!on) },
         )
     }
     return fixed + services

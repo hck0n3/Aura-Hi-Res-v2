@@ -85,6 +85,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /** Aura premium dark scheme for both the blocking gate and the Ajustes terms reader. */
 private val TermsAuraScheme = darkColorScheme(
@@ -208,7 +210,7 @@ private fun TermsAcceptanceScreen() {
                 horizontalArrangement = Arrangement.Center,
             ) {
                 TextButton(
-                    onClick = { (context as? Activity)?.finish() },
+                    onClick = { ActionLog.tap(ActionId.LEGAL_EXIT); (context as? Activity)?.finish() },
                     modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
                 ) {
                     Text(
@@ -220,6 +222,7 @@ private fun TermsAcceptanceScreen() {
                 Spacer(Modifier.width(16.dp))
                 Button(
                     onClick = {
+                        ActionLog.tap(ActionId.LEGAL_ACCEPT)
                         scope.launch {
                             // One transaction: accepted terms version + timestamp + app versionCode.
                             context.dataStore.edit { p ->
@@ -337,7 +340,7 @@ private fun LegalReaderScreen(
                     },
                     navigationIcon = {
                         iad1tya.echo.music.ui.component.IconButton(
-                            onClick = navController::navigateUp,
+                            onClick = { ActionLog.tap(ActionId.LEGAL_BACK); navController.navigateUp() },
                             onLongClick = null,
                         ) {
                             Icon(

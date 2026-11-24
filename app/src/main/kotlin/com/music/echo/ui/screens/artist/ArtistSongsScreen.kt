@@ -65,6 +65,8 @@ import iad1tya.echo.music.ui.newui.auraAppleDurationLabel
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.ArtistSongsViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -167,6 +169,7 @@ fun ArtistSongsScreen(
                         durationLabel = auraAppleDurationLabel(song.song.duration.takeIf { it > 0 }),
                         swipeMediaItem = song.toMediaItem(),
                         onClick = {
+                            ActionLog.tap(ActionId.ARTSONGS_SONG)
                             if (song.id == mediaMetadata?.id) {
                                 playerConnection.togglePlayPause()
                             } else {
@@ -180,6 +183,7 @@ fun ArtistSongsScreen(
                             }
                         },
                         onLongClick = {
+                            ActionLog.tap(ActionId.ARTSONGS_SONG_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
                                 SongMenu(
@@ -215,7 +219,7 @@ fun ArtistSongsScreen(
             title = { Text(artist?.artist?.name.orEmpty()) },
             navigationIcon = {
                 IconButton(
-                    onClick = navController::navigateUp,
+                    onClick = { ActionLog.tap(ActionId.ARTSONGS_BACK); navController.navigateUp() },
                     onLongClick = null,
                 ) {
                     Icon(

@@ -87,6 +87,8 @@ import iad1tya.echo.music.utils.refetchSongAudio
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun QueueMenu(
@@ -172,6 +174,7 @@ fun QueueMenu(
                     modifier = Modifier
                         .height(ListItemHeight)
                         .clickable {
+                            ActionLog.tap(ActionId.QMENU_ARTIST_PICK)
                             if (artist.id != null) {
                                 navController.navigate("artist/${artist.id}")
                             } else {
@@ -220,6 +223,7 @@ fun QueueMenu(
             MenuLikeButton(
                 liked = librarySong?.song?.liked == true,
                 onClick = {
+                    ActionLog.tap(ActionId.QMENU_LIBRARY_TOGGLE)
                     coroutineScope.launch(Dispatchers.IO) {
                         database.transaction {
                             if (librarySong == null) {
@@ -265,6 +269,7 @@ fun QueueMenu(
                         },
                         text = stringResource(R.string.start_radio),
                         onClick = {
+                            ActionLog.tap(ActionId.QMENU_START_RADIO)
                             onDismiss()
                             playerConnection.playQueue(
                                 YouTubeQueue.radio(mediaMetadata)
@@ -280,7 +285,7 @@ fun QueueMenu(
                             )
                         },
                         text = stringResource(R.string.add_to_playlist),
-                        onClick = { showChoosePlaylistDialog = true }
+                        onClick = { ActionLog.tap(ActionId.QMENU_ADD_TO_PLAYLIST); showChoosePlaylistDialog = true }
                     ),
                     NewAction(
                         icon = {
@@ -292,6 +297,7 @@ fun QueueMenu(
                         },
                         text = stringResource(R.string.share),
                         onClick = {
+                            ActionLog.tap(ActionId.QMENU_SHARE)
                             // Row 520: link / MP3 / video, asked every time.
                             onDismiss()
                             iad1tya.echo.music.ui.newui.ShareChoiceState.open(
@@ -324,6 +330,7 @@ fun QueueMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.QMENU_PLAY_NEXT)
                             onDismiss()
                             librarySong?.let {
                                 playerConnection.playNext(it.toMediaItem())
@@ -341,6 +348,7 @@ fun QueueMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.QMENU_ADD_TO_QUEUE)
                             onDismiss()
                             librarySong?.let {
                                 playerConnection.addToQueue(it.toMediaItem())
@@ -373,6 +381,7 @@ fun QueueMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.QMENU_REMOVE_DOWNLOAD)
                                     DownloadService.sendRemoveDownload(
                                         context,
                                         ExoDownloadService::class.java,
@@ -393,6 +402,7 @@ fun QueueMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.QMENU_CANCEL_DOWNLOAD)
                                     DownloadService.sendRemoveDownload(
                                         context,
                                         ExoDownloadService::class.java,
@@ -414,6 +424,7 @@ fun QueueMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.QMENU_DOWNLOAD)
                                     database.transaction {
                                         insert(mediaMetadata)
                                     }
@@ -463,6 +474,7 @@ fun QueueMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.QMENU_VIEW_ARTIST)
                                     if (mediaMetadata.artists.size == 1) {
                                         val resolvedArtistId = artists[0].id
                                         if (resolvedArtistId != null) {
@@ -499,6 +511,7 @@ fun QueueMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.QMENU_VIEW_ALBUM)
                                     navController.navigate("album/${album.id}")
                                     playerBottomSheetState.collapseAfterNavigate()
                                     onDismiss()
@@ -527,6 +540,7 @@ fun QueueMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.QMENU_REFETCH)
                                 refetchIconDegree -= 360
                                 // Metadata alone leaves the OLD audio in place — drop the cached stream too.
                                 // Runs even when this track isn't in the library (the update below can't).
@@ -566,6 +580,7 @@ fun QueueMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.QMENU_DETAILS)
                                 onShowDetailsDialog()
                                 onDismiss()
                             }

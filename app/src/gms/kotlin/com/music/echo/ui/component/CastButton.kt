@@ -38,6 +38,8 @@ import iad1tya.echo.music.ui.newui.unstealableClick
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.rememberPreference
 import timber.log.Timber
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /** Side of the Cast button's real touch target. The Aura and classic players size their outer box to this. */
 val CAST_TOUCH_TARGET = 64.dp
@@ -126,6 +128,7 @@ fun CastButton(
     // player sheet's drag, the cover's swipe) claims the movement. The `clickable` stays for TalkBack, which invokes
     // the semantics action, not the gesture; both call this, and the second sheet it would open is the same one.
     val onCastClick: () -> Unit = fun() {
+        ActionLog.tap(ActionId.CAST_BUTTON)
         if (currentMetadata == null && !isCasting) {
             Toast.makeText(context, "Play a song first to cast", Toast.LENGTH_SHORT).show()
             return

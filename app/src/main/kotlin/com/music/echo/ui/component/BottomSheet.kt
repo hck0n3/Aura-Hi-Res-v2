@@ -50,6 +50,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 
 @Composable
@@ -194,7 +196,7 @@ fun BottomSheet(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         enabled = !state.isExpanded,
-                        onClick = { if (isExpandable) state.expandSoft() },
+                        onClick = { ActionLog.tap(ActionId.SHEET_EXPAND); if (isExpandable) state.expandSoft() },
                     ).fillMaxWidth()
                     .height(collapsedContentHeight),
                 content = collapsedContent,

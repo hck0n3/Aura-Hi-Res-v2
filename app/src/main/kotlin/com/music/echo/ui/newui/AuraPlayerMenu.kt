@@ -246,6 +246,7 @@ fun AuraPlayerMenu(
                         .fillParentMaxWidth()
                         .height(ListItemHeight)
                         .clickable {
+                            ActionLog.tap(ActionId.PMENU_ARTIST_PICK)
                             coroutineScope.launch {
                                 val browseId = if (needsOnlineBrowseResolution(artist.id)) {
                                     withContext(Dispatchers.IO) {

@@ -91,6 +91,8 @@ import java.net.URL
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -277,7 +279,7 @@ fun ChangelogScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.changelog_title)) },
                 navigationIcon = {
-                    IconButton(onClick = navController::navigateUp) {
+                    IconButton(onClick = { ActionLog.tap(ActionId.CHANGELOG_BACK); navController.navigateUp() }) {
                         Icon(painterResource(R.drawable.arrow_back), null)
                     }
                 },
@@ -425,6 +427,7 @@ fun ChangelogScreen(
                                                 ClickableText(
                                                     text = annotatedText,
                                                     onClick = { offset ->
+                                                        ActionLog.tap(ActionId.CHANGELOG_LINK)
                                                         annotatedText.getStringAnnotations("URL", offset, offset).firstOrNull()?.let {
                                                             ContextCompat.startActivity(context, Intent(Intent.ACTION_VIEW, Uri.parse(it.item)), null)
                                                         }

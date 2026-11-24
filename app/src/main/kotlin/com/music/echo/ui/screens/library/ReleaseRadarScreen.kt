@@ -59,6 +59,8 @@ import iad1tya.echo.music.viewmodels.ReleaseRadarViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +90,7 @@ fun ReleaseRadarScreen(
             iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.release_radar_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
+                    IconButton(onClick = { ActionLog.tap(ActionId.RADAR_BACK); navController.navigateUp() }) {
                         Icon(
                             painter = painterResource(R.drawable.arrow_back),
                             contentDescription = null,
@@ -98,6 +100,7 @@ fun ReleaseRadarScreen(
                 actions = {
                     IconButton(
                         onClick = {
+                            ActionLog.tap(ActionId.RADAR_REFRESH)
                             ReleaseRadarWorker.runNow(context)
                             Toast.makeText(
                                 context,
@@ -144,6 +147,7 @@ fun ReleaseRadarScreen(
                         // Row 675: seen when the row is really on screen, not when the list precomposes it.
                         .onVisibilityChanged { if (it) viewModel.markReleaseShown(item.playId) }
                         .clickable {
+                            ActionLog.tap(ActionId.RADAR_OPEN)
                             // Open EXACTLY this release by its OWN playId (the AlbumItem/browseId this row
                             // was built from) so the destination matches the cover shown on the row. Legacy
                             // rows can carry a blank playId — same guard as the play button below — so we
@@ -203,6 +207,7 @@ fun ReleaseRadarScreen(
                     // HomeViewModel.getNewFromArtists) — no button for those.
                     if (item.playId.isNotBlank()) IconButton(
                         onClick = {
+                            ActionLog.tap(ActionId.RADAR_PLAY)
                             coroutineScope.launch(Dispatchers.IO) {
                                 YouTube.album(item.playId)
                                     .onSuccess { albumPage ->

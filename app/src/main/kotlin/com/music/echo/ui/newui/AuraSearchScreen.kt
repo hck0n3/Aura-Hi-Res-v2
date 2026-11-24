@@ -555,7 +555,7 @@ internal fun AuraSearchInputBar(
                     contentDescription = stringResource(
                         if (sourceIsLocal) R.string.search_online else R.string.search_library
                     ),
-                    onClick = onToggleSource,
+                    onClick = { ActionLog.tap(ActionId.SEARCH_SOURCE_TOGGLE); onToggleSource() },
                     size = 18.dp,
                     tint = if (sourceIsLocal) AuraPalette.Teal else AuraPalette.OnGroundFaint,
                 )
@@ -834,6 +834,7 @@ internal fun rememberAuraVoiceSearch(
             title = { Text(stringResource(R.string.mic_permission_needed_title)) },
             buttons = {
                 TextButton(onClick = {
+                    ActionLog.tap(ActionId.SEARCH_MIC_SETTINGS)
                     showMicPermissionDialog = false
                     runCatching {
                         context.startActivity(
@@ -846,7 +847,7 @@ internal fun rememberAuraVoiceSearch(
                 }) {
                     Text(stringResource(R.string.mic_permission_open_settings))
                 }
-                TextButton(onClick = { showMicPermissionDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SEARCH_MIC_CANCEL); showMicPermissionDialog = false }) {
                     Text(stringResource(android.R.string.cancel))
                 }
             },
@@ -941,12 +942,13 @@ internal fun rememberAuraVoiceSearch(
                 )
             },
             buttons = {
-                TextButton(onClick = { cancelDictation() }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SEARCH_VOICE_CANCEL); cancelDictation() }) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 // Settled dictation waits for a silence; this sends what was said right now.
                 if (settleMs > 0L && liveText.isNotEmpty()) {
                     TextButton(onClick = {
+                        ActionLog.tap(ActionId.SEARCH_VOICE_DONE)
                         // A phrase still in flight (partial only) counts as said.
                         if (committed.isEmpty()) committed.append(liveText)
                         finishDictation()

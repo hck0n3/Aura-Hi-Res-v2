@@ -60,6 +60,8 @@ import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
 
 import kotlinx.coroutines.delay
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────────
 // "Interfaz nueva" — [DefaultDialog] / [ListDialog] (and their callers [ActionPromptDialog] /
@@ -267,7 +269,7 @@ fun ActionPromptDialog(
             if (onReset != null) {
                 Row(modifier = Modifier.weight(1f)) {
                     TextButton(
-                        onClick = { onReset() },
+                        onClick = { ActionLog.tap(ActionId.DLG_PROMPT_RESET); onReset() },
                         modifier = Modifier.tvFocusable(rememberIsTvOrCar(), scaleFocused = 1f),
                     ) {
                         Text(stringResource(R.string.reset))
@@ -277,7 +279,7 @@ fun ActionPromptDialog(
 
             if (onCancel != null) {
                 TextButton(
-                    onClick = { onCancel() },
+                    onClick = { ActionLog.tap(ActionId.DLG_PROMPT_CANCEL); onCancel() },
                     modifier = Modifier.tvFocusable(rememberIsTvOrCar(), scaleFocused = 1f),
                 ) {
                     Text(stringResource(android.R.string.cancel))
@@ -285,7 +287,7 @@ fun ActionPromptDialog(
             }
 
             TextButton(
-                onClick = { onConfirm() },
+                onClick = { ActionLog.tap(ActionId.DLG_PROMPT_CONFIRM); onConfirm() },
                 modifier = Modifier.tvFocusable(rememberIsTvOrCar(), scaleFocused = 1f),
             ) {
                 Text(stringResource(android.R.string.ok))
@@ -445,7 +447,7 @@ fun TextFieldDialog(
         title = title,
         buttons = {
             TextButton(
-                onClick = onDismiss,
+                onClick = { ActionLog.tap(ActionId.DLG_TEXT_CANCEL); onDismiss() },
                 modifier = Modifier.tvFocusable(rememberIsTvOrCar(), scaleFocused = 1f),
             ) {
                 Text(text = stringResource(android.R.string.cancel))
@@ -458,6 +460,7 @@ fun TextFieldDialog(
                 enabled = isValid,
                 modifier = Modifier.tvFocusable(rememberIsTvOrCar(), scaleFocused = 1f),
                 onClick = {
+                    ActionLog.tap(ActionId.DLG_TEXT_CONFIRM)
                     if (autoDismiss) onDismiss()
                     if (textFields != null && onDoneMultiple != null) {
                         onDoneMultiple(textFields.map { it.second.text })

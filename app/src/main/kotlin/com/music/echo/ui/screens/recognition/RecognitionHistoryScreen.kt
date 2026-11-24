@@ -75,6 +75,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -131,11 +133,12 @@ fun RecognitionHistoryScreen(
             },
             title = { Text(stringResource(R.string.clear_recognition_history)) },
             buttons = {
-                TextButton(onClick = { showClearDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.RECHIST_CLEAR_CANCEL); showClearDialog = false }) {
                     Text(stringResource(R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.RECHIST_CLEAR_CONFIRM)
                         coroutineScope.launch(Dispatchers.IO) {
                             database.query {
                                 clearRecognitionHistory()
@@ -166,11 +169,12 @@ fun RecognitionHistoryScreen(
             },
             title = { Text(stringResource(R.string.delete)) },
             buttons = {
-                TextButton(onClick = { itemToDelete = null }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.RECHIST_DELETE_CANCEL); itemToDelete = null }) {
                     Text(stringResource(R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.RECHIST_DELETE_CONFIRM)
                         coroutineScope.launch(Dispatchers.IO) {
                             database.query {
                                 deleteRecognitionHistoryById(item.id)
@@ -204,7 +208,7 @@ fun RecognitionHistoryScreen(
                 title = { Text(stringResource(R.string.recognition_history)) },
                 navigationIcon = {
                     IconButton(
-                        onClick = { navController.navigateUp() },
+                        onClick = { ActionLog.tap(ActionId.RECHIST_BACK); navController.navigateUp() },
                         onLongClick = null
                     ) {
                         Icon(
@@ -215,7 +219,7 @@ fun RecognitionHistoryScreen(
                 },
                 actions = {
                     if (historyItems.isNotEmpty()) {
-                        IconButton(onClick = { showClearDialog = true }) {
+                        IconButton(onClick = { ActionLog.tap(ActionId.RECHIST_CLEAR); showClearDialog = true }) {
                             Icon(
                                 painter = painterResource(R.drawable.clear_all),
                                 contentDescription = stringResource(R.string.clear_recognition_history)
@@ -262,7 +266,7 @@ fun RecognitionHistoryScreen(
                 },
                 trailingIcon = {
                     if (query.text.isNotEmpty()) {
-                        IconButton(onClick = { query = TextFieldValue() }) {
+                        IconButton(onClick = { ActionLog.tap(ActionId.RECHIST_SEARCH_CLEAR); query = TextFieldValue() }) {
                             Icon(
                                 painter = painterResource(R.drawable.close),
                                 contentDescription = null,
@@ -368,6 +372,7 @@ fun RecognitionHistoryScreen(
                                         item = item,
                                         skin = skin,
                                         onClick = {
+                                            ActionLog.tap(ActionId.RECHIST_ITEM)
                                             val searchQuery = "${item.title} ${item.artist}"
                                             navController.navigate("search/${java.net.URLEncoder.encode(searchQuery, "UTF-8")}")
                                         },
@@ -387,6 +392,7 @@ fun RecognitionHistoryScreen(
                                     item = item,
                                     skin = skin,
                                     onClick = {
+                                        ActionLog.tap(ActionId.RECHIST_ITEM_SEARCH)
                                         val searchQuery = "${item.title} ${item.artist}"
                                         navController.navigate("search/${java.net.URLEncoder.encode(searchQuery, "UTF-8")}")
                                     },
@@ -471,7 +477,7 @@ private fun RecognitionHistoryItem(
             }
 
 
-            IconButton(onClick = onDelete) {
+            IconButton(onClick = { ActionLog.tap(ActionId.RECHIST_ITEM_DELETE); onDelete() }) {
                 Icon(
                     painter = painterResource(R.drawable.delete),
                     contentDescription = stringResource(R.string.delete_from_history),

@@ -42,6 +42,8 @@ package iad1tya.echo.music.ui.screens
  import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
  import iad1tya.echo.music.utils.rememberEnumPreference
  import iad1tya.echo.music.viewmodels.BrowseViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
  @Composable
@@ -81,6 +83,7 @@ package iad1tya.echo.music.ui.screens
                      modifier = Modifier
                          .combinedClickable(
                              onClick = {
+                                 ActionLog.tap(ActionId.BROWSE_ITEM)
                                  when (item) {
                                      is AlbumItem -> navController.navigate("album/${item.id}")
                                      is PlaylistItem -> navController.navigate("online_playlist/${item.id}")
@@ -91,6 +94,7 @@ package iad1tya.echo.music.ui.screens
                                  }
                              },
                              onLongClick = {
+                                 ActionLog.tap(ActionId.BROWSE_ITEM_MENU)
                                  menuState.show {
                                      when (item) {
                                          is AlbumItem ->
@@ -139,7 +143,7 @@ package iad1tya.echo.music.ui.screens
          title = { Text(title ?: "") },
          navigationIcon = {
              IconButton(
-                 onClick = navController::navigateUp,
+                 onClick = { ActionLog.tap(ActionId.BROWSE_BACK); navController.navigateUp() },
                  onLongClick = null
              ) {
                  Icon(

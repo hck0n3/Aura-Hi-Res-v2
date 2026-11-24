@@ -669,6 +669,7 @@ fun AuraLibraryHub(
                                             icon = AuraIcons.Plus,
                                             contentDescription = stringResource(R.string.library_pins_remove_cd),
                                             onClick = {
+                                                ActionLog.tap(ActionId.LIB_PIN_REMOVE)
                                                 LibraryPinsStore.updateDetached(context) { LibraryPins.without(it, key) }
                                             },
                                             size = 20.dp,
@@ -743,8 +744,8 @@ fun AuraLibraryHub(
                                         width = cardWidth,
                                         isActive = r.pin.kind == LibraryPinKind.ALBUM && r.pin.id == mediaMetadata?.album?.id,
                                         isPlaying = isPlaying,
-                                        onClick = { openPin(r) },
-                                        onLongClick = { openPinMenu(r) },
+                                        onClick = { ActionLog.tap(ActionId.LIB_PIN); openPin(r) },
+                                        onLongClick = { ActionLog.tap(ActionId.LIB_PIN_MENU); openPinMenu(r) },
                                         // Only an album that is in the library can be played from its cover (it needs its songs).
                                         onPlay = if (r.album != null) ({ playAlbum(r.pin.id) }) else null,
                                     )
@@ -767,8 +768,8 @@ fun AuraLibraryHub(
                                 artworkShape = visual.shape,
                                 artworkSize = visual.rowWidth,
                                 typeChip = visual.label,
-                                onClick = { openPin(r) },
-                                onLongClick = { openPinMenu(r) },
+                                onClick = { ActionLog.tap(ActionId.LIB_PIN); openPin(r) },
+                                onLongClick = { ActionLog.tap(ActionId.LIB_PIN_MENU); openPinMenu(r) },
                                 onMenuClick = { openPinMenu(r) },
                                 modifier = Modifier
                                     .animateItem()
@@ -1083,6 +1084,7 @@ fun AuraLibrarySongsTab(
                         modifier = Modifier.animateItem(),
                         onClick = playSong,
                         onLongClick = {
+                            ActionLog.tap(ActionId.LIB_SONG_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
                                 SongMenu(
@@ -1130,6 +1132,7 @@ fun AuraLibrarySongsTab(
                             }
                         },
                         onLongClick = {
+                            ActionLog.tap(ActionId.LIB_SONG_GRID_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
                                 SongMenu(
@@ -1347,6 +1350,7 @@ fun AuraLibraryAlbumsTab(
                 modifier = Modifier.animateItem(),
                 onClick = { ActionLog.tap(ActionId.LIB_ALBUM); navController.navigateOnce("album/${album.id}") },
                 onLongClick = {
+                    ActionLog.tap(ActionId.LIB_ALBUM_MENU)
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     menuState.show { AlbumMenu(album, navController, menuState::dismiss) }
                 },
@@ -1489,6 +1493,7 @@ fun AuraLibraryArtistsTab(
                 modifier = Modifier.animateItem(),
                 onClick = { ActionLog.tap(ActionId.LIB_ARTIST); navController.navigateOnce("artist/${artist.id}") },
                 onLongClick = {
+                    ActionLog.tap(ActionId.LIB_ARTIST_MENU)
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     menuState.show { ArtistMenu(artist, coroutineScope, menuState::dismiss) }
                 },
@@ -1715,6 +1720,7 @@ fun AuraLibraryPlaylistsTab(
                     }
                 },
                 onLongClick = {
+                    ActionLog.tap(ActionId.LIB_PLAYLIST_MENU)
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     menuState.show {
                         if (playlist.playlist.isEditable || playlist.songCount != 0) {
@@ -1779,7 +1785,7 @@ private fun <T> AuraSubFilterRow(
                 glass = true,
                 text = stringResource(labelRes),
                 selected = selected == option,
-                onClick = { onSelect(option) },
+                onClick = { ActionLog.tap(ActionId.LIB_FILTER_CHIP); onSelect(option) },
             )
         }
     }

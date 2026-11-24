@@ -43,6 +43,8 @@ import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.viewmodels.AccountContentType
 import iad1tya.echo.music.viewmodels.AccountViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -90,9 +92,11 @@ fun AccountScreen(
                         modifier = Modifier
                             .combinedClickable(
                                 onClick = {
+                                    ActionLog.tap(ActionId.ACCOUNT_PLAYLIST)
                                     navController.navigate("online_playlist/${item.id}")
                                 },
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.ACCOUNT_PLAYLIST_MENU)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     menuState.show {
                                         YouTubePlaylistMenu(
@@ -126,9 +130,11 @@ fun AccountScreen(
                         modifier = Modifier
                             .combinedClickable(
                                 onClick = {
+                                    ActionLog.tap(ActionId.ACCOUNT_ALBUM)
                                     navController.navigate("album/${item.id}")
                                 },
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.ACCOUNT_ALBUM_MENU)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     menuState.show {
                                         YouTubeAlbumMenu(
@@ -162,9 +168,11 @@ fun AccountScreen(
                         modifier = Modifier
                             .combinedClickable(
                                 onClick = {
+                                    ActionLog.tap(ActionId.ACCOUNT_ARTIST)
                                     navController.navigate("artist/${item.id}")
                                 },
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.ACCOUNT_ARTIST_MENU)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     menuState.show {
                                         YouTubeArtistMenu(
@@ -192,7 +200,7 @@ fun AccountScreen(
         title = { Text(stringResource(R.string.account)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.ACCOUNT_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

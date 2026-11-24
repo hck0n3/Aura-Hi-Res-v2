@@ -93,6 +93,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Content primitives shared by Inicio and Biblioteca
@@ -198,7 +200,7 @@ private fun AuraCollapsibleHeader(
                 contentDescription = stringResource(
                     if (expanded) R.string.header_actions_hide else R.string.header_actions_show,
                 ),
-                onClick = { AuraHeaderActions.expanded = !AuraHeaderActions.expanded },
+                onClick = { ActionLog.tap(ActionId.HDR_HEADER_TOGGLE); AuraHeaderActions.expanded = !AuraHeaderActions.expanded },
                 modifier = Modifier.graphicsLayer { rotationZ = turn },
             )
         }

@@ -301,7 +301,7 @@ fun SongMenu(
                             modifier = Modifier.size(ListThumbnailSize),
                         )
                     },
-                    modifier = Modifier.clickable { showErrorPlaylistAddDialog = false },
+                    modifier = Modifier.clickable { ActionLog.tap(ActionId.SONGMENU_PLAYLIST_ERROR_CLOSE); showErrorPlaylistAddDialog = false },
                 )
             }
 
@@ -342,6 +342,7 @@ fun SongMenu(
                     modifier = Modifier
                         .height(ListItemHeight)
                         .clickable {
+                            ActionLog.tap(ActionId.SONGMENU_ARTIST_PICK)
                             scope.launch {
                                 val browseId = if (needsOnlineBrowseResolution(artist.id)) {
                                     withContext(Dispatchers.IO) {
@@ -505,6 +506,7 @@ fun SongMenu(
             MenuLikeButton(
                 liked = song.song.liked,
                 onClick = {
+                    ActionLog.tap(ActionId.SONGMENU_LIKE)
                     val s = song.song.toggleLike()
                     database.query {
                         upsert(s) // insert-or-update: like must persist even if the song isn't in the library yet

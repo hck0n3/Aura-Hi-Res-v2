@@ -40,6 +40,8 @@ import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.shareContentUri
 import kotlinx.coroutines.delay
 import timber.log.Timber
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * One song the user asked to share. Every «Compartir» of a song opens [AuraShareSheet] with one of these, so the choice is the
@@ -198,14 +200,14 @@ fun AuraShareSheet(request: ShareSongRequest, onDismiss: () -> Unit) {
                     icon = AuraIcons.Share,
                     title = stringResource(R.string.share_choice_link),
                     description = stringResource(R.string.share_choice_link_desc),
-                    onClick = { shareLink() },
+                    onClick = { ActionLog.tap(ActionId.SHARE_LINK); shareLink() },
                 )
                 if (enableExportAsMp3) {
                     DownloadSheetRow(
                         icon = AuraIcons.Export,
                         title = stringResource(R.string.share_choice_mp3),
                         description = stringResource(if (mp3Saved) R.string.share_choice_saved_desc else R.string.share_choice_mp3_desc),
-                        onClick = { checking = ShareKind.Mp3 },
+                        onClick = { ActionLog.tap(ActionId.SHARE_MP3); checking = ShareKind.Mp3 },
                     )
                     if (request.hasVideo) {
                         val videoDescription = when {
@@ -220,7 +222,7 @@ fun AuraShareSheet(request: ShareSongRequest, onDismiss: () -> Unit) {
                             description = videoDescription,
                             enabled = availability.enabled,
                             busy = availability.loading,
-                            onClick = { checking = ShareKind.Video },
+                            onClick = { ActionLog.tap(ActionId.SHARE_VIDEO); checking = ShareKind.Video },
                         )
                     }
                 }
@@ -240,7 +242,7 @@ fun AuraShareSheet(request: ShareSongRequest, onDismiss: () -> Unit) {
                     onClick = {},
                     enabled = false,
                 )
-                TextButton(onClick = onDismiss) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SHARE_HIDE); onDismiss() }) {
                     Text(text = stringResource(R.string.share_preparing_hide), color = AuraPalette.OnGroundMuted)
                 }
             }

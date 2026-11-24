@@ -68,6 +68,8 @@ import iad1tya.echo.music.ui.utils.tvFocusRestorer
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.viewmodels.ArtistItemsViewModel
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Artist section "ver todos" with a YouTube moreEndpoint (Singles & EPs, Videos, Live, Playlists…).
@@ -193,7 +195,7 @@ fun AuraArtistItemsScreen(
                     AuraHeaderButton(
                         icon = AuraIcons.Radio,
                         label = stringResource(R.string.retry),
-                        onClick = viewModel::load,
+                        onClick = { ActionLog.tap(ActionId.ARTITEMS_RETRY); viewModel.load() },
                         accent = true,
                         modifier = Modifier.padding(horizontal = AuraSpacing.Gutter),
                     )
@@ -272,8 +274,9 @@ fun AuraArtistItemsScreen(
                                 explicit = song.explicit,
                                 durationLabel = auraAppleDurationLabel(song.duration),
                                 showQualityBadge = false,
-                                onClick = { playSongFromPage(song) },
+                                onClick = { ActionLog.tap(ActionId.ARTITEMS_SONG); playSongFromPage(song) },
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.ARTITEMS_SONG_MENU)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     menuState.show {
                                         YouTubeSongMenu(
@@ -346,6 +349,7 @@ fun AuraArtistItemsScreen(
                                 mediaMetadataId = mediaMetadata?.id,
                                 mediaAlbumId = mediaMetadata?.album?.id,
                                 onClick = {
+                                    ActionLog.tap(ActionId.ARTITEMS_ITEM)
                                     when (item) {
                                         is SongItem -> playSongFromPage(item)
                                         is AlbumItem -> navController.navigateOnce("album/${item.id}")
@@ -354,6 +358,7 @@ fun AuraArtistItemsScreen(
                                     }
                                 },
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.ARTITEMS_ITEM_MENU)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     menuState.show {
                                         when (item) {

@@ -62,6 +62,8 @@ import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.ui.screens.OptionStats
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun <E> ChipsRow(
@@ -109,7 +111,7 @@ fun <E> ChipsRow(
                 colors = FilterChipDefaults.filterChipColors(
                     containerColor = chipContainer,
                 ),
-                onClick = { onValueUpdate(value) },
+                onClick = { ActionLog.tap(ActionId.CHIPS_SELECT); onValueUpdate(value) },
                 leadingIcon = if (isSelected) {
                     {
                         Icon(
@@ -182,6 +184,7 @@ fun <Int> ChoiceChipsRow(
                         .tvFocusable(isTvOrCar, RoundedCornerShape(16.dp), scaleFocused = 1f)
                         .padding(horizontal = 4.dp),
                     onClick = {
+                        ActionLog.tap(ActionId.CHIPS_MENU)
                         menuExpanded = !menuExpanded
                         expandIconDegree -= 180
                     },
@@ -235,6 +238,7 @@ fun <Int> ChoiceChipsRow(
                         DropdownMenuItem(
                             text = { Text(text = option.second) },
                             onClick = {
+                                ActionLog.tap(ActionId.CHIPS_MENU_PICK)
                                 onSelectionChange(option.first)
                                 expandIconDegree += 180
                                 menuExpanded = false
@@ -271,7 +275,7 @@ fun <Int> ChoiceChipsRow(
                     colors = FilterChipDefaults.filterChipColors(
                         containerColor = chipContainer,
                     ),
-                    onClick = { onValueUpdate(value) },
+                    onClick = { ActionLog.tap(ActionId.CHIPS_CHOICE); onValueUpdate(value) },
                     leadingIcon = if (isSelected) {
                         {
                             Icon(

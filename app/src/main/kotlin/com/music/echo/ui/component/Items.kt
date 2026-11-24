@@ -145,6 +145,8 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 const val ActiveBoxAlpha = 0.6f
 
@@ -1028,6 +1030,7 @@ fun AlbumGridItem(
         AlbumPlayButton(
             visible = !isActive,
             onClick = {
+                ActionLog.tap(ActionId.ITEM_ALBUM_PLAY)
                 scope.launch {
                     val albumWithSongs = withContext(Dispatchers.IO) {
                         database.albumWithSongs(album.id).firstOrNull()
@@ -1526,6 +1529,7 @@ fun YouTubeGridItem(
         AlbumPlayButton(
             visible = item is AlbumItem && !isActive,
             onClick = {
+                ActionLog.tap(ActionId.ITEM_YT_ALBUM_PLAY)
                 scope.launch(Dispatchers.IO) {
                     var albumWithSongs = database.albumWithSongs(item.id).first()
                     if (albumWithSongs?.songs.isNullOrEmpty()) {

@@ -56,6 +56,8 @@ import iad1tya.echo.music.ui.utils.tvFocusRestorer
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.FavoriteAlbumsViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Favorite / saved albums — Aura poster grid (title on art, no Material TopAppBar clip).
@@ -137,8 +139,9 @@ fun AuraFavoriteAlbumsScreen(
                         isPlaying = isPlaying,
                         typeIcon = AuraIcons.Album,
                         explicit = album.album.explicit,
-                        onClick = { navController.navigateOnce("album/${album.id}") },
+                        onClick = { ActionLog.tap(ActionId.ALBGRID_ALBUM); navController.navigateOnce("album/${album.id}") },
                         onLongClick = {
+                            ActionLog.tap(ActionId.ALBGRID_ALBUM_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
                                 AlbumMenu(
@@ -269,6 +272,7 @@ fun AuraArtistSectionGridScreen(
                                 mediaMetadataId = mediaMetadata?.id,
                                 mediaAlbumId = mediaMetadata?.album?.id,
                                 onClick = {
+                                    ActionLog.tap(ActionId.ALBGRID_SECTION_ITEM)
                                     when (item) {
                                         is SongItem -> playerConnection.playQueue(
                                             YouTubeQueue(
@@ -282,6 +286,7 @@ fun AuraArtistSectionGridScreen(
                                     }
                                 },
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.ALBGRID_SECTION_ITEM_MENU)
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     menuState.show {
                                         when (item) {

@@ -64,6 +64,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -134,6 +136,7 @@ fun CommentSheet(
                     }
                 }
                 IconButton(onClick = {
+                    ActionLog.tap(ActionId.COMMENTS_CLOSE)
                     scope.launch { sheetState.hide() }.invokeOnCompletion {
                         if (!sheetState.isVisible) onDismiss()
                     }
@@ -255,7 +258,7 @@ fun CommentItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onShowReplies != null) Modifier.clickable { onShowReplies() } else Modifier)
+            .then(if (onShowReplies != null) Modifier.clickable { ActionLog.tap(ActionId.COMMENTS_REPLIES); onShowReplies() } else Modifier)
             .padding(vertical = if (isReply) 4.dp else 0.dp)
     ) {
         AsyncImage(
@@ -324,7 +327,7 @@ fun CommentItem(
                         modifier = Modifier.clickable(
                             indication = null,
                             interactionSource = remember { MutableInteractionSource() }
-                        ) { onShowReplies() }
+                        ) { ActionLog.tap(ActionId.COMMENTS_REPLIES_BUTTON); onShowReplies() }
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.chat_msg),
@@ -387,7 +390,7 @@ fun CommentDetailPane(
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(onClick = { ActionLog.tap(ActionId.COMMENTS_BACK); onBack() }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back"

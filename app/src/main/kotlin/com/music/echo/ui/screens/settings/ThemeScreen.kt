@@ -120,6 +120,8 @@ import iad1tya.echo.music.ui.newui.rememberNewUiEnabled
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import androidx.compose.runtime.collectAsState
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 data class ThemePalette(
     val nameRes: Int,
@@ -335,7 +337,7 @@ fun ThemeScreen(
             iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text(stringResource(R.string.theme_colors), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
+                    IconButton(onClick = { ActionLog.tap(ActionId.THEME_BACK); navController.navigateUp() }) {
                         Icon(painterResource(R.drawable.arrow_back), contentDescription = stringResource(R.string.cd_back))
                     }
                 },
@@ -487,6 +489,7 @@ fun ThemeScreen(
                                 vividness = accentVividness,
                                 isTvOrCar = isTvOrCar,
                                 onClick = {
+                                    ActionLog.tap(ActionId.THEME_PALETTE)
                                     val colorToSave = if (isDynamicPalette) DefaultThemeColor else palette.seedColor
                                     handleColorSelection(colorToSave, palette.preset, isDynamicPalette)
                                 }
@@ -559,12 +562,13 @@ fun ThemeScreen(
             icon = { Icon(painterResource(R.drawable.restore), contentDescription = null) },
             title = { Text(stringResource(R.string.theme_reset)) },
             buttons = {
-                TextButton(onClick = { showResetDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.THEME_RESET_CANCEL); showResetDialog = false }) {
                     Text(stringResource(android.R.string.cancel))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = {
+                        ActionLog.tap(ActionId.THEME_RESET_CONFIRM)
                         resetThemeToDefaults()
                         showResetDialog = false
                     }
@@ -715,7 +719,7 @@ private fun CustomRolesSection(
                     color = previewBackground,
                     isAuto = backgroundArgb == CustomThemeRoles.AUTO_ARGB,
                     isTvOrCar = isTvOrCar,
-                    onClick = { openSlot = ThemeRoleSlot.BACKGROUND },
+                    onClick = { ActionLog.tap(ActionId.THEME_ROLE_BACKGROUND); openSlot = ThemeRoleSlot.BACKGROUND },
                     onReset = { onBackgroundArgbChange(CustomThemeRoles.AUTO_ARGB) },
                 )
                 ThemeRoleRow(
@@ -723,7 +727,7 @@ private fun CustomRolesSection(
                     color = displayColor(surfaceArgb, scheme.surface),
                     isAuto = surfaceArgb == CustomThemeRoles.AUTO_ARGB,
                     isTvOrCar = isTvOrCar,
-                    onClick = { openSlot = ThemeRoleSlot.SURFACE },
+                    onClick = { ActionLog.tap(ActionId.THEME_ROLE_SURFACE); openSlot = ThemeRoleSlot.SURFACE },
                     onReset = { onSurfaceArgbChange(CustomThemeRoles.AUTO_ARGB) },
                 )
                 ThemeRoleRow(
@@ -731,7 +735,7 @@ private fun CustomRolesSection(
                     color = previewOnBg,
                     isAuto = onBackgroundArgb == CustomThemeRoles.AUTO_ARGB,
                     isTvOrCar = isTvOrCar,
-                    onClick = { openSlot = ThemeRoleSlot.ON_BACKGROUND },
+                    onClick = { ActionLog.tap(ActionId.THEME_ROLE_ON_BACKGROUND); openSlot = ThemeRoleSlot.ON_BACKGROUND },
                     onReset = { onOnBackgroundArgbChange(CustomThemeRoles.AUTO_ARGB) },
                 )
                 ThemeRoleRow(
@@ -739,7 +743,7 @@ private fun CustomRolesSection(
                     color = previewMuted,
                     isAuto = onSurfaceVariantArgb == CustomThemeRoles.AUTO_ARGB,
                     isTvOrCar = isTvOrCar,
-                    onClick = { openSlot = ThemeRoleSlot.ON_SURFACE_VARIANT },
+                    onClick = { ActionLog.tap(ActionId.THEME_ROLE_ON_SURFACE_VARIANT); openSlot = ThemeRoleSlot.ON_SURFACE_VARIANT },
                     onReset = { onOnSurfaceVariantArgbChange(CustomThemeRoles.AUTO_ARGB) },
                 )
                 ThemeRoleRow(
@@ -747,7 +751,7 @@ private fun CustomRolesSection(
                     color = previewOutline,
                     isAuto = outlineArgb == CustomThemeRoles.AUTO_ARGB,
                     isTvOrCar = isTvOrCar,
-                    onClick = { openSlot = ThemeRoleSlot.OUTLINE },
+                    onClick = { ActionLog.tap(ActionId.THEME_ROLE_OUTLINE); openSlot = ThemeRoleSlot.OUTLINE },
                     onReset = { onOutlineArgbChange(CustomThemeRoles.AUTO_ARGB) },
                 )
                 ThemeRoleRow(
@@ -755,7 +759,7 @@ private fun CustomRolesSection(
                     color = previewOnPrimary,
                     isAuto = onPrimaryArgb == CustomThemeRoles.AUTO_ARGB,
                     isTvOrCar = isTvOrCar,
-                    onClick = { openSlot = ThemeRoleSlot.ON_PRIMARY },
+                    onClick = { ActionLog.tap(ActionId.THEME_ROLE_ON_PRIMARY); openSlot = ThemeRoleSlot.ON_PRIMARY },
                     onReset = { onOnPrimaryArgbChange(CustomThemeRoles.AUTO_ARGB) },
                 )
             }
@@ -856,7 +860,7 @@ private fun ThemeRoleRow(
             )
         }
         if (!isAuto) {
-            TextButton(onClick = onReset) {
+            TextButton(onClick = { ActionLog.tap(ActionId.THEME_AUTO_RESET); onReset() }) {
                 Text(stringResource(R.string.reset))
             }
         }
@@ -900,7 +904,7 @@ private fun ResetThemeSection(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Button(
-                    onClick = onReset,
+                    onClick = { ActionLog.tap(ActionId.THEME_RESET); onReset() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .tvFocusable(isTvOrCar, scaleFocused = 1f),
@@ -997,7 +1001,7 @@ private fun AccentIntensitySection(
                     },
                     isSelected = selected == mode,
                     isTvOrCar = isTvOrCar,
-                    onClick = { onSelect(mode) },
+                    onClick = { ActionLog.tap(ActionId.THEME_ACCENT_INTENSITY); onSelect(mode) },
                 )
             }
         }
@@ -1168,7 +1172,7 @@ private fun CustomAccentSection(
                 Spacer(Modifier.height(16.dp))
 
                 Button(
-                    onClick = { applyColor() },
+                    onClick = { ActionLog.tap(ActionId.THEME_ACCENT_HEX_APPLY); applyColor() },
                     enabled = parsed != null,
                     modifier = Modifier
                         .fillMaxWidth()

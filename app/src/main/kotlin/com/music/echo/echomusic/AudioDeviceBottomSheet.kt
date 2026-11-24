@@ -130,6 +130,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import iad1tya.echo.music.R
 import iad1tya.echo.music.LocalPlayerConnection
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 data class AudioDevice(
     val name: String,
@@ -377,6 +379,7 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
                             onClick = {
+                                ActionLog.tap(ActionId.AUDIODEV_RETRY)
                                 errorMessage = null
                                 isLoading = true
                                 refreshDevices()
@@ -454,7 +457,7 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                                         ) {
                                             val isActive = device.isActive
                                             Surface(
-                                                onClick = { showDevicePopup = !showDevicePopup },
+                                                onClick = { ActionLog.tap(ActionId.AUDIODEV_OUTPUT_MENU); showDevicePopup = !showDevicePopup },
                                                 shape = CircleShape,
                                                 color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                                                 tonalElevation = 2.dp,
@@ -528,6 +531,7 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
 
                                             Surface(
                                                 onClick = {
+                                                    ActionLog.tap(ActionId.AUDIODEV_OUTPUT_PICK)
                                                     service?.setPreferredAudioDevice(dev.deviceId)
                                                     refreshDevices()
                                                     showDevicePopup = false
@@ -637,7 +641,7 @@ fun AudioDeviceBottomSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier)
                         }
 
                         Button(
-                            onClick = onDismiss,
+                            onClick = { ActionLog.tap(ActionId.AUDIODEV_DONE); onDismiss() },
                             shape = RoundedCornerShape(24.dp)
                         ) {
                             Text(stringResource(R.string.done))
@@ -741,7 +745,7 @@ private fun GlassAudioDeviceBody(
                         .then(
                             if (hasBluetooth) {
                                 Modifier.auraClickableInternal(
-                                    onClick = onTogglePopup,
+                                    onClick = { ActionLog.tap(ActionId.AUDIODEV_OUTPUT_TOGGLE); onTogglePopup() },
                                     contentDescription = stringResource(R.string.audio_devices),
                                 )
                             } else Modifier,
@@ -817,7 +821,7 @@ private fun GlassAudioDeviceBody(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(if (selected) AuraPalette.Teal.copy(alpha = 0.14f) else Color.Transparent)
-                                    .auraClickableInternal(onClick = { onPickDevice(dev) }, contentDescription = dev.name)
+                                    .auraClickableInternal(onClick = { ActionLog.tap(ActionId.AUDIODEV_DEVICE_PICK); onPickDevice(dev) }, contentDescription = dev.name)
                                     .heightIn(min = 54.dp)
                                     .padding(horizontal = 16.dp, vertical = 8.dp),
                             ) {
@@ -906,7 +910,7 @@ private fun GlassAudioDeviceBody(
                     .clip(doneShape)
                     .background(AuraPalette.Teal.copy(alpha = 0.22f))
                     .border(1.dp, AuraPalette.Teal.copy(alpha = 0.45f), doneShape)
-                    .auraClickableInternal(onClick = onDone, contentDescription = doneText)
+                    .auraClickableInternal(onClick = { ActionLog.tap(ActionId.AUDIODEV_PICKER_DONE); onDone() }, contentDescription = doneText)
                     .padding(horizontal = 28.dp, vertical = 10.dp),
             ) {
                 Text(text = doneText, style = AuraType.Chip, color = AuraPalette.OnGround, maxLines = 1)

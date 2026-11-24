@@ -65,6 +65,8 @@ import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.ui.component.isGlassEligible
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Liquid Glass (Beta) settings. The whole feature is DEFAULT OFF and additionally gated at
@@ -299,23 +301,23 @@ fun GlassEffectSettings(
                     icon = painterResource(R.drawable.tune),
                     title = { Text(stringResource(R.string.liquid_glass_vibrancy)) },
                     description = { Text(stringResource(R.string.liquid_glass_vibrancy_desc)) },
-                    onClick = { showVibrancyDialog = true }
+                    onClick = { ActionLog.tap(ActionId.GLASS_VIBRANCY); showVibrancyDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.tune),
                     title = { Text(stringResource(R.string.liquid_glass_blur_radius)) },
                     description = { Text(stringResource(R.string.liquid_glass_blur_radius_desc)) },
-                    onClick = { showBlurRadiusDialog = true }
+                    onClick = { ActionLog.tap(ActionId.GLASS_BLUR_RADIUS); showBlurRadiusDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.tune),
                     title = { Text(stringResource(R.string.liquid_glass_lens_height)) },
-                    onClick = { showLensHeightDialog = true }
+                    onClick = { ActionLog.tap(ActionId.GLASS_LENS_HEIGHT); showLensHeightDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.tune),
                     title = { Text(stringResource(R.string.liquid_glass_lens_amount)) },
-                    onClick = { showLensAmountDialog = true }
+                    onClick = { ActionLog.tap(ActionId.GLASS_LENS_AMOUNT); showLensAmountDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.tune),
@@ -369,19 +371,19 @@ fun GlassEffectSettings(
                     icon = painterResource(R.drawable.palette),
                     title = { Text(stringResource(R.string.liquid_glass_surface_tint)) },
                     description = { Text(stringResource(R.string.liquid_glass_surface_tint_desc)) },
-                    onClick = { showSurfaceTintDialog = true }
+                    onClick = { ActionLog.tap(ActionId.GLASS_SURFACE_TINT); showSurfaceTintDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.tune),
                     title = { Text(stringResource(R.string.liquid_glass_surface_opacity)) },
                     description = { Text(stringResource(R.string.liquid_glass_surface_opacity_desc)) },
-                    onClick = { showSurfaceOpacityDialog = true }
+                    onClick = { ActionLog.tap(ActionId.GLASS_SURFACE_OPACITY); showSurfaceOpacityDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.palette),
                     title = { Text(stringResource(R.string.liquid_glass_text_color)) },
                     description = { Text(stringResource(R.string.liquid_glass_text_color_desc)) },
-                    onClick = { showTextColorDialog = true }
+                    onClick = { ActionLog.tap(ActionId.GLASS_TEXT_COLOR); showTextColorDialog = true }
                 ),
             )
         )
@@ -476,10 +478,10 @@ fun GlassEffectSettings(
         DefaultDialog(
             onDismiss = { tempValue = vibrancy; showVibrancyDialog = false },
             buttons = {
-                TextButton(onClick = { tempValue = 1f }) { Text(stringResource(R.string.reset)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_VIBRANCY_RESET); tempValue = 1f }) { Text(stringResource(R.string.reset)) }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = { tempValue = vibrancy; showVibrancyDialog = false }) { Text(stringResource(android.R.string.cancel)) }
-                TextButton(onClick = { onVibrancyChange(tempValue); showVibrancyDialog = false }) { Text(stringResource(android.R.string.ok)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_VIBRANCY_CANCEL); tempValue = vibrancy; showVibrancyDialog = false }) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_VIBRANCY_CONFIRM); onVibrancyChange(tempValue); showVibrancyDialog = false }) { Text(stringResource(android.R.string.ok)) }
             }
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
@@ -495,10 +497,10 @@ fun GlassEffectSettings(
         DefaultDialog(
             onDismiss = { tempValue = blurRadius; showBlurRadiusDialog = false },
             buttons = {
-                TextButton(onClick = { tempValue = 8f }) { Text(stringResource(R.string.reset)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_BLUR_RADIUS_RESET); tempValue = 8f }) { Text(stringResource(R.string.reset)) }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = { tempValue = blurRadius; showBlurRadiusDialog = false }) { Text(stringResource(android.R.string.cancel)) }
-                TextButton(onClick = { onBlurRadiusChange(tempValue); showBlurRadiusDialog = false }) { Text(stringResource(android.R.string.ok)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_BLUR_RADIUS_CANCEL); tempValue = blurRadius; showBlurRadiusDialog = false }) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_BLUR_RADIUS_CONFIRM); onBlurRadiusChange(tempValue); showBlurRadiusDialog = false }) { Text(stringResource(android.R.string.ok)) }
             }
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
@@ -514,10 +516,10 @@ fun GlassEffectSettings(
         DefaultDialog(
             onDismiss = { tempValue = lensHeight; showLensHeightDialog = false },
             buttons = {
-                TextButton(onClick = { tempValue = 0.5f }) { Text(stringResource(R.string.reset)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_LENS_HEIGHT_RESET); tempValue = 0.5f }) { Text(stringResource(R.string.reset)) }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = { tempValue = lensHeight; showLensHeightDialog = false }) { Text(stringResource(android.R.string.cancel)) }
-                TextButton(onClick = { onLensHeightChange(tempValue); showLensHeightDialog = false }) { Text(stringResource(android.R.string.ok)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_LENS_HEIGHT_CANCEL); tempValue = lensHeight; showLensHeightDialog = false }) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_LENS_HEIGHT_CONFIRM); onLensHeightChange(tempValue); showLensHeightDialog = false }) { Text(stringResource(android.R.string.ok)) }
             }
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
@@ -533,10 +535,10 @@ fun GlassEffectSettings(
         DefaultDialog(
             onDismiss = { tempValue = lensAmount; showLensAmountDialog = false },
             buttons = {
-                TextButton(onClick = { tempValue = 0.5f }) { Text(stringResource(R.string.reset)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_LENS_AMOUNT_RESET); tempValue = 0.5f }) { Text(stringResource(R.string.reset)) }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = { tempValue = lensAmount; showLensAmountDialog = false }) { Text(stringResource(android.R.string.cancel)) }
-                TextButton(onClick = { onLensAmountChange(tempValue); showLensAmountDialog = false }) { Text(stringResource(android.R.string.ok)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_LENS_AMOUNT_CANCEL); tempValue = lensAmount; showLensAmountDialog = false }) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_LENS_AMOUNT_CONFIRM); onLensAmountChange(tempValue); showLensAmountDialog = false }) { Text(stringResource(android.R.string.ok)) }
             }
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
@@ -552,10 +554,10 @@ fun GlassEffectSettings(
         DefaultDialog(
             onDismiss = { tempValue = surfaceOpacity; showSurfaceOpacityDialog = false },
             buttons = {
-                TextButton(onClick = { tempValue = 0.4f }) { Text(stringResource(R.string.reset)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_SURFACE_OPACITY_RESET); tempValue = 0.4f }) { Text(stringResource(R.string.reset)) }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = { tempValue = surfaceOpacity; showSurfaceOpacityDialog = false }) { Text(stringResource(android.R.string.cancel)) }
-                TextButton(onClick = { onSurfaceOpacityChange(tempValue); showSurfaceOpacityDialog = false }) { Text(stringResource(android.R.string.ok)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_SURFACE_OPACITY_CANCEL); tempValue = surfaceOpacity; showSurfaceOpacityDialog = false }) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.GLASS_SURFACE_OPACITY_CONFIRM); onSurfaceOpacityChange(tempValue); showSurfaceOpacityDialog = false }) { Text(stringResource(android.R.string.ok)) }
             }
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
@@ -605,7 +607,7 @@ fun GlassEffectSettings(
         title = { Text(stringResource(R.string.liquid_glass_settings)) },
         navigationIcon = {
             AppIconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.GLASS_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

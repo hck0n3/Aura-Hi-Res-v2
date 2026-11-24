@@ -120,7 +120,7 @@ fun HeldRemovalsScreen(
             title = { Text(stringResource(R.string.device_sync_held_title)) },
             navigationIcon = {
                 IconButton(
-                    onClick = navController::navigateUp,
+                    onClick = { ActionLog.tap(ActionId.DEVSET_HELD_BACK); navController.navigateUp() },
                     onLongClick = null,
                 ) {
                     Icon(

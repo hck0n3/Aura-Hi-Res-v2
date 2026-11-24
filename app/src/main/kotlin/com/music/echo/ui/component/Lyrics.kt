@@ -200,6 +200,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.seconds
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 // Cheap in-memory English detector for the "translate on open" prompt. Fraction of tokens that are
 // common English function words; non-Latin scripts (CJK/Cyrillic/Hindi) yield ~no ASCII tokens → false,
@@ -790,6 +792,7 @@ fun Lyrics(
             text = { Text("Esta canción parece estar en inglés. ¿Quieres traducirla a tu idioma con IA gratuita?") },
             confirmButton = {
                 TextButton(onClick = {
+                    ActionLog.tap(ActionId.LYR_TRANSLATE_YES)
                     promptSongId?.let { if (it !in answeredTranslateSongs) answeredTranslateSongs.add(it) }
                     showTranslatePrompt = false
                     LyricsTranslationHelper.triggerManualTranslation()
@@ -797,6 +800,7 @@ fun Lyrics(
             },
             dismissButton = {
                 TextButton(onClick = {
+                    ActionLog.tap(ActionId.LYR_TRANSLATE_NO)
                     promptSongId?.let { if (it !in answeredTranslateSongs) answeredTranslateSongs.add(it) }
                     showTranslatePrompt = false
                 }) { Text("No") }
@@ -1326,6 +1330,7 @@ fun Lyrics(
                             isSelected = isSelected,
                             expressiveAccent = expressiveAccent,
                             onClick = {
+                                ActionLog.tap(ActionId.LYR_LINE)
                                 if (isSelectionModeActive) {
                                     if (isSelected) {
                                         selectedIndices.remove(index)
@@ -1357,6 +1362,7 @@ fun Lyrics(
                                 }
                             },
                             onLongClick = {
+                                ActionLog.tap(ActionId.LYR_LINE_SELECT)
                                 if (!isSelectionModeActive) {
                                     isSelectionModeActive = true
                                     selectedIndices.add(index)
@@ -1407,6 +1413,7 @@ fun Lyrics(
                             isSelected = isSelected,
                             expressiveAccent = expressiveAccent,
                             onClick = {
+                                ActionLog.tap(ActionId.LYR_LINE)
                                 if (isSelectionModeActive) {
                                     if (isSelected) {
                                         selectedIndices.remove(index)
@@ -1438,6 +1445,7 @@ fun Lyrics(
                                 }
                             },
                             onLongClick = {
+                                ActionLog.tap(ActionId.LYR_LINE_SELECT)
                                 if (!isSelectionModeActive) {
                                     isSelectionModeActive = true
                                     selectedIndices.add(index)
@@ -1456,6 +1464,7 @@ fun Lyrics(
                         .combinedClickable(
                             enabled = true,
                             onClick = {
+                                ActionLog.tap(ActionId.LYR_LINE)
                                 if (isSelectionModeActive) {
                                     
                                     if (isSelected) {
@@ -1503,6 +1512,7 @@ fun Lyrics(
                                 }
                             },
                             onLongClick = {
+                                ActionLog.tap(ActionId.LYR_LINE_SELECT)
                                 if (!isSelectionModeActive) {
                                     isSelectionModeActive = true
                                     selectedIndices.add(index)
@@ -2286,6 +2296,7 @@ fun Lyrics(
             exit = slideOutVertically { it } + fadeOut()
         ) {
             FilledTonalButton(onClick = {
+                ActionLog.tap(ActionId.LYR_RESYNC)
                 scheduleLyricsScroll(currentLineIndex, 500)
                 isAutoScrollEnabled = true
             }) {
@@ -2310,6 +2321,7 @@ fun Lyrics(
             ) {
                 FilledTonalButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LYR_SELECT_CANCEL)
                         isSelectionModeActive = false
                         selectedIndices.clear()
                     }
@@ -2322,6 +2334,7 @@ fun Lyrics(
                 }
                 FilledTonalButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LYR_SHARE_SELECTED)
                         if (selectedIndices.isNotEmpty()) {
                             val sortedIndices = selectedIndices.sorted()
                             val selectedLyricsText = sortedIndices
@@ -2399,6 +2412,7 @@ fun Lyrics(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
+                                ActionLog.tap(ActionId.LYR_SHARE_TEXT)
                                 val shareIntent = Intent().apply {
                                     action = Intent.ACTION_SEND
                                     type = "text/plain"
@@ -2438,6 +2452,7 @@ fun Lyrics(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
+                                ActionLog.tap(ActionId.LYR_SHARE_IMAGE)
                                 
                                 shareDialogData = Triple(lyricsText, songTitle, artists)
                                 showColorPickerDialog = true
@@ -2471,7 +2486,7 @@ fun Lyrics(
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier
-                                .clickable { showShareDialog = false }
+                                .clickable { ActionLog.tap(ActionId.LYR_SHARE_CANCEL); showShareDialog = false }
                                 .padding(vertical = 8.dp, horizontal = 12.dp)
                         )
                     }
@@ -2596,7 +2611,7 @@ fun Lyrics(
                             
                             androidx.compose.material3.FilterChip(
                                 selected = selected,
-                                onClick = { previewBackgroundStyle = style },
+                                onClick = { ActionLog.tap(ActionId.LYR_IMAGE_STYLE); previewBackgroundStyle = style },
                                 label = { Text(label) }
                             )
                         }
@@ -2630,7 +2645,7 @@ fun Lyrics(
                                     .size(40.dp)
                                     .clip(androidx.compose.foundation.shape.CircleShape)
                                     .background(color)
-                                    .clickable { previewBackgroundColor = color }
+                                    .clickable { ActionLog.tap(ActionId.LYR_IMAGE_BG_COLOR); previewBackgroundColor = color }
                                     .border(
                                         width = if (previewBackgroundColor == color) 3.dp else 1.dp,
                                         color = if (previewBackgroundColor == color) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha=0.5f),
@@ -2649,7 +2664,7 @@ fun Lyrics(
                                     .size(40.dp)
                                     .clip(androidx.compose.foundation.shape.CircleShape)
                                     .background(color)
-                                    .clickable { previewTextColor = color }
+                                    .clickable { ActionLog.tap(ActionId.LYR_IMAGE_TEXT_COLOR); previewTextColor = color }
                                     .border(
                                         width = if (previewTextColor == color) 3.dp else 1.dp,
                                         color = if (previewTextColor == color) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha=0.5f),
@@ -2668,7 +2683,7 @@ fun Lyrics(
                                     .size(40.dp)
                                     .clip(androidx.compose.foundation.shape.CircleShape)
                                     .background(color)
-                                    .clickable { previewSecondaryTextColor = color }
+                                    .clickable { ActionLog.tap(ActionId.LYR_IMAGE_TEXT2_COLOR); previewSecondaryTextColor = color }
                                     .border(
                                         width = if (previewSecondaryTextColor == color) 3.dp else 1.dp,
                                         color = if (previewSecondaryTextColor == color) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha=0.5f),
@@ -2682,6 +2697,7 @@ fun Lyrics(
 
                     Button(
                         onClick = {
+                            ActionLog.tap(ActionId.LYR_IMAGE_SHARE)
                             showColorPickerDialog = false
                             showProgressDialog = true
                             scope.launch {

@@ -106,6 +106,8 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Novedades — the «New» tab of the new interface.
@@ -393,7 +395,7 @@ fun AuraNovedadesScreen(
                             AuraChip(
                                 text = stringResource(R.string.retry),
                                 selected = false,
-                                onClick = viewModel::refresh,
+                                onClick = { ActionLog.tap(ActionId.NOV_RETRY); viewModel.refresh() },
                             )
                         }
                     }
@@ -412,6 +414,7 @@ fun AuraNovedadesScreen(
                                     text = stringResource(f.labelRes()),
                                     selected = f == filter,
                                     onClick = {
+                                        ActionLog.tap(ActionId.NOV_FILTER)
                                         selectedFilter = f
                                         expandedKey = null
                                     },
@@ -764,8 +767,8 @@ private fun NovedadesYtCard(
         typeLabel = novedadesTypeLabel(visual.kind),
         isActive = isActive,
         isPlaying = isPlaying,
-        onClick = { onOpen(item) },
-        onLongClick = { onMenu(item) },
+        onClick = { ActionLog.tap(ActionId.NOV_OPEN); onOpen(item) },
+        onLongClick = { ActionLog.tap(ActionId.NOV_MENU); onMenu(item) },
         badge = {
             // A video already carries its own pill at the top-left corner.
             // The «E» is drawn after the title by AuraTypedYtCoverCard (explicit = item.explicit): not a second one here.
@@ -845,9 +848,9 @@ private fun UpcomingCard(
             thumbnailUrl = item.artworkUri,
             seed = item.id,
             width = width,
-            onClick = onOpen,
+            onClick = { ActionLog.tap(ActionId.NOV_UPCOMING_OPEN); onOpen() },
         )
-        androidx.compose.material3.TextButton(onClick = onPresave) {
+        androidx.compose.material3.TextButton(onClick = { ActionLog.tap(ActionId.NOV_PRESAVE); onPresave() }) {
             Text(
                 text = stringResource(
                     if (item.presaved) R.string.action_presaved else R.string.action_presave,
@@ -952,7 +955,7 @@ private fun NovedadesHero(
                 seed = album.id,
                 shape = AuraShapes.Artwork,
                 decodeTo = if (lean) 512 else 720,
-                modifier = Modifier.auraClickableInternal(onClick = onOpen, contentDescription = album.title),
+                modifier = Modifier.auraClickableInternal(onClick = { ActionLog.tap(ActionId.NOV_UPCOMING_COVER); onOpen() }, contentDescription = album.title),
             )
         }
         val info: @Composable (Modifier) -> Unit = { modifier ->
@@ -1091,21 +1094,21 @@ private fun NovedadesHeroInfo(
             AuraDetailActionButton(
                 icon = if (isActive && isPlaying) AuraIcons.Pause else AuraIcons.Play,
                 label = stringResource(if (isActive && isPlaying) R.string.pause else R.string.play),
-                onClick = onPlay,
+                onClick = { ActionLog.tap(ActionId.NOV_PLAY); onPlay() },
                 accent = true,
                 modifier = Modifier.weight(1f),
             )
             AuraDetailActionButton(
                 icon = AuraIcons.Album,
                 label = stringResource(R.string.open),
-                onClick = onOpen,
+                onClick = { ActionLog.tap(ActionId.NOV_DETAIL_OPEN); onOpen() },
                 accent = false,
                 modifier = Modifier.weight(1f),
             )
             AuraDetailCircleButton(
                 icon = AuraIcons.More,
                 contentDescription = stringResource(R.string.more_options),
-                onClick = onMenu,
+                onClick = { ActionLog.tap(ActionId.NOV_DETAIL_MENU); onMenu() },
             )
         }
     }
@@ -1175,9 +1178,9 @@ private fun NovedadesWideCarousel(
                         .maskBorder(BorderStroke(1.dp, AuraPalette.SurfaceLine), AuraShapes.Card)
                         .background(placeholder)
                         .combinedClickable(
-                            onClick = { onOpen(album) },
+                            onClick = { ActionLog.tap(ActionId.NOV_GRID_OPEN); onOpen(album) },
                             onClickLabel = album.title,
-                            onLongClick = { onMenu(album) },
+                            onLongClick = { ActionLog.tap(ActionId.NOV_GRID_MENU); onMenu(album) },
                         ),
                 ) {
                     if (album.thumbnail.isNotBlank()) {

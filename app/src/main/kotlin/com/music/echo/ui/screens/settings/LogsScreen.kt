@@ -37,6 +37,8 @@ import iad1tya.echo.music.utils.DiagnosticHeader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Which log the screen is showing. [SYSTEM_EXITS] is Android's own record of why previous processes
@@ -100,17 +102,17 @@ fun LogsScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = navController::navigateUp,
+                        onClick = { ActionLog.tap(ActionId.LOGS_BACK); navController.navigateUp() },
                         onLongClick = null,
                     ) {
                         Icon(painterResource(R.drawable.arrow_back), contentDescription = null)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { copyToClipboard(context, logText) }, onLongClick = null) {
+                    IconButton(onClick = { ActionLog.tap(ActionId.LOGS_COPY); copyToClipboard(context, logText) }, onLongClick = null) {
                         Icon(painterResource(R.drawable.content_copy), contentDescription = stringResource(R.string.copy))
                     }
-                    IconButton(onClick = { shareAllLogs(context) }, onLongClick = null) {
+                    IconButton(onClick = { ActionLog.tap(ActionId.LOGS_SHARE); shareAllLogs(context) }, onLongClick = null) {
                         Icon(painterResource(R.drawable.share), contentDescription = stringResource(R.string.share))
                     }
                 },
@@ -148,7 +150,7 @@ fun LogsScreen(
             ) {
                 FilterChip(
                     selected = tab == LogTab.APP,
-                    onClick = { tab = LogTab.APP },
+                    onClick = { ActionLog.tap(ActionId.LOGS_TAB_APP); tab = LogTab.APP },
                     label = { Text(stringResource(R.string.app_log)) },
                     colors = if (skin.enabled) FilterChipDefaults.filterChipColors(
                         selectedContainerColor = skin.accent.copy(alpha = 0.16f),
@@ -158,7 +160,7 @@ fun LogsScreen(
                 )
                 FilterChip(
                     selected = tab == LogTab.CRASH,
-                    onClick = { tab = LogTab.CRASH },
+                    onClick = { ActionLog.tap(ActionId.LOGS_TAB_CRASH); tab = LogTab.CRASH },
                     label = { Text(stringResource(R.string.last_crash)) },
                     colors = if (skin.enabled) FilterChipDefaults.filterChipColors(
                         selectedContainerColor = skin.accent.copy(alpha = 0.16f),
@@ -168,7 +170,7 @@ fun LogsScreen(
                 )
                 FilterChip(
                     selected = tab == LogTab.SYSTEM_EXITS,
-                    onClick = { tab = LogTab.SYSTEM_EXITS },
+                    onClick = { ActionLog.tap(ActionId.LOGS_TAB_EXITS); tab = LogTab.SYSTEM_EXITS },
                     label = { Text(stringResource(R.string.system_exits)) },
                     colors = if (skin.enabled) FilterChipDefaults.filterChipColors(
                         selectedContainerColor = skin.accent.copy(alpha = 0.16f),
@@ -213,7 +215,7 @@ fun LogsScreen(
             // Owner 2026-10-31: the delete icon sat right next to «Compartir» and wiped the tablet's log by mistake. Deleting now lives
             // alone at the bottom, apart from copy and share, and asks first (row 577).
             TextButton(
-                onClick = { showDeleteConfirm = true },
+                onClick = { ActionLog.tap(ActionId.LOGS_DELETE_ALL); showDeleteConfirm = true },
                 enabled = logText.isNotBlank(),
                 modifier = Modifier.align(androidx.compose.ui.Alignment.CenterHorizontally),
             ) {
@@ -230,11 +232,11 @@ fun LogsScreen(
             title = { Text(stringResource(R.string.logs_delete_all)) },
             text = { Text(stringResource(R.string.logs_delete_confirm)) },
             confirmButton = {
-                TextButton(onClick = { showDeleteConfirm = false; AppLogger.clear(context); reloadTrigger++ }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.LOGS_DELETE_CONFIRM); showDeleteConfirm = false; AppLogger.clear(context); reloadTrigger++ }) {
                     Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(android.R.string.cancel)) } },
+            dismissButton = { TextButton(onClick = { ActionLog.tap(ActionId.LOGS_DELETE_CANCEL); showDeleteConfirm = false }) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
 }

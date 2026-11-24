@@ -74,6 +74,8 @@ import timber.log.Timber
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicInteger
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun AddToPlaylistDialogOnline(
@@ -152,6 +154,7 @@ fun AddToPlaylistDialogOnline(
                     },
                     shape = listItemShape(index = 0, count = totalItemsCount),
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.ADDPLYT_CREATE)
                         showCreatePlaylistDialog = true
                     }
                 )
@@ -179,7 +182,7 @@ fun AddToPlaylistDialogOnline(
                         },
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
+                                IconButton(onClick = { ActionLog.tap(ActionId.ADDPLYT_SEARCH_CLEAR); searchQuery = "" }) {
                                     Icon(
                                         painter = painterResource(R.drawable.close),
                                         contentDescription = null,
@@ -250,6 +253,7 @@ fun AddToPlaylistDialogOnline(
                     playlist = playlist,
                     shape = listItemShape(index = index + 1, count = totalItemsCount),
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.ADDPLYT_PICK)
                         selectedPlaylist = playlist
                         coroutineScope.launch(Dispatchers.IO) {
                             onDismiss()
@@ -317,6 +321,7 @@ fun AddToPlaylistDialogOnline(
             item {
                 ListItem(
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.ADDPLYT_LIKED)
                         coroutineScope.launch(Dispatchers.IO) {
                             onDismiss()
                             val songsToAdd = songs.reversed()
@@ -417,6 +422,7 @@ fun AddToPlaylistDialogOnline(
             buttons = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.ADDPLYT_SKIP_DUPLICATES)
                         showDuplicateDialog = false
                         onDismiss()
                         database.transaction {
@@ -434,6 +440,7 @@ fun AddToPlaylistDialogOnline(
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.ADDPLYT_ADD_ANYWAY)
                         showDuplicateDialog = false
                         onDismiss()
                         database.transaction {
@@ -446,6 +453,7 @@ fun AddToPlaylistDialogOnline(
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.ADDPLYT_DUPLICATES_CANCEL)
                         showDuplicateDialog = false
                     }
                 ) {

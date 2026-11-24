@@ -41,6 +41,8 @@ import iad1tya.echo.music.ui.component.shimmer.ShimmerHost
 import iad1tya.echo.music.ui.menu.YouTubeAlbumMenu
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.viewmodels.NewReleaseViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +82,7 @@ fun NewReleaseScreen(
                 Modifier
                     .combinedClickable(
                         onClick = {
+                            ActionLog.tap(ActionId.NEWREL_ITEM)
                             // Play the new release directly (album radio: its songs + continuation) instead of
                             // opening the album page. "Go to album / artist" stays available via long-press.
                             // Ronda 10: contextId para que la continuación ceda al motor de contexto/género
@@ -92,6 +95,7 @@ fun NewReleaseScreen(
                             )
                         },
                         onLongClick = {
+                            ActionLog.tap(ActionId.NEWREL_ITEM_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
                                 YouTubeAlbumMenu(
@@ -118,7 +122,7 @@ fun NewReleaseScreen(
         title = { Text(stringResource(R.string.new_release_albums)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.NEWREL_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

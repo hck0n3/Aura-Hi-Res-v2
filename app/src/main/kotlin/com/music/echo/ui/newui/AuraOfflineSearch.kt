@@ -67,6 +67,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Sin conexión: lo disponible y su buscador
@@ -294,7 +296,7 @@ internal fun LazyListScope.offlineSearchItems(
                 AuraChip(
                     text = stringResource(offlineFilterLabel(option)),
                     selected = filter == option,
-                    onClick = { onFilter(option) },
+                    onClick = { ActionLog.tap(ActionId.OFFSEARCH_FILTER); onFilter(option) },
                 )
             }
         }
@@ -317,7 +319,7 @@ internal fun LazyListScope.offlineSearchItems(
             item(key = "offs_h_songs", contentType = "offs_header") {
                 AuraSectionHeader(
                     title = stringResource(R.string.filter_songs),
-                    onClick = { onFilter(OfflineSearchFilter.SONG) },
+                    onClick = { ActionLog.tap(ActionId.OFFSEARCH_SONGS_HEADER); onFilter(OfflineSearchFilter.SONG) },
                 )
             }
         }
@@ -337,13 +339,14 @@ internal fun LazyListScope.offlineSearchItems(
                 format = song.format,
                 swipeMediaItem = song.toMediaItem(),
                 onClick = {
+                    ActionLog.tap(ActionId.OFFSEARCH_SONG)
                     if (song.id == ui.playingId) {
                         ui.togglePlayPause()
                     } else {
                         ui.playSongs(ui.queueTitle, result.songs, result.songs.indexOfFirst { it.id == song.id }, false)
                     }
                 },
-                onLongClick = { ui.longPressSongMenu(song) },
+                onLongClick = { ActionLog.tap(ActionId.OFFSEARCH_SONG_MENU); ui.longPressSongMenu(song) },
                 onMenuClick = { ui.showSongMenu(song) },
                 modifier = Modifier.padding(horizontal = AuraSpacing.Gutter),
             )
@@ -355,7 +358,7 @@ internal fun LazyListScope.offlineSearchItems(
             item(key = "offs_h_albums", contentType = "offs_header") {
                 AuraSectionHeader(
                     title = stringResource(R.string.filter_albums),
-                    onClick = { onFilter(OfflineSearchFilter.ALBUM) },
+                    onClick = { ActionLog.tap(ActionId.OFFSEARCH_ALBUMS_HEADER); onFilter(OfflineSearchFilter.ALBUM) },
                 )
             }
         }
@@ -365,6 +368,7 @@ internal fun LazyListScope.offlineSearchItems(
                 collection = collection,
                 kind = AuraContentKind.Album,
                 onClick = {
+                    ActionLog.tap(ActionId.OFFSEARCH_ALBUM)
                     ui.onDismiss()
                     ui.navController.navigateOnce("album/${collection.id}")
                 },
@@ -377,7 +381,7 @@ internal fun LazyListScope.offlineSearchItems(
             item(key = "offs_h_playlists", contentType = "offs_header") {
                 AuraSectionHeader(
                     title = stringResource(R.string.offline_search_playlists),
-                    onClick = { onFilter(OfflineSearchFilter.PLAYLIST) },
+                    onClick = { ActionLog.tap(ActionId.OFFSEARCH_PLAYLISTS_HEADER); onFilter(OfflineSearchFilter.PLAYLIST) },
                 )
             }
         }
@@ -387,6 +391,7 @@ internal fun LazyListScope.offlineSearchItems(
                 collection = collection,
                 kind = AuraContentKind.Playlist,
                 onClick = {
+                    ActionLog.tap(ActionId.OFFSEARCH_PLAYLIST)
                     ui.onDismiss()
                     ui.navController.navigateOnce("local_playlist/${collection.id}")
                 },
@@ -399,7 +404,7 @@ internal fun LazyListScope.offlineSearchItems(
             item(key = "offs_h_artists", contentType = "offs_header") {
                 AuraSectionHeader(
                     title = stringResource(R.string.filter_artists),
-                    onClick = { onFilter(OfflineSearchFilter.ARTIST) },
+                    onClick = { ActionLog.tap(ActionId.OFFSEARCH_ARTISTS_HEADER); onFilter(OfflineSearchFilter.ARTIST) },
                 )
             }
         }
@@ -414,7 +419,7 @@ internal fun LazyListScope.offlineSearchItems(
                 artworkShape = visual.shape,
                 artworkSize = visual.rowWidth,
                 typeChip = visual.label,
-                onClick = { onOpenArtist(artist) },
+                onClick = { ActionLog.tap(ActionId.OFFSEARCH_ARTIST); onOpenArtist(artist) },
                 modifier = Modifier.padding(horizontal = AuraSpacing.Gutter),
             )
         }
@@ -463,7 +468,7 @@ internal fun LazyListScope.offlineArtistItems(
             AuraIconButton(
                 icon = AuraIcons.ChevronRight,
                 contentDescription = stringResource(R.string.dismiss),
-                onClick = onBack,
+                onClick = { ActionLog.tap(ActionId.OFFSEARCH_ARTIST_BACK); onBack() },
                 size = 18.dp,
                 tint = AuraPalette.OnGroundMuted,
                 modifier = Modifier.graphicsLayer { rotationZ = 180f },
@@ -487,14 +492,14 @@ internal fun LazyListScope.offlineArtistItems(
             AuraIconButton(
                 icon = AuraIcons.Shuffle,
                 contentDescription = stringResource(R.string.shuffle),
-                onClick = { ui.playSongs(artist.name, songs, 0, true) },
+                onClick = { ActionLog.tap(ActionId.OFFSEARCH_ARTIST_SHUFFLE); ui.playSongs(artist.name, songs, 0, true) },
                 size = 20.dp,
                 tint = AuraPalette.OnGroundMuted,
             )
             AuraIconButton(
                 icon = AuraIcons.Play,
                 contentDescription = stringResource(R.string.play_all),
-                onClick = { ui.playSongs(artist.name, songs, 0, false) },
+                onClick = { ActionLog.tap(ActionId.OFFSEARCH_ARTIST_PLAY_ALL); ui.playSongs(artist.name, songs, 0, false) },
                 size = 20.dp,
                 tint = AuraPalette.Teal,
             )
@@ -515,9 +520,10 @@ internal fun LazyListScope.offlineArtistItems(
             format = song.format,
             swipeMediaItem = song.toMediaItem(),
             onClick = {
+                ActionLog.tap(ActionId.OFFSEARCH_ARTIST_SONG)
                 if (song.id == ui.playingId) ui.togglePlayPause() else ui.playSongs(artist.name, songs, index, false)
             },
-            onLongClick = { ui.longPressSongMenu(song) },
+            onLongClick = { ActionLog.tap(ActionId.OFFSEARCH_ARTIST_SONG_MENU); ui.longPressSongMenu(song) },
             onMenuClick = { ui.showSongMenu(song) },
             modifier = Modifier.padding(horizontal = AuraSpacing.Gutter),
         )

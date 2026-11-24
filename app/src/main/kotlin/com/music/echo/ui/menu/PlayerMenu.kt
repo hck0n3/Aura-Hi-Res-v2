@@ -111,6 +111,8 @@ import kotlinx.coroutines.launch
 import kotlin.math.log2
 import kotlin.math.pow
 import kotlin.math.round
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun PlayerMenu(
@@ -946,6 +948,7 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
         dismissButton = {
             TextButton(
                 onClick = {
+                    ActionLog.tap(ActionId.TEMPO_RESET)
                     tempo = 1f
                     transposeValue = 0
                     updatePlaybackParameters()
@@ -956,7 +959,7 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(
-                onClick = onDismiss,
+                onClick = { ActionLog.tap(ActionId.TEMPO_CLOSE); onDismiss() },
             ) {
                 Text(stringResource(android.R.string.ok))
             }
@@ -1094,7 +1097,7 @@ fun ListenTogetherDialog(
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     Button(
-                        onClick = onDismiss,
+                        onClick = { ActionLog.tap(ActionId.LTDLG_NOT_CONFIGURED_CLOSE); onDismiss() },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
                         )
@@ -1186,6 +1189,7 @@ fun ListenTogetherDialog(
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp)
                         .clickable {
+                            ActionLog.tap(ActionId.LTDLG_KICK)
                             selectedUserForMenu?.let {
                                 listenTogetherManager.kickUser(it, "Removed by host")
                             }
@@ -1232,6 +1236,7 @@ fun ListenTogetherDialog(
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp)
                         .clickable {
+                            ActionLog.tap(ActionId.LTDLG_BLOCK)
                             selectedUserForMenu?.let { userId ->
                                 selectedUsername?.let { username ->
                                     listenTogetherManager.blockUser(username)
@@ -1281,6 +1286,7 @@ fun ListenTogetherDialog(
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp)
                         .clickable {
+                            ActionLog.tap(ActionId.LTDLG_TRANSFER_HOST)
                             selectedUserForMenu?.let {
                                 listenTogetherManager.transferHost(it)
                             }
@@ -1482,7 +1488,7 @@ fun ListenTogetherDialog(
                     ) {
                         if (connectionState is ConnectionState.Disconnected || connectionState is ConnectionState.Failed) {
                             Button(
-                                onClick = { listenTogetherManager.connect() },
+                                onClick = { ActionLog.tap(ActionId.LTDLG_CONNECT); listenTogetherManager.connect() },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary
@@ -1492,7 +1498,7 @@ fun ListenTogetherDialog(
                             }
                         } else {
                             Button(
-                                onClick = { listenTogetherManager.disconnect() },
+                                onClick = { ActionLog.tap(ActionId.LTDLG_DISCONNECT); listenTogetherManager.disconnect() },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary
@@ -1505,7 +1511,7 @@ fun ListenTogetherDialog(
                             // socket, so this closes it WITHOUT clearing the session token and
                             // lets connect() replay it — the room resumes instead of being lost.
                             FilledTonalButton(
-                                onClick = { listenTogetherManager.forceReconnect() },
+                                onClick = { ActionLog.tap(ActionId.LTDLG_RECONNECT); listenTogetherManager.forceReconnect() },
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text(stringResource(R.string.reconnect), fontWeight = FontWeight.SemiBold)
@@ -1578,6 +1584,7 @@ fun ListenTogetherDialog(
                                 ) {
                                     FilledTonalButton(
                                         onClick = {
+                                            ActionLog.tap(ActionId.LTDLG_COPY_LINK)
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                             // Copy the BARE deep link, not the friendly invite
                                             // sentence: this button is labelled "copy link", so the
@@ -1603,6 +1610,7 @@ fun ListenTogetherDialog(
 
                                     FilledTonalButton(
                                         onClick = {
+                                            ActionLog.tap(ActionId.LTDLG_COPY_CODE)
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                             val clip = android.content.ClipData.newPlainText("Room Code", room.roomCode)
                                             clipboard.setPrimaryClip(clip)
@@ -1656,6 +1664,7 @@ fun ListenTogetherDialog(
                                         .clickable(
                                             enabled = isHost && user.userId != selfUserId,
                                             onClick = {
+                                                ActionLog.tap(ActionId.LTDLG_MEMBER)
                                                 selectedUserForMenu = user.userId
                                                 selectedUsername = user.username
                                             }
@@ -1820,7 +1829,7 @@ fun ListenTogetherDialog(
                                 
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     IconButton(
-                                        onClick = { listenTogetherManager.approveJoin(request.userId) }
+                                        onClick = { ActionLog.tap(ActionId.LTDLG_REQUEST_APPROVE); listenTogetherManager.approveJoin(request.userId) }
                                     ) {
                                         Icon(
                                             painter = painterResource(R.drawable.check),
@@ -1830,7 +1839,7 @@ fun ListenTogetherDialog(
                                         )
                                     }
                                     IconButton(
-                                        onClick = { listenTogetherManager.rejectJoin(request.userId, "Rejected by host") }
+                                        onClick = { ActionLog.tap(ActionId.LTDLG_REQUEST_REJECT); listenTogetherManager.rejectJoin(request.userId, "Rejected by host") }
                                     ) {
                                         Icon(
                                             painter = painterResource(R.drawable.close),
@@ -1906,7 +1915,7 @@ fun ListenTogetherDialog(
 
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     IconButton(
-                                        onClick = { listenTogetherManager.approveSuggestion(suggestion.suggestionId) }
+                                        onClick = { ActionLog.tap(ActionId.LTDLG_SUGGESTION_APPROVE); listenTogetherManager.approveSuggestion(suggestion.suggestionId) }
                                     ) {
                                         Icon(
                                             painter = painterResource(R.drawable.check),
@@ -1916,7 +1925,7 @@ fun ListenTogetherDialog(
                                         )
                                     }
                                     IconButton(
-                                        onClick = { listenTogetherManager.rejectSuggestion(suggestion.suggestionId, "Rejected by host") }
+                                        onClick = { ActionLog.tap(ActionId.LTDLG_SUGGESTION_REJECT); listenTogetherManager.rejectSuggestion(suggestion.suggestionId, "Rejected by host") }
                                     ) {
                                         Icon(
                                             painter = painterResource(R.drawable.close),
@@ -1941,7 +1950,7 @@ fun ListenTogetherDialog(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         TextButton(
-                            onClick = onDismiss,
+                            onClick = { ActionLog.tap(ActionId.LTDLG_ROOM_CANCEL); onDismiss() },
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
@@ -1951,6 +1960,7 @@ fun ListenTogetherDialog(
                         }
                         Button(
                             onClick = {
+                                ActionLog.tap(ActionId.LTDLG_LEAVE)
                                 listenTogetherManager.leaveRoom()
                                 onDismiss()
                             },
@@ -2006,7 +2016,7 @@ fun ListenTogetherDialog(
                             },
                             trailingIcon = {
                                 if (usernameInput.isNotBlank()) {
-                                    IconButton(onClick = { usernameInput = "" }) {
+                                    IconButton(onClick = { ActionLog.tap(ActionId.LTDLG_NAME_CLEAR); usernameInput = "" }) {
                                         Icon(painterResource(R.drawable.close), null)
                                     }
                                 }
@@ -2140,6 +2150,7 @@ fun ListenTogetherDialog(
                         
                         Button(
                             onClick = {
+                                ActionLog.tap(ActionId.LTDLG_CREATE)
                                 val username = usernameInput.takeIf { it.isNotBlank() } ?: savedUsername
                                 val finalUsername = username.trim()
                                 if (finalUsername.isNotBlank()) {
@@ -2173,6 +2184,7 @@ fun ListenTogetherDialog(
                         if (iad1tya.echo.music.listentogether.RoomCodes.isComplete(roomCodeInput, auraRoomsMenu)) {
                             Button(
                                 onClick = {
+                                    ActionLog.tap(ActionId.LTDLG_JOIN)
                                     val username = usernameInput.takeIf { it.isNotBlank() } ?: savedUsername
                                     val finalUsername = username.trim()
                                     if (finalUsername.isNotBlank()) {
@@ -2209,7 +2221,7 @@ fun ListenTogetherDialog(
                     }
                     
                     TextButton(
-                        onClick = onDismiss,
+                        onClick = { ActionLog.tap(ActionId.LTDLG_JOIN_CANCEL); onDismiss() },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(

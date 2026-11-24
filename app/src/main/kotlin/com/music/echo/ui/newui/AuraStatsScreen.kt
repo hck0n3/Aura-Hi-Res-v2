@@ -70,6 +70,8 @@ import iad1tya.echo.music.utils.joinByBullet
 import iad1tya.echo.music.utils.makeTimeString
 import iad1tya.echo.music.viewmodels.StatsViewModel
 import java.time.LocalDateTime
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Estadísticas — "Interfaz nueva"
@@ -180,7 +182,7 @@ fun AuraStatsScreen(
                         AuraIconButton(
                             icon = AuraIcons.History,
                             contentDescription = stringResource(R.string.activity_history),
-                            onClick = { showHistorySheet = true },
+                            onClick = { ActionLog.tap(ActionId.STATS_HISTORY); showHistorySheet = true },
                             size = 20.dp,
                             tint = AuraPalette.OnGroundMuted,
                         )
@@ -233,6 +235,7 @@ fun AuraStatsScreen(
                                     isActive = song.id == mediaMetadata?.id,
                                     isPlaying = isPlaying,
                                     onClick = {
+                                        ActionLog.tap(ActionId.STATS_SONG)
                                         if (song.id == mediaMetadata?.id) {
                                             playerConnection.togglePlayPause()
                                         } else {
@@ -286,8 +289,9 @@ fun AuraStatsScreen(
                                     width = 128.dp,
                                     // Artists are round everywhere in this app, classic and new.
                                     shape = CircleShape,
-                                    onClick = { navController.navigateOnce("artist/${artist.id}") },
+                                    onClick = { ActionLog.tap(ActionId.STATS_ARTIST); navController.navigateOnce("artist/${artist.id}") },
                                     onLongClick = {
+                                        ActionLog.tap(ActionId.STATS_ARTIST_MENU)
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         menuState.show {
                                             ArtistMenu(
@@ -326,8 +330,9 @@ fun AuraStatsScreen(
                                     width = 128.dp,
                                     isActive = album.id == mediaMetadata?.album?.id,
                                     isPlaying = isPlaying,
-                                    onClick = { navController.navigateOnce("album/${album.id}") },
+                                    onClick = { ActionLog.tap(ActionId.STATS_ALBUM); navController.navigateOnce("album/${album.id}") },
                                     onLongClick = {
+                                        ActionLog.tap(ActionId.STATS_ALBUM_MENU)
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         menuState.show {
                                             AlbumMenu(
@@ -362,6 +367,7 @@ fun AuraStatsScreen(
                 AuraStatsShuffleButton(
                     contentDescription = shuffleQueueTitle,
                     onClick = {
+                        ActionLog.tap(ActionId.STATS_SHUFFLE)
                         playerConnection.playQueue(
                             ListQueue(
                                 title = context.getString(R.string.most_played_songs),
@@ -439,7 +445,7 @@ private fun AuraStatsRangeSelector(
                     .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
                     .tvFocusable(isTvOrCar, AuraShapes.Pill, scaleFocused = 1f)
                     .auraClickableInternal(
-                        onClick = { expanded = true },
+                        onClick = { ActionLog.tap(ActionId.STATS_PERIOD_OPEN); expanded = true },
                         contentDescription = stringResource(R.string.cd_change_period_type),
                     )
                     .padding(horizontal = 14.dp, vertical = 9.dp),
@@ -469,6 +475,7 @@ private fun AuraStatsRangeSelector(
                     DropdownMenuItem(
                         text = { Text(label, color = AuraPalette.OnGround) },
                         onClick = {
+                            ActionLog.tap(ActionId.STATS_PERIOD_PICK)
                             onOptionChange(mode)
                             expanded = false
                         },
@@ -492,7 +499,7 @@ private fun AuraStatsRangeSelector(
                 AuraChip(
                     text = label,
                     selected = value == selectedIndex,
-                    onClick = { onIndexChange(value) },
+                    onClick = { ActionLog.tap(ActionId.STATS_PERIOD_CHIP); onIndexChange(value) },
                     modifier = Modifier
                         .tvFocusable(isTvOrCar, AuraShapes.Pill, scaleFocused = 1f)
                         .animateItem(),

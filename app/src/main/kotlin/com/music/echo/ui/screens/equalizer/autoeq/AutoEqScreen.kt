@@ -62,6 +62,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.content.Context
 import android.widget.Toast
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Auto-EQ: search the AutoEq (jaakkopasanen) catalog for your headphone model and apply its profile
@@ -222,7 +224,7 @@ fun AutoEqScreen(navController: NavController) {
             )
             iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 enabled = !refreshing && !loading,
-                onClick = { scope.launch { load(forceRefresh = true) } },
+                onClick = { ActionLog.tap(ActionId.AUTOEQ_REFRESH); scope.launch { load(forceRefresh = true) } },
             ) {
                 Text(if (refreshing) "Actualizando…" else "Actualizar base de datos")
             }
@@ -258,7 +260,7 @@ fun AutoEqScreen(navController: NavController) {
                             )
                         },
                         trailingContent = {
-                            IconButton(onClick = { toggleFav(entry) }) {
+                            IconButton(onClick = { ActionLog.tap(ActionId.AUTOEQ_FAVORITE); toggleFav(entry) }) {
                                 Icon(
                                     imageVector = if (isFav) Icons.Filled.Star else Icons.Outlined.StarBorder,
                                     contentDescription = if (isFav) "Quitar de favoritos" else "Añadir a favoritos",
@@ -267,6 +269,7 @@ fun AutoEqScreen(navController: NavController) {
                             }
                         },
                         modifier = Modifier.clickable(enabled = eqEnabled) {
+                            ActionLog.tap(ActionId.AUTOEQ_APPLY)
                             applyingName = entry.name
                             scope.launch {
                                 val profile = repo.fetchProfile(entry)

@@ -366,6 +366,7 @@ fun AuraHomeScreen(
         else playerConnection.playQueue(YouTubeQueue.radio(song.toMediaMetadata()))
     }
     val songMenu: (Song) -> Unit = { song ->
+        ActionLog.tap(ActionId.HOME_SONG_MENU)
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         menuState.show {
             SongMenu(originalSong = song, navController = navController, onDismiss = menuState::dismiss)
@@ -397,6 +398,7 @@ fun AuraHomeScreen(
         }
     }
     val ytItemMenu: (YTItem) -> Unit = { item ->
+        ActionLog.tap(ActionId.HOME_ITEM_MENU)
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         menuState.show {
             when (item) {
@@ -436,6 +438,7 @@ fun AuraHomeScreen(
     val tasteMixFallback by viewModel.tasteMixFallback.collectAsState()
     var surpriseJob by remember { mutableStateOf<Job?>(null) }
     val onSurprise: () -> Unit = {
+        ActionLog.tap(ActionId.HOME_QUICK_SURPRISE)
         val running = surpriseJob
         if (running != null && running.isActive) {
             running.cancel()
@@ -603,7 +606,7 @@ fun AuraHomeScreen(
                                 AuraChip(
                                     text = chip.title,
                                     selected = selectedChip == chip,
-                                    onClick = { viewModel.toggleChip(chip) },
+                                    onClick = { ActionLog.tap(ActionId.HOME_CHIP); viewModel.toggleChip(chip) },
                                 )
                             }
                         }
@@ -674,6 +677,7 @@ fun AuraHomeScreen(
                                             explicit = song.explicit,
                                             playedInShuffle = (dbSong?.song?.totalPlayTime ?: 0L) > 0L,
                                             onClick = {
+                                                ActionLog.tap(ActionId.HOME_SPEED_DIAL_SONG)
                                                 if (song.id == mediaMetadata?.id) {
                                                     playerConnection.togglePlayPause()
                                                 } else {
@@ -747,6 +751,7 @@ fun AuraHomeScreen(
                                         ratio = visual.ratio,
                                         shape = visual.shape,
                                         onClick = {
+                                            ActionLog.tap(ActionId.HOME_PODCAST)
                                             navController.navigate(
                                                 "podcasts?feedUrl=" +
                                                     java.net.URLEncoder.encode(show.feedUrl, "UTF-8"),
@@ -796,7 +801,7 @@ fun AuraHomeScreen(
                         Column(Modifier.animateItem()) {
                             AuraSectionHeader(
                                 title = topTitle,
-                                onClick = { navController.navigate("top_playlist/$topSize") },
+                                onClick = { ActionLog.tap(ActionId.HOME_DAILY_TOP); navController.navigate("top_playlist/$topSize") },
                                 onPlayAll = { playAllSongs(topTitle, all) },
                             )
                             AuraShelf {
@@ -807,6 +812,7 @@ fun AuraHomeScreen(
                                         isActive = song.id == mediaMetadata?.id,
                                         isPlaying = isPlaying,
                                         onClick = {
+                                            ActionLog.tap(ActionId.HOME_DAILY_TOP_SONG)
                                             val queue = all.distinctBy { it.id }
                                             playerConnection.playQueue(
                                                 ListQueue(
@@ -843,6 +849,7 @@ fun AuraHomeScreen(
                                         isActive = song.id == mediaMetadata?.id,
                                         isPlaying = isPlaying,
                                         onClick = {
+                                            ActionLog.tap(ActionId.HOME_MOMENT_SONG)
                                             playerConnection.playQueue(
                                                 ListQueue(
                                                     title = momentTitle,
@@ -971,6 +978,7 @@ fun AuraHomeScreen(
                                                 CommunityPlaylistCard(
                                                     item = item,
                                                     onClick = {
+                                                        ActionLog.tap(ActionId.HOME_COMMUNITY)
                                                         navController.navigate(
                                                             "online_playlist/${item.playlist.id.removePrefix("VL")}",
                                                         )
@@ -1143,7 +1151,7 @@ fun AuraHomeScreen(
                                         AuraSectionHeader(
                                             title = stringResource(R.string.your_youtube_playlists),
                                             label = accountName,
-                                            onClick = { navController.navigate("account") },
+                                            onClick = { ActionLog.tap(ActionId.HOME_ACCOUNT_PLAYLISTS); navController.navigate("account") },
                                             // Row 349 (C2 decision 5): the account avatar next to its name,
                                             // as on the classic Home.
                                             leading = accountAvatarUrl?.let { url ->
@@ -1234,6 +1242,7 @@ fun AuraHomeScreen(
                                                 )
                                             },
                                             onClick = {
+                                                ActionLog.tap(ActionId.HOME_AI_RECS)
                                                 navController.navigate(
                                                     "local_playlist/${AutoRecoPlaylistWorker.PLAYLIST_ID}",
                                                 )
@@ -1467,6 +1476,7 @@ fun AuraHomeScreen(
                                                     explicit = song.explicit,
                                                     playedInShuffle = (dbSong?.song?.totalPlayTime ?: 0L) > 0L,
                                                     onClick = {
+                                                        ActionLog.tap(ActionId.HOME_VIDEO_SONG)
                                                         if (song.id == mediaMetadata?.id) {
                                                             playerConnection.togglePlayPause()
                                                         } else {
@@ -1503,7 +1513,7 @@ fun AuraHomeScreen(
                                     Column(Modifier.animateItem()) {
                                         AuraSectionHeader(
                                             title = stringResource(R.string.mood_and_genres),
-                                            onClick = { navController.navigate("mood_and_genres") },
+                                            onClick = { ActionLog.tap(ActionId.HOME_MOODS); navController.navigate("mood_and_genres") },
                                         )
                                         LazyRow(
                                             contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
@@ -1516,6 +1526,7 @@ fun AuraHomeScreen(
                                                 MoodAndGenresButton(
                                                     title = it.title,
                                                     onClick = {
+                                                        ActionLog.tap(ActionId.HOME_MOOD)
                                                         navController.navigate(
                                                             "youtube_browse/${it.endpoint.browseId}?params=${it.endpoint.params}",
                                                         )

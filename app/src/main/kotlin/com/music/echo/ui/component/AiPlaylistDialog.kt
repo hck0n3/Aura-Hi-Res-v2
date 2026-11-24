@@ -41,6 +41,8 @@ import iad1tya.echo.music.playlistimport.AiPlaylistGenerator
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AiPlaylistUiState
 import iad1tya.echo.music.viewmodels.AiPlaylistViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Dialog for the "Lista AI" feature: the user types an idea and picks how many songs; the AI builds
@@ -120,12 +122,13 @@ fun AiPlaylistDialog(
         title = { Text(stringResource(R.string.ai_playlist_title)) },
         buttons = {
             TextButton(
-                onClick = cancel,
+                onClick = { ActionLog.tap(ActionId.AIPL_CANCEL); cancel() },
             ) {
                 Text(stringResource(android.R.string.cancel))
             }
             TextButton(
                 onClick = {
+                    ActionLog.tap(ActionId.AIPL_GENERATE)
                     viewModel.generate(prompt.trim(), count, provider, apiKey, baseUrl, model)
                 },
                 enabled = !busy && prompt.isNotBlank(),
@@ -158,7 +161,7 @@ fun AiPlaylistDialog(
             listOf(10, 20, 30, 50).forEach { option ->
                 FilterChip(
                     selected = count == option,
-                    onClick = { count = option },
+                    onClick = { ActionLog.tap(ActionId.AIPL_COUNT); count = option },
                     enabled = !busy,
                     label = { Text(option.toString()) },
                 )
@@ -186,7 +189,7 @@ fun AiPlaylistDialog(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (showsSettingsAction(current.cause)) {
-                    TextButton(onClick = onOpenAiSettings) {
+                    TextButton(onClick = { ActionLog.tap(ActionId.AIPL_OPEN_SETTINGS); onOpenAiSettings() }) {
                         Text(stringResource(R.string.ai_playlist_open_ai_settings))
                     }
                 }

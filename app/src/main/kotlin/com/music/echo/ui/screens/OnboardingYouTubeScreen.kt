@@ -26,6 +26,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import iad1tya.echo.music.R
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Onboarding step 2 of migration (after Spotify): migrate YouTube Music — SEPARATE from Spotify.
@@ -50,12 +52,13 @@ fun OnboardingYouTubeScreen(
                 Button(
                     // Onboarding flag → the sync screen shows a "Comenzar a usar Aura" button so the user
                     // finishes from there without going back. Keep onboarding on the stack (no popUpTo).
-                    onClick = { navController.navigate("settings/ytm_sync?onboarding=true") },
+                    onClick = { ActionLog.tap(ActionId.ONBYT_SYNC); navController.navigate("settings/ytm_sync?onboarding=true") },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text("Sincronizar con tu cuenta de Google") }
                 Spacer(Modifier.height(8.dp))
                 iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     onClick = {
+                        ActionLog.tap(ActionId.ONBYT_START)
                         navController.navigate(Screens.Home.route) {
                             popUpTo("onboarding_artists") { inclusive = true }
                         }

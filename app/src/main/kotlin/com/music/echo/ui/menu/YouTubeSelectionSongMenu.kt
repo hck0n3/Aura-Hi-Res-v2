@@ -51,6 +51,8 @@ import iad1tya.echo.music.ui.component.Material3MenuGroup
 import iad1tya.echo.music.ui.component.Material3MenuItemData
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun YouTubeSelectionSongMenu(
@@ -180,6 +182,7 @@ fun YouTubeSelectionSongMenu(
             buttons = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.YTSELMENU_REMOVE_DOWNLOAD_CANCEL)
                         showRemoveDownloadDialog = false
                     },
                 ) {
@@ -188,6 +191,7 @@ fun YouTubeSelectionSongMenu(
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.YTSELMENU_REMOVE_DOWNLOAD_CONFIRM)
                         showRemoveDownloadDialog = false
                         songSelection.forEach { song ->
                             DownloadService.sendRemoveDownload(
@@ -220,6 +224,7 @@ fun YouTubeSelectionSongMenu(
                         icon = { Icon(painterResource(R.drawable.play), null) },
                         title = { Text(stringResource(R.string.play)) },
                         onClick = {
+                            ActionLog.tap(ActionId.YTSELMENU_PLAY)
                             playerConnection.playQueue(
                                 ListQueue(
                                     title = context.getString(R.string.queue_all_songs),
@@ -234,6 +239,7 @@ fun YouTubeSelectionSongMenu(
                         icon = { Icon(painterResource(R.drawable.shuffle), null) },
                         title = { Text(stringResource(R.string.shuffle)) },
                         onClick = {
+                            ActionLog.tap(ActionId.YTSELMENU_SHUFFLE)
                             playerConnection.playQueue(
                                 ListQueue(
                                     title = context.getString(R.string.queue_all_songs),
@@ -248,6 +254,7 @@ fun YouTubeSelectionSongMenu(
                         icon = { Icon(painterResource(R.drawable.playlist_play), null) },
                         title = { Text(stringResource(R.string.play_next)) },
                         onClick = {
+                            ActionLog.tap(ActionId.YTSELMENU_PLAY_NEXT)
                             playerConnection.playNext(songSelection.map { it.toMediaItem() })
                             confirmQueueEdit(context, playerConnection, R.string.play_next)
                             clearAction()
@@ -258,6 +265,7 @@ fun YouTubeSelectionSongMenu(
                         icon = { Icon(painterResource(R.drawable.queue_music), null) },
                         title = { Text(stringResource(R.string.add_to_queue)) },
                         onClick = {
+                            ActionLog.tap(ActionId.YTSELMENU_ADD_TO_QUEUE)
                             playerConnection.addToQueue(songSelection.map { it.toMediaItem() })
                             confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
                             clearAction()
@@ -268,6 +276,7 @@ fun YouTubeSelectionSongMenu(
                         icon = { Icon(painterResource(R.drawable.playlist_add), null) },
                         title = { Text(stringResource(R.string.add_to_playlist)) },
                         onClick = {
+                            ActionLog.tap(ActionId.YTSELMENU_ADD_TO_PLAYLIST)
                             showChoosePlaylistDialog = true
                         },
                     ),
@@ -288,6 +297,7 @@ fun YouTubeSelectionSongMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTSELMENU_REMOVE_FROM_LIBRARY)
                             if (allInLibrary) {
                                 database.query {
                                     songSelection.forEach { song ->
@@ -335,6 +345,7 @@ fun YouTubeSelectionSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTSELMENU_REMOVE_DOWNLOAD)
                                     showRemoveDownloadDialog = true
                                 }
                             )
@@ -349,6 +360,7 @@ fun YouTubeSelectionSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTSELMENU_CANCEL_DOWNLOAD)
                                     showRemoveDownloadDialog = true
                                 }
                             )
@@ -363,6 +375,7 @@ fun YouTubeSelectionSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.YTSELMENU_DOWNLOAD)
                                     songSelection.forEach { song ->
                                         val downloadRequest =
                                             DownloadRequest
@@ -400,6 +413,7 @@ fun YouTubeSelectionSongMenu(
                             )
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.YTSELMENU_DISLIKE_ALL)
                             database.transaction {
                                 songSelection.forEach { song ->
                                     val metadata = song.toMediaMetadata()

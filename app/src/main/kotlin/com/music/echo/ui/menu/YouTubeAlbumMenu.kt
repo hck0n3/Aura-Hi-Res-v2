@@ -188,7 +188,7 @@ fun YouTubeAlbumMenu(
                             modifier = Modifier.size(ListThumbnailSize),
                         )
                     },
-                    modifier = Modifier.clickable { showErrorPlaylistAddDialog = false },
+                    modifier = Modifier.clickable { ActionLog.tap(ActionId.YTALBUMMENU_PLAYLIST_ERROR_CLOSE); showErrorPlaylistAddDialog = false },
                 )
             }
 
@@ -215,6 +215,7 @@ fun YouTubeAlbumMenu(
                     modifier = Modifier
                         .height(ListItemHeight)
                         .clickable {
+                            ActionLog.tap(ActionId.YTALBUMMENU_ARTIST_PICK)
                             if (artist.id != null) {
                                 navController.navigate("artist/${artist.id}")
                             } else {
@@ -231,6 +232,7 @@ fun YouTubeAlbumMenu(
                             .fillParentMaxWidth()
                             .height(ListItemHeight)
                             .clickable {
+                                ActionLog.tap(ActionId.YTALBUMMENU_ARTIST_PICK_DIALOG)
                                 showSelectArtistDialog = false
                                 onDismiss()
                                 if (artist.id != null) {
@@ -263,6 +265,7 @@ fun YouTubeAlbumMenu(
             MenuLikeButton(
                 liked = album?.album?.bookmarkedAt != null,
                 onClick = {
+                    ActionLog.tap(ActionId.YTALBUMMENU_LIKE)
                     database.query {
                         album?.album?.toggleLike()?.let(::update)
                     }

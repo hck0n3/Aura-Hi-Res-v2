@@ -37,6 +37,8 @@ import iad1tya.echo.music.constants.OnboardingGenresKey
 import iad1tya.echo.music.ui.screens.Screens
 import iad1tya.echo.music.utils.dataStore
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 private val GENRES = listOf(
     "Pop", "Rock", "Hip-Hop / Rap", "R&B", "Electrónica", "Reggaetón", "Latina",
@@ -81,13 +83,13 @@ fun OnboardingGenresScreen(
         bottomBar = {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
                 Button(
-                    onClick = { persistAndContinue() },
+                    onClick = { ActionLog.tap(ActionId.ONBGEN_CONTINUE); persistAndContinue() },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) {
                     Text(if (selected.isEmpty()) "Continuar" else "Continuar (${selected.size})")
                 }
                 TextButton(
-                    onClick = { goSpotifyStep() },
+                    onClick = { ActionLog.tap(ActionId.ONBGEN_SKIP); goSpotifyStep() },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Omitir") }
             }
@@ -105,6 +107,7 @@ fun OnboardingGenresScreen(
                 FilterChip(
                     selected = genre in selected,
                     onClick = {
+                        ActionLog.tap(ActionId.ONBGEN_GENRE)
                         selected = if (genre in selected) selected - genre else selected + genre
                     },
                     label = { Text(genre) },

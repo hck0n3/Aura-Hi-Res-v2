@@ -441,7 +441,7 @@ fun ListenTogetherScreen(
             title = { Text(stringResource(R.string.listen_together)) },
             navigationIcon = {
                 IconButton(
-                    onClick = navController::navigateUp,
+                    onClick = { ActionLog.tap(ActionId.LT_BACK); navController.navigateUp() },
                     onLongClick = null
                 ) {
                     Icon(
@@ -1356,7 +1356,7 @@ private fun UserActionDialog(
             }
         },
         buttons = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { ActionLog.tap(ActionId.LT_MEMBER_SHEET_CANCEL); onDismiss() }) {
                 Text(stringResource(android.R.string.cancel))
             }
         }

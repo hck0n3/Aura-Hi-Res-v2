@@ -47,6 +47,8 @@ import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AccountSettingsViewModel
 import iad1tya.echo.music.viewmodels.HomeViewModel
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * "Cuentas": one card per connectable music service (YouTube Music + Spotify + Last.fm + ListenBrainz).
@@ -124,7 +126,7 @@ fun AccountsScreen(
                 title = { Text("Cuentas") },
                 navigationIcon = {
                     IconButton(
-                        onClick = navController::navigateUp,
+                        onClick = { ActionLog.tap(ActionId.ACCOUNTS_BACK); navController.navigateUp() },
                         onLongClick = null
                     ) {
                         Icon(
@@ -183,6 +185,7 @@ fun AccountsScreen(
                         trailingContent = {
                             iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = {
+                                    ActionLog.tap(ActionId.ACCOUNTS_YT_LOGOUT)
                                     if (ytLoggedIn) showYtLogoutDialog = true
                                     else navController.navigate("login")
                                 },
@@ -195,6 +198,7 @@ fun AccountsScreen(
                             }
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.ACCOUNTS_YT_ACCOUNT)
                             if (ytLoggedIn) navController.navigate("settings/ytm_sync")
                             else navController.navigate("login")
                         }
@@ -249,6 +253,7 @@ fun AccountsScreen(
                         trailingContent = {
                             iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = {
+                                    ActionLog.tap(ActionId.ACCOUNTS_SPOTIFY_LOGOUT)
                                     if (spotifyLoggedIn) showSpotifyLogoutDialog = true
                                     else navController.navigate("settings/spotify_import")
                                 },
@@ -261,6 +266,7 @@ fun AccountsScreen(
                             }
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.ACCOUNTS_SPOTIFY_ACCOUNT)
                             navController.navigate("settings/spotify_import")
                         }
                     )
@@ -290,6 +296,7 @@ fun AccountsScreen(
                         trailingContent = {
                             iad1tya.echo.music.ui.component.AuraOutlinedButton(
                                 onClick = {
+                                    ActionLog.tap(ActionId.ACCOUNTS_LASTFM_LOGOUT)
                                     if (lastFmLoggedIn) showLastFmLogoutDialog = true
                                     else navController.navigate("settings/lastfm")
                                 },
@@ -302,6 +309,7 @@ fun AccountsScreen(
                             }
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.ACCOUNTS_LASTFM_ACCOUNT)
                             navController.navigate("settings/lastfm")
                         }
                     )
@@ -337,7 +345,7 @@ fun AccountsScreen(
                         },
                         trailingContent = {
                             iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                                onClick = { navController.navigate("settings/lastfm") },
+                                onClick = { ActionLog.tap(ActionId.ACCOUNTS_LISTENBRAINZ_CONNECT); navController.navigate("settings/lastfm") },
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
                                     contentColor = MaterialTheme.colorScheme.onSurface
@@ -347,6 +355,7 @@ fun AccountsScreen(
                             }
                         },
                         onClick = {
+                            ActionLog.tap(ActionId.ACCOUNTS_LISTENBRAINZ_ACCOUNT)
                             navController.navigate("settings/lastfm")
                         }
                     )

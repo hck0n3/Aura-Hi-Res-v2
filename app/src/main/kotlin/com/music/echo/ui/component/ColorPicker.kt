@@ -47,6 +47,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.R
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Pure HSV/hex color conversions used by [ColorPickerDialog].
@@ -188,6 +190,7 @@ fun ColorPickerDialog(
             if (defaultColor != null || onReset != null) {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.COLORPICK_RESET)
                         if (onReset != null) {
                             onReset()
                         } else {
@@ -199,10 +202,10 @@ fun ColorPickerDialog(
                 }
                 Spacer(Modifier.weight(1f))
             }
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { ActionLog.tap(ActionId.COLORPICK_CANCEL); onDismiss() }) {
                 Text(stringResource(android.R.string.cancel))
             }
-            TextButton(onClick = { onConfirm(selectedColor) }) {
+            TextButton(onClick = { ActionLog.tap(ActionId.COLORPICK_CONFIRM); onConfirm(selectedColor) }) {
                 Text(stringResource(android.R.string.ok))
             }
         },

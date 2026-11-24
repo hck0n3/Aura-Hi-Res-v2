@@ -69,6 +69,8 @@ import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.ListenTogetherViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Listen Together settings: blocked users, username and auto-approve join requests (host convenience, applied by the session
@@ -117,11 +119,11 @@ fun ListenTogetherSettings(
             icon = { Icon(painterResource(R.drawable.person), contentDescription = null) },
             title = { Text(stringResource(R.string.listen_together_username)) },
             buttons = {
-                TextButton(onClick = { username = ""; showUsernameDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.LTSET_USERNAME_RESET); username = ""; showUsernameDialog = false }) {
                     Text(stringResource(R.string.reset))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = { username = tempUsername.trim(); showUsernameDialog = false }) {
+                Button(onClick = { ActionLog.tap(ActionId.LTSET_USERNAME_SAVE); username = tempUsername.trim(); showUsernameDialog = false }) {
                     Text(stringResource(android.R.string.ok))
                 }
             }
@@ -135,7 +137,7 @@ fun ListenTogetherSettings(
                 },
                 trailingIcon = {
                     if (tempUsername.isNotBlank()) {
-                        IconButton(onClick = { tempUsername = "" }, onLongClick = null) {
+                        IconButton(onClick = { ActionLog.tap(ActionId.LTSET_USERNAME_CLEAR); tempUsername = "" }, onLongClick = null) {
                             Icon(painterResource(R.drawable.close), contentDescription = null)
                         }
                     }
@@ -246,7 +248,7 @@ fun ListenTogetherSettings(
             title = { Text(stringResource(R.string.listen_together)) },
             navigationIcon = {
                 IconButton(
-                    onClick = navController::navigateUp,
+                    onClick = { ActionLog.tap(ActionId.LTSET_BACK); navController.navigateUp() },
                     onLongClick = null,
                 ) {
                     Icon(
@@ -283,7 +285,7 @@ fun BlockedUsersDialog(
         icon = { Icon(painterResource(R.drawable.person), contentDescription = null) },
         title = { Text(stringResource(R.string.listen_together_blocked_users)) },
         buttons = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { ActionLog.tap(ActionId.LTSET_BLOCKED_CLOSE); onDismiss() }) {
                 Text(stringResource(android.R.string.ok))
             }
         }
@@ -313,7 +315,7 @@ fun BlockedUsersDialog(
                             style = if (skin.enabled) AuraType.RowTitle else MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(onClick = { onUnblock(name) }) {
+                        TextButton(onClick = { ActionLog.tap(ActionId.LTSET_UNBLOCK); onUnblock(name) }) {
                             Text(stringResource(R.string.listen_together_unblock))
                         }
                     }

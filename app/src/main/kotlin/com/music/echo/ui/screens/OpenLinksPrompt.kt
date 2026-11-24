@@ -15,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import iad1tya.echo.music.R
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * One-shot prompt to make Aura the app that opens music links (YouTube Music and the other platforms).
@@ -30,12 +32,13 @@ fun OpenLinksDefaultPrompt(onDone: () -> Unit) {
         text = { Text(stringResource(R.string.open_links_prompt_body)) },
         confirmButton = {
             TextButton(onClick = {
+                ActionLog.tap(ActionId.OPENLINKS_ALLOW)
                 openAppOpenByDefaultSettings(context)
                 onDone()
             }) { Text(stringResource(R.string.open_links_prompt_allow)) }
         },
         dismissButton = {
-            TextButton(onClick = onDone) { Text(stringResource(R.string.open_links_prompt_later)) }
+            TextButton(onClick = { ActionLog.tap(ActionId.OPENLINKS_LATER); onDone() }) { Text(stringResource(R.string.open_links_prompt_later)) }
         },
     )
 }

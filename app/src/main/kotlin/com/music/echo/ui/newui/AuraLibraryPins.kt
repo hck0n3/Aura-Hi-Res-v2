@@ -39,6 +39,8 @@ import iad1tya.echo.music.db.entities.Playlist
 import iad1tya.echo.music.utils.LibraryPin
 import iad1tya.echo.music.utils.LibraryPinKind
 import java.time.ZoneId
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Biblioteca ▸ «Fijados» — the pieces of the redesigned hub (owner 2026-10-20): the lower part of Biblioteca shows ONLY what
@@ -321,7 +323,7 @@ internal fun AuraPinsHeader(
                                 .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
                         },
                     )
-                    .auraClickableInternal(onClick = onToggleEdit, contentDescription = description)
+                    .auraClickableInternal(onClick = { ActionLog.tap(ActionId.LIBPIN_PINS_EDIT); onToggleEdit() }, contentDescription = description)
                     .padding(horizontal = 16.dp, vertical = 9.dp),
             ) {
                 if (editing) {
@@ -455,17 +457,17 @@ private fun AuraLibraryJumpChips(
         AuraChip(
             text = stringResource(R.string.library_pins_filter_playlists),
             selected = false,
-            onClick = { onOpenFilter(LibraryFilter.PLAYLISTS) },
+            onClick = { ActionLog.tap(ActionId.LIBPIN_JUMP_PLAYLISTS); onOpenFilter(LibraryFilter.PLAYLISTS) },
         )
         AuraChip(
             text = stringResource(R.string.filter_albums),
             selected = false,
-            onClick = { onOpenFilter(LibraryFilter.ALBUMS) },
+            onClick = { ActionLog.tap(ActionId.LIBPIN_JUMP_ALBUMS); onOpenFilter(LibraryFilter.ALBUMS) },
         )
         AuraChip(
             text = stringResource(R.string.filter_artists),
             selected = false,
-            onClick = { onOpenFilter(LibraryFilter.ARTISTS) },
+            onClick = { ActionLog.tap(ActionId.LIBPIN_JUMP_ARTISTS); onOpenFilter(LibraryFilter.ARTISTS) },
         )
     }
 }

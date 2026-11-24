@@ -155,7 +155,7 @@ fun DeviceSyncSettings(
         iad1tya.echo.music.ui.component.DefaultDialog(
             onDismiss = { showQr = false },
             title = { Text(stringResource(R.string.qr_pair_show)) },
-            buttons = { TextButton(onClick = { showQr = false }) { Text(stringResource(android.R.string.ok)) } },
+            buttons = { TextButton(onClick = { ActionLog.tap(ActionId.DEVSET_QR_CLOSE); showQr = false }) { Text(stringResource(android.R.string.ok)) } },
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 iad1tya.echo.music.ui.component.QrImage(text = SyncCode.pairLink(normalizedCode), size = 220.dp)
@@ -420,7 +420,7 @@ fun DeviceSyncSettings(
             title = { Text(stringResource(R.string.device_sync_title)) },
             navigationIcon = {
                 IconButton(
-                    onClick = navController::navigateUp,
+                    onClick = { ActionLog.tap(ActionId.DEVSET_BACK); navController.navigateUp() },
                     onLongClick = null,
                 ) {
                     Icon(
@@ -465,7 +465,7 @@ private fun switchItem(
             },
         )
     },
-    onClick = { onChange(!checked) },
+    onClick = { ActionLog.tap(ActionId.DEVSET_SWITCH_ROW); onChange(!checked) },
 )
 
 @Composable
@@ -484,7 +484,7 @@ private fun TextFieldDialog(
         onDismiss = onDismiss,
         title = { Text(title) },
         buttons = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+            TextButton(onClick = { ActionLog.tap(ActionId.DEVSET_TEXT_CANCEL); onDismiss() }) { Text(stringResource(android.R.string.cancel)) }
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = { onSave(text) }) { Text(stringResource(android.R.string.ok)) }
         },

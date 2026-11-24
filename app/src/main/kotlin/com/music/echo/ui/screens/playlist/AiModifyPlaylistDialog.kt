@@ -45,6 +45,8 @@ import iad1tya.echo.music.playlistimport.AiPlaylistPlaylistModifier
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AiModifyPlaylistUiState
 import iad1tya.echo.music.viewmodels.AiModifyPlaylistViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Dialog for "Editar con IA": the user describes a change in plain language, Aura's keyless AI
@@ -153,7 +155,7 @@ fun AiModifyPlaylistDialog(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         if (showsSettingsAction(current.cause)) {
-                            TextButton(onClick = onOpenAiSettings) {
+                            TextButton(onClick = { ActionLog.tap(ActionId.AIMOD_OPEN_SETTINGS); onOpenAiSettings() }) {
                                 Text(stringResource(R.string.ai_playlist_open_ai_settings))
                             }
                         }
@@ -168,6 +170,7 @@ fun AiModifyPlaylistDialog(
             if (plan == null) {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.AIMOD_REVIEW)
                         viewModel.plan(
                             playlistId = playlistId,
                             songs = songs,
@@ -184,7 +187,7 @@ fun AiModifyPlaylistDialog(
                 }
             } else {
                 TextButton(
-                    onClick = { viewModel.apply(plan) },
+                    onClick = { ActionLog.tap(ActionId.AIMOD_APPLY); viewModel.apply(plan) },
                     enabled = !busy,
                 ) {
                     Text(stringResource(R.string.ai_modify_playlist_apply))
@@ -192,7 +195,7 @@ fun AiModifyPlaylistDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = close, enabled = !busy) {
+            TextButton(onClick = { ActionLog.tap(ActionId.AIMOD_CANCEL); close() }, enabled = !busy) {
                 Text(stringResource(android.R.string.cancel))
             }
         },

@@ -402,7 +402,7 @@ private fun PaneBackBar(title: String, onBack: () -> Unit) {
         AuraIconButton(
             icon = AuraIcons.ChevronRight,
             contentDescription = stringResource(R.string.back_button_desc),
-            onClick = onBack,
+            onClick = { ActionLog.tap(ActionId.SEARCH_PANE_BACK); onBack() },
             tint = AuraPalette.OnGround,
             modifier = Modifier.graphicsLayer { rotationZ = 180f },
         )
@@ -662,6 +662,7 @@ private fun LazyListScope.paneTrackItems(
             downloadId = track.id,
             durationSeconds = track.durationSec,
             onClick = {
+                ActionLog.tap(ActionId.SEARCH_PANE_TRACK)
                 val ask = env.askTrack
                 when {
                     track.id == env.mediaId -> env.player.togglePlayPause()
@@ -705,7 +706,7 @@ private fun playTile(env: PaneEnv, active: Boolean, enabled: Boolean = true, onP
         label = label,
         primary = true,
         enabled = enabled,
-        onClick = { if (active) env.player.togglePlayPause() else onPlay() },
+        onClick = { ActionLog.tap(ActionId.SEARCH_PANE_PLAY); if (active) env.player.togglePlayPause() else onPlay() },
     )
 }
 
@@ -1184,6 +1185,7 @@ private fun PaneYtArtist(env: PaneEnv, pick: AuraSearchPick, item: ArtistItem, l
                                     },
                                     isPlaying = env.isPlaying,
                                     onClick = {
+                                        ActionLog.tap(ActionId.SEARCH_PANE_SHELF_ITEM)
                                         when (shelfItem) {
                                             is SongItem -> {
                                                 val songs = section.items.filterIsInstance<SongItem>()
