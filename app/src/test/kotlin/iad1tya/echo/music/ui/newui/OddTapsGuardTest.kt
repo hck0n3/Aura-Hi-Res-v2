@@ -77,4 +77,37 @@ class OddTapsGuardTest {
         assertEquals(-1, auraNavCellAt(10f, emptyList()))
         assertFalse(auraNavCellAt(250f, cells) == 1)
     }
+
+    // ── 825 · quick search keyboard ──────────────────────────────────────────────────────────────────────────────────
+
+    private val quick by lazy { main("ui/newui/AuraPlayerQuickSearch.kt") }
+
+    @Test
+    fun `the Search key runs the search and hides the keyboard`() {
+        val bar = main("ui/newui/AuraSearchScreen.kt").substringAfter("internal fun AuraSearchInputBar(")
+        assertTrue(bar.contains("keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),"))
+        assertTrue(bar.contains("keyboardActions = KeyboardActions(onSearch = { ActionLog.tap(ActionId.SEARCH_SUBMIT); onSubmit() }),"))
+        val submit = quick.substringAfter("onSubmit = {").substringBefore("onClear = {")
+        assertTrue(submit.contains("keyboardController?.hide()"))
+        assertTrue(submit.contains("onlineResultsViewModel.search(query.text)"))
+    }
+
+    @Test
+    fun `back hides the keyboard before it closes the quick search`() {
+        val close = quick.indexOf("BackHandler(onBack = { popBrowse() })")
+        val ime = quick.indexOf("BackHandler(enabled = imeVisible) { keyboardController?.hide() }")
+        assertTrue(close > 0)
+        assertTrue("composed after the close handler, so it wins while the keyboard is up", ime > close)
+        assertTrue(quick.contains("val imeVisible = WindowInsets.isImeVisible"))
+    }
+
+    @Test
+    fun `coming back to typed results does not bring the keyboard up over them`() {
+        val effect = quick.substringAfter("LaunchedEffect(browseTop) {").substringBefore("fun popBrowse()")
+        assertTrue(effect.contains("if (browseTop is QuickSearchBrowse.Search && query.text.isEmpty()) {"))
+        assertTrue(effect.contains("focusRequester.requestFocus()"))
+        // The other ways the keyboard gets out of the way of the results are still there.
+        assertTrue(quick.contains("val hideKeyboardOnTouch = Modifier.pointerInput(keyboardController) {"))
+        assertTrue(quick.contains(".collect { if (lazyListState.isScrollInProgress) keyboardController?.hide() }"))
+    }
 }
