@@ -525,6 +525,9 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
         if (cmd == CMD_QUEUE_OK) {
             queueAckWatch?.cancel()
             Timber.tag(TAG).i("DEVICE_SYNC queue order confirmed items=%d", args.int("n") ?: 0)
+            // The menu withholds its own confirmation (row 733) while another device is controlled: it comes now, once that device did it.
+            val label = if ((args["next"] as? JsonPrimitive)?.booleanOrNull == true) iad1tya.echo.music.R.string.play_next else iad1tya.echo.music.R.string.add_to_queue
+            onMain { android.widget.Toast.makeText(appContext, label, android.widget.Toast.LENGTH_SHORT).show() }
             return
         }
         Timber.tag(TAG).i("DEVICE_SYNC command %s", cmd)
@@ -611,7 +614,7 @@ class DeviceSyncEngine(private val service: MusicService) : DeviceSyncHub.Contro
                     val next = (args["next"] as? JsonPrimitive)?.booleanOrNull == true
                     onMain { if (next) service.playNext(items) else service.addToQueue(items) }
                     client.send(buildJsonObject {
-                        put("t", "cmd"); put("to", from); put("cmd", CMD_QUEUE_OK); put("args", buildJsonObject { put("n", items.size) })
+                        put("t", "cmd"); put("to", from); put("cmd", CMD_QUEUE_OK); put("args", buildJsonObject { put("n", items.size); put("next", next) })
                     })
                 }
             }

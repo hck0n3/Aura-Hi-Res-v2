@@ -1415,6 +1415,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // Row 809: the device sync's short notices (a queue order the controlled device did not take, a device that is not
+                // there, no connection) were emitted with nobody collecting them (row 775); they reach the same snackbar now.
+                LaunchedEffect(Unit) {
+                    iad1tya.echo.music.devicesync.DeviceSyncHub.notices.collect { text ->
+                        snackbarHostState.showSnackbar(message = text, duration = SnackbarDuration.Long)
+                    }
+                }
+
                 // "¿quieres volver a la cola anterior?" — the service noticed he left a playlist to go
                 // play an album (PreviousQueueRule) and snapshotted the queue he walked away from.
                 //

@@ -56,6 +56,19 @@ class RemoteQueueCommandGuardTest {
     }
 
     @Test
+    fun `the outcome of a remote queue order reaches the screen - the notices are collected and a confirmation shows the menu label`() {
+        val activity = read("app/src/main/kotlin/com/music/echo/MainActivity.kt")
+        val collector = activity.substringAfter("iad1tya.echo.music.devicesync.DeviceSyncHub.notices.collect { text ->", "")
+        assertTrue("nobody collected the notices: every failure of the order was silent", collector.isNotEmpty())
+        assertTrue(collector.substringBefore("}").contains("snackbarHostState.showSnackbar(message = text, duration = SnackbarDuration.Long)"))
+        val run = body(engine, "private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {")
+        val ack = run.substringAfter("if (cmd == CMD_QUEUE_OK) {").substringBefore("return")
+        assertTrue(ack.contains("iad1tya.echo.music.R.string.play_next else iad1tya.echo.music.R.string.add_to_queue"))
+        assertTrue(ack.contains("android.widget.Toast.makeText(appContext, label, android.widget.Toast.LENGTH_SHORT).show()"))
+        assertTrue("the answer says which edit it was", run.contains("put(\"n\", items.size); put(\"next\", next)"))
+    }
+
+    @Test
     fun `the receiver queues, confirms, and refuses when it is itself a remote or a Listen Together guest`() {
         val run = body(engine, "private suspend fun runCommand(from: String, cmd: String, args: JsonObject) {")
         val branch = run.substringAfter("CMD_QUEUE -> {")
