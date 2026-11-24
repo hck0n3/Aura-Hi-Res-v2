@@ -36,8 +36,21 @@ public class UpdateSurvivalTest {
         aura.openTab(aura.libraryLabel());
         // The '+' lives on the hub and on the Playlists chip; the chip is the explicit place to create one.
         AuraDevice.UiLabel chip = aura.appString("filter_playlists", "Playlists");
-        UiObject2 playlists = aura.device.findObject(By.text(AuraDevice.exactly(chip)));
-        if (playlists != null) playlists.click();
+        // Wait for the chip instead of one look: on a slow emulator it is not drawn yet, the test stays on the hub (pins
+        // only) and the new playlist never shows there (run 45445171939, attempt 1).
+        long chipDeadline = SystemClock.uptimeMillis() + 10_000;
+        while (SystemClock.uptimeMillis() < chipDeadline) {
+            UiObject2 playlists = aura.device.findObject(By.text(AuraDevice.exactly(chip)));
+            if (playlists != null) {
+                try {
+                    playlists.click();
+                    break;
+                } catch (StaleObjectException e) {
+                    // Recomposed between the lookup and the tap: look again.
+                }
+            }
+            SystemClock.sleep(250);
+        }
 
         AuraDevice.UiLabel create = aura.appString("create_playlist", "Create playlist");
         UiObject2 fab = aura.waitFor(() -> libraryPlusButton(aura, create), 15_000, "the Library '+' button");
@@ -46,7 +59,12 @@ public class UpdateSurvivalTest {
         // which only closed it (fifth run 45323606796). The menu item is the label that was NOT there before the tap.
         SystemClock.sleep(1_500);
         List<Rect> before = labelBounds(aura, create);
-        fab.click();
+        try {
+            fab.click();
+        } catch (StaleObjectException e) {
+            // The '+' recomposed during the pause (run 45445171939, attempt 2): find it again and tap that one.
+            aura.waitFor(() -> libraryPlusButton(aura, create), 10_000, "the Library '+' button").click();
+        }
         UiObject2 item = aura.waitFor(() -> newLabel(aura, create, before), 10_000, "the '" + create + "' menu item");
         item.click();
         UiObject2 field = aura.waitFor(
