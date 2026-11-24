@@ -24,6 +24,10 @@ class CrossfadeCurveLabelGuardTest {
         val settings = main("ui/screens/settings/PlayerSettings.kt")
         assertTrue(settings.contains("4 -> \"Cruce natural (una baja mientras la otra sube)\""))
         assertFalse(settings.contains("Ascenso (entra rápido, sale lento)"))
+        // Ajustes ▸ Acerca de names the default curve too: it must match the label the player settings show.
+        val about = main("ui/screens/settings/AboutScreen.kt")
+        assertTrue(about.contains("5 segundos con la curva Cruce natural,"))
+        assertFalse(about.contains("curva Ascenso"))
     }
 
     @Test
