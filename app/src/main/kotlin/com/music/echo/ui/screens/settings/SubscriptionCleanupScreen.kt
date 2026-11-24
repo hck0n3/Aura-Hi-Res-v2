@@ -143,6 +143,27 @@ fun SubscriptionCleanupScreen(
                             }
                         }
                     }
+                    // Row 839: a run the app's process lost (killed by the system, force stop) before it ended.
+                    state.interrupted?.takeIf { !running }?.let { interrupted ->
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    stringResource(R.string.sub_cleanup_interrupted, interrupted.done, interrupted.total),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = { ActionLog.tap(ActionId.SUBCLEAN_CONTINUE); viewModel.continueInterrupted() },
+                                        enabled = state.phase == Phase.READY,
+                                    ) { Text(stringResource(R.string.sub_cleanup_continue)) }
+                                    OutlinedButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_DISCARD); viewModel.discardInterrupted() }) {
+                                        Text(stringResource(R.string.sub_cleanup_discard))
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if (running) {
                         item {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

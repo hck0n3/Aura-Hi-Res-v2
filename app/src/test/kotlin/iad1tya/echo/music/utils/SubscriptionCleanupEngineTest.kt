@@ -1,10 +1,17 @@
 package iad1tya.echo.music.utils
 
+import iad1tya.echo.music.utils.SubscriptionCleanupEngine.SavedRun
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,17 +19,20 @@ import org.junit.Test
  * Registry row 838 — the «Revisar suscripciones» run lives in [SubscriptionCleanupEngine] (app-scoped through
  * [SubscriptionCleanupRunner]), not in the screen. Its state machine: start, progress and marks, refusal while active,
  * «Detener» (the item in flight still counts), the account guard and the retry's carried ids.
+ * Row 839: the pending ids survive a process death as a [SavedRun] and come back as «Se detuvo», never as a run.
  */
 class SubscriptionCleanupEngineTest {
 
     private class Fixture(var account: String? = "acc-1") {
         val pauses = ArrayList<Long>()
         val logs = ArrayList<String>()
-        fun engine(scope: kotlinx.coroutines.CoroutineScope) = SubscriptionCleanupEngine(
+        val saves = ArrayList<SavedRun?>()
+        fun engine(scope: CoroutineScope) = SubscriptionCleanupEngine(
             scope = scope,
             accountTag = { account },
             pause = { pauses.add(it) },
             log = { logs.add(it) },
+            persist = { saves.add(it) },
         )
     }
 
@@ -130,6 +140,111 @@ class SubscriptionCleanupEngineTest {
         assertEquals(listOf("w2"), end.lastResult!!.failed)
         assertEquals(setOf("w1", "n"), end.removedIds)
         assertEquals(setOf("w2"), end.failedIds)
+    }
+
+    @Test
+    fun `the pending ids are saved when the run starts and after every item, and cleared when it ends`() = runBlocking {
+        val f = Fixture()
+        val engine = f.engine(this)
+        engine.start(listOf("a", "b", "c"), unsubscribe = { id -> id != "b" })
+        engine.finished()
+        val key = SubscriptionCleanupEngine.accountKey("acc-1")
+        assertEquals(
+            listOf(
+                SavedRun(key, 3, 0, 0, 0, listOf("a", "b", "c")),
+                SavedRun(key, 3, 0, 0, 0, listOf("a", "b", "c")),
+                SavedRun(key, 3, 1, 1, 0, listOf("b", "c")),
+                SavedRun(key, 3, 2, 1, 1, listOf("c")),
+                SavedRun(key, 3, 3, 2, 1, emptyList()),
+                null,
+            ),
+            f.saves,
+        )
+    }
+
+    @Test
+    fun `stop and another account end with a summary, so nothing is left for the notice`() = runBlocking {
+        val f = Fixture()
+        val engine = f.engine(this)
+        engine.start(listOf("a", "b"), unsubscribe = { f.account = "acc-2"; true })
+        assertEquals(listOf("b"), engine.finished().lastResult!!.notAttempted)
+        assertNull(f.saves.last())
+    }
+
+    @Test
+    fun `a run the process lost keeps its record, and the next process shows it without resuming`() = runBlocking {
+        val f = Fixture()
+        val processJob = Job()
+        val engine = f.engine(CoroutineScope(coroutineContext + processJob))
+        val inFlight = CompletableDeferred<Unit>()
+        val calls = ArrayList<String>()
+        engine.start(listOf("a", "b", "c"), unsubscribe = { id ->
+            calls.add(id)
+            if (id == "b") {
+                inFlight.complete(Unit)
+                CompletableDeferred<Boolean>().await()
+            } else {
+                true
+            }
+        })
+        inFlight.await()
+        processJob.cancelAndJoin() // the process dies while "b" waits for the account
+        val left = f.saves.last()
+        assertNotNull("the record survives", left)
+        assertEquals(listOf("b", "c"), left!!.pending)
+        assertEquals(1, left.done)
+        assertEquals(1, left.removed)
+
+        val stored = SubscriptionCleanupEngine.decode(SubscriptionCleanupEngine.encode(left))
+        val next = Fixture()
+        val restarted = next.engine(this)
+        restarted.restore(stored)
+        assertEquals(left, restarted.state.value.interrupted)
+        assertFalse("nothing resumes on its own", restarted.state.value.active)
+        yield()
+        assertEquals(listOf("a", "b"), calls)
+        assertTrue(next.logs.single().startsWith("SUB_CLEANUP_INTERRUPTED done=1 total=3 pending=2"))
+    }
+
+    @Test
+    fun `a new run replaces the notice, and a record read after a run started here is ignored`() = runBlocking {
+        val f = Fixture()
+        val engine = f.engine(this)
+        val saved = SavedRun(SubscriptionCleanupEngine.accountKey("acc-1"), 5, 2, 2, 0, listOf("x", "y", "z"))
+        engine.restore(saved)
+        assertEquals(saved, engine.state.value.interrupted)
+        engine.start(listOf("x"), unsubscribe = { true })
+        assertNull(engine.state.value.interrupted)
+        engine.finished()
+        engine.restore(saved)
+        assertNull("the old record lost the race against this process's run", engine.state.value.interrupted)
+    }
+
+    @Test
+    fun `discarding the notice clears it and its record, never a run's`() = runBlocking {
+        val f = Fixture()
+        val engine = f.engine(this)
+        engine.restore(SavedRun(SubscriptionCleanupEngine.accountKey("acc-1"), 2, 1, 1, 0, listOf("y")))
+        engine.discardInterrupted()
+        assertNull(engine.state.value.interrupted)
+        yield()
+        assertEquals(listOf<SavedRun?>(null), f.saves)
+    }
+
+    @Test
+    fun `the record holds ids and a hash of the account, and a bad record is no notice`() {
+        val key = SubscriptionCleanupEngine.accountKey("SAPISID-secret")
+        assertEquals(64, key.length)
+        assertFalse(key.contains("secret"))
+        assertEquals(key, SubscriptionCleanupEngine.accountKey("SAPISID-secret"))
+        val run = SavedRun(key, 4, 1, 1, 0, listOf("UCaaa", "MPLAUCbbb"))
+        val text = SubscriptionCleanupEngine.encode(run)
+        assertFalse(text.contains("SAPISID-secret"))
+        assertEquals(run, SubscriptionCleanupEngine.decode(text))
+        assertEquals(run.copy(pending = emptyList()), SubscriptionCleanupEngine.decode(SubscriptionCleanupEngine.encode(run.copy(pending = emptyList()))))
+        listOf(null, "", "v0|$key|4|1|1|0|UCaaa", "v1||4|1|1|0|UCaaa", "v1|$key|4|x|1|0|UCaaa", "v1|$key|4|-1|1|0|UCaaa", "v1|$key|4|1|1|0").forEach {
+            assertNull(it, SubscriptionCleanupEngine.decode(it))
+        }
     }
 
     @Test

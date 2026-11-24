@@ -1,6 +1,11 @@
 package iad1tya.echo.music.utils
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import com.music.innertube.YouTube
 import com.music.innertube.utils.parseCookieString
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,8 +23,17 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
+
+/**
+ * Row 839: the pending run (ids only, the counters and a hash of the account — [SubscriptionCleanupEngine.SavedRun]) in
+ * its OWN small DataStore file, written after every item. Not the settings DataStore: every write there wakes every
+ * collector of the app's settings (regla 7), and this one changes once per removed subscription.
+ */
+private val Context.subscriptionCleanupStore: DataStore<Preferences> by preferencesDataStore(name = "subscription_cleanup_run")
+private val SubscriptionCleanupRunKey = stringPreferencesKey("run")
 
 /**
  * Registry row 838 — the app-scoped owner of the «Revisar suscripciones» removal (row 813). The owner (2026-11-24): «quiero
@@ -45,9 +59,25 @@ class SubscriptionCleanupRunner @Inject constructor(
         accountTag = ::accountTag,
         pause = { delay(it) },
         log = { Timber.i(it) },
+        persist = ::persist,
     )
 
     val state: StateFlow<SubscriptionCleanupEngine.State> = engine.state
+
+    init {
+        // Row 839: what a process death left behind becomes the «Se detuvo» notice. Read once; nothing resumes here.
+        scope.launch {
+            val saved = try {
+                SubscriptionCleanupEngine.decode(context.subscriptionCleanupStore.data.first()[SubscriptionCleanupRunKey])
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w("SUB_CLEANUP_RESTORE failed: %s", e.javaClass.simpleName)
+                null
+            }
+            engine.restore(saved)
+        }
+    }
 
     /** Unfollows written but not confirmed by the account: the existing retry owns them (see [retryFailed]). */
     private val awaitingAccount = ConcurrentHashMap.newKeySet<String>()
@@ -82,6 +112,25 @@ class SubscriptionCleanupRunner @Inject constructor(
 
     /** «Detener», from the screen or from the notification. */
     fun stop() = engine.stop()
+
+    /** Row 839: «Descartar» on the «Se detuvo» notice. */
+    fun discardInterrupted() = engine.discardInterrupted()
+
+    /** Row 839: the interrupted run belongs to the account signed in now (only then is «Continuar» offered). */
+    fun isCurrentAccount(saved: SubscriptionCleanupEngine.SavedRun): Boolean =
+        accountTag()?.let { SubscriptionCleanupEngine.accountKey(it) == saved.account } ?: false
+
+    private suspend fun persist(run: SubscriptionCleanupEngine.SavedRun?) {
+        try {
+            context.subscriptionCleanupStore.edit { prefs ->
+                if (run == null) prefs.remove(SubscriptionCleanupRunKey) else prefs[SubscriptionCleanupRunKey] = SubscriptionCleanupEngine.encode(run)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w("SUB_CLEANUP_SAVE failed: %s", e.javaClass.simpleName)
+        }
+    }
 
     private suspend fun settleWritten(written: List<String>, rewrite: Int): List<String> {
         var confirmed = emptyList<String>()

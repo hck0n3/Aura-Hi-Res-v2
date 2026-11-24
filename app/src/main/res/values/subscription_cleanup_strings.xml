@@ -37,4 +37,7 @@
     <string name="sub_cleanup_already_running">Subscriptions are already being removed; wait for it to finish or stop it</string>
     <string name="sub_cleanup_row_removed">Removed</string>
     <string name="sub_cleanup_row_failed">Failed</string>
+    <string name="sub_cleanup_interrupted">Stopped: %1$d of %2$d; tap Continue</string>
+    <string name="sub_cleanup_continue">Continue</string>
+    <string name="sub_cleanup_discard">Discard</string>
 </resources>

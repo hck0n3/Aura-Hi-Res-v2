@@ -39,4 +39,7 @@
     <string name="sub_cleanup_already_running">Ya se están quitando suscripciones; espera a que termine o detenla</string>
     <string name="sub_cleanup_row_removed">Quitada</string>
     <string name="sub_cleanup_row_failed">Falló</string>
+    <string name="sub_cleanup_interrupted">Se detuvo: %1$d de %2$d; toca Continuar</string>
+    <string name="sub_cleanup_continue">Continuar</string>
+    <string name="sub_cleanup_discard">Descartar</string>
 </resources>

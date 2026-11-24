@@ -1780,6 +1780,8 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.SUBCLEAN.CANDIDATE` | Marcar / desmarcar un canal |
 | `UI.SUBCLEAN.REMOVE_CONFIRM` | «Quitar» (confirmación) |
 | `UI.SUBCLEAN.REMOVE_CANCEL` | «Cancelar» (confirmación) |
+| `UI.SUBCLEAN.CONTINUE` | «Continuar» una tanda que se detuvo (fila 839) |
+| `UI.SUBCLEAN.DISCARD` | «Descartar» el aviso «Se detuvo» (fila 839) |
 
 ### Ajustes ▸ Tema y colores
 

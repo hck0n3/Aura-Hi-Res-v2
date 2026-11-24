@@ -134,6 +134,36 @@ class SubscriptionCleanupGuardTest {
     }
 
     @Test
+    fun `a run cut short by a process death comes back as a notice, never as a run`() {
+        val runner = src(runnerPath)
+        // Its own small DataStore file, not the settings one (every settings write wakes all its collectors).
+        assertTrue(runner.contains("by preferencesDataStore(name = \"subscription_cleanup_run\")"))
+        assertFalse(runner.contains("context.dataStore"))
+        assertTrue(runner.contains("prefs[SubscriptionCleanupRunKey] = SubscriptionCleanupEngine.encode(run)"))
+        val init = runner.substringAfter("    init {").substringBefore("\n    }\n")
+        assertTrue(init.contains("engine.restore(saved)"))
+        assertFalse("nothing resumes on its own", init.contains("start("))
+        val vm = src(vmPath)
+        assertTrue(vm.contains("interrupted = run.interrupted?.takeIf { !run.active && runner.isCurrentAccount(it) },"))
+        val resume = vm.substringAfter("fun continueInterrupted() {").substringBefore("\n    }\n")
+        assertTrue("re-planned against the list just read", resume.contains("selected = saved.pending.toSet(),"))
+        assertTrue(resume.contains("blocked = s.candidates.filter { it.blocked }.map { it.id }.toSet(),"))
+        assertTrue(resume.contains("refuseUnlessStarted(runner.start(plan.mapNotNull { byId[it] }))"))
+        val screen = src(screenPath)
+        assertEquals(1, Regex("""viewModel\.continueInterrupted\(\)""").findAll(screen).count())
+        assertTrue(screen.contains("stringResource(R.string.sub_cleanup_interrupted, interrupted.done, interrupted.total),"))
+        assertTrue(screen.contains("state.interrupted?.takeIf { !running }?.let { interrupted ->"))
+    }
+
+    @Test
+    fun `the notification's stop asks the runner to stop, only when this app cancelled the job`() {
+        val worker = src(workerPath)
+        assertTrue(worker.contains("WorkManager.getInstance(ctx).createCancelPendingIntent(this@SubscriptionCleanupWorker.id),"))
+        assertTrue(worker.contains("if (stopReason == WorkInfo.STOP_REASON_CANCELLED_BY_APP) runner.stop()"))
+        assertTrue("no stop button while stopping", worker.contains("if (!stopping) {\n                    addAction("))
+    }
+
+    @Test
     fun `the screen marks the run's rows and says when a new run is refused`() {
         val screen = src(screenPath)
         assertTrue(screen.contains("candidate.id in state.removedIds -> Text("))

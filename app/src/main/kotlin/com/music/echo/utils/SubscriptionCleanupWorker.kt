@@ -12,6 +12,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import dagger.hilt.EntryPoint
@@ -30,6 +31,11 @@ import timber.log.Timber
  * background: a foreground job (the pattern and the silent channel of [YtmSyncWorker]) with the notification «Quitando
  * suscripciones: X de N». It does no work itself and never polls: it follows the runner's state and ends as soon as the
  * run is no longer active (regla 7: it exists only while removing).
+ *
+ * Row 839: the notification carries «Detener». It cancels this job ([WorkManager.createCancelPendingIntent]); the job,
+ * stopped by the app, asks the runner to stop the run the same way the screen's «Detener» does (the item in flight
+ * finishes its wait for the account, the rest is not attempted). A stop by the system instead (quota, constraints)
+ * leaves the run going in the app's process.
  */
 class SubscriptionCleanupWorker(
     context: Context,
@@ -52,23 +58,29 @@ class SubscriptionCleanupWorker(
         val runner = runner
         if (!runner.state.value.active) return Result.success()
         var foreground = true
-        runner.state
-            .takeWhile { it.active }
-            .map { Triple(it.done, it.total, it.stopping) }
-            .distinctUntilChanged()
-            .collect { (done, total, stopping) ->
-                if (!foreground) return@collect
-                try {
-                    setForeground(foregroundInfo(done, total, stopping))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // Android 12+ can refuse a foreground start from the background: the run still goes on in the
-                    // app's process, just without the notification. Asked once, not on every item.
-                    foreground = false
-                    Timber.w("SUB_CLEANUP_FOREGROUND failed: %s", e.javaClass.simpleName)
+        try {
+            runner.state
+                .takeWhile { it.active }
+                .map { Triple(it.done, it.total, it.stopping) }
+                .distinctUntilChanged()
+                .collect { (done, total, stopping) ->
+                    if (!foreground) return@collect
+                    try {
+                        setForeground(foregroundInfo(done, total, stopping))
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // Android 12+ can refuse a foreground start from the background: the run still goes on in the
+                        // app's process, just without the notification. Asked once, not on every item.
+                        foreground = false
+                        Timber.w("SUB_CLEANUP_FOREGROUND failed: %s", e.javaClass.simpleName)
+                    }
                 }
-            }
+        } catch (e: CancellationException) {
+            // Row 839: the notification's «Detener» (only this app cancels this job).
+            if (stopReason == WorkInfo.STOP_REASON_CANCELLED_BY_APP) runner.stop()
+            throw e
+        }
         return Result.success()
     }
 
@@ -101,6 +113,15 @@ class SubscriptionCleanupWorker(
             .setSilent(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .apply {
+                if (!stopping) {
+                    addAction(
+                        R.drawable.close,
+                        ctx.getString(R.string.sub_cleanup_stop),
+                        WorkManager.getInstance(ctx).createCancelPendingIntent(this@SubscriptionCleanupWorker.id),
+                    )
+                }
+            }
             .build()
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)

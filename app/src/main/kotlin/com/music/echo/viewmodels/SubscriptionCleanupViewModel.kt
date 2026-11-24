@@ -64,6 +64,8 @@ class SubscriptionCleanupViewModel @Inject constructor(
         val listPhase: Phase = Phase.LOADING,
         /** Row 838: a new run was asked for while one was active; refused, and the screen says so. */
         val refused: Boolean = false,
+        /** Row 839: a run of this account a process death cut short: «Se detuvo: X de N; toca Continuar». */
+        val interrupted: SubscriptionCleanupEngine.SavedRun? = null,
     )
 
     /** The list as read from the account (and the selection); the run's part comes from [runner]. */
@@ -175,6 +177,32 @@ class SubscriptionCleanupViewModel @Inject constructor(
     /** «Detener»: the item in flight finishes its (bounded) wait for the account, the rest is not attempted. */
     fun stop() = runner.stop()
 
+    /**
+     * Row 839: «Continuar» on the «Se detuvo» notice. The ids the cut-short run still had pending (the user's own
+     * confirmed selection), re-planned against the list just read: a channel already removed or pending is blocked
+     * there and skipped, one the account no longer lists is not in it.
+     */
+    fun continueInterrupted() {
+        val s = state.value
+        val saved = s.interrupted ?: return
+        if (refuseWhileRunning(s) || s.phase != Phase.READY) return
+        val plan = PhantomSubscriptionPolicy.planBatch(
+            ordered = s.candidates.map { it.id },
+            selected = saved.pending.toSet(),
+            blocked = s.candidates.filter { it.blocked }.map { it.id }.toSet(),
+        )
+        Timber.i("SUB_CLEANUP_CONTINUE pending=%d planned=%d", saved.pending.size, plan.size)
+        if (plan.isEmpty()) {
+            runner.discardInterrupted()
+            return
+        }
+        val byId = s.candidates.associateBy { it.id }
+        refuseUnlessStarted(runner.start(plan.mapNotNull { byId[it] }))
+    }
+
+    /** Row 839: «Descartar» on the «Se detuvo» notice. */
+    fun discardInterrupted() = runner.discardInterrupted()
+
     private fun refuseWhileRunning(s: UiState): Boolean {
         if (s.phase != Phase.RUNNING) return false
         _state.update { it.copy(refused = true) }
@@ -203,6 +231,7 @@ class SubscriptionCleanupViewModel @Inject constructor(
             failedIds = run.failedIds,
             listPhase = list.phase,
             refused = list.refused && run.active,
+            interrupted = run.interrupted?.takeIf { !run.active && runner.isCurrentAccount(it) },
         )
     }
 
