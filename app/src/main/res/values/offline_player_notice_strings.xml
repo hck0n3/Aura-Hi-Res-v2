@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Registry row 795: the «Offline» sign of the full player and the mini player while it goes on with offline music only. -->
+<resources>
+    <string name="offline_player_chip">Offline · playing your offline music</string>
+    <string name="offline_player_chip_cd">Offline: playing your offline music. Tap for details</string>
+    <string name="offline_player_mini">Offline</string>
+    <string name="offline_player_notice_title">Playing offline</string>
+    <string name="offline_player_notice_auto">There is no internet, so Aura keeps playing what is available offline: downloads, songs fully saved in the cache and the music on this device. When the connection is back, your queue comes back by itself.</string>
+    <string name="offline_player_notice_manual">Offline mode is on: Aura plays only what is available offline and does not use the network. Turn it off to play online music again.</string>
+</resources>
