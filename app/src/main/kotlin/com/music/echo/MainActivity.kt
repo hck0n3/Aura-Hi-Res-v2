@@ -150,6 +150,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.coroutineScope
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.navigation.NavBackStackEntry
@@ -295,6 +296,7 @@ import iad1tya.echo.music.ui.utils.resetHeightOffset
 import iad1tya.echo.music.utils.SyncUtils
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.get
+import iad1tya.echo.music.ui.newui.navigateOnce
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.constants.SidePanelOnLeftKey
 import iad1tya.echo.music.utils.rememberPreference
@@ -1549,6 +1551,31 @@ class MainActivity : ComponentActivity() {
                             iad1tya.echo.music.playback.DismissedQueueUndo.restore(connection.service, offer.token)
                         } else {
                             iad1tya.echo.music.playback.DismissedQueueUndo.drop(offer.token)
+                        }
+                    }
+                }
+
+                // Row 805 (owner decision H8): the service's notices that need an action come here with their button.
+                // Collected only while STARTED, so ActionNotices.post answers false in the background and the service
+                // keeps its toast. Event-driven, nothing polled (rule 7).
+                LaunchedEffect(Unit) {
+                    this@MainActivity.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                        iad1tya.echo.music.playback.ActionNotices.events.collect { notice ->
+                            val message = getString(notice.message)
+                            // The expanded player sheet is drawn over this Scaffold's snackbar (its error card has its own
+                            // sign-in step): there the notice keeps the toast it always had.
+                            if (playerBottomSheetState.isExpanded) {
+                                android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_LONG).show()
+                                return@collect
+                            }
+                            val result = snackbarHostState.showSnackbar(
+                                message = message,
+                                actionLabel = getString(notice.action),
+                                duration = SnackbarDuration.Long,
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                runCatching { navController.navigateOnce(notice.route) }
+                            }
                         }
                     }
                 }

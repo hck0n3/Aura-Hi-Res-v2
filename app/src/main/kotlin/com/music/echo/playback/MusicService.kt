@@ -5191,7 +5191,10 @@ class MusicService :
                 )
                 // Only when OUR filters are the reason, and never on a restore (that runs with no one
                 // looking at the screen): a toast then explains an app that otherwise looks broken.
-                if (!isRestore && fetchedCount > 0) {
+                // Row 805: with a screen showing, the notice carries «Ver filtros» instead.
+                if (!isRestore && fetchedCount > 0 &&
+                    !ActionNotices.post(ActionNotices.Kind.QUEUE_EMPTY_AFTER_FILTERS)
+                ) {
                     runCatching {
                         Toast.makeText(
                             this@MusicService,
@@ -9109,7 +9112,9 @@ class MusicService :
         // (Not for a video item: a burst of non-catalog videos looks like a dead session to the tracker — the log of
         // 2026-10-19 — and «sign in again» would be a false alarm; those fall back to video mode instead.)
         if (player.currentMetadata?.isVideoSong != true &&
-            iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint()
+            iad1tya.echo.music.utils.YTPlayerUtils.identityRejections.consumeReLoginHint() &&
+            // Row 805: with a screen showing, the notice carries «Volver a entrar» instead.
+            !ActionNotices.post(ActionNotices.Kind.SESSION_EXPIRED)
         ) {
             runCatching {
                 Toast.makeText(
