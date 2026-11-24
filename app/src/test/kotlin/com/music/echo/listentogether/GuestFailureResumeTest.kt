@@ -102,10 +102,17 @@ class GuestFailureResumeTest {
         assertTrue("before the reloads of the room's track", apply.indexOf(gate) in 0 until apply.indexOf("val step = trackGuard.decide("))
         assertTrue("before anything moves the player", apply.indexOf(gate) < apply.indexOf("player.seekTo(action.positionMs)"))
         assertTrue(apply.indexOf(gate) < apply.indexOf("player.play()"))
-        // Only the room's own command skips it; the heartbeat, realign, recheck and a released hold all use the default.
-        assertEquals(1, Regex("""fromRoomCommand = true""").findAll(bridge).count())
+        // Only the room's own command skips it (applied at once, or let go by a synchronized start's hold, once per hold); the
+        // heartbeat, realign and recheck all use the default.
+        assertEquals(2, Regex("""fromRoomCommand = true""").findAll(bridge).count())
         val watch = bridge.substringAfter("private suspend fun watchRoomForGuests()").substringBefore("private suspend fun guestPositionHeartbeat()")
         assertTrue(watch.contains("applyTransport(service, playing && !pausedLocally, position, track, anchorServerTime, fromRoomCommand = true)"))
+        val follow = bridge.substringAfter("private suspend fun followRoomAfterHold(").substringBefore("    /**")
+        assertTrue(
+            follow.contains(
+                "applyTransport(service, state.isPlaying && !pausedLocally, state.position, state.currentTrack, state.lastActionServerTime, fromRoomCommand = true)",
+            ),
+        )
     }
 
     @Test
