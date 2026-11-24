@@ -812,6 +812,8 @@ class MusicService :
     // ResolvingDataSource loader thread know "is this the current track?" WITHOUT a runBlocking hop to Main
     // (which could deadlock/stall stream resolution when Main is busy).
     @Volatile internal var currentPlayingMediaId: String? = null
+    // Registry 811: the songs the loader already opened in their current play (NetworkStreamQuality.OpenedThisPlay).
+    internal val streamTierOpens = NetworkStreamQuality.OpenedThisPlay()
     // Live EQ processor of the audible player. The loader thread primes Safe Volume here before
     // open() returns, so the first sample is already at the locked level.
     @Volatile internal var currentEqProcessor: CustomEqualizerAudioProcessor? = null
@@ -1087,6 +1089,9 @@ class MusicService :
     // The queue being restored at boot, until the player-STATE restore has applied its saved index and
     // shuffle to it (see the wait in onCreate). Main-thread only.
     private var pendingRestoreQueue: iad1tya.echo.music.playback.queues.Queue? = null
+    // Registry 810 (owner H4): true once the boot-time player-STATE restore (saved index, position, shuffle) has run, or
+    // was not needed. «Seguir escuchando» waits for it so its play lands on the real song, not the queue file's index.
+    val playerStateRestoreDone = MutableStateFlow(false)
     internal var contextSeedHistoryPool: List<iad1tya.echo.music.models.MediaMetadata>? = null
 
     // Row 344 — the language of the collection in [radioSeedPool] (TitleLanguage over its titles), computed once
@@ -1461,6 +1466,9 @@ class MusicService :
         val expiresAt: Long,
         val delivered: iad1tya.echo.music.constants.AudioQuality? = null,
         val requested: iad1tya.echo.music.constants.AudioQuality? = null,
+        // Registry 811 (owner H6b): the per-network tier this URL was resolved at (PlaybackData.networkSaver).
+        // null = written without one; NetworkStreamQuality.reusable then keeps the old behaviour (always reusable).
+        val networkSaver: Boolean? = null,
     )
 
     internal val songUrlCache = java.util.concurrent.ConcurrentHashMap<String, CachedStream>()
@@ -3290,6 +3298,7 @@ class MusicService :
         scope.launch(Dispatchers.IO) { runCatching { iad1tya.echo.music.listentogether.RoomDurationRepair.runOnce(this@MusicService, database) } }
         // Registry 764: not persistentQueueHint — its collector has not emitted yet here, and a default of true would
         // restore a queue the user turned off. The snapshot is exact (blocking read only before its first emission).
+        var playerStateRestoreLaunched = false
         if (dataStore.getNonBlocking(PersistentQueueKey, true)) {
             val queueFile = filesDir.resolve(PERSISTENT_QUEUE_FILE)
             if (queueFile.exists()) {
@@ -3363,6 +3372,7 @@ class MusicService :
                     }
                 }.onSuccess { playerState ->
                     
+                    playerStateRestoreLaunched = true
                     scope.launch {
                         delay(1000) 
                         // WAIT FOR THE RESTORED QUEUE TO LAND (owner 2026-10-04: "puse mis Me gusta — más de
@@ -3460,7 +3470,7 @@ class MusicService :
                                 suppressShuffleActivationReset = false
                             }
                         }
-                    }
+                    }.invokeOnCompletion { playerStateRestoreDone.value = true }
                 }.onFailure { error ->
                     Timber.tag(TAG).w(error, "Failed to read player state, clearing data")
                     // C3 — only the unreadable player-state file. The queue file is fine (it was read above)
@@ -3470,6 +3480,7 @@ class MusicService :
                 }
             }
         }
+        if (!playerStateRestoreLaunched) playerStateRestoreDone.value = true
 
         
         // #55 (battery/heat): this tick is deliberately NOT gated on isPlaying — a queue edited while paused
@@ -7192,6 +7203,7 @@ class MusicService :
         val previousMediaId = currentPlayingMediaId
         currentPlayingMediaId = mediaItem?.mediaId
         val trackChanged = previousMediaId != mediaItem?.mediaId
+        if (trackChanged) streamTierOpens.trackChanged(mediaItem?.mediaId)
         // A stale offline refusal earns one re-prepare per item: a new item starts with its own.
         if (trackChanged) staleRejectionRetryId = null
         // Review C4 (rule 7): a song change of an unprepared device-sync mirror is another device's, nothing was heard here. None of
@@ -12212,6 +12224,8 @@ class MusicService :
                 configuredLimit = dataStore.get(iad1tya.echo.music.constants.PreloadNextSongLimitKey, 2),
             )
             val preloadLyrics = dataStore.get(iad1tya.echo.music.constants.PreloadLyricsEnabledKey, true)
+            // Registry 811: read the network once per preload pass, and only if an entry's tier has to be checked.
+            val preloadSaverNow by lazy(LazyThreadSafetyMode.NONE) { NetworkStreamQuality.saverForCurrentNetwork(connectivityManager) }
             // Only the next N upcoming tracks per the slider (the current track is resolved on play by the
             // ResolvingDataSource). The plan drops fully-DOWNLOADED songs (they play straight from the
             // download cache — re-resolving could poison songUrlCache with a wrong-container URL) and never
@@ -12231,7 +12245,13 @@ class MusicService :
                 // serves entries with expiresAt in the future. containsKey (the old check) let an
                 // EXPIRED entry suppress the preload while playback still had to re-resolve, so
                 // the transition paid the full resolve stall (~2-3s of silence).
-                hasCachedUrl = { songUrlCache[it]?.let { entry -> entry.expiresAt > System.currentTimeMillis() } == true },
+                // Registry 811 (owner H6b): a URL resolved at the other network's tier is no reason to skip the preload.
+                hasCachedUrl = {
+                    songUrlCache[it]?.let { entry ->
+                        entry.expiresAt > System.currentTimeMillis() &&
+                            NetworkStreamQuality.reusable(entry.networkSaver, it == currentPlayingMediaId) { preloadSaverNow }
+                    } == true
+                },
             )
             for (plan in planned) {
                 val mediaId = plan.mediaId
@@ -12251,7 +12271,9 @@ class MusicService :
                             context = this@MusicService,
                             knownArtist = knownArtist,
                             knownTitle = dbSong?.song?.title,
-                            knownDurationMs = dbSong?.song?.duration?.let { if (it > 0) it * 1000L else null }
+                            knownDurationMs = dbSong?.song?.duration?.let { if (it > 0) it * 1000L else null },
+                            // Registry 811 (owner H6b): a preloaded URL is the one that will play, so it obeys the network choice too.
+                            networkAwareQuality = true,
                         )
 
                         playbackData.getOrNull()?.let { data ->
@@ -12267,6 +12289,7 @@ class MusicService :
                                 expiresAt = System.currentTimeMillis() + (data.streamExpiresInSeconds * 1000L),
                                 delivered = preQuality,
                                 requested = resolveQuality,
+                                networkSaver = data.networkSaver,
                             )
                             Timber.tag(TAG).d("Preloaded stream for $mediaId")
 

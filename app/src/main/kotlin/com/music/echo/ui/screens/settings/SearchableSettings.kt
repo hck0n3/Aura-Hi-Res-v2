@@ -318,6 +318,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.lyrics_romanization), "Contenido", "settings/content"),
             Triple(stringResource(R.string.randomize_home_order), "Contenido", "settings/content"),
             Triple(stringResource(R.string.randomize_home_order_desc), "Contenido", "settings/content"),
+            // Registry 811 (owner H6a): the «Ocultos» row of Inicio y descubrimiento.
+            Triple(stringResource(R.string.hidden_items_title), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.hidden_items_desc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.misc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_title), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_summary), "Contenido", "settings/content"),
@@ -383,6 +386,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // --- Reproductor (settings/player) : 51 ---
             Triple("Ahorro de datos", "Reproductor", "settings/player"),
             Triple("Modo ahorro de datos", "Reproductor", "settings/player"),
+            // Registry 811 (owner H6b): streaming quality per network, in the same «Ahorro de datos» group.
+            Triple(stringResource(R.string.stream_quality_wifi), "Reproductor", "settings/player"),
+            Triple(stringResource(R.string.stream_quality_mobile), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.audio_quality), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.download_quality_title), "Reproductor", "settings/player"),
             Triple(stringResource(R.string.crossfade_beta_title), "Reproductor", "settings/player"),

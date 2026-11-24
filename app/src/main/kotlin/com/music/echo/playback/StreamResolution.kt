@@ -400,6 +400,8 @@ internal fun MusicService.refreshUrlIfNearExpiry(mediaId: String, cached: Cached
                 audioQuality = cached.delivered ?: audioQuality,
                 connectivityManager = connectivityManager,
                 context = this@refreshUrlIfNearExpiry,
+                // Registry 811: the tier of the network active now; a renewal on another itag is discarded below.
+                networkAwareQuality = true,
             ).getOrNull()
             val freshUrl = playback?.streamUrl
             if (!freshUrl.isNullOrBlank()) {
@@ -420,11 +422,21 @@ internal fun MusicService.refreshUrlIfNearExpiry(mediaId: String, cached: Cached
                     Timber.tag(TAG).d("Refresh-ahead discarded: delivered quality drifted on renewal")
                     return@launch
                 }
+                // Registry 811 (owner H6b): the renewal picks the tier of the network active NOW, which may not be the
+                // one of the URL it renews, and itags 251/250 are both Opus, so the check above cannot see it. A seek
+                // re-open of the playing song must read the same file (and cache key), so another itag is discarded too.
+                val renewedItag = cached.url.toUri().getQueryParameter("itag")
+                val freshItag = freshUrl.toUri().getQueryParameter("itag")
+                if (renewedItag != null && freshItag != null && freshItag != renewedItag) {
+                    Timber.tag(TAG).d("Refresh-ahead discarded: itag changed on renewal")
+                    return@launch
+                }
                 songUrlCache[mediaId] = CachedStream(
                     url = freshUrl,
                     expiresAt = System.currentTimeMillis() + (playback.streamExpiresInSeconds * 1000L),
                     delivered = freshDelivered,
                     requested = cached.requested,
+                    networkSaver = playback.networkSaver,
                 )
                 persistSongUrlCache()
                 StreamHealth.refreshAheadCompleted()
@@ -504,6 +516,9 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         val isFullyDownloaded = cachedLength != androidx.media3.common.C.LENGTH_UNSET.toLong() && cachedLength > 0 && downloadCache.isCached(mediaId, 0, cachedLength)
 
         val isCurrentlyPlaying = currentPlayingMediaId == mediaId
+        // Registry 811: read before this open counts, so the first open of a song the user just started is not exempt.
+        val keepsItsUrl = streamTierOpens.keepsItsUrl(mediaId, isCurrentlyPlaying)
+        streamTierOpens.opened(mediaId)
 
         // FULLY-DOWNLOADED short-circuit — a *complete* downloaded file is container-locked as a whole, so
         // it's always safe to serve WITHOUT the DB container check (its container can't drift with the
@@ -690,6 +705,12 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         // target quality or set shouldBypassCache (and ghost-removed the mismatched playerCache entry) to
         // force a fresh fetch. So no cache hit is ever served with a container mismatch (garbled audio).
         if (!shouldBypassCache) {
+            // Registry 811 (owner H6b): a live URL resolved on the other network's tier (Wi-Fi vs mobile data) is a miss
+            // for a new play, so it re-resolves at this network's choice. The playing song keeps its URL, like the
+            // mid-song container lock above. The network is read at most once per open, and only when the two differ.
+            val saverNow by lazy(LazyThreadSafetyMode.NONE) { NetworkStreamQuality.saverForCurrentNetwork(connectivityManager) }
+            fun tierFits(entry: CachedStream) = NetworkStreamQuality.reusable(entry.networkSaver, keepsItsUrl) { saverNow }
+
             // PARTIAL download whose container the guard above confirmed matches the target quality — serve
             // the cached bytes (the CacheDataSource fills the missing tail from the network in the same,
             // matching container). A mismatching partial set shouldBypassCache above and skips this block.
@@ -712,7 +733,7 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
             // URL could be returned without re-resolve). Derive the EXACT audio key from the
             // fresh URL we are about to serve and check only that one. If no fresh URL exists
             // there is nothing to serve anyway (the block below needs it to return).
-            val freshUrlEntry = songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }
+            val freshUrlEntry = songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() && tierFits(it) }
             // STABLE IDENTITY FIX (2026-09-04): the probe key must be the one the WRITER used —
             // yt-stream-<mediaId>-<itag>. The old probe derived the `id=` param of the live URL,
             // which is the ROTATING o-XXXX stream id: intra-session it matched (same URL), but it
@@ -747,7 +768,7 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
                 Timber.tag(TAG).w("Ghost cache entry for $mediaId — keeping cached bytes, re-resolving URL only")
             }
 
-            songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+            songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() && tierFits(it) }?.let {
                 scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
                 StreamHealth.cacheHit()
                 refreshUrlIfNearExpiry(mediaId, it)
@@ -781,7 +802,9 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
                     knownArtist = knownArtist,
                     knownTitle = knownTitle,
                     knownDurationMs = knownDuration,
-                    preResolveDbMs = preResolveDbMs
+                    preResolveDbMs = preResolveDbMs,
+                    // Registry 811 (owner H6b): Wi-Fi / mobile-data quality, decided at this resolve.
+                    networkAwareQuality = true,
                 )
             }
         } finally {
@@ -971,6 +994,7 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
                 // genuinely the request for this track (and dropping it at cold start is right: a per-session
                 // refetch must not survive a restart); otherwise the request is the global quality.
                 requested = if (forceOpus) iad1tya.echo.music.constants.AudioQuality.OPUS else audioQuality,
+                networkSaver = nonNullPlayback.networkSaver,
             )
             // FIX B1 (#28.1): persist the freshly-resolved URL (whole cache snapshot) so it survives a
             // restart / app update. Off the main thread; never blocks this resolve.

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fila 810 (dueño H4): accesos directos dinámicos (mantener pulsado el icono de la app). -->
+    <string name="shortcut_resume">Seguir escuchando</string>
+    <string name="shortcut_shuffle_liked">Aleatorio de Me gusta</string>
+    <string name="shortcut_downloaded">Descargado</string>
+</resources>
