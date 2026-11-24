@@ -118,6 +118,24 @@ En la ejecución, el resumen (*Summary*) trae la tabla de escenarios. El artefac
   aprobar no cambia: el nombre de la lista en pantalla. El 6 repite el WARN permitido
   (`state=1 playing=false positionMs=0 error=ERROR_CODE_IO_UNSPECIFIED` tras 90 s): si es la IP del runner o la app sigue
   `[NO VERIFICADO]`, porque el logcat está en el artefacto y su host de descarga no está permitido para el agente.
+- **Runs 45276946182 (commit `76206de`) y 45281795948 (commit `62e7b8f`, la beta3), 2026-11-23: job en verde.** En
+  la segunda, 1-4, 5a, 5b y 5c en verde (`user_version` 45 antes y después, `matching_playlists` 1), cero cierres/ANR
+  y el 6 con el mismo WARN permitido. La run 45320595510 (commit `a8fdbbd`) se paró en «Host tool tests», antes del
+  emulador.
+- **Run 45323606796 (commit `8e76499`, anterior `v2.0.69-beta3`, 2026-11-24): rojo por la PRUEBA, no por la app.**
+  1-4 en verde con la build nueva (el onboarding con «Siguiente: tu cuenta de Google» ya se pasa) y cero cierres/ANR
+  en las tres fases. El 5a falló en la beta3: «timed out after 10000 ms waiting for the playlist name field». Desde la
+  beta3 la pestaña Listas VACÍA pinta «Crear lista» también como chip de su estado vacío (`AuraLibraryTabs.kt`,
+  `actionLabel = … R.string.create_playlist`), y ese chip ya está en pantalla antes de abrir el menú del «+». La
+  primera búsqueda `By.text` lo devolvía a él, y el toque caía fuera del menú que se estaba abriendo, que solo se
+  cerraba: no salía el diálogo, no había campo de texto. La beta2 no tenía ese chip, por eso la run de la beta3 como
+  versión nueva sí pasaba. Ahora el 5a espera a que la pestaña se asiente, apunta dónde está ya el texto, toca el «+»
+  y elige el «Crear lista» que **no** estaba antes (commit `132d762`); la condición para aprobar no cambia. 5b y 5c
+  no corrieron (dependen del 5a), así que la migración Room 45 → 46 (`AutoMigration`, columna nullable
+  `artist.unfollowConfirmedAt`) **todavía no se ha visto en el emulador**: la siguiente ejecución lo dirá. El 6 repite
+  el WARN permitido (`state=1 playing=false positionMs=0 error=ERROR_CODE_IO_UNSPECIFIED` tras 90 s), causa
+  `[NO VERIFICADO]` (logcat solo en el artefacto). El diagnóstico del 5a sale del log del job y del código de la beta3;
+  la captura `FAIL-*.png` que lo confirmaría está en el artefacto, que el agente no puede descargar `[NO VERIFICADO]`.
 - **`[NO VERIFICADO]` hasta la primera ejecución en GitHub.** El agente que lo escribió no tiene KVM ni puede llegar a
   YouTube, y por norma no corre Gradle en el contenedor compartido. Lo comprobado aquí: las pruebas Java compilan
   contra `android.jar` 36 y las librerías exactas que declara `smoketest/build.gradle.kts`; las herramientas del
