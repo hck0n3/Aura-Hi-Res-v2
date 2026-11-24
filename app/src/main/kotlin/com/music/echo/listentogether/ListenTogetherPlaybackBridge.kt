@@ -199,6 +199,19 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
     @Volatile
     private var pausedLocally = false
 
+    /** Row 816: every change of [pausedLocally] goes through here, and each one reaches the shared log once (numbers only). */
+    private fun setPausedLocally(
+        value: Boolean,
+        reason: Int,
+        service: MusicService?,
+    ) {
+        if (pausedLocally == value) return
+        pausedLocally = value
+        Timber.tag(TAG).i(
+            pausedLocallyLogLine(value, reason, service?.deliberatePause == true, service?.pausedByPlaybackFailure == true),
+        )
+    }
+
     /** Row 796: what a guest off the room's track does about it, with bounded reloads. */
     private val trackGuard = GuestTrackGuard()
 
@@ -316,7 +329,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         player.addListener(playerListener)
         // Seed, or the first publish after a player swap compares against a stale intent.
         playIntent.value = player.playWhenReady
-        if (player.playWhenReady) pausedLocally = false
+        if (player.playWhenReady) setPausedLocally(false, PAUSED_LOCALLY_REASON_NONE, serviceFlow.value)
         isPlayingNow.value = player.isPlaying
         timelineRevision.value++
         // A room joined before this player existed, or a rebuilt player, plays at the room's speed too.
@@ -332,7 +345,15 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             playIntent.value = playWhenReady
             val state = session.state.value
             val roomsOwnCall = applyingOnMain > 0
-            if (!roomsOwnCall) pausedLocally = !playWhenReady && state.inRoom && !state.isHost
+            if (!roomsOwnCall) {
+                // Row 816: only a pause that is not the service giving up on playback keeps this guest out of the room's play.
+                val service = serviceFlow.value
+                setPausedLocally(
+                    guestPausedLocally(playWhenReady, state.inRoom, state.isHost, service?.pausedByPlaybackFailure == true),
+                    reason,
+                    service,
+                )
+            }
             if (!playWhenReady) return
             // Guest-side resume: the local player started playing while we are a guest and the apply
             // loop did NOT cause it — ask the server where the room is. This is what Metrolist's and
@@ -457,7 +478,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         trackRecheck?.cancel()
                         trackRecheck = null
                     }
-                    pausedLocally = false
+                    setPausedLocally(false, PAUSED_LOCALLY_REASON_NONE, serviceFlow.value)
                     trackGuard.reset()
                     roomReceipt = null
                     syncLogGate.reset()
