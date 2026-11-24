@@ -1514,7 +1514,7 @@
     <string name="device_sync_code_copied">Code copied</string>
     <string name="device_sync_code_invalid">That code is not complete</string>
     <string name="device_sync_code_remove">Unpair this device</string>
-    <string name="device_sync_code_dialog_hint">AAAA-BBBB-CCCC-DDDD-EEEE</string>
+    <string name="device_sync_code_dialog_hint">ABCD-EFGH-…</string>
     <string name="device_sync_name">Name of this device</string>
     <string name="device_sync_name_default">Automatic</string>
     <string name="device_sync_shuffle">Sync shuffle</string>
