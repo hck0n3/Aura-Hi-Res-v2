@@ -719,7 +719,7 @@ fun AuraLocalPlaylistScreen(
                                             if (locked) R.string.aura_unlock_playlist
                                             else R.string.aura_lock_playlist,
                                         ),
-                                        onClick = { ActionLog.tap(ActionId.LPL_LOCK); locked = !locked },
+                                        onClick = { locked = !locked },
                                         size = 18.dp,
                                         tint = if (locked) AuraPalette.Teal else AuraPalette.OnGroundMuted,
                                     )

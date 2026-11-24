@@ -148,7 +148,7 @@ fun AuraServicesSettings(
                                         },
                                     )
                                 },
-                                onClick = { ActionLog.tap(ActionId.AURASRV_SERVICES_ENABLE); enabled = !enabled },
+                                onClick = { enabled = !enabled },
                             ),
                         )
                         add(

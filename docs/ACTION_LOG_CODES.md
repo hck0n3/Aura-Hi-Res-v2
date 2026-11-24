@@ -1822,7 +1822,6 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 
 | Código | Acción |
 |---|---|
-| `UI.AURASRV.SERVICES_ENABLE` | «Usar los servicios Aura» (sí/no) |
 | `UI.AURASRV.ADDRESS` | «Dirección del servidor» (la dirección no se registra) |
 | `UI.AURASRV.KEY` | «Clave de verificación» (la clave no se registra) |
 | `UI.AURASRV.CHECK_NOW` | «Comprobar ahora» |
@@ -2053,7 +2052,6 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.LPL.DELETE_LOCAL_ONLY` | «Solo eliminar de la app» |
 | `UI.LPL.DELETE_CANCEL` | «Cancelar» al eliminar la lista |
 | `UI.LPL.DELETE_CONFIRM` | «Aceptar» al eliminar una lista solo local |
-| `UI.LPL.LOCK` | Candado de la lista (bloquear / desbloquear la edición) |
 | `UI.LPL.SONG` | Tocar una canción de la lista (en selección la marca) |
 | `UI.LPL.SONG_SELECT` | Pulsación larga en una canción de la lista: seleccionar |
 | `UI.LPL.ADD_MUSIC` | «Agregar música» (lista propia) |
