@@ -140,10 +140,26 @@ fi
 install_apk "$TEST_APK" smoke || { echo "::error::could not install the smoke APK"; exit 1; }
 adb shell pm grant "$TEST_PKG" android.permission.READ_MEDIA_AUDIO || true
 
-adb shell mkdir -p /sdcard/Music
-adb push "$TONE_WAV" /sdcard/Music/aura_smoke_tone.wav
+# /sdcard can refuse writes for a few seconds after boot (run 45500477817: «remote couldn't create file: Operation not
+# permitted», then 3 and 4 failed on a tone that was never there). Retry, and check the whole file landed.
+TONE_DEST=/sdcard/Music/aura_smoke_tone.wav
+TONE_SIZE=$(stat -c %s "$TONE_WAV")
+tone_ok=0
+for attempt in $(seq 1 30); do
+  adb shell mkdir -p /sdcard/Music > /dev/null 2>&1
+  if adb push "$TONE_WAV" "$TONE_DEST" \
+     && [ "$(adb shell stat -c %s "$TONE_DEST" 2>/dev/null | tr -d '\r')" = "$TONE_SIZE" ]; then
+    tone_ok=1; break
+  fi
+  echo "tone push attempt $attempt failed; storage not ready yet, retrying in 2 s"
+  sleep 2
+done
+if [ $tone_ok -ne 1 ]; then
+  echo "::error::could not push the test tone into /sdcard/Music"
+  record setup-tone FAIL "adb push to /sdcard/Music refused after 30 attempts"
+fi
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \
-  -d file:///sdcard/Music/aura_smoke_tone.wav > /dev/null || true
+  -d "file://$TONE_DEST" > /dev/null || true
 
 # ── Phase 1: fresh install of the NEW build ──────────────────────────────────────────────────────
 adb uninstall "$PKG" > /dev/null 2>&1 || true
