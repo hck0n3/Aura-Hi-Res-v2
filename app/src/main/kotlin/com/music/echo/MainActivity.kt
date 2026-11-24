@@ -1394,15 +1394,14 @@ class MainActivity : ComponentActivity() {
                 val coroutineScope = rememberCoroutineScope()
                 val snackbarHostState = remember { SnackbarHostState() }
 
-                // Row 807 (H10): the library sync's brake held a batch of removals from another device. Offered once per batch
-                // (the token survives a rotation); «Revisar» opens the screen that applies or discards them.
-                var lastHeldTrip by rememberSaveable { mutableStateOf(0) }
+                // Row 807 (H10): the library sync's brake held a batch of removals from another device. Offered once per batch:
+                // the batch is cleared once its notice is answered or times out (a rotation mid-notice shows it again);
+                // «Revisar» opens the screen that applies or discards them.
                 val heldNotice = stringResource(R.string.device_sync_held_notice)
                 val heldReview = stringResource(R.string.device_sync_held_review)
                 LaunchedEffect(Unit) {
                     iad1tya.echo.music.devicesync.DeviceSyncHub.heldTrip.collectLatest { trip ->
-                        if (trip == null || trip.token <= lastHeldTrip) return@collectLatest
-                        lastHeldTrip = trip.token
+                        if (trip == null) return@collectLatest
                         val result = snackbarHostState.showSnackbar(
                             message = heldNotice.format(trip.count),
                             actionLabel = heldReview,
@@ -1412,6 +1411,7 @@ class MainActivity : ComponentActivity() {
                             iad1tya.echo.music.utils.ActionLog.tap(iad1tya.echo.music.utils.ActionId.DEVSET_HELD_REVIEW)
                             navController.navigate("settings/device_sync/held")
                         }
+                        iad1tya.echo.music.devicesync.DeviceSyncHub.heldTrip.compareAndSet(trip, null)
                     }
                 }
 

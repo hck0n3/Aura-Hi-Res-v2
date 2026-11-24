@@ -32,9 +32,11 @@ class HeldRemovalsGuardTest {
     fun `the notice offers Revisar and opens the screen`() {
         val activity = read("$main/MainActivity.kt")
         val block = activity.substringAfter("DeviceSyncHub.heldTrip.collectLatest { trip ->").substringBefore("\n                }\n")
-        assertTrue(block.contains("if (trip == null || trip.token <= lastHeldTrip) return@collectLatest"))
+        assertTrue(block.contains("if (trip == null) return@collectLatest"))
         assertTrue(block.contains("actionLabel = heldReview"))
-        assertTrue(block.contains("navController.navigate(\"settings/device_sync/held\")"))
+        val navigate = block.indexOf("navController.navigate(\"settings/device_sync/held\")")
+        assertTrue(navigate >= 0)
+        assertTrue("answered once: cleared after the notice, not before", navigate < block.indexOf("DeviceSyncHub.heldTrip.compareAndSet(trip, null)"))
     }
 
     @Test
