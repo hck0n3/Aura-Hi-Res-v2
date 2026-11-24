@@ -863,7 +863,7 @@ class SpotifyImportRepository @Inject constructor(
             .distinctBy { it.id }
 
         // Row 832: the import (library sync) only takes the song the track really is — strict migration Scorer, see
-        // SpotifyTrackMatcher. External links keep the lenient score below (a shared link may carry no artist at all).
+        // SpotifyTrackMatcher. Row 846: external links too; the lenient score below is only reached with strict = false.
         if (strict && candidates.isNotEmpty()) {
             val picked = SpotifyTrackMatcher.pick(
                 com.aura.migration.model.SourceTrack(
@@ -918,8 +918,9 @@ class SpotifyImportRepository @Inject constructor(
 
     /**
      * Finds the YouTube Music song for each track described by an external link (Spotify, Deezer, Apple
-     * Music, Tidal…), with the same scored matching the Spotify import uses. Order is kept; a track with no
-     * trustworthy match is null. At most [limit] tracks are matched.
+     * Music, Tidal…), with the same strict matching the Spotify import uses (registry row 846: SpotifyTrackMatcher, so
+     * RecordingMatcher's same-recording rules). Order is kept; a track with no trustworthy match is null. At most [limit]
+     * tracks are matched.
      */
     suspend fun matchExternalTracks(tracks: List<SpotifyTrack>, limit: Int = 100): List<MediaMetadata?> =
         coroutineScope {
@@ -928,7 +929,7 @@ class SpotifyImportRepository @Inject constructor(
                 async {
                     semaphore.withPermit {
                         try {
-                            matchTrack(track, index)
+                            matchTrack(track, index, strict = true)
                         } catch (error: CancellationException) {
                             throw error
                         } catch (error: Throwable) {

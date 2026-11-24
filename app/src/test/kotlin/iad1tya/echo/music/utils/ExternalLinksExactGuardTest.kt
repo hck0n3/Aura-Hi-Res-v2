@@ -35,6 +35,43 @@ class ExternalLinksExactGuardTest {
         assertFalse(main("MainActivity.kt").contains("Resolved.DirectVideo"))
     }
 
+    /** Every song of a shared link (track, album or playlist queue) is matched by the strict same-recording matcher. */
+    @Test
+    fun `shared tracks are matched strictly`() {
+        val repo = main("spotifyimport/SpotifyImportRepository.kt")
+        val start = repo.indexOf("    suspend fun matchExternalTracks(")
+        assertTrue(start >= 0)
+        val external = repo.substring(start, repo.indexOf("    suspend fun ensureSpotifyReadToken(", start))
+        assertTrue(external.contains("matchTrack(track, index, strict = true)"))
+        val search = repo.substring(repo.indexOf("    private suspend fun searchAndScore("))
+        assertTrue(search.contains("if (strict && candidates.isNotEmpty()) {"))
+        assertTrue(search.contains("SpotifyTrackMatcher.pick("))
+        assertTrue(main("spotifyimport/SpotifyTrackMatcher.kt").contains("ranked.firstOrNull { RecordingMatcher.accepts(source, it.candidate) }"))
+        val activity = openExternal()
+        assertTrue(activity.contains("val matched = repository.matchExternalTracks(tracks).filterNotNull()"))
+        assertTrue(activity.contains("val song = repository.matchExternalTracks(resolved.tracks, limit = 1).firstOrNull()"))
+    }
+
+    /** An album opens only when title AND artist are the same (row 830's rule); never the first album whose title contains it. */
+    @Test
+    fun `an album opens only on an exact title and artist match`() {
+        val activity = openExternal()
+        assertTrue(activity.contains("SpotifyExactImportPolicy.isSameAlbum("))
+        assertTrue(activity.contains("youTubeArtists = album.artists.orEmpty().map { it.name },"))
+        assertFalse(activity.contains(".contains(wanted)"))
+        assertFalse(activity.contains("wanted.contains("))
+        // A page title alone carries no separate artist: it goes to the search, never to a guessed album.
+        assertTrue(activity.contains("ExternalMusicLinks.Kind.ALBUM -> notFound(resolved.text)"))
+        assertFalse(activity.contains("findAlbum(resolved.text, resolved.text)"))
+    }
+
+    private fun openExternal(): String {
+        val activity = main("MainActivity.kt")
+        val start = activity.indexOf("    private fun openExternalMusicLink(")
+        assertTrue(start >= 0)
+        return activity.substring(start, activity.indexOf("\n    }\n", start))
+    }
+
     /** The song.link forms Aura itself shares still open without any network request. */
     @Test
     fun `song_link links Aura shares are still read locally`() {

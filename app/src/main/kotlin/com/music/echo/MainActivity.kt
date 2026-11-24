@@ -3047,12 +3047,18 @@ class MainActivity : ComponentActivity() {
                 android.widget.Toast.makeText(this@MainActivity, R.string.external_link_not_found, android.widget.Toast.LENGTH_LONG).show()
                 if (!query.isNullOrBlank()) runCatching { navController.navigate("search/${URLEncoder.encode(query, "UTF-8")}") }
             }
-            suspend fun findAlbum(query: String, title: String): com.music.innertube.models.AlbumItem? =
+            // Registry row 846: an album is the shared one only by the Spotify import's rule (row 830): equal normalized title AND
+            // one of the same artists. A title that merely contained the wanted one opened other artists' albums.
+            suspend fun findAlbum(query: String, title: String, artists: List<String>): com.music.innertube.models.AlbumItem? =
                 YouTube.search(query, YouTube.SearchFilter.FILTER_ALBUM).getOrNull()?.items
                     ?.filterIsInstance<com.music.innertube.models.AlbumItem>()
-                    ?.let { albums ->
-                        val wanted = title.lowercase().substringBefore(" (").trim()
-                        albums.firstOrNull { it.title.lowercase().contains(wanted) || wanted.contains(it.title.lowercase()) }
+                    ?.firstOrNull { album ->
+                        iad1tya.echo.music.spotifyimport.SpotifyExactImportPolicy.isSameAlbum(
+                            spotifyTitle = title,
+                            spotifyArtists = artists,
+                            youTubeTitle = album.title,
+                            youTubeArtists = album.artists.orEmpty().map { it.name },
+                        )
                     }
             suspend fun playTracks(title: String, tracks: List<iad1tya.echo.music.spotify.models.SpotifyTrack>) {
                 val matched = repository.matchExternalTracks(tracks).filterNotNull()
@@ -3076,7 +3082,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     iad1tya.echo.music.utils.ExternalMusicLinks.Kind.ALBUM -> {
-                        val album = findAlbum("${resolved.artist} ${resolved.title}".trim(), resolved.title)
+                        val album = findAlbum(
+                            "${resolved.artist} ${resolved.title}".trim(),
+                            resolved.title,
+                            listOf(resolved.artist) + resolved.tracks.flatMap { track -> track.artists.map { it.name } },
+                        )
                         if (album != null) {
                             withContext(Dispatchers.Main) { navController.navigate("album/${album.browseId}") }
                         } else {
@@ -3091,14 +3101,8 @@ class MainActivity : ComponentActivity() {
                             ?.items?.filterIsInstance<SongItem>()?.firstOrNull()
                         if (song != null) withContext(Dispatchers.Main) { playVideo(song.id, null) } else notFound(resolved.text)
                     }
-                    iad1tya.echo.music.utils.ExternalMusicLinks.Kind.ALBUM -> {
-                        val album = findAlbum(resolved.text, resolved.text)
-                        if (album != null) {
-                            withContext(Dispatchers.Main) { navController.navigate("album/${album.browseId}") }
-                        } else {
-                            notFound(resolved.text)
-                        }
-                    }
+                    // Only the page title is known (no separate artist), so no album can be confirmed: search for it instead.
+                    iad1tya.echo.music.utils.ExternalMusicLinks.Kind.ALBUM -> notFound(resolved.text)
                     iad1tya.echo.music.utils.ExternalMusicLinks.Kind.PLAYLIST -> withContext(Dispatchers.Main) {
                         runCatching { navController.navigate("search/${URLEncoder.encode(resolved.text, "UTF-8")}") }
                     }

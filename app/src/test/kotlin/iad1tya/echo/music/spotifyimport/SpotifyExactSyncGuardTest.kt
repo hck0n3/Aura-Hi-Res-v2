@@ -31,14 +31,18 @@ class SpotifyExactSyncGuardTest {
 
     private val repo get() = main("spotifyimport/SpotifyImportRepository.kt")
 
-    /** Row 832: liked songs and playlists go through the strict matcher; external links keep the lenient one. */
+    /**
+     * Row 832: liked songs and playlists go through the strict matcher. Row 846 (owner 2026-11-24, Odesli point 1: a shared link
+     * plays the SAME song): external links too, instead of the lenient score row 832 left them.
+     */
     @Test
-    fun `the import matches tracks strictly and external links do not`() {
+    fun `the import and external links match tracks strictly`() {
         val src = repo
         val matchTracks = body(src, "    private suspend fun matchTracks(")
         assertTrue(matchTracks.contains("matchTrack(track, index, strict = true)"))
         val external = body(src, "    suspend fun matchExternalTracks(")
-        assertTrue(external.contains("matchTrack(track, index)"))
+        assertTrue(external.contains("matchTrack(track, index, strict = true)"))
+        assertFalse(external.contains("matchTrack(track, index)"))
         val search = body(src, "    private suspend fun searchAndScore(")
         assertTrue(search.contains("if (strict && candidates.isNotEmpty()) {"))
         assertTrue(search.contains("SpotifyTrackMatcher.pick("))
