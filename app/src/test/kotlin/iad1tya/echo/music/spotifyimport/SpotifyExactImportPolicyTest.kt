@@ -104,6 +104,58 @@ class SpotifyExactImportPolicyTest {
     }
 
     @Test
+    fun `only artists new since the last pass are followed`() {
+        val before = setOf("sp1", "sp2")
+        assertFalse(SpotifyExactImportPolicy.isNewSinceLastPass("sp1", before))
+        assertTrue(SpotifyExactImportPolicy.isNewSinceLastPass("sp3", before))
+        assertTrue(SpotifyExactImportPolicy.isNewSinceLastPass("sp1", emptySet()))
+    }
+
+    @Test
+    fun `the set keeps what Spotify still lists, adds what this pass handled and never a blank id`() {
+        // sp2 left Spotify's list; sp3 was handled now; sp4 failed (not handled) and stays new for the next pass.
+        assertEquals(
+            setOf("sp1", "sp3"),
+            SpotifyExactImportPolicy.importedAfterPass(
+                previous = setOf("sp1", "sp2"),
+                listedNow = listOf("sp1", "sp3", "sp4", ""),
+                handledNow = listOf("sp3", ""),
+            ),
+        )
+        // An artist unfollowed on Spotify and followed there again later is new again.
+        val afterUnfollow = SpotifyExactImportPolicy.importedAfterPass(setOf("sp1"), listOf("sp9"), emptyList())
+        assertTrue(SpotifyExactImportPolicy.isNewSinceLastPass("sp1", afterUnfollow))
+    }
+
+    @Test
+    fun `the set is per Google account`() {
+        assertEquals("abc123", SpotifyExactImportPolicy.accountTag("abc123"))
+        assertEquals(SpotifyExactImportPolicy.SIGNED_OUT_TAG, SpotifyExactImportPolicy.accountTag(null))
+        val repo = main("spotifyimport/SpotifyImportRepository.kt")
+        assertTrue(repo.contains("stringSetPreferencesKey(\"spotify_imported_artist_ids@\$accountTag\")"))
+        assertTrue(
+            repo.contains(
+                "val importedKey = spotifyImportedArtistIdsKey(SpotifyExactImportPolicy.accountTag(ImportFollowsAccounts.tagOf(prefs[AccountEmailKey])))",
+            ),
+        )
+    }
+
+    @Test
+    fun `the followed-artists pass matches only new ids and records the set even when cancelled`() {
+        val repo = main("spotifyimport/SpotifyImportRepository.kt")
+        val pass = repo.substringAfter("private suspend fun importFollowedArtists(").substringBefore("\n    }\n")
+        val gate = "if (!SpotifyExactImportPolicy.isNewSinceLastPass(artist.id, alreadyImported)) {"
+        assertTrue(pass.contains(gate))
+        assertTrue("the gate comes before the match", pass.indexOf(gate) < pass.indexOf("matchAndFollowArtistDetailed(artist)"))
+        assertTrue(pass.contains("handled += artist.id"))
+        val fin = pass.substringAfter("} finally {")
+        assertTrue(fin.contains("withContext(NonCancellable) {"))
+        assertTrue(fin.contains("it[importedKey] = SpotifyExactImportPolicy.importedAfterPass("))
+        // Counts only in the shared log (AGENTS rule 4).
+        assertTrue(pass.contains("\"ARTIST_IMPORT_PASS listed=%d new=%d\""))
+    }
+
+    @Test
     fun `the screen, the view model and the worker go through the policy`() {
         val vm = main("spotifyimport/SpotifyImportViewModel.kt")
         assertTrue(vm.contains("selectedSourceIds = SpotifyExactImportPolicy.initialSelection("))

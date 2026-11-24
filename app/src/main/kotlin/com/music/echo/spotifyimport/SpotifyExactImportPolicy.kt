@@ -50,4 +50,24 @@ object SpotifyExactImportPolicy {
     fun storedSpellings(matchId: String, channelId: String?): List<String> =
         (ArtistSyncPolicy.aliasIds(matchId) + channelId?.takeIf { it.isNotBlank() }?.let(ArtistSyncPolicy::aliasIds).orEmpty())
             .distinct()
+
+    /** The tag the «already imported» set is kept under: the Google account's (`ImportFollowsAccounts.tagOf`), or one for no account. */
+    const val SIGNED_OUT_TAG = "signed_out"
+
+    fun accountTag(googleAccountTag: String?): String = googleAccountTag ?: SIGNED_OUT_TAG
+
+    /**
+     * Only a Spotify artist no earlier pass handled for this account is matched and followed. One handled before and since removed
+     * on YouTube (its follow cleared by the account read-back, without an unfollow marker) is therefore never followed again.
+     */
+    fun isNewSinceLastPass(spotifyArtistId: String, alreadyImported: Set<String>): Boolean = spotifyArtistId !in alreadyImported
+
+    /**
+     * The set after a pass: what Spotify still lists and an earlier pass handled, plus what this pass handled. An artist the user
+     * stopped following ON SPOTIFY leaves it, so following it there again later is new again. Blank ids are never kept.
+     */
+    fun importedAfterPass(previous: Set<String>, listedNow: Collection<String>, handledNow: Collection<String>): Set<String> {
+        val listed = listedNow.toHashSet()
+        return (previous + handledNow).filterTo(LinkedHashSet()) { it.isNotBlank() && it in listed }
+    }
 }
