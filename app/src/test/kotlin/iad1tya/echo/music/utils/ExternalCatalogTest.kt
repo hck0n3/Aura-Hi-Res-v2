@@ -160,6 +160,25 @@ class ExternalCatalogTest {
         assertEquals(listOf(1_000, 2_000, 3_000), album.tracks.map { it.durationMs })
     }
 
+    /** Row 846 + row 830's equal-title rule: «Blinding Lights - Single» never equals YouTube Music's «Blinding Lights». */
+    @Test
+    fun `an Apple Music single or EP is named without its store suffix`() {
+        val results = ExternalCatalog.itunesResults(
+            """{"resultCount":2,"results":[
+               {"wrapperType":"collection","collectionType":"Album","collectionId":20,"artistName":"The Weeknd","collectionName":"Blinding Lights - Single"},
+               {"wrapperType":"track","kind":"song","trackId":21,"artistName":"The Weeknd","collectionName":"Blinding Lights - Single","trackName":"Blinding Lights","trackTimeMillis":200040,"discNumber":1,"trackNumber":1}]}""",
+        )
+        val album = ExternalCatalog.itunesAlbum(results)!!
+        assertEquals("Blinding Lights", album.title)
+        assertEquals("Blinding Lights", album.tracks.single().album)
+        assertEquals("Blinding Lights", ExternalCatalog.itunesSong(results)!!.album)
+        assertEquals("Kids", ExternalCatalog.itunesCollectionTitle("Kids - EP"))
+        // Only a trailing store suffix: other titles stay whole.
+        assertEquals("Single Ladies - Remix", ExternalCatalog.itunesCollectionTitle("Single Ladies - Remix"))
+        assertEquals("EP - Single Edition", ExternalCatalog.itunesCollectionTitle("EP - Single Edition"))
+        assertEquals("Discovery", ExternalCatalog.itunesCollectionTitle("Discovery"))
+    }
+
     private fun obj(body: String): JsonObject = ExternalCatalog.deezerObject(body)!!
 
     private fun row(n: Int) =

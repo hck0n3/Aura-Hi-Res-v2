@@ -101,9 +101,14 @@ internal object ExternalCatalog {
             title = title,
             artist = obj.str("artistName").orEmpty(),
             durationMs = (obj["trackTimeMillis"]?.jsonPrimitive?.longOrNull ?: 0L).toInt(),
-            album = obj.str("collectionName"),
+            album = obj.str("collectionName")?.let(::itunesCollectionTitle),
         )
     }
+
+    /** iTunes names a single's or an EP's collection «Title - Single» / «Title - EP»; YouTube Music names that album «Title». */
+    fun itunesCollectionTitle(name: String): String = name.replace(SINGLE_OR_EP_SUFFIX, "")
+
+    private val SINGLE_OR_EP_SUFFIX = Regex(" - (Single|EP)$")
 
     fun itunesSong(results: List<JsonObject>): Track? = results.firstOrNull { it.isTrack() }?.let(::itunesTrack)
 
@@ -115,7 +120,7 @@ internal object ExternalCatalog {
         val tracks = results.filter { it.isTrack() }
             .sortedWith(compareBy({ it["discNumber"]?.jsonPrimitive?.intOrNull ?: 1 }, { it["trackNumber"]?.jsonPrimitive?.intOrNull ?: 0 }))
             .mapNotNull(::itunesTrack)
-        return Album(collection.str("collectionName").orEmpty(), collection.str("artistName").orEmpty(), tracks)
+        return Album(itunesCollectionTitle(collection.str("collectionName").orEmpty()), collection.str("artistName").orEmpty(), tracks)
     }
 
     private fun JsonObject.str(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
