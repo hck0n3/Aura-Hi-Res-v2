@@ -58,7 +58,7 @@ data class SourceArtist(
     val artworkUrl: String? = null,
 )
 
-enum class SourceType { TIDAL, DEEZER, APPLE, SPOTIFY, FILE }
+enum class SourceType { TIDAL, DEEZER, APPLE, SPOTIFY, FILE, AMAZON }
 
 /** Un resultado de busqueda de YouTube Music, ya normalizado. */
 data class YtmCandidate(

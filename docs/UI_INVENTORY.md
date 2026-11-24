@@ -202,6 +202,7 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 51 | `migration` | `MigrationScreen` | `:451` | sí |
 | 52 | `migration/tidal` | `MigrationTidalScreen` | `:455` | sí |
 | 53 | `migration/apple` | `MigrationAppleScreen` | `:459` | sí |
+| 53b | `migration/amazon` | `AuraMigrationAmazonScreen` (filas 844-845; sin gemela clásica) | NavigationBuilder | sí (Migración > «Amazon Music») |
 | 54 | `settings/ytm_sync?...` | `YtmSyncScreen` | `:463` | sí |
 | 55 | `settings/integrations/listen_together` | `ListenTogetherSettings` | `:474` | sí |
 | 56 | `settings/about` | `AboutScreen` | `:478` | sí |
@@ -377,6 +378,9 @@ Con `-Pnosub=true` la puerta se salta entera (`license/LicenseGate.kt:21-24`).
 | Diálogo «Error de migración» + **«Aceptar»** | Migración | `ui/screens/migration/MigrationScreen.kt:193-211` | informativo | rara | fase ERROR |
 | **Tidal**: campo Client ID, **«Abrir panel»**, **«Guardar»**, **«Cambiar»**, **«Iniciar sesión en Tidal»**, **«Cerrar sesión de Tidal»**, **«Recargar listas»**, campo de enlace, **«Importar»** | Migración > Tidal | `ui/screens/migration/MigrationTidalScreen.kt:158-370` | acción primaria | rara | según estado de sesión |
 | **Apple Music**: guía de pasos + **«Abrir privacy.apple.com»** + limitaciones | Migración > Apple | `ui/screens/migration/MigrationAppleScreen.kt:77-152` | navegación | rara | siempre |
+| **2026-11-24 (fila 844):** **«Amazon Music»** — desc. «Inicia sesión dentro de la app; solo lectura». Solo en la interfaz nueva (la clásica no se dibuja con `SINGLE_UI`) | Migración > fase Elegir, debajo de «Apple Music» | `ui/newui/AuraMigrationScreen.kt` (`auraPickerContent`, `ActionId.MIG_SOURCE_AMAZON`) | navegación | rara | solo con sesión de Google, como las demás fuentes |
+| **2026-11-24 (filas 844-845):** **Amazon Music**: texto de solo lectura, «Tienda: music.amazon.xx» + **«Cambiar tienda»** (diálogo con las 15 tiendas + **«Cancelar»**), **«Iniciar sesión en Amazon Music»**; con sesión: «Conectado a Amazon Music» + tienda, **«Cerrar sesión de Amazon»**, «Elige qué migrar» con «Canciones que te gustan» (insignia de Biblioteca → Me gusta) y cada lista propia, **«Recargar listas»**; aviso de error + **«Aceptar»** | Migración > Amazon Music | `ui/newui/AuraMigrationScreen.kt` (`AuraMigrationAmazonScreen`, `AuraAmazonConnectedCard`) | acción primaria | rara | según estado de sesión |
+| **2026-11-24 (fila 844):** ventana de inicio de sesión de Amazon: **«←»**, título «Amazon Music», **«Ya inicié sesión»**, línea de estado y la página real de Amazon | Migración > Amazon Music > Iniciar sesión | `migration/AmazonMusicLoginActivity.kt` | acción primaria | rara | al pulsar «Iniciar sesión en Amazon Music» |
 
 ## 1.14 Importación desde Spotify
 
@@ -3629,6 +3633,7 @@ en él. Son los candidatos número uno a desaparecer sin que nadie lo note hasta
 | **Con sesión** | Aparece el avatar en la barra superior en lugar del engranaje, y los dos interruptores de la hoja de cuenta |
 | **Sin sesión de Spotify** | La pantalla de importación cambia de 7 filas a 2 |
 | **Sin sesión de Tidal** | La pantalla de Tidal muestra el formulario de Client ID en vez de la lista de colecciones |
+| **Sin sesión de Amazon Music** (fila 844) | La pantalla de Amazon Music muestra la tienda y «Iniciar sesión en Amazon Music» en vez de la lista; si Amazon rechaza la sesión guardada, se borra y vuelve a este estado con el aviso de sesión caducada |
 | **Sin clave de API de IA** | Desaparece «Traducción de letras con IA» del menú de letras (`ui/menu/LyricsMenu.kt:447`) |
 
 ## 20.3 Por estado de Escuchar juntos — el caso más invasivo

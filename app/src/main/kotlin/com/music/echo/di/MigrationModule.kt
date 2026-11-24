@@ -10,6 +10,10 @@ import com.aura.migration.net.HttpJson
 import com.aura.migration.net.OkHttpJson
 import com.aura.migration.resolver.TrackResolver
 import com.aura.migration.resolver.YtmClient
+import com.aura.migration.source.amazon.AmazonMusicClient
+import com.aura.migration.source.amazon.AmazonMusicSource
+import com.aura.migration.source.amazon.AmazonSessionStore
+import com.aura.migration.source.amazon.OkHttpAmazonHttp
 import com.aura.migration.source.deezer.DeezerSource
 import com.aura.migration.source.file.FileSource
 import com.aura.migration.source.tidal.TidalAuth
@@ -20,6 +24,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import iad1tya.echo.music.constants.TidalClientIdKey
+import iad1tya.echo.music.migration.EncryptedAmazonSessionStore
 import iad1tya.echo.music.migration.MigrationCacheDatabase
 import iad1tya.echo.music.migration.TidalTokenStore
 import iad1tya.echo.music.migration.YtmClientInnerTube
@@ -149,4 +154,21 @@ object MigrationModule {
         countryCode = Locale.getDefault().country.takeIf { it.length == 2 } ?: "ES",
         userIdProvider = { tokenStore.userId() },
     )
+
+    // Amazon Music (read only): the session lives encrypted in its own prefs file, and the transport
+    // never follows a redirect, so the replayed cookies can only reach the Music host we chose.
+    @Provides
+    @Singleton
+    fun provideAmazonSessionStore(
+        @ApplicationContext context: Context,
+    ): AmazonSessionStore = EncryptedAmazonSessionStore(context)
+
+    @Provides
+    @Singleton
+    fun provideAmazonMusicClient(store: AmazonSessionStore): AmazonMusicClient =
+        AmazonMusicClient(OkHttpAmazonHttp(migrationHttpClient), store)
+
+    @Provides
+    @Singleton
+    fun provideAmazonMusicSource(client: AmazonMusicClient): AmazonMusicSource = AmazonMusicSource(client)
 }

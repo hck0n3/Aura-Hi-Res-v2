@@ -49,7 +49,7 @@ object LogRedaction {
      * this consumes the header's own line and nothing after it.
      */
     private val HEADER_VALUE = Regex(
-        "(\\b(?:set-cookie|cookie|authorization|x-goog-visitor-id|x-goog-pageid|x-goog-authuser)" +
+        "(\\b(?:set-cookie|cookie|authorization|x-goog-visitor-id|x-goog-pageid|x-goog-authuser|x-api-key|x-amzn-session-id)" +
             "\\s*[:=]\\s*).*",
         RegexOption.IGNORE_CASE,
     )
@@ -79,9 +79,23 @@ object LogRedaction {
         RegexOption.IGNORE_CASE,
     )
 
-    /** `Authorization: Bearer …` survives above, but these also appear bare in exception text. */
+    /**
+     * Amazon Music session cookies written as bare pairs (rows 844-845): the account/session families
+     * the Amazon migration keeps (`at-main`, `sess-at-acbes`, `ubid-main`, `x-main`, `session-token`…).
+     * Not preceded by a word character or a hyphen, so `dropped-at-5=…` in prose is not mistaken for one.
+     */
+    private val AMAZON_COOKIE_PAIR = Regex(
+        "(?<![A-Za-z0-9_-])((?:sess-at|sso-state|sst|ubid|at|x)-[a-z0-9]+(?:-[a-z0-9]+)*|" +
+            "session-id-time|session-id|session-token|am-token)=[^;\\s&\"']+",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /**
+     * `Authorization: Bearer …` survives above, but these also appear bare in exception text. `AmznMusic`
+     * is Amazon Music's web-player scheme (a base64 token that may contain `/`, which the blob rule skips).
+     */
     private val AUTH_SCHEME = Regex(
-        "\\b(Bearer|SAPISIDHASH|Basic|OAuth)\\s+[^\\s,;\"']+",
+        "\\b(Bearer|SAPISIDHASH|Basic|OAuth|AmznMusic)\\s+[^\\s,;\"']+",
         RegexOption.IGNORE_CASE,
     )
 
@@ -163,6 +177,7 @@ object LogRedaction {
         out = HEADER_VALUE.replace(out, "$1$MASK")
         out = SECRET_FIELD.replace(out, "$1$MASK")
         out = COOKIE_PAIR.replace(out) { "${it.groupValues[1]}=$MASK" }
+        out = AMAZON_COOKIE_PAIR.replace(out) { "${it.groupValues[1]}=$MASK" }
         out = AUTH_SCHEME.replace(out) { "${it.groupValues[1]} $MASK" }
         out = LICENSE_KEY.replace(out, MASK)
         out = EMAIL.replace(out, MASK)

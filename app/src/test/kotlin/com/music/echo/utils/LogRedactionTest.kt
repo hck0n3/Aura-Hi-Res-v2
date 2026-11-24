@@ -261,6 +261,25 @@ class LogRedactionTest {
         assertEquals(line, LogRedaction.redact(line))
     }
 
+    // ── Rows 844-845: the Amazon Music session (cookies + web-player headers) ────────────────────────
+
+    @Test
+    fun amazonMusicSessionCookiesAndHeadersAreRedacted() {
+        assertScrubbed("Atza|IwEBIA", "renewal with at-main=Atza|IwEBIA failed")
+        assertScrubbed("sessTOKEN123", "session-token=sessTOKEN123; ubid-acbes=262-1")
+        assertScrubbed("262-1234567", "ubid-acbes=262-1234567 rotated")
+        assertScrubbed("xMAINvalue", "x-main=xMAINvalue")
+        assertScrubbed("eyJkZXZpY2VJZCI6Ij/abc", "GraphQL rejected AmznMusic eyJkZXZpY2VJZCI6Ij/abc")
+        assertScrubbed("sess-9f8e", "x-amzn-session-id: sess-9f8e")
+        assertScrubbed("panda-tok", """{"accessToken":"panda-tok","expiresIn":3600}""")
+    }
+
+    @Test
+    fun aHyphenatedWordEndingInAtIsNotAnAmazonCookie() {
+        val line = "Amazon collection loaded: 12 collections, dropped-at-5=0 retried-x-1=2"
+        assertEquals(line, LogRedaction.redact(line))
+    }
+
     @Test
     fun emptyInputIsReturnedUnchanged() {
         assertEquals("", LogRedaction.redact(""))

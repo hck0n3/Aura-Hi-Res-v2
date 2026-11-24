@@ -115,3 +115,5 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+- **SongMirror — Amazon Music read path** (MIT, Copyright (c) 2026 Ahnaf An Nafee, <https://github.com/ahnafnafee/songmirror> @ `e5bad7a`): `migration/src/main/kotlin/com/aura/migration/source/amazon/` (`AmazonMusicWeb.kt`, `AmazonMusicClient.kt`, `AmazonMusicSource.kt`) adapts the read side of `songmirror/amazon_music_web.py` and `songmirror/engine/targets/amazon_music.py`; the full MIT permission notice is in the header of `AmazonMusicWeb.kt`.
