@@ -1306,10 +1306,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             .collectLatest { (hold, service) ->
                 if (hold == null || hold.started) {
                     val dropped = hold == null && pending != null
+                    // Row 816 (C2): whether the hold that let go had been told its start time.
+                    val startTimeNamed = (pending?.startAtServerTime ?: 0L) > 0L
                     pending = null
                     // Let go without having started (the start time never came, the room paused, or we left): follow the room as before.
                     if (dropped && service != null) {
-                        followRoomAfterHold(service)
+                        followRoomAfterHold(service, startTimeNamed)
                     } else {
                         // Over either way: with no player to resume, a host left «holding» would never publish a play or pause again.
                         hostHoldingForStart = false
@@ -1327,7 +1329,7 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                 withContext(NonCancellable) {
                     pending = null
                     session.markSyncStartStarted(hold)
-                    followRoomAfterHold(service)
+                    followRoomAfterHold(service, startTimeNamed = hold.startAtServerTime > 0L)
                 }
             }
     }
@@ -1381,8 +1383,14 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
         true
     }
 
-    /** After a hold that did not start on time: the host plays (that was its intent), a guest takes the room's state as it is. */
-    private suspend fun followRoomAfterHold(service: MusicService) {
+    /**
+     * After a hold that did not start on time: the host plays (that was its intent), a guest takes the room's state as it is — or,
+     * when the hold never learnt its start time, asks the room first ([guestAfterHoldRelease], row 816).
+     */
+    private suspend fun followRoomAfterHold(
+        service: MusicService,
+        startTimeNamed: Boolean,
+    ) {
         val wasHostHolding = hostHoldingForStart
         hostHoldingForStart = false
         val state = session.state.value
@@ -1395,6 +1403,12 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
             return
         }
         if (!state.inRoom || state.isHost) return
+        val plan = guestAfterHoldRelease(startTimeNamed, state.isPlaying)
+        if (plan.askRoom) {
+            Timber.tag(TAG).i("Synchronized start let go without a start time — asking the server where the room is")
+            session.requestSync()
+        }
+        if (!plan.applyRoomState) return
         remoteDepth.incrementAndGet()
         try {
             applyTransport(service, state.isPlaying && !pausedLocally, state.position, state.currentTrack, state.lastActionServerTime)
