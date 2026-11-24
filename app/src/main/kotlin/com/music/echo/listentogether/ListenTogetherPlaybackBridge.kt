@@ -491,6 +491,8 @@ class ListenTogetherPlaybackBridge @javax.inject.Inject constructor(
                         receipt.anchorServerTime != anchorServerTime || receipt.playing != playing
                     ) {
                         roomReceipt = RoomTimelineReceipt(track?.id, position, anchorServerTime, playing, android.os.SystemClock.elapsedRealtime())
+                        // Row 796: a new room command (another track, a seek, play or pause) gives its track its reloads back.
+                        trackGuard.onRoomCommand(track?.id)
                     }
                     // A synchronized start (W2): the room's track loads PAUSED at the start position; the hold starts it on time.
                     val hold = session.state.value.syncStart?.takeIf { syncStartHolds(it, track?.id) }

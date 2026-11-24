@@ -30,11 +30,11 @@ internal sealed interface GuestTrackStep {
  * (track, anchor) and then return without retrying, so a reload that failed (the error path skips to the next song again) left the
  * guest on a different song until the host happened to send another command; and it only looked at the next 15 s heartbeat.
  *
- * Now, per room track: up to [maxReloads] reloads, at least [minSpacingMs] apart; after that the guest holds (pauses) instead of
- * playing a song the room never chose. A guest that finished the room's song first waits for the host's change_track while the room
- * is inside [handoffMs] of that song's end (it may already be playing its own next song, which is normally the room's next too), once,
- * and then holds. Every Wait is bounded, so the caller's rechecks end. Synchronized: the bridge's collectors and the player's thread
- * call it.
+ * Now, per room command on its track ([onRoomCommand]): up to [maxReloads] reloads, at least [minSpacingMs] apart; after that the
+ * guest holds (pauses) instead of playing a song the room never chose, until the room's next command. A guest that finished the
+ * room's song first waits for the host's change_track while the room is inside [handoffMs] of that song's end (it may already be
+ * playing its own next song, which is normally the room's next too), once, and then holds. Every Wait is bounded, so the caller's
+ * rechecks end. Synchronized: the bridge's collectors and the player's thread call it.
  */
 internal class GuestTrackGuard(
     private val maxReloads: Int = MAX_GUEST_TRACK_RELOADS,
@@ -83,6 +83,19 @@ internal class GuestTrackGuard(
         reloads++
         lastReloadAtMs = nowMs
         return GuestTrackStep.Reload(reloads)
+    }
+
+    /**
+     * A new command from the room ([roomTrackId] changed, or a seek, play or pause on it; a repeat-one loop is a seek): the room's
+     * track gets its reloads and its handoff wait back, also for a song the room played before. For the same track the spacing from
+     * the last reload stays, so re-applying the same command (heartbeat, recheck) never loops.
+     */
+    @Synchronized
+    fun onRoomCommand(roomTrackId: String?) {
+        if (roomTrackId != trackId) lastReloadAtMs = null
+        trackId = roomTrackId
+        reloads = 0
+        handoffWaited = false
     }
 
     /** Leaving the room, or the user resuming this guest by hand: the room's track gets its reloads again. */
