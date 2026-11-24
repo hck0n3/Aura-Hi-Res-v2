@@ -58,6 +58,37 @@ class NetworkStreamQualityTest {
     }
 
     @Test
+    fun `a cached URL from the other network's tier is a miss, except for the playing song`() {
+        val noRead: () -> Boolean = { error("the network must not be read here") }
+        // The playing song keeps its URL: a re-open mid-song must stay on the same file.
+        assertTrue(NetworkStreamQuality.reusable(entrySaver = true, isCurrentlyPlaying = true, saverNow = noRead))
+        // An entry written without a tier behaves as before.
+        assertTrue(NetworkStreamQuality.reusable(entrySaver = null, isCurrentlyPlaying = false, saverNow = noRead))
+        // Resolved at home (full pick), now on mobile data set to Saver: re-resolve.
+        assertFalse(NetworkStreamQuality.reusable(entrySaver = false, isCurrentlyPlaying = false) { true })
+        // Resolved on mobile data (saver pick), now on Wi-Fi set to High: re-resolve.
+        assertFalse(NetworkStreamQuality.reusable(entrySaver = true, isCurrentlyPlaying = false) { false })
+        assertTrue(NetworkStreamQuality.reusable(entrySaver = false, isCurrentlyPlaying = false) { false })
+    }
+
+    @Test
+    fun `every listening cache entry records its tier and every reuse checks it`() {
+        val yt = main("utils/YTPlayerUtils.kt")
+        assertTrue(yt.contains("val networkSaver: Boolean = false,"))
+        assertTrue(yt.contains("return result.map { it.copy(networkSaver = saverAudio) }"))
+        val service = main("playback/MusicService.kt")
+        assertTrue(service.contains("val networkSaver: Boolean? = null,"))
+        assertTrue(service.contains("networkSaver = data.networkSaver,"))
+        assertTrue(service.contains("NetworkStreamQuality.reusable(entry.networkSaver, it == currentPlayingMediaId) { preloadSaverNow }"))
+        val resolution = main("playback/StreamResolution.kt")
+        assertTrue(resolution.contains("networkSaver = nonNullPlayback.networkSaver,"))
+        assertTrue(resolution.contains("networkSaver = playback.networkSaver,"))
+        assertTrue(resolution.contains("fun tierFits(entry: CachedStream) = NetworkStreamQuality.reusable(entry.networkSaver, isCurrentlyPlaying) { saverNow }"))
+        // Both cache-hit branches (cached bytes + URL, and URL only).
+        assertEquals(2, Regex(Regex.escape("it.expiresAt > System.currentTimeMillis() && tierFits(it)")).findAll(resolution).count())
+    }
+
+    @Test
     fun `the network is read at resolve time only - no callback, no polling`() {
         val q = main("playback/NetworkStreamQuality.kt")
         assertFalse(q.contains("registerNetworkCallback"))

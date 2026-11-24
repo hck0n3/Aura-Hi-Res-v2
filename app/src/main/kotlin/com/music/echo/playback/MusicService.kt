@@ -1461,6 +1461,9 @@ class MusicService :
         val expiresAt: Long,
         val delivered: iad1tya.echo.music.constants.AudioQuality? = null,
         val requested: iad1tya.echo.music.constants.AudioQuality? = null,
+        // Registry 811 (owner H6b): the per-network tier this URL was resolved at (PlaybackData.networkSaver).
+        // null = written without one; NetworkStreamQuality.reusable then keeps the old behaviour (always reusable).
+        val networkSaver: Boolean? = null,
     )
 
     internal val songUrlCache = java.util.concurrent.ConcurrentHashMap<String, CachedStream>()
@@ -12177,6 +12180,8 @@ class MusicService :
                 configuredLimit = dataStore.get(iad1tya.echo.music.constants.PreloadNextSongLimitKey, 2),
             )
             val preloadLyrics = dataStore.get(iad1tya.echo.music.constants.PreloadLyricsEnabledKey, true)
+            // Registry 811: read the network once per preload pass, and only if an entry's tier has to be checked.
+            val preloadSaverNow by lazy(LazyThreadSafetyMode.NONE) { NetworkStreamQuality.saverForCurrentNetwork(connectivityManager) }
             // Only the next N upcoming tracks per the slider (the current track is resolved on play by the
             // ResolvingDataSource). The plan drops fully-DOWNLOADED songs (they play straight from the
             // download cache — re-resolving could poison songUrlCache with a wrong-container URL) and never
@@ -12196,7 +12201,13 @@ class MusicService :
                 // serves entries with expiresAt in the future. containsKey (the old check) let an
                 // EXPIRED entry suppress the preload while playback still had to re-resolve, so
                 // the transition paid the full resolve stall (~2-3s of silence).
-                hasCachedUrl = { songUrlCache[it]?.let { entry -> entry.expiresAt > System.currentTimeMillis() } == true },
+                // Registry 811 (owner H6b): a URL resolved at the other network's tier is no reason to skip the preload.
+                hasCachedUrl = {
+                    songUrlCache[it]?.let { entry ->
+                        entry.expiresAt > System.currentTimeMillis() &&
+                            NetworkStreamQuality.reusable(entry.networkSaver, it == currentPlayingMediaId) { preloadSaverNow }
+                    } == true
+                },
             )
             for (plan in planned) {
                 val mediaId = plan.mediaId
@@ -12234,6 +12245,7 @@ class MusicService :
                                 expiresAt = System.currentTimeMillis() + (data.streamExpiresInSeconds * 1000L),
                                 delivered = preQuality,
                                 requested = resolveQuality,
+                                networkSaver = data.networkSaver,
                             )
                             Timber.tag(TAG).d("Preloaded stream for $mediaId")
 

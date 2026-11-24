@@ -46,6 +46,14 @@ object NetworkStreamQuality {
         }
     }.getOrDefault(Network.OTHER)
 
+    /**
+     * May a live songUrlCache entry stamped at [entrySaver] serve a play now? The playing song always keeps its URL (a
+     * re-open mid-song must stay on the same file); null = an entry written without a tier = as before. [saverNow] is
+     * asked only when it decides.
+     */
+    fun reusable(entrySaver: Boolean?, isCurrentlyPlaying: Boolean, saverNow: () -> Boolean): Boolean =
+        isCurrentlyPlaying || entrySaver == null || entrySaver == saverNow()
+
     /** For a stream about to be resolved now. Before the first preferences snapshot both read as absent = HIGH. */
     fun saverForCurrentNetwork(connectivityManager: ConnectivityManager): Boolean =
         wantsSaver(PrefsBridge.peek(WifiKey), PrefsBridge.peek(MobileKey)) { currentNetwork(connectivityManager) }

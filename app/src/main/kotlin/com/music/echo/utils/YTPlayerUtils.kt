@@ -377,6 +377,9 @@ object YTPlayerUtils {
         // MusicService.createDataSourceFactory() — NOT persisted to songUrlCache/Room, so a later
         // re-open that serves the cached URL without re-resolving loses the header replay.
         val fallbackRequestHeaders: Map<String, String>? = null,
+        // Registry 811 (owner H6b): this resolve took the per-network saver pick (NetworkStreamQuality). Stamped into
+        // songUrlCache so a URL resolved on one network is not reused for a new play on the other.
+        val networkSaver: Boolean = false,
     )
 
     /**
@@ -517,7 +520,7 @@ object YTPlayerUtils {
             )
             val result = if (inner.isFailure) newPipeAudioRescue(videoId, inner, preferSmallestAudio, timing) ?: inner else inner
             timing.success = result.isSuccess
-            return result
+            return result.map { it.copy(networkSaver = saverAudio) }
         } finally {
             timing.emit()
         }
