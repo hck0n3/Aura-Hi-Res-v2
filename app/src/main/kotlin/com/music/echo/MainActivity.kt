@@ -1565,18 +1565,24 @@ class MainActivity : ComponentActivity() {
                         iad1tya.echo.music.playback.ActionNotices.events.collect { notice ->
                             val message = getString(notice.message)
                             // The expanded player sheet is drawn over this Scaffold's snackbar (its error card has its own
-                            // sign-in step): there the notice keeps the toast it always had.
-                            if (playerBottomSheetState.isExpanded) {
+                            // sign-in step): there the notice keeps the toast it always had. So does a notice that would
+                            // queue behind another snackbar (the previous-queue offer, «Cola cerrada»): queued, it could be
+                            // dropped unseen when the screen stops.
+                            if (playerBottomSheetState.isExpanded || snackbarHostState.currentSnackbarData != null) {
                                 android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_LONG).show()
                                 return@collect
                             }
-                            val result = snackbarHostState.showSnackbar(
-                                message = message,
-                                actionLabel = getString(notice.action),
-                                duration = SnackbarDuration.Long,
-                            )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                runCatching { navController.navigateOnce(notice.route) }
+                            // Undispatched, so the snackbar is current before the next notice is read; the collector never
+                            // waits on it, so no accepted notice is left buffered when repeatOnLifecycle cancels.
+                            launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                val result = snackbarHostState.showSnackbar(
+                                    message = message,
+                                    actionLabel = getString(notice.action),
+                                    duration = SnackbarDuration.Long,
+                                )
+                                if (result == SnackbarResult.ActionPerformed) {
+                                    runCatching { navController.navigateOnce(notice.route) }
+                                }
                             }
                         }
                     }

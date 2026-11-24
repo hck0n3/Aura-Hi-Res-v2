@@ -62,12 +62,15 @@ class ActionNoticesTest {
     }
 
     @Test
-    fun `the activity shows it with its button only while started and never under the expanded player`() {
+    fun `the activity shows it with its button only while started, never under the expanded player or behind another snackbar`() {
         val shell = main("MainActivity.kt")
         val collector = shell.substringAfter("this@MainActivity.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {")
             .substringBefore("var showSettingDialoge")
         assertTrue(collector.contains("iad1tya.echo.music.playback.ActionNotices.events.collect { notice ->"))
-        assertTrue(collector.contains("if (playerBottomSheetState.isExpanded) {"))
+        assertTrue(collector.contains("if (playerBottomSheetState.isExpanded || snackbarHostState.currentSnackbarData != null) {"))
+        // Never queued behind another snackbar and never awaited by the collector: an accepted notice is shown at once,
+        // not left buffered and dropped unseen when the screen stops.
+        assertTrue(collector.contains("launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {"))
         assertTrue(collector.contains("actionLabel = getString(notice.action),"))
         assertTrue(collector.contains("runCatching { navController.navigateOnce(notice.route) }"))
     }
