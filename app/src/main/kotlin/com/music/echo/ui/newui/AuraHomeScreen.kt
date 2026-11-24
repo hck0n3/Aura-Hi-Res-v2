@@ -12,7 +12,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -1906,11 +1905,11 @@ private fun AuraHeroCarouselCard(
         modifier = modifier
             .fillMaxSize()
             // TV/car: the ring goes BEFORE the clip so it draws OUTSIDE it — placed after, the stroke is cut down to
-            // a sliver. It observes the `.focusable()` below. Same order and reason as the classic hero.
+            // a sliver. It observes the clickable's own focus below. Row 826: a separate `.focusable()` in front of the
+            // clickable took the D-pad focus itself, so OK never reached the clickable and the card did nothing.
             .tvFocusable(isTvOrCar, AuraShapes.Card, scaleFocused = 1f)
             .then(shapeModifier)
             .background(placeholder)
-            .focusable()
             .combinedClickable(
                 onClick = { onClick(current) },
                 // What tapping does, spoken by TalkBack (the title, as every other Home card).
