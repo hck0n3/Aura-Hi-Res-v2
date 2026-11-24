@@ -880,6 +880,8 @@ class MainActivity : ComponentActivity() {
         // Global haptics: a single root-level observer covers taps and scrolling app-wide, so the
         // toggle is honoured everywhere instead of only in the few components that opted in.
         val (globalHaptics) = rememberPreference(GlobalHapticsKey, defaultValue = true)
+        // Row 806 (owner decision H2): the scroll tick is opt-in now; the tap haptic above is unchanged.
+        val (scrollHaptics) = rememberPreference(iad1tya.echo.music.constants.ScrollHapticsKey, defaultValue = false)
         val rootView = LocalView.current
 
         echomusicTheme(
@@ -901,7 +903,7 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(if (pureBlack) Color.Black else MaterialTheme.colorScheme.surface)
-                    .pointerInput(globalHaptics) {
+                    .pointerInput(globalHaptics, scrollHaptics) {
                         if (!globalHaptics) return@pointerInput
                         // Observe-only on the Initial pass: nothing is ever consumed, so children,
                         // scrolling and D-pad/TV focus keep the exact behaviour they had before.
@@ -917,7 +919,7 @@ class MainActivity : ComponentActivity() {
                                 val changes = awaitPointerEvent(PointerEventPass.Initial).changes
                                 if (changes.fastAny { it.changedToDown() }) {
                                     rootView.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                } else if (changes.fastAny { it.pressed && it.positionChange().getDistance() > slop }) {
+                                } else if (scrollHaptics && changes.fastAny { it.pressed && it.positionChange().getDistance() > slop }) {
                                     val now = SystemClock.uptimeMillis()
                                     if (now - lastScrollHaptic > SCROLL_HAPTIC_THROTTLE_MS) {
                                         rootView.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)

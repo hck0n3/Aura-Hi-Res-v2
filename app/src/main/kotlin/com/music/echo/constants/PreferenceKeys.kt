@@ -377,6 +377,9 @@ val GridItemsSizeKey = stringPreferencesKey("gridItemSize")
 val SliderStyleKey = stringPreferencesKey("sliderStyle")
 val SquigglySliderKey = booleanPreferencesKey("squigglySlider")
 val GlobalHapticsKey = booleanPreferencesKey("globalHaptics")
+// Registry row 806 (owner decision H2): the ~100 ms tick while dragging. A NEW key, default OFF: GlobalHapticsKey keeps
+// the tap haptics and its stored value; nobody had a saved scroll choice to override.
+val ScrollHapticsKey = booleanPreferencesKey("scrollHaptics")
 val SwipeToSongKey = booleanPreferencesKey("SwipeToSong")
 val SwipeToRemoveSongKey = booleanPreferencesKey("SwipeToRemoveSong")
 val UseNewPlayerDesignKey= booleanPreferencesKey("useNewPlayerDesign")

@@ -2479,7 +2479,8 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/AppearanceSetti
 |---|---|---|---|---|---|
 | Tema — desc. «Personaliza el tema de la app» | Ajustes > Apariencia | AppearanceSettings.kt:996 | navegación | ocasional | siempre |
 | Habilitar alta frecuencia de actualización — desc. «Forzar a la pantalla a funcionar a la frecuencia de actualización más alta permitida (p. ej., 120Hz)» | Ajustes > Apariencia | AppearanceSettings.kt:1004 | conmutador | rara | siempre |
-| Respuesta háptica — desc. «Vibra al tocar y al desplazarte por toda la app» | Ajustes > Apariencia | AppearanceSettings.kt:1027 | conmutador | rara | siempre |
+| Respuesta háptica — desc. «Vibra al tocar en toda la app» (antes «…y al desplazarte»: desde la fila 806 el desplazamiento tiene su propio interruptor) | Ajustes > Apariencia | AppearanceSettings.kt (`GlobalHapticsKey`) | conmutador | rara | siempre |
+| **Vibrar al desplazarte** — desc. «Un toque suave cada 100 ms mientras arrastras una lista. Apagado por defecto; necesita «Vibración» activada» (fila 806, decisión H2) | Ajustes > Apariencia (justo debajo de «Vibración») | AppearanceSettings.kt (`ScrollHapticsKey`) | conmutador | rara | siempre visible; **atenuado y sin efecto con «Vibración» apagada**; APAGADO por defecto |
 | Habilitar tema dinámico | Ajustes > Apariencia | AppearanceSettings.kt:1053 | conmutador | ocasional | solo si `!isUsingCustomColor` (sin color personalizado elegido) |
 
 ### Grupo «Minirreproductor»
@@ -3753,7 +3754,7 @@ para el volumen.
 | **Flechas arriba/abajo del mando en los Términos** | Desplaza el documento 260 px sin mover el foco de los botones | `legal/TermsScreens.kt:133-146` | solo con mando |
 | **Pellizco/zoom en el WebView de inicio de sesión** | Zoom de la página de Google | `ui/screens/LoginScreen.kt:229-231` | siempre |
 | **Salir de la app con vídeo reproduciéndose** | Entra en Picture-in-Picture con 3 controles remotos | `MainActivity.kt:450-471`, `:492-513` | solo en modo vídeo reproduciendo |
-| **Háptica global al pulsar y al arrastrar** | Vibración sutil en toda la app | `MainActivity.kt:751-776` | ajuste «Háptica» ON (por defecto) |
+| **Háptica global al pulsar y al arrastrar** | Vibración sutil al tocar en toda la app; el tic al arrastrar (cada 100 ms) solo con «Vibrar al desplazarte» ON, que desde la fila 806 viene APAGADO | `MainActivity.kt` (`pointerInput(globalHaptics, scrollHaptics)`) | ajuste «Háptica» ON (por defecto); el arrastre además necesita `ScrollHapticsKey` ON |
 | **Anillo de foco del mando (TV/coche)** | Halo + anillo + escala 1,06 en el elemento enfocado | `ui/utils/TvUi.kt:142-256` | solo TV/coche o vista dividida forzada |
 
 ## 21.6 Gestos de Biblioteca, Artista, Álbum y Listas
