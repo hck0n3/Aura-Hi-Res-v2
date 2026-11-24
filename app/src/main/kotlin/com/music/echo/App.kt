@@ -2534,6 +2534,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             // Row 716: follow/unfollow taps still waiting in the per-channel queue belong to THIS account; dropped
             // before the session goes, so none of them is ever sent with the next account's cookie.
             iad1tya.echo.music.db.entities.ArtistEntity.dropPendingAccountCalls()
+            // Row 835: the same for the like / library / save mailbox and its retry.
+            iad1tya.echo.music.utils.AccountPush.forgetAccount()
 
             // Cut every artist row loose from the account BEFORE the credentials go, so a process death
             // mid-logout can never leave account-scoped markers next to a signed-out (or, worse, a
