@@ -64,6 +64,8 @@ import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.AccountSettingsViewModel
 import iad1tya.echo.music.viewmodels.HomeViewModel
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Account flyout from the avatar / gear. With "Interfaz nueva" ON it uses the same frosted
@@ -256,7 +258,7 @@ private fun SettingDialogeBody(
             )
 
             IconButton(
-                onClick = onDismissRequest,
+                onClick = { ActionLog.tap(ActionId.SETDLG_CLOSE); onDismissRequest() },
                 modifier = Modifier.size(32.dp),
             ) {
                 Icon(
@@ -343,7 +345,7 @@ private fun SettingDialogeBody(
                                     modifier = Modifier.scale(0.8f),
                                 )
                                 IconButton(
-                                    onClick = { syncExpanded = !syncExpanded },
+                                    onClick = { ActionLog.tap(ActionId.SETDLG_SYNC_EXPAND); syncExpanded = !syncExpanded },
                                     modifier = Modifier.size(28.dp),
                                 ) {
                                     Icon(
@@ -357,7 +359,7 @@ private fun SettingDialogeBody(
                                 }
                             }
                         },
-                        onClick = { syncExpanded = !syncExpanded },
+                        onClick = { ActionLog.tap(ActionId.SETDLG_SYNC_ROW); syncExpanded = !syncExpanded },
                     )
                 )
                 if (syncExpanded) {
@@ -373,6 +375,7 @@ private fun SettingDialogeBody(
                             },
                             icon = painterResource(R.drawable.sync),
                             onClick = {
+                                ActionLog.tap(ActionId.SETDLG_SYNC_NOW)
                                 iad1tya.echo.music.utils.YtmSyncWorker.enqueue(
                                     context,
                                     iad1tya.echo.music.utils.YtmSyncWorker.TYPE_ALL,
@@ -397,7 +400,7 @@ private fun SettingDialogeBody(
                                 )
                             },
                             icon = painterResource(R.drawable.sync),
-                            onClick = { onNavigate("settings/ytm_sync") },
+                            onClick = { ActionLog.tap(ActionId.SETDLG_SYNC_SCHEDULE); onNavigate("settings/ytm_sync") },
                         )
                     )
                 }
@@ -418,7 +421,7 @@ private fun SettingDialogeBody(
                     Material3SettingsItem(
                         title = { Text("Iniciar sesión") },
                         icon = painterResource(R.drawable.login),
-                        onClick = { onNavigate("login") },
+                        onClick = { ActionLog.tap(ActionId.SETDLG_LOGIN); onNavigate("login") },
                     ),
                 ),
             )
@@ -439,7 +442,7 @@ private fun SettingDialogeBody(
                         )
                     },
                     icon = painterResource(R.drawable.update),
-                    onClick = { onNavigate("settings/update") },
+                    onClick = { ActionLog.tap(ActionId.SETDLG_UPDATES); onNavigate("settings/update") },
                 ),
                 Material3SettingsItem(
                     title = { Text(stringResource(R.string.device_sync_title)) },
@@ -451,12 +454,12 @@ private fun SettingDialogeBody(
                         )
                     },
                     icon = painterResource(R.drawable.sync),
-                    onClick = { onNavigate("settings/device_sync") },
+                    onClick = { ActionLog.tap(ActionId.SETDLG_DEVICE_SYNC); onNavigate("settings/device_sync") },
                 ),
                 Material3SettingsItem(
                     title = { Text(stringResource(R.string.aura_services_title)) },
                     icon = painterResource(R.drawable.cloud),
-                    onClick = { onNavigate("settings/aura_services") },
+                    onClick = { ActionLog.tap(ActionId.SETDLG_AURA_SERVICES); onNavigate("settings/aura_services") },
                 ),
                 Material3SettingsItem(
                     title = { Text(stringResource(R.string.feedback_title)) },
@@ -471,17 +474,18 @@ private fun SettingDialogeBody(
                         )
                     },
                     icon = painterResource(R.drawable.bug_report),
-                    onClick = { onNavigate("settings/feedback") },
+                    onClick = { ActionLog.tap(ActionId.SETDLG_FEEDBACK); onNavigate("settings/feedback") },
                 ),
                 Material3SettingsItem(
                     title = { Text("Ajustes") },
                     icon = painterResource(R.drawable.settings),
-                    onClick = { onNavigate("settings") },
+                    onClick = { ActionLog.tap(ActionId.SETDLG_SETTINGS); onNavigate("settings") },
                 ),
                 Material3SettingsItem(
                     title = { Text("Compartir Aura Hi-Res") },
                     icon = painterResource(R.drawable.share),
                     onClick = {
+                        ActionLog.tap(ActionId.SETDLG_SHARE_APP)
                         val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(android.content.Intent.EXTRA_SUBJECT, "Aura Hi-Res Player")
@@ -503,7 +507,7 @@ private fun SettingDialogeBody(
                             color = mutedColor,
                         )
                     },
-                    onClick = { onNavigate("settings/about") },
+                    onClick = { ActionLog.tap(ActionId.SETDLG_ABOUT); onNavigate("settings/about") },
                 ),
             ),
         )

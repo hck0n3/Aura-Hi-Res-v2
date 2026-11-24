@@ -32,6 +32,8 @@ import iad1tya.echo.music.constants.SafeVolumeEnabledKey
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Dedicated, ordered "Sonido" hub: equalizer, Auto-EQ, all DSP effects/plugins and loudness in one
@@ -70,7 +72,7 @@ fun SoundSettings(
                     icon = painterResource(R.drawable.echoequlizer),
                     title = { Text(stringResource(R.string.echo_equalizer)) },
                     description = { Text(stringResource(R.string.echo_equalizer_desc)) },
-                    onClick = { navController.navigate("settings/equalizer") },
+                    onClick = { ActionLog.tap(ActionId.SETSOUND_EQUALIZER); navController.navigate("settings/equalizer") },
                 ),
             ),
         )
@@ -186,7 +188,7 @@ fun SoundSettings(
                             )
                         }
                     },
-                    onClick = { onStereoWidthChange(1f) },
+                    onClick = { ActionLog.tap(ActionId.SETSOUND_STEREO_WIDTH_RESET); onStereoWidthChange(1f) },
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.volume_up),

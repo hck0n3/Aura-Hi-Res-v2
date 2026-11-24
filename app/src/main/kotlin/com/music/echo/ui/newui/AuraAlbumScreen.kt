@@ -466,6 +466,7 @@ fun AuraAlbumScreen(
                                 selected = selected.takeIf { inSelectMode },
                                 onSelectedChange = if (inSelectMode) onCheckedChange else null,
                                 onClick = {
+                                    ActionLog.tap(ActionId.ALBUM_SONG)
                                     when {
                                         inSelectMode -> onCheckedChange(!selected)
                                         song.id == mediaMetadata?.id -> playerConnection.togglePlayPause()
@@ -484,6 +485,7 @@ fun AuraAlbumScreen(
                                     }
                                 },
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.ALBUM_SONG_SELECT)
                                     if (!inSelectMode) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         inSelectMode = true
@@ -531,8 +533,9 @@ fun AuraAlbumScreen(
                                     cardScale = 1f,
                                     isActive = mediaMetadata?.album?.id == item.id,
                                     isPlaying = isPlaying,
-                                    onClick = { navController.navigateOnce("album/${item.id}") },
+                                    onClick = { ActionLog.tap(ActionId.ALBUM_OTHER_VERSION); navController.navigateOnce("album/${item.id}") },
                                     onLongClick = {
+                                        ActionLog.tap(ActionId.ALBUM_OTHER_VERSION_MENU)
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         menuState.show {
                                             YouTubeAlbumMenu(
@@ -680,6 +683,7 @@ fun AuraAlbumScreen(
                     contentDescription = stringResource(R.string.more_options),
                     enabled = selection.isNotEmpty(),
                     onClick = {
+                        ActionLog.tap(ActionId.ALBUM_SELECTION_MENU)
                         menuState.show {
                             SelectionSongMenu(
                                 songSelection = selection.mapNotNull { songId ->
@@ -699,6 +703,7 @@ fun AuraAlbumScreen(
                         icon = AuraIcons.Share,
                         contentDescription = stringResource(R.string.share),
                         onClick = {
+                            ActionLog.tap(ActionId.ALBUM_SHARE)
                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND)
                                 .apply {
                                     type = "text/plain"
@@ -722,6 +727,7 @@ fun AuraAlbumScreen(
                         icon = AuraIcons.More,
                         contentDescription = stringResource(R.string.more_options),
                         onClick = {
+                            ActionLog.tap(ActionId.ALBUM_MENU)
                             menuState.show {
                                 AlbumMenu(
                                     originalAlbum = Album(album.album, album.artists),
@@ -996,7 +1002,7 @@ private fun AuraAlbumHeader(
                 modifier = Modifier
                     .clip(AuraShapes.Pill)
                     .auraClickableInternal(
-                        onClick = { onOpenArtist(singleArtist.id) },
+                        onClick = { ActionLog.tap(ActionId.ALBUM_ARTIST); onOpenArtist(singleArtist.id) },
                         contentDescription = singleArtist.name,
                     )
                     .tvFocusable(isTvOrCar, AuraShapes.Pill, scaleFocused = 1f)
@@ -1303,7 +1309,7 @@ internal fun AuraDetailTopBar(
             .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {
-        AuraDetailBackButton(onClick = onBack)
+        AuraDetailBackButton(onClick = { ActionLog.tap(ActionId.ALBUM_BACK); onBack() })
         Text(
             text = if (inSelectMode) {
                 pluralStringResource(R.plurals.n_selected, selectionCount, selectionCount)
@@ -1358,6 +1364,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraAlbumRelatedShelf
                     isActive = mediaMetadata?.album?.id == item.id || mediaMetadata?.id == item.id,
                     isPlaying = isPlaying,
                     onClick = {
+                        ActionLog.tap(ActionId.ALBUM_RELATED)
                         when (item) {
                             is AlbumItem -> navController.navigateOnce("album/${item.id}")
                             is ArtistItem -> navController.navigateOnce("artist/${item.id}")
@@ -1375,6 +1382,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.auraAlbumRelatedShelf
                         }
                     },
                     onLongClick = {
+                        ActionLog.tap(ActionId.ALBUM_RELATED_MENU)
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         menuState.show {
                             when (item) {
@@ -1637,7 +1645,7 @@ internal fun AuraDetailDescription(
                     .padding(top = 4.dp)
                     .clip(AuraShapes.Pill)
                     .auraClickableInternal(
-                        onClick = { expanded = !expanded },
+                        onClick = { ActionLog.tap(ActionId.ALBUM_DESCRIPTION); expanded = !expanded },
                         contentDescription = null,
                     )
                     .padding(vertical = 8.dp, horizontal = 4.dp),
@@ -1672,7 +1680,7 @@ internal fun AuraDetailErrorState(
             icon = AuraIcons.Repeat,
             label = stringResource(R.string.retry),
             accent = false,
-            onClick = onRetry,
+            onClick = { ActionLog.tap(ActionId.ALBUM_RETRY); onRetry() },
             modifier = Modifier.width(180.dp),
         )
     }

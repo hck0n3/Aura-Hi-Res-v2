@@ -392,11 +392,12 @@ fun AuraLocalPlaylistScreen(
                 )
             },
             buttons = {
-                TextButton(onClick = { showRemoveDownloadDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.LPL_REMOVE_DOWNLOAD_CANCEL); showRemoveDownloadDialog = false }) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LPL_REMOVE_DOWNLOAD_CONFIRM)
                         showRemoveDownloadDialog = false
                         if (!editable) {
                             database.transaction {
@@ -470,6 +471,7 @@ fun AuraLocalPlaylistScreen(
                     Spacer(Modifier.height(16.dp))
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LPL_DELETE_ALSO_YOUTUBE)
                             deletePlaylistLocally(true)
                             viewModel.viewModelScope.launch(Dispatchers.IO) {
                                 // Surface a remote failure: fire-and-forget made a YouTube rejection
@@ -493,6 +495,7 @@ fun AuraLocalPlaylistScreen(
                     }
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LPL_DELETE_LOCAL_ONLY)
                             deletePlaylistLocally(false)
                             navController.popBackStack()
                         },
@@ -503,12 +506,13 @@ fun AuraLocalPlaylistScreen(
                 }
             },
             buttons = {
-                TextButton(onClick = { showDeletePlaylistDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.LPL_DELETE_CANCEL); showDeletePlaylistDialog = false }) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 if (ytBrowseId == null) {
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LPL_DELETE_CONFIRM)
                             deletePlaylistLocally(false)
                             navController.popBackStack()
                         },
@@ -860,6 +864,7 @@ fun AuraLocalPlaylistScreen(
                             genre = trackGenres.of(song.song.artists.map { it.name }),
                             showGenreColumn = showGenreColumn,
                             onClick = {
+                                ActionLog.tap(ActionId.LPL_SONG)
                                 if (inSelectMode) {
                                     onCheckedChange(!selected)
                                 } else {
@@ -881,6 +886,7 @@ fun AuraLocalPlaylistScreen(
                                 }
                             },
                             onLongClick = {
+                                ActionLog.tap(ActionId.LPL_SONG_SELECT)
                                 if (!inSelectMode) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     inSelectMode = true
@@ -1006,6 +1012,7 @@ fun AuraLocalPlaylistScreen(
                 item(key = "aura_lp_add_music", contentType = "aura_lp_add_music") {
                     AuraAddMusicButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LPL_ADD_MUSIC)
                             // Stop any footer preview so it doesn't overlap the sheet's own preview.
                             previewController.stop()
                             showAddMusicSheet = true
@@ -1110,6 +1117,7 @@ fun AuraLocalPlaylistScreen(
                     contentDescription = stringResource(R.string.cd_selection_actions),
                     enabled = selection.isNotEmpty(),
                     onClick = {
+                        ActionLog.tap(ActionId.LPL_SELECTION_MENU)
                         menuState.show {
                             SelectionSongMenu(
                                 songSelection = selection.mapNotNull { mapId ->
@@ -1337,7 +1345,7 @@ private fun AuraLocalPlaylistHeader(
             AuraHeaderCircleButton(
                 icon = AuraIcons.Search,
                 contentDescription = stringResource(R.string.search),
-                onClick = onSearch,
+                onClick = { ActionLog.tap(ActionId.LPL_SEARCH); onSearch() },
                 modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
             )
             AuraHeaderCircleButton(
@@ -1350,7 +1358,7 @@ private fun AuraLocalPlaylistHeader(
             AuraHeaderCircleButton(
                 icon = AuraIcons.More,
                 contentDescription = stringResource(R.string.cd_playlist_more_options),
-                onClick = onMenu,
+                onClick = { ActionLog.tap(ActionId.LPL_MENU); onMenu() },
                 modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
             )
         }

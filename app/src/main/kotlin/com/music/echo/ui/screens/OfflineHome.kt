@@ -102,6 +102,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Offline body: shown instead of network feeds when [OfflineModeKey] is ON. Disable toggle lives ON
@@ -315,7 +317,7 @@ fun DownloadedOnlyView(
                                         subtitle = pluralStringResource(
                                             R.plurals.n_song, library.allSongs.size, library.allSongs.size,
                                         ),
-                                        onClick = { ui.playSongs(offlineQueueTitle, library.allSongs, 0, false) },
+                                        onClick = { ActionLog.tap(ActionId.OFFHOME_PLAY_ALL); ui.playSongs(offlineQueueTitle, library.allSongs, 0, false) },
                                     ),
                                 )
                                 add(
@@ -323,7 +325,7 @@ fun DownloadedOnlyView(
                                         icon = AuraIcons.Shuffle,
                                         title = stringResource(R.string.shuffle),
                                         subtitle = stringResource(R.string.offline_tile_shuffle_hint),
-                                        onClick = { ui.playSongs(offlineQueueTitle, library.allSongs, 0, true) },
+                                        onClick = { ActionLog.tap(ActionId.OFFHOME_SHUFFLE); ui.playSongs(offlineQueueTitle, library.allSongs, 0, true) },
                                     ),
                                 )
                             }
@@ -335,7 +337,7 @@ fun DownloadedOnlyView(
                                         subtitle = pluralStringResource(
                                             R.plurals.n_song, library.downloaded.size, library.downloaded.size,
                                         ),
-                                        onClick = { navController.navigate("auto_playlist/downloaded") },
+                                        onClick = { ActionLog.tap(ActionId.OFFHOME_DOWNLOADS); navController.navigate("auto_playlist/downloaded") },
                                     ),
                                 )
                                 add(
@@ -345,7 +347,7 @@ fun DownloadedOnlyView(
                                         // Until the first measurement lands nothing is printed: a "0 B" that later
                                         // jumps would be a number the screen never knew.
                                         subtitle = storageBytes.takeIf { it >= 0L }?.let { formatFileSize(it) },
-                                        onClick = { navController.navigate("settings/storage") },
+                                        onClick = { ActionLog.tap(ActionId.OFFHOME_STORAGE); navController.navigate("settings/storage") },
                                     ),
                                 )
                             }
@@ -359,7 +361,7 @@ fun DownloadedOnlyView(
                                 title = stringResource(R.string.offline_downloaded_albums),
                                 collections = library.albums,
                                 cardWidth = cardWidth,
-                                onClick = { navController.navigate("album/${it.id}") },
+                                onClick = { ActionLog.tap(ActionId.OFFHOME_ALBUM); navController.navigate("album/${it.id}") },
                                 onPlay = { collection ->
                                     scope.launch {
                                         val songs = withContext(Dispatchers.Default) { index.songsOfAlbum(collection.id) }
@@ -375,7 +377,7 @@ fun DownloadedOnlyView(
                                 title = stringResource(R.string.offline_downloaded_playlists),
                                 collections = library.playlists,
                                 cardWidth = cardWidth,
-                                onClick = { navController.navigate("local_playlist/${it.id}") },
+                                onClick = { ActionLog.tap(ActionId.OFFHOME_PLAYLIST); navController.navigate("local_playlist/${it.id}") },
                                 onPlay = { collection ->
                                     scope.launch {
                                         // Only the songs of the list that play with no network, in the list's order.
@@ -472,13 +474,14 @@ private fun OfflineSongCell(
             durationLabel = auraAppleDurationLabel(song.song.duration.takeIf { it > 0 }),
             swipeMediaItem = song.toMediaItem(),
             onClick = {
+                ActionLog.tap(ActionId.OFFHOME_SONG)
                 if (song.id == ui.playingId) {
                     ui.togglePlayPause()
                 } else {
                     ui.playSongs(title, songs, songIndex, false)
                 }
             },
-            onLongClick = { ui.longPressSongMenu(song) },
+            onLongClick = { ActionLog.tap(ActionId.OFFHOME_SONG_MENU); ui.longPressSongMenu(song) },
             onMenuClick = { ui.showSongMenu(song) },
         )
     }
@@ -545,7 +548,7 @@ private fun OfflineStatusCard(
             )
         }
         if (!automatic && showDisable) {
-            TextButton(onClick = onDisable) {
+            TextButton(onClick = { ActionLog.tap(ActionId.OFFHOME_GO_ONLINE); onDisable() }) {
                 Text(
                     text = stringResource(R.string.offline_disable),
                     style = AuraType.RowSubtitle,
@@ -558,7 +561,7 @@ private fun OfflineStatusCard(
         val playbackOffline by iad1tya.echo.music.playback.PlaybackOfflineSession.active.collectAsState()
         val online by iad1tya.echo.music.utils.NetworkState.online.collectAsState()
         if (automatic && playbackOffline && online) {
-            TextButton(onClick = { iad1tya.echo.music.playback.PlaybackOfflineSession.requestRetryOnline() }) {
+            TextButton(onClick = { ActionLog.tap(ActionId.OFFHOME_RETRY_ONLINE); iad1tya.echo.music.playback.PlaybackOfflineSession.requestRetryOnline() }) {
                 Text(
                     text = stringResource(R.string.offline_retry_online),
                     style = AuraType.RowSubtitle,
@@ -637,7 +640,7 @@ private fun OfflineEmptyState(
                 modifier = Modifier
                     .clip(AuraShapes.Pill)
                     .background(AuraPalette.PlayButtonGradient)
-                    .auraClickableInternal(onClick = onDisable, contentDescription = cta)
+                    .auraClickableInternal(onClick = { ActionLog.tap(ActionId.OFFHOME_GO_ONLINE_BANNER); onDisable() }, contentDescription = cta)
                     .padding(horizontal = 22.dp, vertical = 12.dp),
             )
         }
@@ -791,9 +794,10 @@ private fun OfflineRecentRow(
                     isActive = song.id == ui.playingId,
                     isPlaying = ui.isPlaying,
                     onClick = {
+                        ActionLog.tap(ActionId.OFFHOME_SHELF_SONG)
                         if (song.id == ui.playingId) ui.togglePlayPause() else ui.playSongs(title, songs, index, false)
                     },
-                    onLongClick = { ui.longPressSongMenu(song) },
+                    onLongClick = { ActionLog.tap(ActionId.OFFHOME_SHELF_SONG_MENU); ui.longPressSongMenu(song) },
                 )
             }
         }

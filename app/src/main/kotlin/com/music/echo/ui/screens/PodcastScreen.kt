@@ -93,6 +93,8 @@ import iad1tya.echo.music.ui.newui.rememberAuraBloom
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.ui.theme.BrandAccent
 import iad1tya.echo.music.viewmodels.PodcastViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -151,12 +153,13 @@ fun PodcastScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = {
+                        ActionLog.tap(ActionId.PODCAST_BACK)
                         if (selectedShow != null) viewModel.closeShow() else navController.navigateUp()
                     }) { Icon(painterResource(R.drawable.arrow_back), contentDescription = null) }
                 },
                 actions = {
                     selectedShow?.let { s ->
-                        IconButton(onClick = { viewModel.togglePin(s) }) {
+                        IconButton(onClick = { ActionLog.tap(ActionId.PODCAST_PIN); viewModel.togglePin(s) }) {
                             Icon(
                                 painter = painterResource(R.drawable.favorite),
                                 contentDescription = "Guardar",
@@ -247,6 +250,7 @@ private fun PremiumPodcastScreen(
                     icon = AuraIcons.ChevronRight,
                     contentDescription = "Atrás",
                     onClick = {
+                        ActionLog.tap(ActionId.PODCAST_SHOW_BACK)
                         if (selectedShow != null) viewModel.closeShow() else navController.navigateUp()
                     },
                     size = 22.dp,
@@ -264,7 +268,7 @@ private fun PremiumPodcastScreen(
                         .padding(horizontal = 8.dp),
                 )
                 selectedShow?.let { s ->
-                    IconButton(onClick = { viewModel.togglePin(s) }) {
+                    IconButton(onClick = { ActionLog.tap(ActionId.PODCAST_SHOW_PIN); viewModel.togglePin(s) }) {
                         Icon(
                             painter = painterResource(R.drawable.favorite),
                             contentDescription = "Guardar",
@@ -301,7 +305,7 @@ private fun PremiumPodcastScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onShowRegionDialog(true) }
+                                    .clickable { ActionLog.tap(ActionId.PODCAST_REGION); onShowRegionDialog(true) }
                                     .padding(
                                         horizontal = AuraSpacing.Gutter,
                                         vertical = 10.dp,
@@ -344,6 +348,7 @@ private fun PremiumPodcastScreen(
                                             seed = p.audioUrl,
                                             width = 118.dp,
                                             onClick = {
+                                                ActionLog.tap(ActionId.PODCAST_CONTINUE)
                                                 val md = MediaMetadata(
                                                     id = p.audioUrl,
                                                     title = p.title,
@@ -400,7 +405,7 @@ private fun PremiumPodcastScreen(
                                                 thumbnailUrl = show.artworkUrl,
                                                 seed = show.id,
                                                 width = 118.dp,
-                                                onClick = { viewModel.openShow(show) },
+                                                onClick = { ActionLog.tap(ActionId.PODCAST_OPEN_SHOW); viewModel.openShow(show) },
                                             )
                                         }
                                     }
@@ -464,6 +469,7 @@ private fun PremiumPodcastScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
+                            ActionLog.tap(ActionId.PODCAST_REGION_PICK)
                             viewModel.setRegion(code)
                             onShowRegionDialog(false)
                         }
@@ -475,7 +481,7 @@ private fun PremiumPodcastScreen(
             }
             item {
                 TextButton(
-                    onClick = { onShowRegionDialog(false) },
+                    onClick = { ActionLog.tap(ActionId.PODCAST_REGION_CLOSE); onShowRegionDialog(false) },
                     modifier = Modifier.padding(8.dp),
                 ) {
                     Text("Cerrar", color = AuraPalette.Teal)
@@ -533,7 +539,7 @@ private fun PodcastSearchField(
             AuraIconButton(
                 icon = AuraIcons.Plus,
                 contentDescription = "Borrar la búsqueda",
-                onClick = { onValueChange("") },
+                onClick = { ActionLog.tap(ActionId.PODCAST_SEARCH_CLEAR); onValueChange("") },
                 size = 16.dp,
                 tint = AuraPalette.OnGroundFaint,
                 modifier = Modifier.rotate(45f),
@@ -627,6 +633,7 @@ private fun PremiumEpisodeList(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
+                                    ActionLog.tap(ActionId.PODCAST_EPISODE)
                                     val resumeMs = prog?.takeIf { !it.finished }?.positionMs ?: 0L
                                     onPlay(ep, resumeMs)
                                 }
@@ -737,7 +744,7 @@ private fun ClassicPodcastBody(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onShowRegionDialog)
+                    .clickable(onClick = { ActionLog.tap(ActionId.PODCAST_REGION_OPEN); onShowRegionDialog() })
                     .padding(horizontal = 16.dp, vertical = 6.dp),
             ) {
                 Icon(
@@ -837,6 +844,7 @@ private fun ClassicPodcastBody(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
+                                    ActionLog.tap(ActionId.PODCAST_SHOW_EPISODE)
                                     val globalIndex = episodes.indexOfFirst { it.id == ep.id }
                                     val resumeMs = prog?.takeIf { !it.finished }?.positionMs ?: 0L
                                     viewModel.recordPlay(
@@ -917,7 +925,7 @@ private fun ClassicRegionDialog(
         onDismiss = onDismiss,
         title = { Text("Región de los podcasts") },
         buttons = {
-            TextButton(onClick = onDismiss) { Text("Cerrar") }
+            TextButton(onClick = { ActionLog.tap(ActionId.PODCAST_REGION_DIALOG_CLOSE); onDismiss() }) { Text("Cerrar") }
         },
     ) {
         LazyColumn(modifier = Modifier.height(360.dp)) {
@@ -926,7 +934,7 @@ private fun ClassicRegionDialog(
                     text = name,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSelect(code) }
+                        .clickable { ActionLog.tap(ActionId.PODCAST_REGION_DIALOG_PICK); onSelect(code) }
                         .padding(vertical = 12.dp),
                     fontWeight = if (code == region) FontWeight.Bold else FontWeight.Normal,
                     color = if (code == region) BrandAccent else MaterialTheme.colorScheme.onSurface,

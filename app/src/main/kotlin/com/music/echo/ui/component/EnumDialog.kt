@@ -15,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun <T> EnumDialog(
@@ -36,6 +38,7 @@ fun <T> EnumDialog(
                 Modifier
                     .fillMaxWidth()
                     .clickable {
+                        ActionLog.tap(ActionId.ENUMDLG_SELECT)
                         onSelect(value)
                     }
                     .padding(horizontal = 16.dp, vertical = 12.dp),

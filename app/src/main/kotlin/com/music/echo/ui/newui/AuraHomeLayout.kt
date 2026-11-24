@@ -36,6 +36,8 @@ import iad1tya.echo.music.constants.TopSize
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 // ── Inicio: pieces whose job is the LAYOUT of a wide window and the shortcuts under the greeting ──────────────────
 
@@ -374,9 +376,9 @@ internal fun AuraQuickAccess(
     }
 
     val tiles = listOf(
-        AuraQuickTile(AuraIcons.HeartFilled, likedTitle, likedSubtitle, tone = 1, onClick = { navController.navigate("auto_playlist/liked") }),
-        AuraQuickTile(AuraIcons.Downloaded, downloadedTitle, downloadedSubtitle, tone = 2, onClick = { navController.navigate("auto_playlist/downloaded") }),
-        AuraQuickTile(AuraIcons.Music, topTitle, topSubtitle, tone = 3, onClick = { navController.navigate("top_playlist/$topSize") }),
+        AuraQuickTile(AuraIcons.HeartFilled, likedTitle, likedSubtitle, tone = 1, onClick = { ActionLog.tap(ActionId.HOME_QUICK_LIKED); navController.navigate("auto_playlist/liked") }),
+        AuraQuickTile(AuraIcons.Downloaded, downloadedTitle, downloadedSubtitle, tone = 2, onClick = { ActionLog.tap(ActionId.HOME_QUICK_DOWNLOADED); navController.navigate("auto_playlist/downloaded") }),
+        AuraQuickTile(AuraIcons.Music, topTitle, topSubtitle, tone = 3, onClick = { ActionLog.tap(ActionId.HOME_QUICK_TOP); navController.navigate("top_playlist/$topSize") }),
         AuraQuickTile(AuraIcons.Shuffle, shuffleTitle, shuffleSubtitle, loading = surprising, tone = 4, onClick = onSurprise),
     )
 

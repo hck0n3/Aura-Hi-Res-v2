@@ -56,6 +56,8 @@ import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.ui.component.LocalBottomSheetPageState
 import iad1tya.echo.music.ui.component.shimmer.ShimmerHost
 import iad1tya.echo.music.ui.component.shimmer.TextPlaceholder
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -109,7 +111,7 @@ fun ShowMediaInfo(videoId: String) {
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                TextButton(onClick = { sheetState.dismiss() }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.MEDIAINFO_DONE); sheetState.dismiss() }) {
                     Text(stringResource(R.string.done))
                 }
             }
@@ -363,6 +365,7 @@ fun InfoItem(
         modifier = modifier
             .padding(end = 8.dp)
             .clickable {
+                ActionLog.tap(ActionId.MEDIAINFO_COPY)
                 val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText(label, value))
                 Toast.makeText(context, context.getString(R.string.label_copied, label), Toast.LENGTH_SHORT).show()

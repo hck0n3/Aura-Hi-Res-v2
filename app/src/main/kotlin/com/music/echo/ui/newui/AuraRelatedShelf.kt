@@ -21,6 +21,8 @@ import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.playback.queues.YouTubeQueue
 import java.util.Locale
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * «También te puede gustar» at the foot of a playlist the user FOLLOWS (not one they created). Owner 2026-10-18: *«las
@@ -58,6 +60,7 @@ internal fun AuraRelatedShelf(
                 item = item,
                 cardScale = 1f,
                 onClick = {
+                    ActionLog.tap(ActionId.RELATED_ITEM)
                     when (item) {
                         is PlaylistItem -> navController.navigateOnce("online_playlist/${item.id}")
                         is AlbumItem -> navController.navigateOnce("album/${item.browseId}")

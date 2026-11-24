@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.LibraryViewType
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Row 349 (owner 2026-10-08, C2 decision 2: «recupera el interruptor»): the list/grid switch of the
@@ -33,7 +35,7 @@ internal fun AuraViewTypeToggle(viewType: LibraryViewType, onChange: (LibraryVie
             .minimumInteractiveComponentSize()
             .clip(CircleShape)
             .auraClickableInternal(
-                onClick = { onChange(next) },
+                onClick = { ActionLog.tap(ActionId.LIBVIEW_TOGGLE); onChange(next) },
                 contentDescription = viewTypeLabel,
             )
             .auraButtonName(viewTypeLabel)

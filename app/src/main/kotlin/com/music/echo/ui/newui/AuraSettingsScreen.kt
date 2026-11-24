@@ -66,6 +66,8 @@ import iad1tya.echo.music.ui.screens.Screens
 import iad1tya.echo.music.ui.screens.settings.getAllSearchableSettings
 import iad1tya.echo.music.ui.utils.SettingsSearchJump
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Ajustes — "Interfaz nueva"
@@ -363,7 +365,7 @@ fun AuraSettingsScreen(
             // this screen does not own), but the inventory records it as a constant control WITH a
             // long-press that jumps home — so it is carried over rather than dropped.
             AuraBackButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.SETIDX_BACK); navController.navigateUp() },
                 modifier = Modifier.padding(start = AuraSpacing.Gutter - 14.dp, top = 4.dp),
             )
 
@@ -451,7 +453,7 @@ fun AuraSettingsScreen(
                             title = title,
                             description = parentTitle,
                             // P22D: open the screen scrolled to this exact row, and flash it.
-                            onClick = { SettingsSearchJump.navigate(navController, view, route, title) },
+                            onClick = { ActionLog.tap(ActionId.SETIDX_SEARCH_RESULT); SettingsSearchJump.navigate(navController, view, route, title) },
                         )
                     }
                 }
@@ -525,7 +527,7 @@ private fun AuraSettingsGroupRow(
             description = if (single) group.entries.first().description else null,
             iconTint = AuraPalette.Teal,
             chevronRotation = rotation,
-            onClick = { if (single) group.entries.first().onClick() else onToggle() },
+            onClick = { ActionLog.tap(ActionId.SETIDX_GROUP); if (single) group.entries.first().onClick() else onToggle() },
         )
         AnimatedVisibility(
             visible = !single && expanded,
@@ -698,7 +700,7 @@ private fun AuraSettingsSearchField(
             AuraIconButton(
                 icon = AuraIcons.Plus,
                 contentDescription = stringResource(R.string.search_clear_query),
-                onClick = { onQueryChange("") },
+                onClick = { ActionLog.tap(ActionId.SETIDX_SEARCH_CLEAR); onQueryChange("") },
                 size = 18.dp,
                 tint = AuraPalette.OnGroundMuted,
                 modifier = Modifier.rotate(45f), // the render has no × glyph; a rotated + is one

@@ -77,6 +77,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import iad1tya.echo.music.constants.ExportDirectoryUriKey
 import iad1tya.echo.music.constants.AutoDownloadOnLikeKey
 import iad1tya.echo.music.constants.EnableExportAsMp3Key
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalCoilApi::class, ExperimentalMaterial3Api::class, DelicateCoilApi::class)
 @Composable
@@ -373,6 +375,7 @@ fun StorageSettings(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.STORAGE_CACHE_WARNING_CONTINUE)
                         onConfirmAction()
                         showCacheWarningDialog = false
                     }
@@ -384,7 +387,7 @@ fun StorageSettings(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showCacheWarningDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.STORAGE_CACHE_WARNING_CANCEL); showCacheWarningDialog = false }) {
                     Text(stringResource(id = android.R.string.cancel))
                 }
             }
@@ -422,6 +425,7 @@ fun StorageSettings(
                     icon = painterResource(R.drawable.clear_all),
                     title = { Text(stringResource(R.string.clear_all_downloads)) },
                     onClick = {
+                        ActionLog.tap(ActionId.STORAGE_CLEAR_ALL_DOWNLOADS)
                         clearDownloads = true
                     }
                 ),
@@ -438,7 +442,7 @@ fun StorageSettings(
                                 }
                         )
                     },
-                    onClick = { openExportPicker() }
+                    onClick = { ActionLog.tap(ActionId.STORAGE_EXPORT_DIRECTORY); openExportPicker() }
                 )
             )
         )
@@ -565,6 +569,7 @@ fun StorageSettings(
                     icon = painterResource(R.drawable.clear_all),
                     title = { Text(stringResource(R.string.clear_song_cache)) },
                     onClick = {
+                        ActionLog.tap(ActionId.STORAGE_CLEAR_SONG_CACHE)
                         clearCacheDialog = true
                     }
                 )
@@ -626,6 +631,7 @@ fun StorageSettings(
                     icon = painterResource(R.drawable.clear_all),
                     title = { Text(stringResource(R.string.clear_image_cache)) },
                     onClick = {
+                        ActionLog.tap(ActionId.STORAGE_CLEAR_IMAGE_CACHE)
                         clearImageCacheDialog = true
                     }
                 )
@@ -638,7 +644,7 @@ fun StorageSettings(
         title = { Text(stringResource(R.string.storage)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.STORAGE_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

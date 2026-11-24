@@ -82,6 +82,8 @@ import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import java.util.Locale
 import kotlin.math.roundToInt
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Letra a pantalla completa — "Interfaz nueva"
@@ -200,7 +202,7 @@ fun AuraLyricsScreen(
                 AuraIconButton(
                     icon = AuraIcons.ChevronDown,
                     contentDescription = stringResource(R.string.cd_close_lyrics),
-                    onClick = onClose,
+                    onClick = { ActionLog.tap(ActionId.LYRFULL_CLOSE); onClose() },
                     size = 22.dp,
                     tint = AuraPalette.OnGround.copy(alpha = 0.6f),
                 )
@@ -222,7 +224,7 @@ fun AuraLyricsScreen(
                 AuraIconButton(
                     icon = AuraIcons.Settings,
                     contentDescription = stringResource(R.string.aura_lyrics_appearance),
-                    onClick = { showAppearance = !showAppearance },
+                    onClick = { ActionLog.tap(ActionId.LYRFULL_APPEARANCE); showAppearance = !showAppearance },
                     size = 20.dp,
                     tint = if (showAppearance) AuraPalette.Teal else AuraPalette.OnGround.copy(alpha = 0.6f),
                 )
@@ -230,6 +232,7 @@ fun AuraLyricsScreen(
                     icon = AuraIcons.More,
                     contentDescription = stringResource(R.string.cd_lyrics_menu),
                     onClick = {
+                        ActionLog.tap(ActionId.LYRFULL_MENU)
                         val meta = mediaMetadata ?: return@AuraIconButton
                         menuState.show {
                             LyricsMenu(
@@ -347,12 +350,14 @@ fun AuraLyricsScreen(
                                 interactionSource = remember { MutableInteractionSource() },
                                 role = Role.Button,
                                 onClick = {
+                                    ActionLog.tap(ActionId.LYRFULL_TITLE)
                                     resolvedAlbum?.let { album ->
                                         navController.navigateOnce("album/${album.id}")
                                         onClose()
                                     }
                                 },
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.LYRFULL_TITLE_COPY)
                                     val label = context.getString(R.string.copied_title)
                                     clipboardManager.setPrimaryClip(
                                         ClipData.newPlainText(label, meta.title),
@@ -383,6 +388,7 @@ fun AuraLyricsScreen(
                                     interactionSource = remember { MutableInteractionSource() },
                                     role = Role.Button,
                                     onClick = {
+                                        ActionLog.tap(ActionId.LYRFULL_ARTIST)
                                         meta.artists.firstOrNull { !it.id.isNullOrBlank() }?.id
                                             ?.let { artistId ->
                                                 navController.navigateOnce("artist/$artistId")
@@ -390,6 +396,7 @@ fun AuraLyricsScreen(
                                             }
                                     },
                                     onLongClick = {
+                                        ActionLog.tap(ActionId.LYRFULL_ARTIST_COPY)
                                         val label = context.getString(R.string.copied_artist)
                                         clipboardManager.setPrimaryClip(
                                             ClipData.newPlainText(label, artistText),
@@ -472,20 +479,20 @@ private fun AuraLyricsTransport(
         AuraIconButton(
             icon = AuraIcons.SkipPrevious,
             contentDescription = stringResource(R.string.previous),
-            onClick = onPrevious,
+            onClick = { ActionLog.tap(ActionId.LYRFULL_PREV); onPrevious() },
             enabled = canSkipPrevious,
             size = 26.dp,
         )
         AuraPlayButton(
             isPlaying = isPlaying,
-            onClick = onTogglePlayPause,
+            onClick = { ActionLog.tap(ActionId.LYRFULL_PLAY); onTogglePlayPause() },
             diameter = 56.dp,
             contentDescription = playPauseDescription,
         )
         AuraIconButton(
             icon = AuraIcons.SkipNext,
             contentDescription = stringResource(R.string.next),
-            onClick = onNext,
+            onClick = { ActionLog.tap(ActionId.LYRFULL_NEXT); onNext() },
             enabled = canSkipNext,
             size = 26.dp,
         )
@@ -535,7 +542,7 @@ private fun AuraLyricsAppearancePanel(
             AuraIconButton(
                 icon = AuraIcons.ChevronDown,
                 contentDescription = stringResource(android.R.string.cancel),
-                onClick = onDismiss,
+                onClick = { ActionLog.tap(ActionId.LYRFULL_APPEARANCE_CANCEL); onDismiss() },
                 size = 18.dp,
                 tint = AuraPalette.OnGroundFaint,
             )
@@ -620,7 +627,7 @@ private fun AuraLyricsAppearancePanel(
                 .fillMaxWidth()
                 .clip(AuraShapes.Highlight)
                 .auraClickableInternal(
-                    onClick = onOpenProviderPriority,
+                    onClick = { ActionLog.tap(ActionId.LYRFULL_PROVIDERS); onOpenProviderPriority() },
                     contentDescription = stringResource(R.string.lyrics_provider_priority),
                 )
                 .padding(vertical = 14.dp),

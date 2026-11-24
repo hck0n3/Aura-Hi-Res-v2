@@ -82,6 +82,8 @@ import iad1tya.echo.music.viewmodels.OnlineSearchSuggestionViewModel
 import iad1tya.echo.music.viewmodels.PlayerOnlineSearchViewModel
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Player quick-search: same sources as Buscar (biblioteca ↔ YouTube Music), full YTM summary results.
@@ -567,7 +569,7 @@ private fun QuickSearchBrowsePane(
             AuraIconButton(
                 icon = AuraIcons.ChevronRight,
                 contentDescription = stringResource(R.string.back_button_desc),
-                onClick = onBack,
+                onClick = { ActionLog.tap(ActionId.QSEARCH_BACK); onBack() },
                 tint = AuraPalette.OnGround,
                 modifier = Modifier.graphicsLayer { rotationZ = 180f },
             )
@@ -633,8 +635,8 @@ private fun QuickSearchBrowsePane(
                                 item = item,
                                 isActive = active,
                                 isPlaying = isPlaying,
-                                onClick = click,
-                                onLongClick = longClick,
+                                onClick = { ActionLog.tap(ActionId.QSEARCH_RESULT); click() },
+                                onLongClick = { ActionLog.tap(ActionId.QSEARCH_RESULT_MENU); longClick() },
                                 onMenuClick = { onItemMenu(item) },
                             )
                         }
@@ -689,7 +691,7 @@ private fun PlayerOnlineSuggestionPanel(
                     fromHistory = true,
                     first = index == 0,
                     last = index == viewState.history.lastIndex,
-                    onClick = { onRunSearch(history.query) },
+                    onClick = { ActionLog.tap(ActionId.QSEARCH_HISTORY); onRunSearch(history.query) },
                     onDelete = { onDeleteHistory(history) },
                     onFill = { onFillQuery(history.query) },
                 )
@@ -706,7 +708,7 @@ private fun PlayerOnlineSuggestionPanel(
                     fromHistory = false,
                     first = index == 0,
                     last = index == viewState.suggestions.lastIndex,
-                    onClick = { onRunSearch(suggestion) },
+                    onClick = { ActionLog.tap(ActionId.QSEARCH_SUGGESTION); onRunSearch(suggestion) },
                     onDelete = null,
                     onFill = { onFillQuery(suggestion) },
                 )
@@ -737,8 +739,8 @@ private fun PlayerOnlineSuggestionPanel(
                         selected = selectedKey == "yt:${item.id}",
                         isActive = active,
                         isPlaying = isPlaying,
-                        onClick = click,
-                        onLongClick = { onItemMenu(item) },
+                        onClick = { ActionLog.tap(ActionId.QSEARCH_RESULT); click() },
+                        onLongClick = { ActionLog.tap(ActionId.QSEARCH_RESULT_MENU); onItemMenu(item) },
                         modifier = Modifier.padding(horizontal = AuraSpacing.Gutter - 8.dp),
                     )
                 } else {
@@ -746,8 +748,8 @@ private fun PlayerOnlineSuggestionPanel(
                         item = item,
                         isActive = active,
                         isPlaying = isPlaying,
-                        onClick = click,
-                        onLongClick = { onItemMenu(item) },
+                        onClick = { ActionLog.tap(ActionId.QSEARCH_RESULT); click() },
+                        onLongClick = { ActionLog.tap(ActionId.QSEARCH_RESULT_MENU); onItemMenu(item) },
                         onMenuClick = { onItemMenu(item) },
                     )
                 }
@@ -849,8 +851,8 @@ private fun PlayerOnlineSummaryResults(
                             selected = selectedKey == "yt:${item.id}",
                             isActive = active,
                             isPlaying = isPlaying,
-                            onClick = click,
-                            onLongClick = longClick,
+                            onClick = { ActionLog.tap(ActionId.QSEARCH_RESULT); click() },
+                            onLongClick = { ActionLog.tap(ActionId.QSEARCH_RESULT_MENU); longClick() },
                             modifier = Modifier.padding(horizontal = AuraSpacing.Gutter - 8.dp),
                         )
                     } else {
@@ -858,8 +860,8 @@ private fun PlayerOnlineSummaryResults(
                             item = item,
                             isActive = active,
                             isPlaying = isPlaying,
-                            onClick = click,
-                            onLongClick = longClick,
+                            onClick = { ActionLog.tap(ActionId.QSEARCH_RESULT); click() },
+                            onLongClick = { ActionLog.tap(ActionId.QSEARCH_RESULT_MENU); longClick() },
                             onMenuClick = { onItemMenu(item) },
                         )
                     }
@@ -939,26 +941,26 @@ internal fun AuraPlayerQuickSearchSongMenu(
         AuraMenuRow(
             icon = AuraIcons.Play,
             label = stringResource(R.string.play),
-            onClick = onPlayNow,
+            onClick = { ActionLog.tap(ActionId.QSEARCH_SONG_PLAY); onPlayNow() },
         )
 
         if (!isGuest) {
             AuraMenuRow(
                 icon = AuraIcons.SkipNext,
                 label = stringResource(R.string.play_next),
-                onClick = onPlayNext,
+                onClick = { ActionLog.tap(ActionId.QSEARCH_SONG_PLAY_NEXT); onPlayNext() },
             )
             AuraMenuRow(
                 icon = AuraIcons.Queue,
                 label = stringResource(R.string.add_to_queue),
-                onClick = onAddToQueue,
+                onClick = { ActionLog.tap(ActionId.QSEARCH_SONG_ADD_TO_QUEUE); onAddToQueue() },
             )
         }
 
         AuraMenuRow(
             icon = AuraIcons.PlaylistAdd,
             label = stringResource(R.string.add_to_playlist),
-            onClick = onAddToPlaylist,
+            onClick = { ActionLog.tap(ActionId.QSEARCH_SONG_ADD_TO_PLAYLIST); onAddToPlaylist() },
         )
 
         Spacer(Modifier.height(12.dp))

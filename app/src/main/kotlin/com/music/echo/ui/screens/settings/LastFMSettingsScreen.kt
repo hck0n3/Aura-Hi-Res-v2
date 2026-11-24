@@ -76,6 +76,8 @@ import iad1tya.echo.music.utils.lastfm.LastFM
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -224,6 +226,7 @@ fun LastFMSettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LASTFM_LOGIN_CONFIRM)
                         if (tempUsername.isBlank() || tempPassword.isBlank()) {
                             loginError = "Please enter both username and password"
                             return@TextButton
@@ -287,6 +290,7 @@ fun LastFMSettingsScreen(
             dismissButton = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LASTFM_LOGIN_CANCEL)
                         if (!isLoggingIn) {
                             showLoginDialog = false
                             loginError = null
@@ -349,6 +353,7 @@ fun LastFMSettingsScreen(
                     trailingContent = {
                         if (isLoggedIn) {
                             iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = {
+                                ActionLog.tap(ActionId.LASTFM_LOGOUT)
                                 lastfmSession = ""
                                 lastfmUsername = ""
                                 // HALLAZGO-020 (FASE 22): also invalidate the session on Last.fm's
@@ -358,7 +363,7 @@ fun LastFMSettingsScreen(
                                 Text(stringResource(R.string.action_logout))
                             }
                         } else {
-                            iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = { showLoginDialog = true }) {
+                            iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = { ActionLog.tap(ActionId.LASTFM_LOGIN); showLoginDialog = true }) {
                                 Text(stringResource(R.string.action_login))
                             }
                         }
@@ -500,6 +505,7 @@ fun LastFMSettingsScreen(
                 buttons = {
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LASTFM_MIN_DURATION_RESET)
                             tempMinTrackDuration = LastFM.DEFAULT_SCROBBLE_MIN_SONG_DURATION
                         }
                     ) {
@@ -510,6 +516,7 @@ fun LastFMSettingsScreen(
 
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LASTFM_MIN_DURATION_CANCEL)
                             tempMinTrackDuration = minTrackDuration
                             showMinTrackDurationDialog = false
                         }
@@ -518,6 +525,7 @@ fun LastFMSettingsScreen(
                     }
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LASTFM_MIN_DURATION_CONFIRM)
                             onMinTrackDurationChange(tempMinTrackDuration)
                             showMinTrackDurationDialog = false
                         }
@@ -565,6 +573,7 @@ fun LastFMSettingsScreen(
                 buttons = {
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LASTFM_DELAY_PERCENT_RESET)
                             tempScrobbleDelayPercent = LastFM.DEFAULT_SCROBBLE_DELAY_PERCENT
                         }
                     ) {
@@ -575,6 +584,7 @@ fun LastFMSettingsScreen(
 
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LASTFM_DELAY_PERCENT_CANCEL)
                             tempScrobbleDelayPercent = scrobbleDelayPercent
                             showScrobbleDelayPercentDialog = false
                         }
@@ -583,6 +593,7 @@ fun LastFMSettingsScreen(
                     }
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LASTFM_DELAY_PERCENT_CONFIRM)
                             onScrobbleDelayPercentChange(tempScrobbleDelayPercent)
                             showScrobbleDelayPercentDialog = false
                         }
@@ -630,6 +641,7 @@ fun LastFMSettingsScreen(
                 buttons = {
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LASTFM_DELAY_SECONDS_RESET)
                             tempScrobbleDelaySeconds = LastFM.DEFAULT_SCROBBLE_DELAY_SECONDS
                         }
                     ) {
@@ -640,6 +652,7 @@ fun LastFMSettingsScreen(
 
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LASTFM_DELAY_SECONDS_CANCEL)
                             tempScrobbleDelaySeconds = scrobbleDelaySeconds
                             showScrobbleDelaySecondsDialog = false
                         }
@@ -648,6 +661,7 @@ fun LastFMSettingsScreen(
                     }
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.LASTFM_DELAY_SECONDS_CONFIRM)
                             onScrobbleDelaySecondsChange(tempScrobbleDelaySeconds)
                             showScrobbleDelaySecondsDialog = false
                         }
@@ -690,19 +704,19 @@ fun LastFMSettingsScreen(
                 Material3SettingsItem(
                     title = { Text(stringResource(R.string.scrobble_min_track_duration)) },
                     description = { Text(makeTimeString((minTrackDuration * 1000).toLong())) },
-                    onClick = { showMinTrackDurationDialog = true },
+                    onClick = { ActionLog.tap(ActionId.LASTFM_MIN_DURATION); showMinTrackDurationDialog = true },
                     icon = painterResource(R.drawable.timer)
                 ),
                 Material3SettingsItem(
                     title = { Text(stringResource(R.string.scrobble_delay_percent)) },
                     description = { Text(stringResource(R.string.sensitivity_percentage, (scrobbleDelayPercent * 100).roundToInt())) },
-                    onClick = { showScrobbleDelayPercentDialog = true },
+                    onClick = { ActionLog.tap(ActionId.LASTFM_DELAY_PERCENT); showScrobbleDelayPercentDialog = true },
                     icon = painterResource(R.drawable.timer)
                 ),
                 Material3SettingsItem(
                     title = { Text(stringResource(R.string.scrobble_delay_minutes)) },
                     description = { Text(makeTimeString((scrobbleDelaySeconds * 1000).toLong())) },
-                    onClick = { showScrobbleDelaySecondsDialog = true },
+                    onClick = { ActionLog.tap(ActionId.LASTFM_DELAY_SECONDS); showScrobbleDelaySecondsDialog = true },
                     icon = painterResource(R.drawable.timer)
                 ),
             )
@@ -754,7 +768,7 @@ fun LastFMSettingsScreen(
                             }
                         )
                     },
-                    onClick = { showListenBrainzTokenEditor = true },
+                    onClick = { ActionLog.tap(ActionId.LASTFM_LISTENBRAINZ_TOKEN); showListenBrainzTokenEditor = true },
                     icon = painterResource(R.drawable.edit)
                 )
             )
@@ -767,7 +781,7 @@ fun LastFMSettingsScreen(
         title = { Text(stringResource(R.string.lastfm_integration)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.LASTFM_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

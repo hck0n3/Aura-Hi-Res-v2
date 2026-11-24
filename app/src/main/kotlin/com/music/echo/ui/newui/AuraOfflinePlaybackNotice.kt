@@ -136,7 +136,7 @@ private fun AuraOfflinePlaybackDialog(
                     onDismiss()
                 }) { Text(stringResource(R.string.offline_disable)) }
             }
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+            TextButton(onClick = { ActionLog.tap(ActionId.PLR_OFFLINE_NOTICE_CLOSE); onDismiss() }) { Text(stringResource(R.string.close)) }
         },
     ) {
         Text(

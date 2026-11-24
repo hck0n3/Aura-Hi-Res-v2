@@ -20,6 +20,8 @@ import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.playback.SleepTimerMath
 import kotlinx.coroutines.delay
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 private val SLEEP_TIMER_MINUTES = listOf(5, 10, 15, 30, 45, 60, 90, 120)
 
@@ -52,11 +54,12 @@ fun SleepTimerDialog(onDismiss: () -> Unit) {
         buttons = {
             if (endsAt != null || afterSong) {
                 TextButton(onClick = {
+                    ActionLog.tap(ActionId.SLEEPDLG_TURN_OFF)
                     service.cancelSleepTimer()
                     onDismiss()
                 }) { Text(stringResource(R.string.sleep_timer_turn_off)) }
             }
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+            TextButton(onClick = { ActionLog.tap(ActionId.SLEEPDLG_CANCEL); onDismiss() }) { Text(stringResource(android.R.string.cancel)) }
         },
     ) {
         if (endsAt != null) {
@@ -78,6 +81,7 @@ fun SleepTimerDialog(onDismiss: () -> Unit) {
                 // Row 734: extend the running timer instead of starting over.
                 AssistChip(
                     onClick = {
+                        ActionLog.tap(ActionId.SLEEPDLG_EXTEND)
                         service.extendSleepTimer(SleepTimerMath.EXTEND_MINUTES)
                         onDismiss()
                     },
@@ -87,6 +91,7 @@ fun SleepTimerDialog(onDismiss: () -> Unit) {
             SLEEP_TIMER_MINUTES.forEach { minutes ->
                 AssistChip(
                     onClick = {
+                        ActionLog.tap(ActionId.SLEEPDLG_START)
                         service.startSleepTimer(minutes)
                         onDismiss()
                     },
@@ -95,6 +100,7 @@ fun SleepTimerDialog(onDismiss: () -> Unit) {
             }
             AssistChip(
                 onClick = {
+                    ActionLog.tap(ActionId.SLEEPDLG_END_OF_SONG)
                     service.startSleepTimerAfterSong()
                     onDismiss()
                 },

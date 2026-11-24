@@ -99,6 +99,8 @@ import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.viewmodels.DateAgo
 import iad1tya.echo.music.viewmodels.HistoryViewModel
 import java.time.format.DateTimeFormatter
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -270,7 +272,7 @@ fun HistoryScreen(
                             AuraChip(
                                 text = label,
                                 selected = historySource == source,
-                                onClick = { onHistorySourceChange(source) },
+                                onClick = { ActionLog.tap(ActionId.HISTORY_SOURCE); onHistorySourceChange(source) },
                             )
                         }
                     }
@@ -307,6 +309,7 @@ fun HistoryScreen(
                             trailingContent = {
                                 IconButton(
                                     onClick = {
+                                        ActionLog.tap(ActionId.HISTORY_REMOTE_SONG_MENU)
                                         menuState.show {
                                             YouTubeSongMenu(
                                                 song = song,
@@ -329,6 +332,7 @@ fun HistoryScreen(
                                 .fillMaxWidth()
                                 .combinedClickable(
                                     onClick = {
+                                        ActionLog.tap(ActionId.HISTORY_REMOTE_SONG)
                                         if (song.id == mediaMetadata?.id) {
                                             playerConnection.togglePlayPause()
                                         } else {
@@ -338,6 +342,7 @@ fun HistoryScreen(
                                         }
                                     },
                                     onLongClick = {
+                                        ActionLog.tap(ActionId.HISTORY_REMOTE_SONG_LONG)
                                         menuState.show {
                                             YouTubeSongMenu(
                                                 song = song,
@@ -403,6 +408,7 @@ fun HistoryScreen(
                                 selected = if (inSelectMode) event.event.id in selection else null,
                                 onSelectedChange = onCheckedChange,
                                 onClick = {
+                                    ActionLog.tap(ActionId.HISTORY_SONG)
                                     if (inSelectMode) {
                                         onCheckedChange(event.event.id !in selection)
                                     } else if (event.song.id == mediaMetadata?.id) {
@@ -418,6 +424,7 @@ fun HistoryScreen(
                                     }
                                 },
                                 onLongClick = {
+                                    ActionLog.tap(ActionId.HISTORY_SONG_SELECT)
                                     if (!inSelectMode) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         inSelectMode = true
@@ -454,6 +461,7 @@ fun HistoryScreen(
             lazyListState = lazyListState,
             icon = R.drawable.shuffle,
             onClick = {
+                ActionLog.tap(ActionId.HISTORY_SHUFFLE)
                 if (historySource == HistorySource.REMOTE && historyPage != null) {
                     val songs = filteredRemoteContent?.flatMap { it.songs } ?: emptyList()
                     if (songs.isNotEmpty()) {
@@ -510,7 +518,7 @@ fun HistoryScreen(
         },
         navigationIcon = {
             if (inSelectMode) {
-                IconButton(onClick = onExitSelectionMode) {
+                IconButton(onClick = { ActionLog.tap(ActionId.HISTORY_SELECT_EXIT); onExitSelectionMode() }) {
                     Icon(
                         painter = painterResource(R.drawable.close),
                         contentDescription = null,
@@ -519,6 +527,7 @@ fun HistoryScreen(
             } else {
                 IconButton(
                     onClick = {
+                        ActionLog.tap(ActionId.HISTORY_BACK)
                         if (isSearching) {
                             isSearching = false
                             query = TextFieldValue()
@@ -551,6 +560,7 @@ fun HistoryScreen(
                 IconButton(
                     enabled = selection.isNotEmpty(),
                     onClick = {
+                        ActionLog.tap(ActionId.HISTORY_SELECT_MENU)
                         menuState.show {
                             SelectionMediaMetadataMenu(
                                 songSelection = selection.mapNotNull { eventId ->
@@ -570,7 +580,7 @@ fun HistoryScreen(
                 }
             } else if (!isSearching) {
                 IconButton(
-                    onClick = { isSearching = true }
+                    onClick = { ActionLog.tap(ActionId.HISTORY_SEARCH); isSearching = true }
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.search),

@@ -58,6 +58,8 @@ import timber.log.Timber
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.flow.first
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun SpotifyImportScreen(
@@ -116,7 +118,7 @@ fun SpotifyImportScreen(
                 title = { Text(stringResource(R.string.spotify_import_title)) },
                 navigationIcon = {
                     IconButton(
-                        onClick = navController::navigateUp,
+                        onClick = { ActionLog.tap(ActionId.SPOTIMP_BACK); navController.navigateUp() },
                         onLongClick = null
                     ) {
                         Icon(painterResource(R.drawable.arrow_back), null)
@@ -141,7 +143,7 @@ fun SpotifyImportScreen(
             if (onboarding) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Button(
-                        onClick = { navController.navigate("onboarding_youtube") },
+                        onClick = { ActionLog.tap(ActionId.SPOTIMP_ONBOARDING_NEXT); navController.navigate("onboarding_youtube") },
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                     ) { Text("Continuar (siguiente paso)") }
                 }
@@ -170,7 +172,7 @@ fun SpotifyImportScreen(
                             description = { Text(stringResource(R.string.spotify_not_connected)) },
                             icon = painterResource(R.drawable.ic_spotify),
                             enabled = state.progress == null && !state.isLoading,
-                            onClick = { navController.navigate("spotify_login") }
+                            onClick = { ActionLog.tap(ActionId.SPOTIMP_CONNECT); navController.navigate("spotify_login") }
                         ),
                         // A PUBLIC playlist link needs no login — offer the paste-link path here too, so
                         // it matches the About promise and works straight from a logged-out state.
@@ -179,7 +181,7 @@ fun SpotifyImportScreen(
                             description = { Text(stringResource(R.string.spotify_add_by_link_desc)) },
                             icon = painterResource(R.drawable.link),
                             enabled = !state.isLoading && state.progress == null,
-                            onClick = { linkInput = ""; showAddByLinkDialog = true }
+                            onClick = { ActionLog.tap(ActionId.SPOTIMP_ADD_BY_LINK); linkInput = ""; showAddByLinkDialog = true }
                         )
                     )
                 } else {
@@ -208,34 +210,34 @@ fun SpotifyImportScreen(
                             },
                             icon = painterResource(R.drawable.playlist_play),
                             enabled = state.hasSources && state.progress == null,
-                            onClick = { showSpotifySources = true }
+                            onClick = { ActionLog.tap(ActionId.SPOTIMP_SELECT_SOURCES); showSpotifySources = true }
                         ),
                         Material3SettingsItem(
                             title = { Text(stringResource(R.string.spotify_add_by_link)) },
                             description = { Text(stringResource(R.string.spotify_add_by_link_desc)) },
                             icon = painterResource(R.drawable.link),
                             enabled = !state.isLoading && state.progress == null,
-                            onClick = { linkInput = ""; showAddByLinkDialog = true }
+                            onClick = { ActionLog.tap(ActionId.SPOTIMP_ADD_BY_LINK_CONNECTED); linkInput = ""; showAddByLinkDialog = true }
                         ),
                         Material3SettingsItem(
                             title = { Text(stringResource(R.string.spotify_import_selected)) },
                             description = { Text(stringResource(R.string.spotify_selected_count, state.selectedSourceIds.size)) },
                             icon = painterResource(R.drawable.playlist_add),
                             enabled = state.canImport,
-                            onClick = { spotifyImportViewModel.importSelectedSources() }
+                            onClick = { ActionLog.tap(ActionId.SPOTIMP_IMPORT_SELECTED); spotifyImportViewModel.importSelectedSources() }
                         ),
                         Material3SettingsItem(
                             title = { Text(stringResource(R.string.spotify_refresh)) },
                             description = { Text(stringResource(R.string.spotify_import_desc)) },
                             icon = painterResource(R.drawable.sync),
                             enabled = !state.isLoading && state.progress == null,
-                            onClick = { spotifyImportViewModel.loadSources() }
+                            onClick = { ActionLog.tap(ActionId.SPOTIMP_REFRESH); spotifyImportViewModel.loadSources() }
                         ),
                         Material3SettingsItem(
                             title = { Text(stringResource(R.string.action_logout)) },
                             icon = painterResource(R.drawable.logout),
                             enabled = !state.isLoading && state.progress == null,
-                            onClick = { spotifyImportViewModel.logout() }
+                            onClick = { ActionLog.tap(ActionId.SPOTIMP_LOGOUT); spotifyImportViewModel.logout() }
                         )
                     )
                 }
@@ -256,7 +258,7 @@ fun SpotifyImportScreen(
                                 description = { Text("Cada cuánto se re-importan tus listas elegidas: ${freqLabel(autoSyncFreq)}") },
                                 icon = painterResource(R.drawable.sync),
                                 enabled = true,
-                                onClick = { showScheduleFreqDialog = true }
+                                onClick = { ActionLog.tap(ActionId.SPOTIMP_SYNC_FREQUENCY); showScheduleFreqDialog = true }
                             ),
                             Material3SettingsItem(
                                 title = { Text("Listas a sincronizar") },
@@ -268,7 +270,7 @@ fun SpotifyImportScreen(
                                 },
                                 icon = painterResource(R.drawable.playlist_play),
                                 enabled = state.hasSources,
-                                onClick = { showScheduleSourcesSheet = true }
+                                onClick = { ActionLog.tap(ActionId.SPOTIMP_SYNC_SOURCES); showScheduleSourcesSheet = true }
                             )
                         )
                     )
@@ -298,13 +300,14 @@ fun SpotifyImportScreen(
                 TextButton(
                     enabled = linkInput.isNotBlank(),
                     onClick = {
+                        ActionLog.tap(ActionId.SPOTIMP_ADD_BY_LINK_CONFIRM)
                         spotifyImportViewModel.addPlaylistByLink(linkInput, invalidLinkMessage)
                         showAddByLinkDialog = false
                     },
                 ) { Text(stringResource(R.string.spotify_add_by_link_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAddByLinkDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SPOTIMP_ADD_BY_LINK_CANCEL); showAddByLinkDialog = false }) {
                     Text(stringResource(android.R.string.cancel))
                 }
             },
@@ -337,6 +340,7 @@ fun SpotifyImportScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
+                                    ActionLog.tap(ActionId.SPOTIMP_SYNC_FREQUENCY_PICK)
                                     setAutoSyncFreq(days)
                                     SpotifyAutoSyncWorker.schedule(context, days)
                                     showScheduleFreqDialog = false
@@ -352,7 +356,7 @@ fun SpotifyImportScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showScheduleFreqDialog = false }) { Text("Cerrar") }
+                TextButton(onClick = { ActionLog.tap(ActionId.SPOTIMP_SYNC_FREQUENCY_CLOSE); showScheduleFreqDialog = false }) { Text("Cerrar") }
             },
         )
     }
@@ -448,10 +452,10 @@ fun SpotifyImportScreen(
             onDismiss = { progressMinimized = true },
             title = { Text(stringResource(R.string.spotify_import_in_progress)) },
             buttons = {
-                TextButton(onClick = { progressMinimized = true }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SPOTIMP_IMPORT_BACKGROUND); progressMinimized = true }) {
                     Text(stringResource(R.string.spotify_import_background_action))
                 }
-                TextButton(onClick = { spotifyImportViewModel.cancelImport() }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SPOTIMP_IMPORT_CANCEL); spotifyImportViewModel.cancelImport() }) {
                     Text(stringResource(android.R.string.cancel))
                 }
             }
@@ -511,7 +515,7 @@ private fun SpotifySourcePickerSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 TextButton(
-                    onClick = onClearSelection,
+                    onClick = { ActionLog.tap(ActionId.SPOTIMP_SOURCES_CLEAR); onClearSelection() },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(
@@ -521,7 +525,7 @@ private fun SpotifySourcePickerSheet(
                     )
                 }
                 Button(
-                    onClick = onSelectAll,
+                    onClick = { ActionLog.tap(ActionId.SPOTIMP_SOURCES_ALL); onSelectAll() },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(
@@ -547,13 +551,13 @@ private fun SpotifySourcePickerSheet(
                     SpotifySourceRow(
                         source = source,
                         selected = source.id in state.selectedSourceIds,
-                        onClick = { onToggleSource(source.id) },
+                        onClick = { ActionLog.tap(ActionId.SPOTIMP_SOURCE); onToggleSource(source.id) },
                     )
                 }
             }
 
             Button(
-                onClick = onImport,
+                onClick = { ActionLog.tap(ActionId.SPOTIMP_SOURCES_IMPORT); onImport() },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                 enabled = state.canImport,
                 shape = RoundedCornerShape(16.dp),
@@ -606,12 +610,12 @@ private fun SpotifyScheduledSourcesSheet(
                     SpotifySourceRow(
                         source = source,
                         selected = source.id in selectedIds,
-                        onClick = { onToggle(source.id) },
+                        onClick = { ActionLog.tap(ActionId.SPOTIMP_SYNC_SOURCE); onToggle(source.id) },
                     )
                 }
             }
             Button(
-                onClick = onDismiss,
+                onClick = { ActionLog.tap(ActionId.SPOTIMP_SYNC_SOURCES_DONE); onDismiss() },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                 shape = RoundedCornerShape(16.dp),
             ) {
@@ -728,7 +732,7 @@ private fun SpotifyErrorDialog(
         onDismiss = onDismiss,
         title = { Text("Error al importar") },
         buttons = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { ActionLog.tap(ActionId.SPOTIMP_ERROR_OK); onDismiss() }) {
                 Text(stringResource(android.R.string.ok))
             }
         },
@@ -755,17 +759,17 @@ private fun SpotifyImportSummaryDialog(
         title = { Text(stringResource(R.string.spotify_import_complete)) },
         buttons = {
             if (hasFailures) {
-                TextButton(onClick = onSaveFailuresCsv) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SPOTIMP_SAVE_FAILURES); onSaveFailuresCsv() }) {
                     Text(stringResource(R.string.spotify_import_save_failures_csv))
                 }
-                TextButton(onClick = onShareFailuresCsv) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SPOTIMP_SHARE_FAILURES); onShareFailuresCsv() }) {
                     Text(stringResource(R.string.spotify_import_share_failures_csv))
                 }
-                TextButton(onClick = onRetryFailures) {
+                TextButton(onClick = { ActionLog.tap(ActionId.SPOTIMP_RETRY_FAILURES); onRetryFailures() }) {
                     Text(stringResource(R.string.spotify_import_retry_failures))
                 }
             }
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { ActionLog.tap(ActionId.SPOTIMP_DONE_OK); onDismiss() }) {
                 Text(stringResource(android.R.string.ok))
             }
         },

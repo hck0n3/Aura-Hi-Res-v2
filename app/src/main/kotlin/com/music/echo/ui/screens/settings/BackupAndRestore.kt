@@ -66,6 +66,8 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 enum class BackupSubScreen { MAIN, IMPORT }
 
@@ -111,6 +113,7 @@ fun BackupAndRestore(
             text = { Text("Se reemplazará tu biblioteca actual por la de la última copia y la app se reiniciará. ¿Continuar?") },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
+                    ActionLog.tap(ActionId.BACKUP_CLOUD_RESTORE_CONFIRM)
                     showCloudRestoreConfirm = false
                     coroutineScope.launch {
                         val secret = cloudSecret(context)
@@ -136,7 +139,7 @@ fun BackupAndRestore(
                 }) { Text("Restaurar") }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showCloudRestoreConfirm = false }) { Text("Cancelar") }
+                androidx.compose.material3.TextButton(onClick = { ActionLog.tap(ActionId.BACKUP_CLOUD_RESTORE_CANCEL); showCloudRestoreConfirm = false }) { Text("Cancelar") }
             },
         )
     }
@@ -246,6 +249,7 @@ fun BackupAndRestore(
                 navigationIcon = {
                     IconButton(
                         onClick = {
+                            ActionLog.tap(ActionId.BACKUP_BACK)
                             if (currentScreen != BackupSubScreen.MAIN) {
                                 currentScreen = BackupSubScreen.MAIN
                             } else {
@@ -291,6 +295,7 @@ fun BackupAndRestore(
                                     description = { Text("Crea una copia de seguridad ZIP manual de tus datos") },
                                     icon = painterResource(R.drawable.backup),
                                     onClick = {
+                                        ActionLog.tap(ActionId.BACKUP_LOCAL_BACKUP)
                                         val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
                                         backupLauncher.launch(
                                             "${context.getString(R.string.app_name)}_${
@@ -305,7 +310,7 @@ fun BackupAndRestore(
                                         Text("Elige qué playlists migrar, y/o todos los artistas y todos los presets de EQ")
                                     },
                                     icon = painterResource(R.drawable.backup),
-                                    onClick = { showSelectiveExportDialog = true },
+                                    onClick = { ActionLog.tap(ActionId.BACKUP_SELECTIVE_EXPORT); showSelectiveExportDialog = true },
                                 ),
                             ),
                         )
@@ -319,6 +324,7 @@ fun BackupAndRestore(
                                     description = { Text(cloudStatus.ifBlank { "Cifrada en tu móvil: el servidor solo guarda bytes que no puede leer. Se conservan las últimas 3." }) },
                                     icon = painterResource(R.drawable.backup),
                                     onClick = {
+                                        ActionLog.tap(ActionId.BACKUP_CLOUD_BACKUP)
                                         coroutineScope.launch {
                                             val secret = cloudSecret(context)
                                             if (secret == null) {
@@ -354,7 +360,7 @@ fun BackupAndRestore(
                                     title = { Text("Restaurar la última copia de la nube") },
                                     description = { Text("Reemplaza tu biblioteca por la de la copia y reinicia la app") },
                                     icon = painterResource(R.drawable.restore),
-                                    onClick = { showCloudRestoreConfirm = true },
+                                    onClick = { ActionLog.tap(ActionId.BACKUP_CLOUD_RESTORE); showCloudRestoreConfirm = true },
                                 ),
                             ),
                         )
@@ -366,7 +372,7 @@ fun BackupAndRestore(
                                     title = { Text("Importar") },
                                     description = { Text("Restaura datos desde copias de seguridad u otras fuentes") },
                                     icon = painterResource(R.drawable.restore),
-                                    onClick = { currentScreen = BackupSubScreen.IMPORT },
+                                    onClick = { ActionLog.tap(ActionId.BACKUP_IMPORT); currentScreen = BackupSubScreen.IMPORT },
                                 ),
                             ),
                         )
@@ -378,7 +384,7 @@ fun BackupAndRestore(
                                 Material3SettingsItem(
                                     title = { Text("Importar desde Spotify") },
                                     icon = painterResource(R.drawable.ic_spotify),
-                                    onClick = { navController.navigate("settings/spotify_import") },
+                                    onClick = { ActionLog.tap(ActionId.BACKUP_IMPORT_SPOTIFY); navController.navigate("settings/spotify_import") },
                                 ),
                                 // Login-based whole-library migration, right beside Spotify (owner: "lo que
                                 // esté en ajustes permita loguearse para importar toda su biblioteca"). Tidal
@@ -390,7 +396,7 @@ fun BackupAndRestore(
                                         Text("Inicia sesión en Tidal para traer toda tu biblioteca, o importa por enlace/archivo")
                                     },
                                     icon = painterResource(R.drawable.playlist_add),
-                                    onClick = { navController.navigate("migration") },
+                                    onClick = { ActionLog.tap(ActionId.BACKUP_MIGRATE); navController.navigate("migration") },
                                 ),
                                 Material3SettingsItem(
                                     title = { Text("Sincronizar desde tu cuenta de Google") },
@@ -398,12 +404,13 @@ fun BackupAndRestore(
                                         Text("Trae tu me gusta, álbumes, artistas, suscripciones y playlists de tu cuenta")
                                     },
                                     icon = painterResource(R.drawable.sync),
-                                    onClick = { navController.navigate("settings/ytm_sync") },
+                                    onClick = { ActionLog.tap(ActionId.BACKUP_YTM_SYNC); navController.navigate("settings/ytm_sync") },
                                 ),
                                 Material3SettingsItem(
                                     title = { Text("Importar desde archivo local") },
                                     icon = painterResource(R.drawable.restore),
                                     onClick = {
+                                        ActionLog.tap(ActionId.BACKUP_LOCAL_RESTORE)
                                         // Use */* so the custom ".backup" file is always selectable:
                                         // SAF derives MIME from the unknown ".backup" extension and an
                                         // octet-stream-only filter greys it out on many devices.
@@ -414,6 +421,7 @@ fun BackupAndRestore(
                                     title = { Text("Importar lista 'm3u'") },
                                     icon = painterResource(R.drawable.playlist_add),
                                     onClick = {
+                                        ActionLog.tap(ActionId.BACKUP_IMPORT_M3U)
                                         importM3uLauncherOnline.launch(arrayOf("audio/*"))
                                     },
                                 ),
@@ -421,6 +429,7 @@ fun BackupAndRestore(
                                     title = { Text("Importar lista 'csv'") },
                                     icon = painterResource(R.drawable.playlist_add),
                                     onClick = {
+                                        ActionLog.tap(ActionId.BACKUP_IMPORT_CSV)
                                         importPlaylistFromCsv.launch(
                                             arrayOf(
                                                 "text/csv",
@@ -436,6 +445,7 @@ fun BackupAndRestore(
                                     description = { Text(".jrpl.json exported from the desktop app") },
                                     icon = painterResource(R.drawable.playlist_add),
                                     onClick = {
+                                        ActionLog.tap(ActionId.BACKUP_IMPORT_JR)
                                         importJrLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                                     },
                                 ),
@@ -446,6 +456,7 @@ fun BackupAndRestore(
                                     },
                                     icon = painterResource(R.drawable.restore),
                                     onClick = {
+                                        ActionLog.tap(ActionId.BACKUP_SELECTIVE_IMPORT)
                                         selectiveImportLauncher.launch(arrayOf("application/json", "*/*"))
                                     },
                                 ),
@@ -606,7 +617,7 @@ private fun SelectiveExportDialog(
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { if (checked) selectedIds.remove(id) else selectedIds.add(id) }
+                                    .clickable { ActionLog.tap(ActionId.BACKUP_SELECTIVE_ITEM); if (checked) selectedIds.remove(id) else selectedIds.add(id) }
                                     .padding(vertical = 4.dp),
                             ) {
                                 androidx.compose.material3.Checkbox(
@@ -623,12 +634,12 @@ private fun SelectiveExportDialog(
         },
         confirmButton = {
             androidx.compose.material3.TextButton(
-                onClick = onExport,
+                onClick = { ActionLog.tap(ActionId.BACKUP_SELECTIVE_EXPORT_CONFIRM); onExport() },
                 enabled = selectedIds.isNotEmpty() || includeArtists || includePresets,
             ) { Text("Exportar") }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
+            androidx.compose.material3.TextButton(onClick = { ActionLog.tap(ActionId.BACKUP_SELECTIVE_EXPORT_CANCEL); onDismiss() }) {
                 Text(stringResource(android.R.string.cancel))
             }
         },

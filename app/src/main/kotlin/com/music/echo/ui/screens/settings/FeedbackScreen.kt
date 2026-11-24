@@ -54,6 +54,8 @@ import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.newui.AuraPalette
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.SupportContact
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Ajustes ▸ Reportar y sugerir — opens the user's mail app to [SupportContact.EMAIL].
@@ -95,7 +97,7 @@ fun FeedbackScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = navController::navigateUp,
+                        onClick = { ActionLog.tap(ActionId.FEEDBACK_BACK); navController.navigateUp() },
                         onLongClick = null,
                     ) {
                         Icon(painterResource(R.drawable.arrow_back), contentDescription = null)
@@ -135,6 +137,7 @@ fun FeedbackScreen(
                 FilterChip(
                     selected = kind == SupportContact.Kind.BUG,
                     onClick = {
+                        ActionLog.tap(ActionId.FEEDBACK_KIND_BUG)
                         kind = SupportContact.Kind.BUG
                         attachLogs = true
                     },
@@ -143,6 +146,7 @@ fun FeedbackScreen(
                 FilterChip(
                     selected = kind == SupportContact.Kind.SUGGESTION,
                     onClick = {
+                        ActionLog.tap(ActionId.FEEDBACK_KIND_SUGGESTION)
                         kind = SupportContact.Kind.SUGGESTION
                         attachLogs = false
                     },
@@ -183,6 +187,7 @@ fun FeedbackScreen(
             Spacer(Modifier.height(8.dp))
             TextButton(
                 onClick = {
+                    ActionLog.tap(ActionId.FEEDBACK_ATTACH_SCREENSHOT)
                     screenshotPicker.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
                     )
@@ -200,6 +205,7 @@ fun FeedbackScreen(
             Spacer(Modifier.height(16.dp))
             Button(
                 onClick = {
+                    ActionLog.tap(ActionId.FEEDBACK_SEND)
                     val ok = SupportContact.openFeedback(
                         context = context,
                         kind = kind,

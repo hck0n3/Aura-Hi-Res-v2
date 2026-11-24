@@ -55,6 +55,8 @@ import iad1tya.echo.music.R
 import iad1tya.echo.music.ui.theme.BrandAccent
 import iad1tya.echo.music.viewmodels.OnboardingViewModel
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 private const val MIN_ARTISTS = 3
 private val SEARCH_SUGGESTIONS = listOf(
@@ -99,6 +101,7 @@ fun OnboardingArtistsScreen(
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = {
+                        ActionLog.tap(ActionId.ONBART_CONTINUE)
                         finishing = true
                         scope.launch {
                             viewModel.finish()
@@ -114,7 +117,7 @@ fun OnboardingArtistsScreen(
                 }
                 // This step is optional too — let the user skip it like the others.
                 TextButton(
-                    onClick = { navController.navigate("onboarding_genres") },
+                    onClick = { ActionLog.tap(ActionId.ONBART_SKIP); navController.navigate("onboarding_genres") },
                     enabled = !finishing,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Omitir") }
@@ -147,7 +150,7 @@ fun OnboardingArtistsScreen(
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SEARCH_SUGGESTIONS.forEach { term ->
                             AssistChip(
-                                onClick = { viewModel.query.value = term },
+                                onClick = { ActionLog.tap(ActionId.ONBART_SUGGESTION); viewModel.query.value = term },
                                 label = { Text(term) },
                             )
                         }
@@ -169,7 +172,7 @@ fun OnboardingArtistsScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { viewModel.toggle(artist) },
+                                    .clickable { ActionLog.tap(ActionId.ONBART_ARTIST); viewModel.toggle(artist) },
                             ) {
                                 Box(contentAlignment = Alignment.BottomEnd) {
                                     AsyncImage(

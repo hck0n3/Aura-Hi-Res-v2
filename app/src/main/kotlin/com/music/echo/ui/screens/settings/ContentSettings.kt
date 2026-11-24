@@ -112,6 +112,8 @@ import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.flow.map
 import iad1tya.echo.music.utils.dataStore
 import java.net.Proxy
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -311,6 +313,7 @@ fun ContentSettings(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SETCONT_PROXY_SAVE)
                         onProxyUrlChange(tempProxyUrl)
                         onProxyUsernameChange(if (authEnabled) tempProxyUsername else "")
                         onProxyPasswordChange(if (authEnabled) tempProxyPassword else "")
@@ -322,6 +325,7 @@ fun ContentSettings(
             },
             dismissButton = {
                 TextButton(onClick = {
+                    ActionLog.tap(ActionId.SETCONT_PROXY_CANCEL)
                     showProxyConfigurationDialog = false
                 }) {
                     Text(stringResource(R.string.cancel))
@@ -525,7 +529,7 @@ fun ContentSettings(
                         horizontalArrangement = Arrangement.End,
                     ) {
                         Button(
-                            onClick = { showProviderPriorityDialog = false },
+                            onClick = { ActionLog.tap(ActionId.SETCONT_PROVIDERS_CLOSE); showProviderPriorityDialog = false },
                             shape = actionShape,
                         ) {
                             Text(text = stringResource(R.string.close))
@@ -587,6 +591,7 @@ fun ContentSettings(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SETCONT_TOP_LENGTH_SAVE)
                         onLengthTopChange(tempLength.toInt().toString())
                         showTopLengthDialog = false
                     }
@@ -654,7 +659,7 @@ fun ContentSettings(
                             LanguageCodeToName.getOrElse(contentLanguage) { stringResource(R.string.system_default) }
                         )
                     },
-                    onClick = { showContentLanguageDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETCONT_CONTENT_LANGUAGE); showContentLanguageDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.location_on),
@@ -664,7 +669,7 @@ fun ContentSettings(
                             CountryCodeToName.getOrElse(contentCountry) { stringResource(R.string.system_default) }
                         )
                     },
-                    onClick = { showContentCountryDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETCONT_CONTENT_COUNTRY); showContentCountryDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.globe_location_pin),
@@ -674,7 +679,7 @@ fun ContentSettings(
                             SuggestionRegionSlugToName.getOrElse(suggestionRegion) { "Global Charts" }
                         )
                     },
-                    onClick = { showSuggestionSheet = true }
+                    onClick = { ActionLog.tap(ActionId.SETCONT_SUGGESTION_REGION); showSuggestionSheet = true }
                 )
             )
         )
@@ -695,7 +700,7 @@ fun ContentSettings(
                             modifier = Modifier.size(24.dp)
                         )
                     },
-                    onClick = { youtubeSettingsExpanded = !youtubeSettingsExpanded }
+                    onClick = { ActionLog.tap(ActionId.SETCONT_YOUTUBE_OPTIONS); youtubeSettingsExpanded = !youtubeSettingsExpanded }
                 )
             )
         )
@@ -863,6 +868,7 @@ fun ContentSettings(
                         icon = painterResource(R.drawable.language),
                         title = { Text(stringResource(R.string.app_language)) },
                         onClick = {
+                            ActionLog.tap(ActionId.SETCONT_APP_LANGUAGE_SYSTEM)
                             context.startActivity(
                                 Intent(
                                     Settings.ACTION_APP_LOCALE_SETTINGS,
@@ -880,7 +886,7 @@ fun ContentSettings(
                                 LanguageCodeToName.getOrElse(appLanguage) { stringResource(R.string.system_default) }
                             )
                         },
-                        onClick = { showAppLanguageDialog = true }
+                        onClick = { ActionLog.tap(ActionId.SETCONT_APP_LANGUAGE); showAppLanguageDialog = true }
                     )
                 }
             )
@@ -903,7 +909,7 @@ fun ContentSettings(
                             }
                         )
                     },
-                    onClick = { showIpVersionDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETCONT_NETWORK_IP_VERSION); showIpVersionDialog = true }
                 ))
                 add(
                     Material3SettingsItem(
@@ -932,7 +938,7 @@ fun ContentSettings(
                         Material3SettingsItem(
                             icon = painterResource(R.drawable.settings),
                             title = { Text(stringResource(R.string.config_proxy)) },
-                            onClick = { showProxyConfigurationDialog = true }
+                            onClick = { ActionLog.tap(ActionId.SETCONT_CONFIG_PROXY); showProxyConfigurationDialog = true }
                         )
                     )
                 }
@@ -1093,7 +1099,7 @@ fun ContentSettings(
                     icon = painterResource(R.drawable.lyrics),
                     title = { Text(stringResource(R.string.lyrics_provider_priority)) },
                     description = { Text(stringResource(R.string.lyrics_provider_priority_desc)) },
-                    onClick = { showProviderPriorityDialog = true },
+                    onClick = { ActionLog.tap(ActionId.SETCONT_LYRICS_PROVIDER_PRIORITY); showProviderPriorityDialog = true },
                 ),
                 // SPOTIFY LYRICS (SimpMusic "Enable Spotify Lyrics" parity): opt-in and LOGIN-GATED —
                 // SimpMusic disables the row until the user is logged into Spotify, and so do we:
@@ -1338,6 +1344,7 @@ fun ContentSettings(
                     title = { Text("Evitar que el sistema cierre la app") },
                     description = { Text("Quita la app de la optimización de batería para que la música no se corte con la pantalla apagada ni en segundo plano (todas las marcas; especialmente Xiaomi, Samsung, Oppo, Vivo…).") },
                     onClick = {
+                        ActionLog.tap(ActionId.SETCONT_BATTERY_OPTIMIZATION)
                         iad1tya.echo.music.utils.BackgroundReliability.requestIgnoreBatteryOptimizations(context)
                     }
                 ),
@@ -1346,6 +1353,7 @@ fun ContentSettings(
                     title = { Text("Ajustes del sistema de la app") },
                     description = { Text("Abre la ficha de la app para activar 'Inicio automático/Autostart' (necesario en algunas capas para que no la maten).") },
                     onClick = {
+                        ActionLog.tap(ActionId.SETCONT_APP_DETAILS)
                         iad1tya.echo.music.utils.BackgroundReliability.openAppDetails(context)
                     }
                 ),
@@ -1353,7 +1361,7 @@ fun ContentSettings(
                     icon = painterResource(R.drawable.trending_up),
                     title = { Text(stringResource(R.string.top_length)) },
                     description = { Text(lengthTop) },
-                    onClick = { showTopLengthDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETCONT_TOP_LENGTH); showTopLengthDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.home_outlined),
@@ -1366,7 +1374,7 @@ fun ContentSettings(
                             }
                         )
                     },
-                    onClick = { showQuickPicksDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETCONT_QUICK_PICKS); showQuickPicksDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.grid_view),
@@ -1413,6 +1421,7 @@ fun ContentSettings(
                     title = { Text(stringResource(R.string.open_links_title)) },
                     description = { Text(stringResource(R.string.open_links_summary)) },
                     onClick = {
+                        ActionLog.tap(ActionId.SETCONT_OPEN_LINKS)
                         val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             Intent(
                                 Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS,
@@ -1452,13 +1461,13 @@ fun ContentSettings(
                     icon = painterResource(R.drawable.bug_report),
                     title = { Text(stringResource(R.string.playback_logs)) },
                     description = { Text(stringResource(R.string.playback_logs_desc)) },
-                    onClick = { showPlaybackLogsDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETCONT_PLAYBACK_LOGS); showPlaybackLogsDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.sync),
                     title = { Text(stringResource(R.string.service_uptime)) },
                     description = { Text(stringResource(R.string.service_uptime_desc)) },
-                    onClick = { navController.navigate("uptime") }
+                    onClick = { ActionLog.tap(ActionId.SETCONT_SERVICE_UPTIME); navController.navigate("uptime") }
                 )
             )
         )
@@ -1469,7 +1478,7 @@ fun ContentSettings(
         title = { Text(stringResource(R.string.content)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.SETCONT_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

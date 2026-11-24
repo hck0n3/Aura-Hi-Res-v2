@@ -56,6 +56,8 @@ import iad1tya.echo.music.viewmodels.LocalPlaylistViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /** Prominent, full-width Apple-Music-style "Add Music" button. */
 @Composable
@@ -106,7 +108,7 @@ fun AddOrAddedButton(
             )
         }
     } else {
-        IconButton(onClick = onAdd) {
+        IconButton(onClick = { ActionLog.tap(ActionId.ADDMUSIC_ADD_BUTTON); onAdd() }) {
             Icon(
                 painter = painterResource(R.drawable.add),
                 contentDescription = stringResource(R.string.add_music),
@@ -158,7 +160,7 @@ fun SuggestedSongsSection(
             // window was silently eaten (user had to tap twice). refreshSuggestions() already carries a
             // ~300ms debounce that stops rapid double-fire, so the button can stay live at all times.
             IconButton(
-                onClick = { viewModel.refreshSuggestions() },
+                onClick = { ActionLog.tap(ActionId.ADDMUSIC_SUGGESTIONS_REFRESH); viewModel.refreshSuggestions() },
             ) {
                 Icon(
                     painter = painterResource(R.drawable.refresh),
@@ -195,6 +197,7 @@ fun SuggestedSongsSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
+                        ActionLog.tap(ActionId.ADDMUSIC_SUGGESTION_PLAY)
                         // Real playback must stop any active preview so two songs don't play at once.
                         previewController.stop()
                         val videoId = song.id
@@ -262,7 +265,7 @@ fun FeaturedArtistsSection(
             items(artists, key = { it.id }) { artist ->
                 FeaturedArtistItem(
                     artist = artist,
-                    onClick = { navController.navigate("artist/${artist.id}") },
+                    onClick = { ActionLog.tap(ActionId.ADDMUSIC_FEATURED_ARTIST); navController.navigate("artist/${artist.id}") },
                 )
             }
         }

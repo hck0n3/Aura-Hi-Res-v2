@@ -23,6 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.mediarouter.media.MediaRouter
 import iad1tya.echo.music.R
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun CastPickerSheet(
@@ -80,7 +82,7 @@ fun CastPickerSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onDisconnect() }
+                    .clickable { ActionLog.tap(ActionId.CAST_DISCONNECT); onDisconnect() }
                     .padding(vertical = 12.dp)
             ) {
                 Icon(
@@ -143,7 +145,7 @@ fun CastPickerSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onRouteSelected(route) }
+                            .clickable { ActionLog.tap(ActionId.CAST_ROUTE); onRouteSelected(route) }
                             .padding(vertical = 12.dp)
                     ) {
                         Icon(

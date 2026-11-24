@@ -259,7 +259,7 @@ fun AlbumMenu(
                     },
                     modifier =
                     Modifier
-                        .clickable { showErrorPlaylistAddDialog = false },
+                        .clickable { ActionLog.tap(ActionId.ALBUMMENU_PLAYLIST_ERROR_CLOSE); showErrorPlaylistAddDialog = false },
                 )
             }
 
@@ -283,6 +283,7 @@ fun AlbumMenu(
                     Modifier
                         .height(ListItemHeight)
                         .clickable {
+                            ActionLog.tap(ActionId.ALBUMMENU_ARTIST_PICK)
                             if (artist.id != null) {
                                 navController.navigate("artist/${artist.id}")
                             } else {
@@ -334,6 +335,7 @@ fun AlbumMenu(
             MenuLikeButton(
                 liked = album.album.bookmarkedAt != null,
                 onClick = {
+                    ActionLog.tap(ActionId.ALBUMMENU_LIKE)
                     val willLike = album.album.bookmarkedAt == null
                     database.query {
                         update(album.album.toggleLike())

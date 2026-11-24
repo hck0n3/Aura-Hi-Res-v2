@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.R
 import iad1tya.echo.music.utils.PlaybackLogEntry
 import iad1tya.echo.music.utils.PlaybackLogLevel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun PlaybackLogsDialog(
@@ -60,6 +62,7 @@ fun PlaybackLogsDialog(
         buttons = {
             TextButton(
                 onClick = {
+                    ActionLog.tap(ActionId.PLAYLOGS_COPY)
                     val textToCopy = logs.joinToString("\n") { log ->
                         buildString {
                             append(log.timestamp)
@@ -79,11 +82,11 @@ fun PlaybackLogsDialog(
             ) {
                 Text(stringResource(R.string.copy))
             }
-            TextButton(onClick = onClear) {
+            TextButton(onClick = { ActionLog.tap(ActionId.PLAYLOGS_CLEAR); onClear() }) {
                 Text(stringResource(R.string.clear))
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = onDismiss) {
+            Button(onClick = { ActionLog.tap(ActionId.PLAYLOGS_CLOSE); onDismiss() }) {
                 Text(stringResource(android.R.string.ok))
             }
         }

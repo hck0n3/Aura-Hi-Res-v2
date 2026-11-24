@@ -344,7 +344,7 @@ fun AuraOnlinePlaylistScreen(
                             AuraHeaderButton(
                                 icon = AuraIcons.Radio,
                                 label = stringResource(R.string.retry),
-                                onClick = { viewModel.retry() },
+                                onClick = { ActionLog.tap(ActionId.OPL_RETRY); viewModel.retry() },
                                 accent = true,
                             )
                         }
@@ -614,6 +614,7 @@ fun AuraOnlinePlaylistScreen(
                                     item = item,
                                     cardScale = 1f,
                                     onClick = {
+                                        ActionLog.tap(ActionId.OPL_RELATED)
                                         when (item) {
                                             is PlaylistItem ->
                                                 navController.navigateOnce("online_playlist/${item.id}")
@@ -630,6 +631,7 @@ fun AuraOnlinePlaylistScreen(
                                         }
                                     },
                                     onLongClick = {
+                                        ActionLog.tap(ActionId.OPL_RELATED_MENU)
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         menuState.show {
                                             when (item) {
@@ -712,6 +714,7 @@ fun AuraOnlinePlaylistScreen(
                     contentDescription = stringResource(R.string.cd_selection_actions),
                     enabled = selection.isNotEmpty(),
                     onClick = {
+                        ActionLog.tap(ActionId.OPL_SELECTION_MENU)
                         menuState.show {
                             YouTubeSelectionSongMenu(
                                 songSelection = filteredSongs
@@ -1015,6 +1018,7 @@ private fun AuraOnlinePlaylistHeader(
                     icon = AuraIcons.Share,
                     contentDescription = stringResource(R.string.share),
                     onClick = {
+                        ActionLog.tap(ActionId.OPL_SHARE)
                         val intent = Intent().apply {
                             action = Intent.ACTION_SEND
                             type = "text/plain"
@@ -1027,13 +1031,14 @@ private fun AuraOnlinePlaylistHeader(
                 AuraHeaderCircleButton(
                     icon = AuraIcons.Search,
                     contentDescription = stringResource(R.string.search),
-                    onClick = onSearch,
+                    onClick = { ActionLog.tap(ActionId.OPL_SEARCH); onSearch() },
                     modifier = Modifier.tvFocusable(isTvOrCar, scaleFocused = 1f),
                 )
                 AuraHeaderCircleButton(
                     icon = AuraIcons.More,
                     contentDescription = stringResource(R.string.more_options),
                     onClick = {
+                        ActionLog.tap(ActionId.OPL_MENU)
                         menuState.show {
                             YouTubePlaylistMenu(
                                 playlist = playlist,

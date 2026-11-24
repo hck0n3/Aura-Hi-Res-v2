@@ -199,6 +199,7 @@ fun YouTubeSongMenu(
                     Modifier  
                         .height(ListItemHeight)  
                         .clickable {  
+                            ActionLog.tap(ActionId.YTSONGMENU_ARTIST_PICK)
                             if (artist.id != null) {
                                 navController.navigate("artist/${artist.id}")  
                             } else {
@@ -216,6 +217,7 @@ fun YouTubeSongMenu(
                             .fillParentMaxWidth()  
                             .height(ListItemHeight)  
                             .clickable {  
+                                ActionLog.tap(ActionId.YTSONGMENU_ARTIST_PICK_DIALOG)
                                 if (artist.id != null) {
                                     navController.navigate("artist/${artist.id}")  
                                 } else {
@@ -248,6 +250,7 @@ fun YouTubeSongMenu(
             MenuLikeButton(
                 liked = librarySong?.song?.liked == true,
                 onClick = {
+                    ActionLog.tap(ActionId.YTSONGMENU_LIKE)
                     database.transaction {
                         librarySong.let { librarySong ->
                             val s: SongEntity

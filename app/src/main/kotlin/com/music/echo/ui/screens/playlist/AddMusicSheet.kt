@@ -63,6 +63,8 @@ import iad1tya.echo.music.ui.utils.tvFocusRestorer
 import iad1tya.echo.music.utils.listItemShape
 import iad1tya.echo.music.viewmodels.LocalPlaylistViewModel
 import androidx.compose.runtime.CompositionLocalProvider
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Apple-Music-style "Add Music" bottom sheet: a global YouTube-Music song search, plus From-Replay,
@@ -174,7 +176,7 @@ private fun AddMusicSheetBody(
                 },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.onSearchQuery("") }) {
+                        IconButton(onClick = { ActionLog.tap(ActionId.ADDMUSIC_SEARCH_CLEAR); viewModel.onSearchQuery("") }) {
                             Icon(
                                 painter = painterResource(R.drawable.close),
                                 contentDescription = stringResource(R.string.close),
@@ -217,7 +219,7 @@ private fun AddMusicSheetBody(
                                 onThumbnailClick = { previewController.toggle(item.id) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { previewController.toggle(item.id) },
+                                    .clickable { ActionLog.tap(ActionId.ADDMUSIC_PREVIEW); previewController.toggle(item.id) },
                             )
                         }
                         if (searchResults.isEmpty()) {
@@ -305,7 +307,7 @@ private fun AddMusicSheetBody(
                                     onThumbnailClick = { previewController.toggle(song.id) },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { previewController.toggle(song.id) },
+                                        .clickable { ActionLog.tap(ActionId.ADDMUSIC_PREVIEW); previewController.toggle(song.id) },
                                 )
                             }
                         }
@@ -316,6 +318,7 @@ private fun AddMusicSheetBody(
             if (selection.isNotEmpty()) {
                 Button(
                     onClick = {
+                        ActionLog.tap(ActionId.ADDMUSIC_ADD_SELECTED)
                         val ids = selection.toList()
                         viewModel.addLocalSongs(ids) { addedIds.addAll(ids) }
                         selection.clear()
@@ -396,7 +399,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.pagedSongSection(
                     onThumbnailClick = { previewController.toggle(song.id) },
                     modifier = Modifier
                         .width(pageWidth)
-                        .clickable { previewController.toggle(song.id) },
+                        .clickable { ActionLog.tap(ActionId.ADDMUSIC_PREVIEW); previewController.toggle(song.id) },
                 )
             }
         }

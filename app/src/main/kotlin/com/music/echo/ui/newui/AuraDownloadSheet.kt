@@ -59,6 +59,8 @@ import iad1tya.echo.music.ui.utils.ExportFormat
 import iad1tya.echo.music.ui.utils.rememberExportVideoAvailability
 import iad1tya.echo.music.ui.utils.rememberMp3ExportFolderAccess
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * One song the unified download sheet can act on, whatever it came from (a library row, a YouTube list item or
@@ -279,7 +281,7 @@ fun AuraDownloadSheet(
                             icon = AuraIcons.Downloaded,
                             title = stringResource(R.string.download_sheet_remove),
                             description = stringResource(R.string.download_sheet_remove_desc),
-                            onClick = { step = DownloadSheetStep.ConfirmRemove },
+                            onClick = { ActionLog.tap(ActionId.DLSHEET_REMOVE); step = DownloadSheetStep.ConfirmRemove },
                         )
 
                         Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> DownloadSheetRow(
@@ -288,6 +290,7 @@ fun AuraDownloadSheet(
                             description = stringResource(R.string.download_sheet_cancel_hint),
                             busy = true,
                             onClick = {
+                                ActionLog.tap(ActionId.DLSHEET_CANCEL_DOWNLOAD)
                                 songs.forEach { removeSongDownloads(context, it.id, single && it.downloadsCompanionVideo) }
                                 onDismiss()
                             },
@@ -297,7 +300,7 @@ fun AuraDownloadSheet(
                             icon = AuraIcons.Download,
                             title = stringResource(R.string.download_offline_only),
                             description = stringResource(R.string.download_offline_only_desc),
-                            onClick = { chooseFormat(ExportFormat.Offline) },
+                            onClick = { ActionLog.tap(ActionId.DLSHEET_OFFLINE); chooseFormat(ExportFormat.Offline) },
                         )
                     }
                     if (enableExportAsMp3) {
@@ -305,7 +308,7 @@ fun AuraDownloadSheet(
                             icon = AuraIcons.Export,
                             title = stringResource(R.string.export_as_mp3),
                             description = stringResource(R.string.export_as_mp3_desc),
-                            onClick = { chooseFormat(ExportFormat.Mp3) },
+                            onClick = { ActionLog.tap(ActionId.DLSHEET_MP3); chooseFormat(ExportFormat.Mp3) },
                         )
                         if (videoItems.isNotEmpty()) {
                             val videoDescription = when {
@@ -320,7 +323,7 @@ fun AuraDownloadSheet(
                                 description = videoDescription,
                                 enabled = !single || availability.enabled,
                                 busy = single && availability.loading,
-                                onClick = { chooseFormat(ExportFormat.Video) },
+                                onClick = { ActionLog.tap(ActionId.DLSHEET_VIDEO); chooseFormat(ExportFormat.Video) },
                             )
                         }
                     }
@@ -333,13 +336,14 @@ fun AuraDownloadSheet(
                         icon = AuraIcons.Check,
                         title = stringResource(R.string.download_sheet_all, pool.size),
                         description = stringResource(R.string.download_sheet_all_desc),
-                        onClick = { perform(chosen, pool) },
+                        onClick = { ActionLog.tap(ActionId.DLSHEET_ALL); perform(chosen, pool) },
                     )
                     DownloadSheetRow(
                         icon = AuraIcons.Music,
                         title = stringResource(R.string.download_sheet_pick),
                         description = stringResource(R.string.download_sheet_pick_desc),
                         onClick = {
+                            ActionLog.tap(ActionId.DLSHEET_PICK)
                             // NOTHING pre-ticked (owner 2026-10-19: «ya me salen auto-seleccionadas todas, eso no me gusta»):
                             // every time the picker opens it starts empty; «Seleccionar todas» is one tap away.
                             picked = emptySet()
@@ -372,7 +376,7 @@ fun AuraDownloadSheet(
                         icon = AuraIcons.Download,
                         label = stringResource(R.string.download_sheet_start, picked.size),
                         accent = true,
-                        onClick = { if (picked.isNotEmpty()) perform(chosen, pool.filter { it.id in picked }) },
+                        onClick = { ActionLog.tap(ActionId.DLSHEET_START); if (picked.isNotEmpty()) perform(chosen, pool.filter { it.id in picked }) },
                         // Disabled look with 0 picked (the click is already a no-op then).
                         modifier = Modifier.fillMaxWidth().alpha(if (picked.isEmpty()) 0.4f else 1f),
                     )
@@ -392,6 +396,7 @@ fun AuraDownloadSheet(
                         label = stringResource(R.string.download_sheet_remove),
                         accent = true,
                         onClick = {
+                            ActionLog.tap(ActionId.DLSHEET_REMOVE_CONFIRM)
                             songs.forEach { removeSongDownloads(context, it.id, single && it.downloadsCompanionVideo) }
                             onDismiss()
                         },
@@ -564,7 +569,7 @@ private fun SelectAllBar(allSelected: Boolean, selected: Int, total: Int, onTogg
             .clip(RoundedCornerShape(14.dp))
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(14.dp))
-            .auraClickableInternal(onClick = onToggle, contentDescription = label)
+            .auraClickableInternal(onClick = { ActionLog.tap(ActionId.DLSHEET_SONG); onToggle() }, contentDescription = label)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Text(
@@ -595,7 +600,7 @@ private fun PickRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .auraClickableInternal(onClick = onToggle, contentDescription = label)
+            .auraClickableInternal(onClick = { ActionLog.tap(ActionId.DLSHEET_SELECT_ALL); onToggle() }, contentDescription = label)
             .padding(vertical = 2.dp),
     ) {
         Checkbox(checked = checked, onCheckedChange = { onToggle() })

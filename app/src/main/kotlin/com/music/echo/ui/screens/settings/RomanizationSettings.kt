@@ -46,6 +46,8 @@ import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -407,7 +409,7 @@ fun RomanizationSettings(
         title = { Text(stringResource(R.string.lyrics_romanize_title)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.ROMAN_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

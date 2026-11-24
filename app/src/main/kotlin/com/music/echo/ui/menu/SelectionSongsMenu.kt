@@ -65,6 +65,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @SuppressLint("MutableCollectionMutableState")
 @Composable
@@ -160,6 +162,7 @@ fun SelectionSongMenu(
             buttons = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SELMENU_REMOVE_DOWNLOAD_CANCEL)
                         showRemoveDownloadDialog = false
                     },
                 ) {
@@ -168,6 +171,7 @@ fun SelectionSongMenu(
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SELMENU_REMOVE_DOWNLOAD_CONFIRM)
                         showRemoveDownloadDialog = false
                         songSelection.forEach { song ->
                             DownloadService.sendRemoveDownload(
@@ -209,6 +213,7 @@ fun SelectionSongMenu(
                         },
                         text = stringResource(R.string.play),
                         onClick = {
+                            ActionLog.tap(ActionId.SELMENU_PLAY)
                             onDismiss()
                             playerConnection.playQueue(
                                 ListQueue(
@@ -229,6 +234,7 @@ fun SelectionSongMenu(
                         },
                         text = stringResource(R.string.shuffle),
                         onClick = {
+                            ActionLog.tap(ActionId.SELMENU_SHUFFLE)
                             onDismiss()
                             playerConnection.playQueue(
                                 ListQueue(
@@ -249,6 +255,7 @@ fun SelectionSongMenu(
                         },
                         text = stringResource(R.string.add_to_playlist),
                         onClick = {
+                            ActionLog.tap(ActionId.SELMENU_ADD_TO_PLAYLIST)
                             showChoosePlaylistDialog = true
                         }
                     )
@@ -270,6 +277,7 @@ fun SelectionSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SELMENU_PLAY_NEXT)
                                     onDismiss()
                                     playerConnection.playNext(songSelection.map { it.toMediaItem() })
                                     confirmQueueEdit(context, playerConnection, R.string.play_next)
@@ -287,6 +295,7 @@ fun SelectionSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SELMENU_SHUFFLE_GRID)
                                     onDismiss()
                                     playerConnection.playQueue(
                                         ListQueue(
@@ -308,6 +317,7 @@ fun SelectionSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SELMENU_ADD_TO_QUEUE)
                                     onDismiss()
                                     playerConnection.addToQueue(songSelection.map { it.toMediaItem() })
                                     confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
@@ -326,6 +336,7 @@ fun SelectionSongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SELMENU_ADD_TO_PLAYLIST_GRID)
                                 showChoosePlaylistDialog = true
                             }
                         )
@@ -348,6 +359,7 @@ fun SelectionSongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SELMENU_REMOVE_FROM_LIBRARY)
                                 if (allInLibrary) {
                                     database.query {
                                         songSelection.forEach { song ->
@@ -403,6 +415,7 @@ fun SelectionSongMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.SELMENU_REMOVE_DOWNLOAD)
                                         showRemoveDownloadDialog = true
                                     }
                                 )
@@ -417,6 +430,7 @@ fun SelectionSongMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.SELMENU_CANCEL_DOWNLOAD)
                                         showRemoveDownloadDialog = true
                                     }
                                 )
@@ -431,6 +445,7 @@ fun SelectionSongMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.SELMENU_DOWNLOAD)
                                         songSelection.forEach { song ->
                                             val downloadRequest =
                                                 DownloadRequest
@@ -468,6 +483,7 @@ fun SelectionSongMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SELMENU_REMOVE_LIKE_ALL)
                                 val allLiked = songSelection.all { it.song.liked }
                                 onDismiss()
                                 database.query {
@@ -493,6 +509,7 @@ fun SelectionSongMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SELMENU_DELETE)
                                     onDismiss()
                                     // Row 343: multi-select delete never told YouTube, so a synced playlist got every
                                     // song back on the next sync. Same remote path as the swipe and the song menu.
@@ -611,6 +628,7 @@ fun SelectionMediaMetadataMenu(
             buttons = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SELQMENU_REMOVE_DOWNLOAD_CANCEL)
                         showRemoveDownloadDialog = false
                     },
                 ) {
@@ -619,6 +637,7 @@ fun SelectionMediaMetadataMenu(
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SELQMENU_REMOVE_DOWNLOAD_CONFIRM)
                         showRemoveDownloadDialog = false
                         songSelection.forEach { song ->
                             DownloadService.sendRemoveDownload(
@@ -658,6 +677,7 @@ fun SelectionMediaMetadataMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SELQMENU_REMOVE_FROM_QUEUE)
                                     onDismiss()
                                     var i = 0
                                     currentItems.forEach { cur ->
@@ -684,6 +704,7 @@ fun SelectionMediaMetadataMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SELQMENU_PLAY)
                                     onDismiss()
                                     playerConnection.playQueue(
                                         ListQueue(
@@ -705,6 +726,7 @@ fun SelectionMediaMetadataMenu(
                                     )
                                 },
                                 onClick = {
+                                    ActionLog.tap(ActionId.SELQMENU_SHUFFLE)
                                     onDismiss()
                                     playerConnection.playQueue(
                                         ListQueue(
@@ -727,6 +749,7 @@ fun SelectionMediaMetadataMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.SELQMENU_PLAY_NEXT)
                                         onDismiss()
                                         playerConnection.playNext(songSelection.map { it.toMediaItem() })
                                         confirmQueueEdit(context, playerConnection, R.string.play_next)
@@ -744,6 +767,7 @@ fun SelectionMediaMetadataMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.SELQMENU_ADD_TO_QUEUE)
                                         onDismiss()
                                         playerConnection.addToQueue(songSelection.map { it.toMediaItem() })
                                         confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
@@ -763,6 +787,7 @@ fun SelectionMediaMetadataMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SELQMENU_ADD_TO_PLAYLIST)
                                 showChoosePlaylistDialog = true
                             }
                         )
@@ -792,6 +817,7 @@ fun SelectionMediaMetadataMenu(
                                 )
                             },
                             onClick = {
+                                ActionLog.tap(ActionId.SELQMENU_LIKE_ALL)
                                 database.query {
                                     songSelection.forEach { song ->
                                         // update() is a no-op when the row does not exist yet, so the
@@ -838,6 +864,7 @@ fun SelectionMediaMetadataMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.SELQMENU_REMOVE_DOWNLOAD)
                                         showRemoveDownloadDialog = true
                                     },
                                     cardColors = CardDefaults.cardColors(
@@ -855,6 +882,7 @@ fun SelectionMediaMetadataMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.SELQMENU_CANCEL_DOWNLOAD)
                                         showRemoveDownloadDialog = true
                                     }
                                 )
@@ -869,6 +897,7 @@ fun SelectionMediaMetadataMenu(
                                         )
                                     },
                                     onClick = {
+                                        ActionLog.tap(ActionId.SELQMENU_DOWNLOAD)
                                         songSelection.forEach { song ->
                                             val downloadRequest =
                                                 DownloadRequest

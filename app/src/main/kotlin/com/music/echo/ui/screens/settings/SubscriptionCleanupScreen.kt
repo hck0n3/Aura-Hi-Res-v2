@@ -54,6 +54,8 @@ import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.utils.PhantomSubscriptionPolicy
 import iad1tya.echo.music.viewmodels.SubscriptionCleanupViewModel
 import iad1tya.echo.music.viewmodels.SubscriptionCleanupViewModel.Phase
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Registry row 813 — Ajustes ▸ Cuentas ▸ «Revisar suscripciones». The account's artist subscriptions, the suggested
@@ -83,7 +85,7 @@ fun SubscriptionCleanupScreen(
             AuraTopAppBar(
                 title = { Text(stringResource(R.string.sub_cleanup_title)) },
                 navigationIcon = {
-                    IconButton(onClick = navController::navigateUp, onLongClick = null) {
+                    IconButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_BACK); navController.navigateUp() }, onLongClick = null) {
                         Icon(painterResource(R.drawable.arrow_back), contentDescription = null)
                     }
                 },
@@ -118,13 +120,13 @@ fun SubscriptionCleanupScreen(
                 Phase.SIGNED_OUT -> item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.sub_cleanup_signed_out))
-                        Button(onClick = { navController.navigate("login") }) { Text(stringResource(R.string.login)) }
+                        Button(onClick = { ActionLog.tap(ActionId.SUBCLEAN_LOGIN); navController.navigate("login") }) { Text(stringResource(R.string.login)) }
                     }
                 }
                 Phase.LOAD_FAILED -> item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.sub_cleanup_load_failed))
-                        Button(onClick = viewModel::load) { Text(stringResource(R.string.retry)) }
+                        Button(onClick = { ActionLog.tap(ActionId.SUBCLEAN_RETRY); viewModel.load() }) { Text(stringResource(R.string.retry)) }
                     }
                 }
                 Phase.READY, Phase.RUNNING -> {
@@ -144,7 +146,7 @@ fun SubscriptionCleanupScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 Text(stringResource(R.string.sub_cleanup_counts, state.removed, state.failed))
-                                OutlinedButton(onClick = viewModel::stop, enabled = !state.stopping) {
+                                OutlinedButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_STOP); viewModel.stop() }, enabled = !state.stopping) {
                                     Text(stringResource(R.string.sub_cleanup_stop))
                                 }
                             }
@@ -164,11 +166,11 @@ fun SubscriptionCleanupScreen(
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (result.failed.isNotEmpty()) {
-                                        Button(onClick = viewModel::retryFailed) {
+                                        Button(onClick = { ActionLog.tap(ActionId.SUBCLEAN_RETRY_FAILED); viewModel.retryFailed() }) {
                                             Text(stringResource(R.string.sub_cleanup_retry_failed))
                                         }
                                     }
-                                    OutlinedButton(onClick = viewModel::load) { Text(stringResource(R.string.sub_cleanup_reload)) }
+                                    OutlinedButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_RELOAD); viewModel.load() }) { Text(stringResource(R.string.sub_cleanup_reload)) }
                                 }
                             }
                         }
@@ -179,15 +181,15 @@ fun SubscriptionCleanupScreen(
                         item {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = viewModel::selectSuggested, enabled = suggestedCount > 0) {
+                                    TextButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_SELECT_SUGGESTED); viewModel.selectSuggested() }, enabled = suggestedCount > 0) {
                                         Text(stringResource(R.string.sub_cleanup_select_suggested, suggestedCount))
                                     }
-                                    TextButton(onClick = viewModel::clearSelection, enabled = state.selected.isNotEmpty()) {
+                                    TextButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_CLEAR_SELECTION); viewModel.clearSelection() }, enabled = state.selected.isNotEmpty()) {
                                         Text(stringResource(R.string.sub_cleanup_clear_selection))
                                     }
                                 }
                                 Button(
-                                    onClick = { confirmCount = planned },
+                                    onClick = { ActionLog.tap(ActionId.SUBCLEAN_REMOVE); confirmCount = planned },
                                     enabled = planned > 0,
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
@@ -202,7 +204,7 @@ fun SubscriptionCleanupScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(enabled = selectable) { viewModel.toggleSelected(candidate.id) }
+                                .clickable(enabled = selectable) { ActionLog.tap(ActionId.SUBCLEAN_CANDIDATE); viewModel.toggleSelected(candidate.id) }
                                 .padding(vertical = 4.dp),
                         ) {
                             Checkbox(
@@ -264,12 +266,13 @@ fun SubscriptionCleanupScreen(
             text = { Text(stringResource(R.string.sub_cleanup_confirm_message)) },
             confirmButton = {
                 TextButton(onClick = {
+                    ActionLog.tap(ActionId.SUBCLEAN_REMOVE_CONFIRM)
                     confirmCount = 0
                     viewModel.removeSelected()
                 }) { Text(stringResource(R.string.sub_cleanup_confirm_action)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmCount = 0 }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_REMOVE_CANCEL); confirmCount = 0 }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }

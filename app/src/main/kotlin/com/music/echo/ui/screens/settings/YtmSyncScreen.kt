@@ -86,7 +86,7 @@ fun YtmSyncScreen(
             iad1tya.echo.music.ui.component.AuraTopAppBar(
                 title = { Text("Sincronizar desde tu cuenta de Google") },
                 navigationIcon = {
-                    IconButton(onClick = navController::navigateUp, onLongClick = null) {
+                    IconButton(onClick = { ActionLog.tap(ActionId.YTMSYNC_BACK); navController.navigateUp() }, onLongClick = null) {
                         Icon(painterResource(R.drawable.arrow_back), contentDescription = null)
                     }
                 },
@@ -101,6 +101,7 @@ fun YtmSyncScreen(
                 ) {
                     androidx.compose.material3.Button(
                         onClick = {
+                            ActionLog.tap(ActionId.YTMSYNC_ONBOARDING_START)
                             navController.navigate("home") {
                                 popUpTo("onboarding_artists") { inclusive = true }
                             }
@@ -130,6 +131,7 @@ fun YtmSyncScreen(
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = {
+                        ActionLog.tap(ActionId.YTMSYNC_LOGIN)
                         setOpenAfterLogin(true)
                         navController.navigate("login")
                     },
@@ -164,33 +166,34 @@ fun YtmSyncScreen(
                         // separate TYPE_PLAYLISTS worker here: insert(PlaylistEntity) is not a browseId-upsert
                         // (random PK), so two playlist syncs racing outside syncChannel could create duplicate
                         // rows. One ordered full sync is enough and safe.
-                        onClick = { start(W.TYPE_ALL, "Sincronizando todo… (continúa en segundo plano)") },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_SYNC_ALL); start(W.TYPE_ALL, "Sincronizando todo… (continúa en segundo plano)") },
                     ),
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.favorite),
                         title = { Text("Me gusta (canciones)") },
-                        onClick = { start(W.TYPE_LIKED_SONGS, "Sincronizando me gusta…") },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_SYNC_LIKED_SONGS); start(W.TYPE_LIKED_SONGS, "Sincronizando me gusta…") },
                     ),
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.favorite_border),
                         title = { Text("Álbumes favoritos") },
-                        onClick = { start(W.TYPE_LIKED_ALBUMS, "Sincronizando álbumes…") },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_SYNC_LIKED_ALBUMS); start(W.TYPE_LIKED_ALBUMS, "Sincronizando álbumes…") },
                     ),
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.add_circle),
                         title = { Text("Artistas y suscripciones") },
-                        onClick = { start(W.TYPE_ARTISTS, "Sincronizando artistas…") },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_SYNC_ARTISTS); start(W.TYPE_ARTISTS, "Sincronizando artistas…") },
                     ),
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.playlist_add),
                         title = { Text("Playlists guardadas") },
-                        onClick = { start(W.TYPE_PLAYLISTS, "Sincronizando playlists…") },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_SYNC_PLAYLISTS); start(W.TYPE_PLAYLISTS, "Sincronizando playlists…") },
                     ),
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.cached),
                         title = { Text("Biblioteca (canciones)") },
                         description = { Text("Incluye tus me gusta (favoritos)") },
                         onClick = {
+                            ActionLog.tap(ActionId.YTMSYNC_SYNC_LIBRARY)
                             // "Biblioteca" (FEmusic_liked_videos) sólo marca inLibrary, nunca liked; los
                             // favoritos viven en LM. Encolamos ambos para que migrar la biblioteca traiga
                             // también los me gusta. Son trabajos únicos distintos y additivos (upsert),
@@ -202,7 +205,7 @@ fun YtmSyncScreen(
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.backup),
                         title = { Text("Subidas (canciones y álbumes)") },
-                        onClick = { start(W.TYPE_UPLOADS, "Sincronizando subidas…") },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_SYNC_UPLOADS); start(W.TYPE_UPLOADS, "Sincronizando subidas…") },
                     ),
                 ),
             )
@@ -246,7 +249,7 @@ fun YtmSyncScreen(
                         icon = painterResource(R.drawable.sync),
                         title = { Text("Desactivada") },
                         description = { if (autoFreq <= 0) Text("Seleccionada") },
-                        onClick = { applyFreq(0) },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_FREQ_OFF); applyFreq(0) },
                     ),
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.sync),
@@ -257,19 +260,19 @@ fun YtmSyncScreen(
                                 else "Recomendada: toda la biblioteca, en segundo plano"
                             )
                         },
-                        onClick = { applyFreq(3) },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_FREQ_3_DAYS); applyFreq(3) },
                     ),
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.sync),
                         title = { Text("Cada día") },
                         description = { if (autoFreq == 1) Text("Seleccionada") },
-                        onClick = { applyFreq(1) },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_FREQ_DAILY); applyFreq(1) },
                     ),
                     Material3SettingsItem(
                         icon = painterResource(R.drawable.sync),
                         title = { Text("Cada semana") },
                         description = { if (autoFreq == 7) Text("Seleccionada") },
-                        onClick = { applyFreq(7) },
+                        onClick = { ActionLog.tap(ActionId.YTMSYNC_FREQ_WEEKLY); applyFreq(7) },
                     ),
                 ),
             )
@@ -377,13 +380,14 @@ private fun LibraryUploadSection(
             confirmButton = {
                 androidx.compose.material3.TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.YTMSYNC_UPLOAD_CONFIRM)
                         pendingFollowsToConfirm.value = null
                         setUploadEnabled(true)
                     },
                 ) { Text(stringResource(R.string.enable)) }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { pendingFollowsToConfirm.value = null }) {
+                androidx.compose.material3.TextButton(onClick = { ActionLog.tap(ActionId.YTMSYNC_UPLOAD_CANCEL); pendingFollowsToConfirm.value = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             },
@@ -468,7 +472,7 @@ private fun LibraryUploadSection(
                         onCheckedChange = { requestUploadEnabled(it) },
                     )
                 },
-                onClick = { requestUploadEnabled(!uploadEnabled) },
+                onClick = { ActionLog.tap(ActionId.YTMSYNC_UPLOAD_TOGGLE); requestUploadEnabled(!uploadEnabled) },
             ),
         ) + listOfNotNull(
             Material3SettingsItem(
@@ -476,7 +480,7 @@ private fun LibraryUploadSection(
                 title = {
                     Text(pluralStringResource(R.plurals.ytm_upload_import_awaiting, awaitingImportCount, awaitingImportCount))
                 },
-                onClick = { showImportFollowsConfirm.value = true },
+                onClick = { ActionLog.tap(ActionId.YTMSYNC_IMPORT_FOLLOWS); showImportFollowsConfirm.value = true },
             ).takeIf { awaitingImportCount > 0 },
             Material3SettingsItem(
                 icon = painterResource(R.drawable.replay),
@@ -509,6 +513,7 @@ private fun LibraryUploadSection(
                 title = { Text(stringResource(R.string.ytm_upload_run_now)) },
                 description = { Text(stringResource(R.string.ytm_upload_run_now_desc)) },
                 onClick = {
+                    ActionLog.tap(ActionId.YTMSYNC_UPLOAD_RUN_NOW)
                     when {
                         !isLoggedIn -> onToast(context.getString(R.string.ytm_upload_needs_login))
                         !uploadEnabled -> onToast(context.getString(R.string.ytm_upload_disabled_hint))

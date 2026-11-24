@@ -27,6 +27,8 @@ import iad1tya.echo.music.ui.newui.auraFloatingContainerColor
 import iad1tya.echo.music.ui.newui.auraFloatingScrimColor
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,6 +114,7 @@ fun SuggestionRegionSheet(
                         items = 1,
                         index = 0,
                         onClick = {
+                            ActionLog.tap(ActionId.REGION_SYSTEM)
                             onRegionSelected("system")
                             scope.launch { bottomSheetState.hide() }.invokeOnCompletion {
                                 if (!bottomSheetState.isVisible) {
@@ -147,6 +150,7 @@ fun SuggestionRegionSheet(
                         items = filteredRegions.size,
                         index = index,
                         onClick = {
+                            ActionLog.tap(ActionId.REGION_PICK)
                             onRegionSelected(slug)
                             scope.launch { bottomSheetState.hide() }.invokeOnCompletion {
                                 if (!bottomSheetState.isVisible) {

@@ -40,6 +40,8 @@ import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceForm
 import iad1tya.echo.music.utils.DeviceTier
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -259,7 +261,7 @@ fun PerformanceSettings(
         title = { Text("Rendimiento") },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.SETPERF_BACK); navController.navigateUp() },
                 onLongClick = null
             ) {
                 Icon(

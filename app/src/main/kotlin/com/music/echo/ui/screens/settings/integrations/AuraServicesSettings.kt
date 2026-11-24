@@ -56,6 +56,8 @@ import iad1tya.echo.music.ui.newui.AuraPanelSkin
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Phase A/B of docs/PLAN_WORKER_9_FUNCIONES.md — "Servicios Aura": the one place that shows what the edge Worker is doing and lets the
@@ -181,7 +183,7 @@ fun AuraServicesSettings(
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 },
-                                onClick = { showAddress = true },
+                                onClick = { ActionLog.tap(ActionId.AURASRV_ADDRESS); showAddress = true },
                             ),
                         )
                         if (EDGE_PUBLIC_KEY.isBlank()) {
@@ -195,7 +197,7 @@ fun AuraServicesSettings(
                                             else stringResource(R.string.aura_services_key_set),
                                         )
                                     },
-                                    onClick = { showKey = true },
+                                    onClick = { ActionLog.tap(ActionId.AURASRV_KEY); showKey = true },
                                 ),
                             )
                         }
@@ -210,7 +212,7 @@ fun AuraServicesSettings(
                             IntegrationCardItem(
                                 icon = painterResource(R.drawable.sync),
                                 title = { Text(stringResource(R.string.aura_services_check_now)) },
-                                onClick = { scope.launch { state = EdgeClient.refresh(context) } },
+                                onClick = { ActionLog.tap(ActionId.AURASRV_CHECK_NOW); scope.launch { state = EdgeClient.refresh(context) } },
                             ),
                         )
                         add(
@@ -219,6 +221,7 @@ fun AuraServicesSettings(
                                 title = { Text(stringResource(R.string.aura_services_diag_send)) },
                                 description = { Text(stringResource(R.string.aura_services_diag_desc)) },
                                 onClick = {
+                                    ActionLog.tap(ActionId.AURASRV_DIAG_SEND)
                                     scope.launch {
                                         EdgeClient.sendDiagnostics(context).fold(
                                             onSuccess = { code ->
@@ -267,9 +270,9 @@ private fun ServiceTextDialog(
         onDismiss = onDismiss,
         title = { Text(title) },
         buttons = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+            TextButton(onClick = { ActionLog.tap(ActionId.AURASRV_FIELD_CANCEL); onDismiss() }) { Text(stringResource(android.R.string.cancel)) }
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { onSave(text) }) { Text(stringResource(android.R.string.ok)) }
+            Button(onClick = { ActionLog.tap(ActionId.AURASRV_FIELD_SAVE); onSave(text) }) { Text(stringResource(android.R.string.ok)) }
         },
     ) {
         Text(

@@ -18,6 +18,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.R
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +48,7 @@ fun CustomThumbnailMenu(
                     )
                 },
                 modifier = Modifier.clickable {
+                    ActionLog.tap(ActionId.COVERMENU_CHOOSE)
                     onEdit()
                     onDismiss()
                 }
@@ -63,6 +66,7 @@ fun CustomThumbnailMenu(
                     )
                 },
                 modifier = Modifier.clickable {
+                    ActionLog.tap(ActionId.COVERMENU_REMOVE)
                     onRemove()
                     onDismiss()
                 }

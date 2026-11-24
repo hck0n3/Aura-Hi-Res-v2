@@ -22,6 +22,8 @@ import iad1tya.echo.music.ui.menu.ArtistMenu
 import iad1tya.echo.music.ui.menu.PlaylistMenu
 import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import kotlinx.coroutines.CoroutineScope
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun LibraryArtistListItem(
@@ -35,6 +37,7 @@ fun LibraryArtistListItem(
     trailingContent = {
         androidx.compose.material3.IconButton(
             onClick = {
+                ActionLog.tap(ActionId.LIBITEM_ARTIST_MENU)
                 menuState.show {
                     ArtistMenu(
                         originalArtist = artist,
@@ -53,6 +56,7 @@ fun LibraryArtistListItem(
     modifier = modifier
         .fillMaxWidth()
         .clickable {
+            ActionLog.tap(ActionId.LIBITEM_ARTIST_OPEN)
             navController.navigate("artist/${artist.id}")
         }
 )
@@ -72,9 +76,11 @@ fun LibraryArtistGridItem(
         .fillMaxWidth()
         .combinedClickable(
             onClick = {
+                ActionLog.tap(ActionId.LIBITEM_ARTIST_GRID_OPEN)
                 navController.navigate("artist/${artist.id}")
             },
             onLongClick = {
+                ActionLog.tap(ActionId.LIBITEM_ARTIST_GRID_MENU)
                 menuState.show {
                     ArtistMenu(
                         originalArtist = artist,
@@ -101,6 +107,7 @@ fun LibraryAlbumListItem(
     trailingContent = {
         androidx.compose.material3.IconButton(
             onClick = {
+                ActionLog.tap(ActionId.LIBITEM_ALBUM_MENU)
                 menuState.show {
                     AlbumMenu(
                         originalAlbum = album,
@@ -119,6 +126,7 @@ fun LibraryAlbumListItem(
     modifier = modifier
         .fillMaxWidth()
         .clickable {
+            ActionLog.tap(ActionId.LIBITEM_ALBUM_OPEN)
             navController.navigate("album/${album.id}")
         }
 )
@@ -145,9 +153,11 @@ fun LibraryAlbumGridItem(
         .fillMaxWidth()
         .combinedClickable(
             onClick = {
+                ActionLog.tap(ActionId.LIBITEM_ALBUM_GRID_OPEN)
                 navController.navigate("album/${album.id}")
             },
             onLongClick = {
+                ActionLog.tap(ActionId.LIBITEM_ALBUM_GRID_MENU)
                 menuState.show {
                     AlbumMenu(
                         originalAlbum = album,
@@ -171,6 +181,7 @@ fun LibraryPlaylistListItem(
     trailingContent = {
         androidx.compose.material3.IconButton(
             onClick = {
+                ActionLog.tap(ActionId.LIBITEM_PLAYLIST_MENU)
                 menuState.show {
                     if (playlist.playlist.isEditable || playlist.songCount != 0) {
                         PlaylistMenu(
@@ -218,6 +229,7 @@ fun LibraryPlaylistListItem(
     modifier = modifier
         .fillMaxWidth()
         .clickable {
+            ActionLog.tap(ActionId.LIBITEM_PLAYLIST_OPEN)
             if (!playlist.playlist.isEditable && playlist.songCount == 0 && playlist.playlist.remoteSongCount != 0)
                 navController.navigate("online_playlist/${playlist.playlist.browseId}")
             else
@@ -240,12 +252,14 @@ fun LibraryPlaylistGridItem(
         .fillMaxWidth()
         .combinedClickable(
             onClick = {
+                ActionLog.tap(ActionId.LIBITEM_PLAYLIST_GRID_OPEN)
                 if (!playlist.playlist.isEditable && playlist.songCount == 0 && playlist.playlist.remoteSongCount != 0)
                     navController.navigate("online_playlist/${playlist.playlist.browseId}")
                 else
                     navController.navigate("local_playlist/${playlist.id}")
             },
             onLongClick = {
+                ActionLog.tap(ActionId.LIBITEM_PLAYLIST_GRID_MENU)
                 menuState.show {
                     if (playlist.playlist.isEditable || playlist.songCount != 0) {
                         PlaylistMenu(

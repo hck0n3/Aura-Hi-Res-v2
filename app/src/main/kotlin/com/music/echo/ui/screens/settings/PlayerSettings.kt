@@ -82,6 +82,8 @@ import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberPreference
 import kotlin.math.roundToInt
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -420,7 +422,7 @@ fun PlayerSettings(
                 onDismiss = { showCrossfadeBetaDialog = false },
                 title = { Text(stringResource(R.string.crossfade_beta_title)) },
                 buttons = {
-                    TextButton(onClick = { showCrossfadeBetaDialog = false }) {
+                    TextButton(onClick = { ActionLog.tap(ActionId.SETPLR_CROSSFADE_BETA_CANCEL); showCrossfadeBetaDialog = false }) {
                         Text(stringResource(R.string.cancel))
                     }
                     TextButton(onClick = {
@@ -471,13 +473,13 @@ fun PlayerSettings(
                     icon = painterResource(R.drawable.network_node),
                     title = { Text(stringResource(R.string.stream_quality_wifi)) },
                     description = { Text(if (dataSaverEnabled) streamQualityForced else streamQualityName(wifiStreamQuality)) },
-                    onClick = { streamQualityDialogFor = "wifi" }
+                    onClick = { ActionLog.tap(ActionId.SETPLR_STREAM_QUALITY_WIFI); streamQualityDialogFor = "wifi" }
                 ))
                 add(Material3SettingsItem(
                     icon = painterResource(R.drawable.network_node),
                     title = { Text(stringResource(R.string.stream_quality_mobile)) },
                     description = { Text(if (dataSaverEnabled) streamQualityForced else streamQualityName(mobileStreamQuality)) },
-                    onClick = { streamQualityDialogFor = "mobile" }
+                    onClick = { ActionLog.tap(ActionId.SETPLR_STREAM_QUALITY_MOBILE); streamQualityDialogFor = "mobile" }
                 ))
             }
         )
@@ -533,6 +535,7 @@ fun PlayerSettings(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.SETPLR_CROSSFADE)
                         if (!crossfadeEnabled) {
                             showCrossfadeBetaDialog = true
                         } else {
@@ -560,7 +563,7 @@ fun PlayerSettings(
                         icon = painterResource(R.drawable.graphic_eq),
                         title = { Text("Estilo de transición") },
                         description = { Text(crossfadeCurveName(crossfadeCurve)) },
-                        onClick = { showCrossfadeCurveDialog = true }
+                        onClick = { ActionLog.tap(ActionId.SETPLR_CROSSFADE_CURVE); showCrossfadeCurveDialog = true }
                     ))
                     add(Material3SettingsItem(
                         icon = painterResource(R.drawable.album),
@@ -1087,7 +1090,7 @@ fun PlayerSettings(
                     icon = painterResource(R.drawable.lock),
                     title = { Text(stringResource(R.string.youtube_decryption_settings)) },
                     description = { Text(stringResource(R.string.youtube_decryption_desc)) },
-                    onClick = { navController.navigate("settings/youtube_decryption") }
+                    onClick = { ActionLog.tap(ActionId.SETPLR_YOUTUBE_DECRYPTION_SETTINGS); navController.navigate("settings/youtube_decryption") }
                 )
             )
         )
@@ -1099,7 +1102,7 @@ fun PlayerSettings(
         title = { Text(stringResource(R.string.player_and_audio)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.SETPLR_BACK); navController.navigateUp() },
                 onLongClick = null
             ) {
                 Icon(

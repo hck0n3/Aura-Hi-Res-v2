@@ -231,6 +231,7 @@ fun YouTubePlaylistMenu(
                 MenuLikeButton(
                     liked = dbPlaylist?.playlist?.bookmarkedAt != null,
                         onClick = {
+                            ActionLog.tap(ActionId.YTPLMENU_LIKE)
                             if (dbPlaylist?.playlist == null) {
                                 database.transaction {
                                     val playlistEntity = PlaylistEntity(
@@ -317,12 +318,13 @@ fun YouTubePlaylistMenu(
             },
             buttons = {
                 TextButton(
-                    onClick = { showRemoveDownloadDialog = false }
+                    onClick = { ActionLog.tap(ActionId.YTPLMENU_REMOVE_DOWNLOAD_CANCEL); showRemoveDownloadDialog = false }
                 ) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.YTPLMENU_REMOVE_DOWNLOAD_CONFIRM)
                         showRemoveDownloadDialog = false
                         songs.forEach { song ->
                             DownloadService.sendRemoveDownload(
@@ -431,11 +433,12 @@ fun YouTubePlaylistMenu(
                 )
             },
             buttons = {
-                TextButton(onClick = { showMp3ChoiceDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.YTPLMENU_MP3_CANCEL); showMp3ChoiceDialog = false }) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.YTPLMENU_MP3_PICK)
                         showMp3ChoiceDialog = false
                         // Nothing pre-ticked: the picker opens empty every time (owner 2026-10-19).
                         selectedMp3Ids = emptySet()
@@ -446,6 +449,7 @@ fun YouTubePlaylistMenu(
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.YTPLMENU_MP3_ALL)
                         showMp3ChoiceDialog = false
                         openMp3FolderPicker(mp3SongPool)
                     },
@@ -484,6 +488,7 @@ fun YouTubePlaylistMenu(
                         )
                     },
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.YTPLMENU_MP3_SELECT_ALL)
                         selectedMp3Ids =
                             if (selectedMp3Ids.size == mp3SongPool.size) emptySet()
                             else mp3SongPool.map { it.id }.toSet()
@@ -507,6 +512,7 @@ fun YouTubePlaylistMenu(
                         )
                     },
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.YTPLMENU_MP3_SONG)
                         selectedMp3Ids =
                             if (checked) selectedMp3Ids - song.id else selectedMp3Ids + song.id
                     },
@@ -518,13 +524,14 @@ fun YouTubePlaylistMenu(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    TextButton(onClick = { showMp3SelectDialog = false }) {
+                    TextButton(onClick = { ActionLog.tap(ActionId.YTPLMENU_MP3_SELECT_CANCEL); showMp3SelectDialog = false }) {
                         Text(text = stringResource(android.R.string.cancel))
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     TextButton(
                         enabled = selectedMp3Ids.isNotEmpty(),
                         onClick = {
+                            ActionLog.tap(ActionId.YTPLMENU_MP3_SELECT_CONTINUE)
                             showMp3SelectDialog = false
                             openMp3FolderPicker(mp3SongPool.filter { it.id in selectedMp3Ids })
                         },
@@ -575,7 +582,7 @@ fun YouTubePlaylistMenu(
                             modifier = Modifier.size(ListThumbnailSize),
                         )
                     },
-                    modifier = Modifier.clickable { showErrorPlaylistAddDialog = false },
+                    modifier = Modifier.clickable { ActionLog.tap(ActionId.YTPLMENU_PLAYLIST_ERROR_CLOSE); showErrorPlaylistAddDialog = false },
                 )
             }
 

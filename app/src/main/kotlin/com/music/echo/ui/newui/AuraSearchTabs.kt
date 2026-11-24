@@ -71,6 +71,8 @@ import iad1tya.echo.music.utils.systemRegionCode
 import iad1tya.echo.music.viewmodels.ExploreViewModel
 import iad1tya.echo.music.viewmodels.MoodAndGenresViewModel
 import kotlin.math.max
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # The three content tabs of the new Buscar
@@ -142,7 +144,7 @@ private fun AuraStateWithAction(
             maxLines = 4,
             overflow = AuraDefaultOverflow,
         )
-        AuraPillAction(label = actionLabel, onClick = onAction)
+        AuraPillAction(label = actionLabel, onClick = { ActionLog.tap(ActionId.SEARCHTAB_EMPTY_ACTION); onAction() })
     }
 }
 
@@ -239,6 +241,7 @@ fun AuraExploreTab(
                         AuraGenreTile(
                             label = entry.title,
                             onClick = {
+                                ActionLog.tap(ActionId.SEARCHTAB_GENRE)
                                 navController.navigate(
                                     "youtube_browse/${entry.endpoint.browseId}?params=${entry.endpoint.params}",
                                 )
@@ -523,7 +526,7 @@ private fun AuraTrackShelf(
     cardWidth: Dp = 130.dp,
 ) {
     Column(modifier) {
-        AuraSectionHeader(title = title, label = label, onClick = onMore)
+        AuraSectionHeader(title = title, label = label, onClick = { ActionLog.tap(ActionId.SEARCHTAB_TRACKS_MORE); onMore() })
         val (listState, fling) = rememberAuraShelfFlingBehavior()
         LazyRow(
             state = listState,
@@ -543,7 +546,7 @@ private fun AuraTrackShelf(
                     seed = track.videoId ?: (track.title + track.artist),
                     width = cardWidth,
                     ratio = ratio,
-                    onClick = { onTrack(track) },
+                    onClick = { ActionLog.tap(ActionId.SEARCHTAB_TRACK); onTrack(track) },
                     badge = { AuraRankBadge(track.rank, Modifier.align(Alignment.TopStart)) },
                     modifier = Modifier.animateItem(),
                 )
@@ -551,7 +554,7 @@ private fun AuraTrackShelf(
             item(key = "more", contentType = "more") {
                 AuraPillAction(
                     label = stringResource(R.string.trending_see_more),
-                    onClick = onMore,
+                    onClick = { ActionLog.tap(ActionId.SEARCHTAB_TRACKS_SEE_MORE); onMore() },
                     modifier = Modifier.padding(top = cardWidth / 2),
                 )
             }
@@ -569,7 +572,7 @@ private fun AuraAlbumShelf(
     cardWidth: Dp = 130.dp,
 ) {
     Column(modifier) {
-        AuraSectionHeader(title = title, onClick = onMore)
+        AuraSectionHeader(title = title, onClick = { ActionLog.tap(ActionId.SEARCHTAB_ALBUMS_MORE); onMore() })
         val (listState, fling) = rememberAuraShelfFlingBehavior()
         LazyRow(
             state = listState,
@@ -588,7 +591,7 @@ private fun AuraAlbumShelf(
                     thumbnailUrl = album.thumbnailUrl,
                     seed = album.title + album.artist,
                     width = cardWidth,
-                    onClick = { onAlbum(album) },
+                    onClick = { ActionLog.tap(ActionId.SEARCHTAB_ALBUM); onAlbum(album) },
                     badge = { AuraRankBadge(album.rank, Modifier.align(Alignment.TopStart)) },
                     modifier = Modifier.animateItem(),
                 )
@@ -596,7 +599,7 @@ private fun AuraAlbumShelf(
             item(key = "more", contentType = "more") {
                 AuraPillAction(
                     label = stringResource(R.string.trending_see_more),
-                    onClick = onMore,
+                    onClick = { ActionLog.tap(ActionId.SEARCHTAB_ALBUMS_SEE_MORE); onMore() },
                     modifier = Modifier.padding(top = cardWidth / 2),
                 )
             }
@@ -632,7 +635,7 @@ private fun AuraArtistShelf(
                     seed = artist.name,
                     width = cardWidth,
                     shape = CircleShape,
-                    onClick = { onArtist(artist) },
+                    onClick = { ActionLog.tap(ActionId.SEARCHTAB_ARTIST); onArtist(artist) },
                     badge = { AuraRankBadge(artist.rank, Modifier.align(Alignment.BottomEnd)) },
                     modifier = Modifier.animateItem(),
                 )
@@ -745,8 +748,9 @@ fun AuraNewAlbumsTab(
                             }
                         },
                         explicit = wideTabs && album.explicit,
-                        onClick = { navController.navigateOnce("album/${album.id}") },
+                        onClick = { ActionLog.tap(ActionId.SEARCHTAB_NEW_ALBUM); navController.navigateOnce("album/${album.id}") },
                         onLongClick = {
+                            ActionLog.tap(ActionId.SEARCHTAB_NEW_ALBUM_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
                                 YouTubeAlbumMenu(

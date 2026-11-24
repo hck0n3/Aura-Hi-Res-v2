@@ -26,6 +26,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import iad1tya.echo.music.R
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Onboarding step 1 of migration (after genres): migrate the whole Spotify library. Spotify's OAuth
@@ -46,14 +48,14 @@ fun OnboardingSpotifyScreen(
         bottomBar = {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)) {
                 Button(
-                    onClick = { navController.navigate("settings/spotify_import?onboarding=true") },
+                    onClick = { ActionLog.tap(ActionId.ONBSPOT_CONNECT); navController.navigate("settings/spotify_import?onboarding=true") },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text("Conectar Spotify y elegir qué migrar") }
                 Spacer(Modifier.height(8.dp))
                 iad1tya.echo.music.ui.component.AuraOutlinedButton(
                     // Forward only — keep onboarding_spotify on the back stack so the user CAN go back
                     // (system back) if they want, but the flow only moves forward by tapping here.
-                    onClick = { navController.navigate("onboarding_youtube") },
+                    onClick = { ActionLog.tap(ActionId.ONBSPOT_NEXT); navController.navigate("onboarding_youtube") },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text("Siguiente: tu cuenta de Google") }
             }

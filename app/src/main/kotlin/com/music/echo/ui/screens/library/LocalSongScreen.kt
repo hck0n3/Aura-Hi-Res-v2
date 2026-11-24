@@ -150,6 +150,8 @@ import java.text.Collator
 import java.time.LocalDateTime
 import java.util.Locale
 import kotlin.math.roundToInt
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(
     ExperimentalFoundationApi::class,
@@ -364,6 +366,7 @@ fun LocalSongScreen(
                                 leadingIcon = {
                                     IconButton(
                                         onClick = {
+                                            ActionLog.tap(ActionId.LOCAL_SEARCH_BACK)
                                             query = ""
                                             isSearchActive = false
                                         },
@@ -376,7 +379,7 @@ fun LocalSongScreen(
                                 },
                                 trailingIcon = if (query.isNotEmpty()) {
                                     {
-                                        IconButton(onClick = { query = "" }) {
+                                        IconButton(onClick = { ActionLog.tap(ActionId.LOCAL_SEARCH_CLEAR); query = "" }) {
                                             Icon(
                                                 painter = painterResource(R.drawable.close),
                                                 contentDescription = stringResource(R.string.close),
@@ -409,13 +412,13 @@ fun LocalSongScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 4.dp),
                     ) {
-                        IconButton(onClick = { isSearchActive = true }) {
+                        IconButton(onClick = { ActionLog.tap(ActionId.LOCAL_SEARCH); isSearchActive = true }) {
                             Icon(
                                 painter = painterResource(R.drawable.search),
                                 contentDescription = stringResource(R.string.search),
                             )
                         }
-                        IconButton(onClick = { showScanSheet = true }) {
+                        IconButton(onClick = { ActionLog.tap(ActionId.LOCAL_SCAN_SETTINGS); showScanSheet = true }) {
                             Icon(
                                 painter = painterResource(R.drawable.settings),
                                 contentDescription = stringResource(R.string.settings),
@@ -433,7 +436,7 @@ fun LocalSongScreen(
                             )
                         },
                         navigationIcon = {
-                            IconButton(onClick = onBack) {
+                            IconButton(onClick = { ActionLog.tap(ActionId.LOCAL_BACK); onBack() }) {
                                 Icon(
                                     painter = painterResource(R.drawable.arrow_back),
                                     contentDescription = null,
@@ -441,13 +444,13 @@ fun LocalSongScreen(
                             }
                         },
                         actions = {
-                            IconButton(onClick = { isSearchActive = true }) {
+                            IconButton(onClick = { ActionLog.tap(ActionId.LOCAL_SEARCH_EMBEDDED); isSearchActive = true }) {
                                 Icon(
                                     painter = painterResource(R.drawable.search),
                                     contentDescription = stringResource(R.string.search),
                                 )
                             }
-                            IconButton(onClick = { showScanSheet = true }) {
+                            IconButton(onClick = { ActionLog.tap(ActionId.LOCAL_SCAN_SETTINGS_EMBEDDED); showScanSheet = true }) {
                                 Icon(
                                     painter = painterResource(R.drawable.settings),
                                     contentDescription = stringResource(R.string.settings),
@@ -508,7 +511,7 @@ fun LocalSongScreen(
                                 title = stringResource(R.string.offline),
                                 iconRes = R.drawable.offline,
                                 auraStyle = hideChrome,
-                                onClick = { navController.navigate("auto_playlist/downloaded") },
+                                onClick = { ActionLog.tap(ActionId.LOCAL_DOWNLOADED); navController.navigate("auto_playlist/downloaded") },
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -517,7 +520,7 @@ fun LocalSongScreen(
                                 title = stringResource(R.string.cached_playlist),
                                 iconRes = R.drawable.cached,
                                 auraStyle = hideChrome,
-                                onClick = { navController.navigate("cache_playlist/cached") },
+                                onClick = { ActionLog.tap(ActionId.LOCAL_CACHED); navController.navigate("cache_playlist/cached") },
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -566,6 +569,7 @@ fun LocalSongScreen(
                             durationLabel = auraAppleDurationLabel(song.song.duration.takeIf { it > 0 }),
                             swipeMediaItem = song.toMediaItem(),
                             onClick = {
+                                ActionLog.tap(ActionId.LOCAL_SONG)
                                 if (song.id == mediaMetadata?.id) {
                                     playerConnection.player.togglePlayPause()
                                 } else {
@@ -584,6 +588,7 @@ fun LocalSongScreen(
                                 }
                             },
                             onLongClick = {
+                                ActionLog.tap(ActionId.LOCAL_SONG_MENU)
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 menuState.show {
                                     SongMenu(
@@ -1109,7 +1114,7 @@ private fun LocalSongScanSheet(
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = onPrimaryAction,
+                onClick = { ActionLog.tap(ActionId.LOCAL_SCAN); onPrimaryAction() },
                 enabled = !scanState.isScanning,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (hasStoragePermission) {
@@ -1216,7 +1221,7 @@ private fun LocalSongScanSheet(
                     )
                 }
                 TextButton(
-                    onClick = { confirmRemoveMissing = true },
+                    onClick = { ActionLog.tap(ActionId.LOCAL_REMOVE_MISSING); confirmRemoveMissing = true },
                     modifier = Modifier.padding(top = 4.dp),
                 ) {
                     Text(
@@ -1232,6 +1237,7 @@ private fun LocalSongScanSheet(
                     confirmButton = {
                         TextButton(
                             onClick = {
+                                ActionLog.tap(ActionId.LOCAL_REMOVE_MISSING_CONFIRM)
                                 confirmRemoveMissing = false
                                 onRemoveMissing()
                             },
@@ -1240,7 +1246,7 @@ private fun LocalSongScanSheet(
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { confirmRemoveMissing = false }) {
+                        TextButton(onClick = { ActionLog.tap(ActionId.LOCAL_REMOVE_MISSING_CANCEL); confirmRemoveMissing = false }) {
                             Text(stringResource(R.string.cancel))
                         }
                     },
@@ -1376,7 +1382,7 @@ private fun LocalSongFolderChip(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(24.dp)
-                        .combinedClickable(enabled = enabled, onClick = onRemove),
+                        .combinedClickable(enabled = enabled, onClick = { ActionLog.tap(ActionId.LOCAL_FOLDER_REMOVE); onRemove() }),
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.close),

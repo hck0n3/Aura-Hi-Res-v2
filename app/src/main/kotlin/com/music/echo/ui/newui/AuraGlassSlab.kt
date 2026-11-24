@@ -36,6 +36,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Fila 498 — LAS LOSAS DE CRISTAL DEL MENÚ ⋯, para el resto de ventanas.
@@ -197,7 +199,7 @@ internal fun AuraGlassSegmented(
                     .clip(cellShape)
                     .background(if (on) AuraPalette.Teal.copy(alpha = 0.22f) else Color.Transparent)
                     .then(if (on) Modifier.border(1.dp, AuraPalette.Teal.copy(alpha = 0.45f), cellShape) else Modifier)
-                    .auraClickableInternal(onClick = { onSelect(index) }, contentDescription = label)
+                    .auraClickableInternal(onClick = { ActionLog.tap(ActionId.GLASSROW_SEGMENT); onSelect(index) }, contentDescription = label)
                     .padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
                 Text(

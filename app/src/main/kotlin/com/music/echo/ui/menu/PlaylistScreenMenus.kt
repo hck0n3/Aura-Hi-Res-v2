@@ -58,6 +58,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -157,11 +159,12 @@ fun LocalPlaylistMenu(
                 )
             },
             buttons = {
-                TextButton(onClick = { showMp3ChoiceDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.LPLMENU_MP3_CANCEL); showMp3ChoiceDialog = false }) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LPLMENU_MP3_PICK)
                         showMp3ChoiceDialog = false
                         // Nothing pre-ticked: the picker opens empty every time (owner 2026-10-19).
                         selectedMp3Ids = emptySet()
@@ -172,6 +175,7 @@ fun LocalPlaylistMenu(
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.LPLMENU_MP3_ALL)
                         showMp3ChoiceDialog = false
                         openMp3FolderPicker(exportSongs)
                     },
@@ -210,6 +214,7 @@ fun LocalPlaylistMenu(
                         )
                     },
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.LPLMENU_MP3_SELECT_ALL)
                         selectedMp3Ids =
                             if (selectedMp3Ids.size == exportSongs.size) emptySet()
                             else exportSongs.map { it.id }.toSet()
@@ -233,6 +238,7 @@ fun LocalPlaylistMenu(
                         )
                     },
                     modifier = Modifier.clickable {
+                        ActionLog.tap(ActionId.LPLMENU_MP3_SONG)
                         selectedMp3Ids =
                             if (checked) selectedMp3Ids - song.id else selectedMp3Ids + song.id
                     },
@@ -244,13 +250,14 @@ fun LocalPlaylistMenu(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    TextButton(onClick = { showMp3SelectDialog = false }) {
+                    TextButton(onClick = { ActionLog.tap(ActionId.LPLMENU_MP3_SELECT_CANCEL); showMp3SelectDialog = false }) {
                         Text(text = stringResource(android.R.string.cancel))
                     }
                     Spacer(modifier = Modifier.weight(1f))
                     TextButton(
                         enabled = selectedMp3Ids.isNotEmpty(),
                         onClick = {
+                            ActionLog.tap(ActionId.LPLMENU_MP3_SELECT_CONTINUE)
                             showMp3SelectDialog = false
                             openMp3FolderPicker(exportSongs.filter { it.id in selectedMp3Ids })
                         },
@@ -272,6 +279,7 @@ fun LocalPlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.LPLMENU_REMOVE_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -285,6 +293,7 @@ fun LocalPlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.LPLMENU_CANCEL_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -298,6 +307,7 @@ fun LocalPlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.LPLMENU_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -317,6 +327,7 @@ fun LocalPlaylistMenu(
                     )
                 },
                 onClick = {
+                    ActionLog.tap(ActionId.LPLMENU_EDIT)
                     onEdit()
                     onDismiss()
                 }
@@ -335,6 +346,7 @@ fun LocalPlaylistMenu(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.LPLMENU_AI_MODIFY)
                         aiModify()
                         onDismiss()
                     }
@@ -354,6 +366,7 @@ fun LocalPlaylistMenu(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.LPLMENU_SYNC)
                         onSync()
                         onDismiss()
                     }
@@ -372,6 +385,7 @@ fun LocalPlaylistMenu(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.LPLMENU_ADD_TO_QUEUE)
                         onQueue()
                         onDismiss()
                     }
@@ -391,6 +405,7 @@ fun LocalPlaylistMenu(
                     )
                 },
                 onClick = {
+                    ActionLog.tap(ActionId.LPLMENU_SHARE)
                     val shareText = if (isYouTubePlaylist) {
                         ShareLinks.playlistShareText(playlist.playlist.browseId, playlist.playlist.name)
                     } else {
@@ -421,6 +436,7 @@ fun LocalPlaylistMenu(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.LPLMENU_EXPORT_MP3)
                         if (exportSongs.isEmpty()) {
                             Toast.makeText(
                                 context,
@@ -446,6 +462,7 @@ fun LocalPlaylistMenu(
                     )
                 },
                 onClick = {
+                    ActionLog.tap(ActionId.LPLMENU_DELETE)
                     onDelete()
                     onDismiss()
                 }
@@ -478,6 +495,7 @@ fun AutoPlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.AUTOPLMENU_REMOVE_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -491,6 +509,7 @@ fun AutoPlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.AUTOPLMENU_CANCEL_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -504,6 +523,7 @@ fun AutoPlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.AUTOPLMENU_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -523,6 +543,7 @@ fun AutoPlaylistMenu(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.AUTOPLMENU_SYNC)
                         it()
                         onDismiss()
                     }
@@ -538,6 +559,7 @@ fun AutoPlaylistMenu(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.AUTOPLMENU_ADD_TO_QUEUE)
                         onQueue()
                         onDismiss()
                     }
@@ -569,6 +591,7 @@ fun TopPlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.TOPPLMENU_REMOVE_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -582,6 +605,7 @@ fun TopPlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.TOPPLMENU_CANCEL_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -595,6 +619,7 @@ fun TopPlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.TOPPLMENU_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -613,6 +638,7 @@ fun TopPlaylistMenu(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.TOPPLMENU_ADD_TO_QUEUE)
                         onQueue()
                         onDismiss()
                     }
@@ -644,6 +670,7 @@ fun CachePlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.CACHEPLMENU_REMOVE_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -657,6 +684,7 @@ fun CachePlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.CACHEPLMENU_CANCEL_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -670,6 +698,7 @@ fun CachePlaylistMenu(
                 )
             },
             onClick = {
+                ActionLog.tap(ActionId.CACHEPLMENU_DOWNLOAD)
                 onDownload()
                 onDismiss()
             }
@@ -688,6 +717,7 @@ fun CachePlaylistMenu(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.CACHEPLMENU_ADD_TO_QUEUE)
                         onQueue()
                         onDismiss()
                     }

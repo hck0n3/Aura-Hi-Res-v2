@@ -52,6 +52,8 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 // Light UI-only cooldown between manual refreshes. The backend fetch is a cheap conditional GET
 // (304 when unchanged), but this keeps the "Forzar actualización" button from being spammed.
@@ -169,6 +171,7 @@ fun YoutubeDecryptionSettings(
                     },
                     enabled = !isUpdating && !cooldownActive,
                     onClick = {
+                        ActionLog.tap(ActionId.YTDECRYPT_FORCE_UPDATE)
                         if (!isUpdating && !cooldownActive) {
                             isUpdating = true
                             Toast.makeText(context, R.string.cipher_updating, Toast.LENGTH_SHORT).show()
@@ -252,7 +255,7 @@ fun YoutubeDecryptionSettings(
         title = { Text(stringResource(R.string.youtube_decryption_settings)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.YTDECRYPT_BACK); navController.navigateUp() },
                 onLongClick = null
             ) {
                 Icon(

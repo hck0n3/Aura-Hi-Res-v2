@@ -106,6 +106,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.text.style.TextDecoration
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 data class ChangelogSection(val title: String, val items: List<String>)
 
@@ -326,7 +328,7 @@ fun UpdateScreen(navController: NavHostController) {
                 navigationIcon = {
                     Box(modifier = Modifier.padding(start = 16.dp, end = 16.dp)) {
                         ExpressiveIconButton(
-                            onClick = { navController.navigateUp() },
+                            onClick = { ActionLog.tap(ActionId.UPDATE_CANCEL); navController.navigateUp() },
                             painter = painterResource(R.drawable.arrow_back),
                             contentDescription = stringResource(R.string.cancel),
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -358,7 +360,7 @@ fun UpdateScreen(navController: NavHostController) {
                         is EchoUpdateStatus.Idle, is EchoUpdateStatus.Checking, is EchoUpdateStatus.NoUpdate, is EchoUpdateStatus.Error -> {
                             AnimatedActionButton(
                                 text = stringResource(R.string.check_for_update),
-                                onClick = { triggerUpdateCheck() },
+                                onClick = { ActionLog.tap(ActionId.UPDATE_CHECK); triggerUpdateCheck() },
                                 enabled = currentStatus !is EchoUpdateStatus.Checking && !isDownloading,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -371,7 +373,7 @@ fun UpdateScreen(navController: NavHostController) {
                             ) {
                                 AnimatedActionButton(
                                     text = stringResource(R.string.later),
-                                    onClick = { navController.navigateUp() },
+                                    onClick = { ActionLog.tap(ActionId.UPDATE_LATER); navController.navigateUp() },
                                     modifier = Modifier.weight(1f),
                                     isOutlined = true,
                                     enabled = !isDownloading
@@ -379,6 +381,7 @@ fun UpdateScreen(navController: NavHostController) {
                                 AnimatedActionButton(
                                     text = if (isDownloading) "${(downloadProgress * 100).toInt()}%" else if (isDownloadComplete) stringResource(R.string.install) else stringResource(R.string.update_available),
                                     onClick = {
+                                        ActionLog.tap(ActionId.UPDATE_INSTALL)
                                         if (isDownloadComplete) {
                                             val file = downloadedFile
                                             if (file == null || !file.exists()) {
@@ -578,6 +581,7 @@ fun UpdateScreen(navController: NavHostController) {
                                     Spacer(modifier = Modifier.height(24.dp))
                                     androidx.compose.material3.TextButton(
                                         onClick = {
+                                            ActionLog.tap(ActionId.UPDATE_DIRECT_DOWNLOAD)
                                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest"))
                                             ContextCompat.startActivity(context, intent, null)
                                         }
@@ -627,6 +631,7 @@ fun UpdateScreen(navController: NavHostController) {
                                         ClickableText(
                                             text = annotatedText,
                                             onClick = { offset ->
+                                                ActionLog.tap(ActionId.UPDATE_LINK)
                                                 annotatedText.getStringAnnotations("URL", offset, offset).firstOrNull()?.let {
                                                     ContextCompat.startActivity(context, Intent(Intent.ACTION_VIEW, Uri.parse(it.item)), null)
                                                 }

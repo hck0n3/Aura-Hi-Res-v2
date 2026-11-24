@@ -130,6 +130,8 @@ import iad1tya.echo.music.constants.LyricsScrollKey
 import iad1tya.echo.music.constants.HideStatusBarOnFullscreenKey
 import iad1tya.echo.music.constants.MiniPlayerBackgroundStyleKey
 import iad1tya.echo.music.constants.ShowCommentButtonKey
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -455,6 +457,7 @@ fun AppearanceSettings(
             buttons = {
                 TextButton(
                     onClick = { 
+                        ActionLog.tap(ActionId.SETAPP_LYRICS_TEXT_SIZE_RESET)
                         tempTextSize = 24f
                     }
                 ) {
@@ -465,6 +468,7 @@ fun AppearanceSettings(
                 
                 TextButton(
                     onClick = { 
+                        ActionLog.tap(ActionId.SETAPP_LYRICS_TEXT_SIZE_CANCEL)
                         tempTextSize = lyricsTextSize
                         showLyricsTextSizeDialog = false 
                     }
@@ -473,6 +477,7 @@ fun AppearanceSettings(
                 }
                 TextButton(
                     onClick = { 
+                        ActionLog.tap(ActionId.SETAPP_LYRICS_TEXT_SIZE_CONFIRM)
                         onLyricsTextSizeChange(tempTextSize)
                         showLyricsTextSizeDialog = false 
                     }
@@ -519,6 +524,7 @@ fun AppearanceSettings(
             buttons = {
                 TextButton(
                     onClick = { 
+                        ActionLog.tap(ActionId.SETAPP_LYRICS_LINE_SPACING_RESET)
                         tempLineSpacing = 1.3f
                     }
                 ) {
@@ -529,6 +535,7 @@ fun AppearanceSettings(
                 
                 TextButton(
                     onClick = { 
+                        ActionLog.tap(ActionId.SETAPP_LYRICS_LINE_SPACING_CANCEL)
                         tempLineSpacing = lyricsLineSpacing
                         showLyricsLineSpacingDialog = false 
                     }
@@ -537,6 +544,7 @@ fun AppearanceSettings(
                 }
                 TextButton(
                     onClick = { 
+                        ActionLog.tap(ActionId.SETAPP_LYRICS_LINE_SPACING_CONFIRM)
                         onLyricsLineSpacingChange(tempLineSpacing)
                         showLyricsLineSpacingDialog = false 
                     }
@@ -722,12 +730,13 @@ fun AppearanceSettings(
             onDismiss = { showRestartDialog = false },
             buttons = {
                 TextButton(
-                    onClick = { showRestartDialog = false }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_RESTART_CANCEL); showRestartDialog = false }
                 ) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SETAPP_RESTART)
                         showRestartDialog = false
                         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -761,7 +770,7 @@ fun AppearanceSettings(
             onDismiss = { showDensityScaleDialog = false },
             buttons = {
                 TextButton(
-                    onClick = { showDensityScaleDialog = false }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_DENSITY_SCALE_CANCEL); showDensityScaleDialog = false }
                 ) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
@@ -773,6 +782,7 @@ fun AppearanceSettings(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
+                                ActionLog.tap(ActionId.SETAPP_DENSITY_PICK)
                                 onDensityScaleChange(scale.value)
                                 showDensityScaleDialog = false
                             }
@@ -798,7 +808,7 @@ fun AppearanceSettings(
         DefaultDialog(
             buttons = {
                 TextButton(
-                    onClick = { showSliderOptionDialog = false }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_SLIDER_OPTION_CANCEL); showSliderOptionDialog = false }
                 ) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
@@ -1043,7 +1053,7 @@ fun AppearanceSettings(
                         icon = painterResource(R.drawable.palette),
                         title = { Text(stringResource(R.string.theme)) },
                         description = { Text(stringResource(R.string.theme_desc)) },
-                        onClick = { navController.navigate("settings/appearance/theme") }
+                        onClick = { ActionLog.tap(ActionId.SETAPP_THEME); navController.navigate("settings/appearance/theme") }
                     )
                 )
                 add(
@@ -1191,7 +1201,7 @@ fun AppearanceSettings(
                                 }
                             }
                         },
-                        onClick = { showMiniPlayerBackgroundDialog = true }
+                        onClick = { ActionLog.tap(ActionId.SETAPP_MINIPLAYER_BACKGROUND_STYLE); showMiniPlayerBackgroundDialog = true }
                     )
                 )
             }
@@ -1327,6 +1337,7 @@ fun AppearanceSettings(
                         }
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.SETAPP_PLAYER_BACKGROUND_STYLE)
                         showPlayerBackgroundDialog = true
                     }
                 ),
@@ -1396,6 +1407,7 @@ fun AppearanceSettings(
                     },
                     enabled = true,
                     onClick = {
+                        ActionLog.tap(ActionId.SETAPP_LIQUID_GLASS)
                         navController.navigate(LIQUID_GLASS_ROUTE)
                     }
                 ),
@@ -1431,7 +1443,7 @@ fun AppearanceSettings(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     },
-                    onClick = { showThumbnailCornerRadiusDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_THUMBNAIL_CORNER_RADIUS); showThumbnailCornerRadiusDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.crop),
@@ -1466,7 +1478,7 @@ fun AppearanceSettings(
                             }
                         )
                     },
-                    onClick = { showPlayerButtonsStyleDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_PLAYER_BUTTONS_STYLE); showPlayerButtonsStyleDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.sliders),
@@ -1482,7 +1494,7 @@ fun AppearanceSettings(
                             }
                         )
                     },
-                    onClick = { showSliderOptionDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_PLAYER_SLIDER_STYLE); showSliderOptionDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.swipe),
@@ -1650,7 +1662,7 @@ fun AppearanceSettings(
                             )
                         )
                     },
-                    onClick = { showSensitivityDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_SWIPE_SENSITIVITY); showSensitivityDialog = true }
                 ) else null
             )
         )
@@ -1666,6 +1678,7 @@ fun AppearanceSettings(
                 buttons = {
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.SETAPP_SENSITIVITY_RESET)
                             tempSensitivity = 0.73f
                         }
                     ) {
@@ -1676,6 +1689,7 @@ fun AppearanceSettings(
 
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.SETAPP_SENSITIVITY_CANCEL)
                             tempSensitivity = swipeSensitivity
                             showSensitivityDialog = false
                         }
@@ -1684,6 +1698,7 @@ fun AppearanceSettings(
                     }
                     TextButton(
                         onClick = {
+                            ActionLog.tap(ActionId.SETAPP_SENSITIVITY_CONFIRM)
                             onSwipeSensitivityChange(tempSensitivity)
                             showSensitivityDialog = false
                         }
@@ -1750,7 +1765,7 @@ fun AppearanceSettings(
                             }
                         )
                     },
-                    onClick = { showLyricsPositionDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_LYRICS_TEXT_POSITION); showLyricsPositionDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.lyrics),
@@ -1771,7 +1786,7 @@ fun AppearanceSettings(
                             }
                         )
                     },
-                    onClick = { showLyricsAnimationStyleDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_LYRICS_ANIMATION_STYLE); showLyricsAnimationStyleDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.lyrics),
@@ -1842,13 +1857,13 @@ fun AppearanceSettings(
                     icon = painterResource(R.drawable.lyrics),
                     title = { Text(stringResource(R.string.lyrics_text_size)) },
                     description = { Text("${lyricsTextSize.roundToInt()} sp") },
-                    onClick = { showLyricsTextSizeDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_LYRICS_TEXT_SIZE); showLyricsTextSizeDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.lyrics),
                     title = { Text(stringResource(R.string.lyrics_line_spacing)) },
                     description = { Text("${String.format("%.1f", lyricsLineSpacing)}x") },
-                    onClick = { showLyricsLineSpacingDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_LYRICS_LINE_SPACING); showLyricsLineSpacingDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.lyrics),
@@ -1978,7 +1993,7 @@ fun AppearanceSettings(
                             }
                         )
                     },
-                    onClick = { showDefaultOpenTabDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_DEFAULT_OPEN_TAB); showDefaultOpenTabDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.tab),
@@ -1995,7 +2010,7 @@ fun AppearanceSettings(
                             }
                         )
                     },
-                    onClick = { showDefaultChipDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_DEFAULT_LIB_CHIPS); showDefaultChipDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.swipe),
@@ -2069,7 +2084,7 @@ fun AppearanceSettings(
                             }
                         )
                     },
-                    onClick = { showGridSizeDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_GRID_CELL_SIZE); showGridSizeDialog = true }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.grid_view),
@@ -2077,7 +2092,7 @@ fun AppearanceSettings(
                     description = {
                         Text(DensityScale.fromValue(densityScale).label)
                     },
-                    onClick = { showDensityScaleDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETAPP_DISPLAY_DENSITY); showDensityScaleDialog = true }
                 )
             )
         )
@@ -2216,7 +2231,7 @@ fun AppearanceSettings(
         title = { Text(stringResource(R.string.appearance)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.SETAPP_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

@@ -18,6 +18,8 @@ import iad1tya.echo.music.db.entities.EnhancedShuffleContextEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Shuffle button gate for the Enhanced Shuffle ("Aleatorio mejorado") no-repeat memory.
@@ -70,6 +72,7 @@ fun rememberShuffleMemoryPrompt(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SHUFMEM_CONTINUE)
                         showDialog = false
                         currentOnShuffle(false)
                     },
@@ -80,6 +83,7 @@ fun rememberShuffleMemoryPrompt(
             dismissButton = {
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SHUFMEM_RESET)
                         showDialog = false
                         val id = currentContextId
                         if (id == null) {

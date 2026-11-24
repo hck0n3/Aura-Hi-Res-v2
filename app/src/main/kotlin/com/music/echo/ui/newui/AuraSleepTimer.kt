@@ -42,6 +42,8 @@ import iad1tya.echo.music.ui.component.SleepTimerDialog
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
 import kotlinx.coroutines.delay
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * The sleep timer in one tap (UX audit P22C, registry row 734: it took ~5 taps, from the player menu's collapsed
@@ -78,6 +80,7 @@ internal fun AuraSleepTimerPresets(
                     selected = false,
                     glass = true,
                     onClick = {
+                        ActionLog.tap(ActionId.SLEEP_START)
                         service.startSleepTimer(minutes)
                         onPicked()
                     },
@@ -88,6 +91,7 @@ internal fun AuraSleepTimerPresets(
                 selected = afterSong,
                 glass = true,
                 onClick = {
+                    ActionLog.tap(ActionId.SLEEP_END_OF_SONG)
                     service.startSleepTimerAfterSong()
                     onPicked()
                 },
@@ -98,6 +102,7 @@ internal fun AuraSleepTimerPresets(
                     selected = false,
                     glass = true,
                     onClick = {
+                        ActionLog.tap(ActionId.SLEEP_TURN_OFF)
                         service.cancelSleepTimer()
                         onPicked()
                     },

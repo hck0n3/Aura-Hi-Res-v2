@@ -9,6 +9,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.R
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun RingtoneProgressDialog(
@@ -71,12 +73,13 @@ fun RingtoneProgressDialog(
                     if (isSuccess && !appliedDirectly) {
                         // Ringtone saved but not applied (no WRITE_SETTINGS): offer the grant so the
                         // NEXT trim can apply directly, alongside the existing picker fallback.
-                        TextButton(onClick = onRequestWriteSettings) {
+                        TextButton(onClick = { ActionLog.tap(ActionId.RINGTONE_GRANT); onRequestWriteSettings() }) {
                             Text(stringResource(R.string.ringtone_grant_write_settings))
                         }
                     }
                     Button(
                         onClick = {
+                            ActionLog.tap(ActionId.RINGTONE_OPEN_SETTINGS)
                             if (isSuccess) onOpenSettings() else onDismiss()
                         },
                     ) {
@@ -87,7 +90,7 @@ fun RingtoneProgressDialog(
         },
         dismissButton = {
             if (isComplete && isSuccess) {
-                TextButton(onClick = onDismiss) {
+                TextButton(onClick = { ActionLog.tap(ActionId.RINGTONE_CLOSE); onDismiss() }) {
                     Text(stringResource(R.string.close))
                 }
             }

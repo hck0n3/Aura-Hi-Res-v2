@@ -47,6 +47,8 @@ import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.viewmodels.YouTubeBrowseViewModel
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -98,6 +100,7 @@ fun YouTubeBrowseScreen(
                 modifier = Modifier
                     .combinedClickable(
                         onClick = {
+                            ActionLog.tap(ActionId.YTBROWSE_ITEM)
                             when (item) {
                                 is SongItem -> {
                                     if (item.id == mediaMetadata?.id) {
@@ -114,6 +117,7 @@ fun YouTubeBrowseScreen(
                             }
                         },
                         onLongClick = {
+                            ActionLog.tap(ActionId.YTBROWSE_ITEM_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
                                 when (item) {
@@ -153,7 +157,7 @@ fun YouTubeBrowseScreen(
         title = { Text(browseResult?.title.orEmpty()) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.YTBROWSE_BACK); navController.navigateUp() },
                 onLongClick = null
             ) {
                 Icon(

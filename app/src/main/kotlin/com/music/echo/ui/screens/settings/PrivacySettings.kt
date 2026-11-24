@@ -41,6 +41,8 @@ import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,13 +81,14 @@ fun PrivacySettings(
             },
             buttons = {
                 TextButton(
-                    onClick = { showClearListenHistoryDialog = false },
+                    onClick = { ActionLog.tap(ActionId.SETPRIV_CLEAR_LISTEN_CANCEL); showClearListenHistoryDialog = false },
                 ) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SETPRIV_CLEAR_LISTEN_CONFIRM)
                         showClearListenHistoryDialog = false
                         database.query {
                             clearListenHistory()
@@ -116,13 +119,14 @@ fun PrivacySettings(
             },
             buttons = {
                 TextButton(
-                    onClick = { showClearSearchHistoryDialog = false },
+                    onClick = { ActionLog.tap(ActionId.SETPRIV_CLEAR_SEARCH_CANCEL); showClearSearchHistoryDialog = false },
                 ) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
 
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.SETPRIV_CLEAR_SEARCH_CONFIRM)
                         showClearSearchHistoryDialog = false
                         database.query {
                             clearSearchHistory()
@@ -179,7 +183,7 @@ fun PrivacySettings(
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.delete_history),
                     title = { Text(stringResource(R.string.clear_listen_history)) },
-                    onClick = { showClearListenHistoryDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETPRIV_CLEAR_LISTEN_HISTORY); showClearListenHistoryDialog = true }
                 )
             )
         )
@@ -212,7 +216,7 @@ fun PrivacySettings(
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.clear_all),
                     title = { Text(stringResource(R.string.clear_search_history)) },
-                    onClick = { showClearSearchHistoryDialog = true }
+                    onClick = { ActionLog.tap(ActionId.SETPRIV_CLEAR_SEARCH_HISTORY); showClearSearchHistoryDialog = true }
                 )
             )
         )
@@ -266,7 +270,7 @@ fun PrivacySettings(
         title = { Text(stringResource(R.string.privacy)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.SETPRIV_BACK); navController.navigateUp() },
                 onLongClick = null,
             ) {
                 Icon(

@@ -261,6 +261,7 @@ fun AuraOnlineSearchSuggestions(
                     isPlaying = isPlaying,
                     onClick = { ActionLog.tap(ActionId.SEARCH_ITEM_PICK); picked = AuraSearchPick.Yt(item) },
                     onLongClick = {
+                        ActionLog.tap(ActionId.SEARCH_SUGGESTION_ITEM_LONG)
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         picked = AuraSearchPick.Yt(item)
                     },
@@ -303,6 +304,7 @@ fun AuraOnlineSearchSuggestions(
                     }
                 },
                 onLongClick = {
+                    ActionLog.tap(ActionId.SEARCH_SUGGESTION_ITEM_MENU)
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     openMenu(item)
                 },
@@ -609,8 +611,9 @@ fun AuraLocalSearchResults(
                                 else -> false
                             },
                             isPlaying = isPlaying,
-                            onClick = { pickLocal(item) },
+                            onClick = { ActionLog.tap(ActionId.SEARCH_LOCAL_ITEM); pickLocal(item) },
                             onLongClick = {
+                                ActionLog.tap(ActionId.SEARCH_LOCAL_ITEM_LONG)
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 pickLocal(item)
                             },
@@ -638,6 +641,7 @@ fun AuraLocalSearchResults(
                         format = item.format,
                         swipeMediaItem = item.toMediaItem(),
                         onClick = {
+                            ActionLog.tap(ActionId.SEARCH_LOCAL_SONG)
                             if (item.id == mediaMetadata?.id) {
                                 playerConnection.togglePlayPause()
                             } else {
@@ -655,6 +659,7 @@ fun AuraLocalSearchResults(
                             }
                         },
                         onLongClick = {
+                            ActionLog.tap(ActionId.SEARCH_LOCAL_SONG_MENU)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             menuState.show {
                                 SongMenu(
@@ -699,6 +704,7 @@ fun AuraLocalSearchResults(
                         artworkSize = visual.rowWidth,
                         typeChip = visual.label,
                         onClick = {
+                            ActionLog.tap(ActionId.SEARCH_LOCAL_ALBUM)
                             onDismiss()
                             navController.navigateOnce("album/${item.id}")
                         },
@@ -723,6 +729,7 @@ fun AuraLocalSearchResults(
                         artworkSize = visual.rowWidth,
                         typeChip = visual.label,
                         onClick = {
+                            ActionLog.tap(ActionId.SEARCH_LOCAL_ARTIST)
                             onDismiss()
                             navController.navigateOnce("artist/${item.id}")
                         },
@@ -747,6 +754,7 @@ fun AuraLocalSearchResults(
                         artworkSize = visual.rowWidth,
                         typeChip = visual.label,
                         onClick = {
+                            ActionLog.tap(ActionId.SEARCH_LOCAL_PLAYLIST)
                             onDismiss()
                             navController.navigateOnce("local_playlist/${item.id}")
                         },
@@ -832,7 +840,7 @@ internal fun AuraSearchHistoryHeader(onClearAll: () -> Unit, modifier: Modifier 
                 )
             },
             buttons = {
-                androidx.compose.material3.TextButton(onClick = { confirm = false }) {
+                androidx.compose.material3.TextButton(onClick = { ActionLog.tap(ActionId.SEARCH_HISTORY_CLEAR_CANCEL); confirm = false }) {
                     androidx.compose.material3.Text(text = stringResource(android.R.string.cancel))
                 }
                 androidx.compose.material3.TextButton(

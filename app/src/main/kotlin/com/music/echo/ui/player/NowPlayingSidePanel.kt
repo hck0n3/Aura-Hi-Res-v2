@@ -42,6 +42,8 @@ import iad1tya.echo.music.R
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.makeTimeString
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Spotify-desktop-style persistent NOW-PLAYING panel for the RIGHT side of a wide-screen (TV / tablet / car /
@@ -104,7 +106,7 @@ fun NowPlayingSidePanel(
                     // tvFocusable BEFORE clickable so its onFocusChanged is an ANCESTOR of the clickable focus
                     // target and the D-pad ring actually lights (descendant order would never observe it).
                     .tvFocusable(isTvOrCar, RoundedCornerShape(12.dp))
-                    .clickable { onExpand() },
+                    .clickable { ActionLog.tap(ActionId.SIDE_EXPAND); onExpand() },
             )
 
             Spacer(Modifier.height(16.dp))
@@ -168,7 +170,7 @@ fun NowPlayingSidePanel(
             ) {
                 IconButton(
                     // Toggle (not one-shot dislike) + live state, parity with the phone player's thumbs.
-                    onClick = { playerConnection.toggleDislikeCurrentSong() },
+                    onClick = { ActionLog.tap(ActionId.SIDE_DISLIKE); playerConnection.toggleDislikeCurrentSong() },
                     modifier = Modifier.tvFocusable(isTvOrCar),
                 ) {
                     Icon(
@@ -179,7 +181,7 @@ fun NowPlayingSidePanel(
                     )
                 }
                 IconButton(
-                    onClick = { playerConnection.seekToPrevious() },
+                    onClick = { ActionLog.tap(ActionId.SIDE_PREV); playerConnection.seekToPrevious() },
                     enabled = canSkipPrevious,
                     modifier = Modifier.tvFocusable(isTvOrCar),
                 ) {
@@ -188,7 +190,7 @@ fun NowPlayingSidePanel(
                 FilledIconButton(
                     // PlayerConnection.togglePlayPause() (not the raw player extension) so it routes to the
                     // cast device when casting, matching skip prev/next.
-                    onClick = { playerConnection.togglePlayPause() },
+                    onClick = { ActionLog.tap(ActionId.SIDE_PLAY); playerConnection.togglePlayPause() },
                     modifier = Modifier
                         .size(58.dp)
                         .tvFocusable(isTvOrCar),
@@ -200,14 +202,14 @@ fun NowPlayingSidePanel(
                     )
                 }
                 IconButton(
-                    onClick = { playerConnection.seekToNext() },
+                    onClick = { ActionLog.tap(ActionId.SIDE_NEXT); playerConnection.seekToNext() },
                     enabled = canSkipNext,
                     modifier = Modifier.tvFocusable(isTvOrCar),
                 ) {
                     Icon(painterResource(R.drawable.skip_next), contentDescription = null, modifier = Modifier.size(28.dp))
                 }
                 IconButton(
-                    onClick = { playerConnection.toggleLike() },
+                    onClick = { ActionLog.tap(ActionId.SIDE_LIKE); playerConnection.toggleLike() },
                     modifier = Modifier.tvFocusable(isTvOrCar),
                 ) {
                     Icon(

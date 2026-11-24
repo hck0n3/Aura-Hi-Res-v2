@@ -1060,7 +1060,7 @@ private fun AuraPlayerShape(
             onDismiss = { pendingFollow = null },
             title = { Text(text = stringResource(R.string.player_subscribe_confirm, pending.channel.title)) },
             buttons = {
-                TextButton(onClick = { pendingFollow = null }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.PLR_SUBSCRIBE_CANCEL); pendingFollow = null }) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 TextButton(

@@ -28,6 +28,8 @@ import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -149,6 +151,7 @@ fun ThumbnailCornerRadiusModal(
                         FilterChip(
                             selected = isCustomSelected,
                             onClick = {
+                                ActionLog.tap(ActionId.CORNER_CUSTOM)
                                 isCustomSelected = true
                                 if (customValue.isEmpty()) {
                                     customValue = thumbnailCornerRadius.roundToInt().toString()
@@ -275,6 +278,7 @@ fun ThumbnailCornerRadiusModal(
                     ) {
                         TextButton(
                             onClick = {
+                                ActionLog.tap(ActionId.CORNER_RESET)
                                 thumbnailCornerRadius = 3f
                                 customValue = "3"
                                 isCustomSelected = true
@@ -290,7 +294,7 @@ fun ThumbnailCornerRadiusModal(
                         Spacer(modifier = Modifier.weight(1f))
 
                         TextButton(
-                            onClick = onDismiss,
+                            onClick = { ActionLog.tap(ActionId.CORNER_CANCEL); onDismiss() },
                             modifier = Modifier.heightIn(min = 48.dp)
                         ) {
                             Text(
@@ -301,6 +305,7 @@ fun ThumbnailCornerRadiusModal(
 
                         Button(
                             onClick = {
+                                ActionLog.tap(ActionId.CORNER_CONFIRM)
                                 CoroutineScope(Dispatchers.IO).launch {
                                     onRadiusSelected(thumbnailCornerRadius)
                                 }
@@ -354,7 +359,7 @@ private fun ChipsGrid(
                 rowValues.forEachIndexed { index, value ->
                     FilterChip(
                         selected = selectedValue == value,
-                        onClick = { onValueSelected(value) },
+                        onClick = { ActionLog.tap(ActionId.CORNER_PRESET); onValueSelected(value) },
                         label = {
                             Text(
                                 text = "${value.roundToInt()}",

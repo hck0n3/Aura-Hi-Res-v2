@@ -33,6 +33,8 @@ import iad1tya.echo.music.utils.isLocalMediaId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 enum class ExportFormat {
     Offline,
@@ -148,7 +150,7 @@ fun ExportFormatChooserDialog(
             )
         },
         buttons = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { ActionLog.tap(ActionId.EXPORT_CANCEL); onDismiss() }) {
                 Text(text = stringResource(android.R.string.cancel))
             }
         },
@@ -167,6 +169,7 @@ fun ExportFormatChooserDialog(
                     enabled = true,
                     trailing = null,
                     onClick = {
+                        ActionLog.tap(ActionId.EXPORT_OFFLINE)
                         onChoose(ExportFormat.Offline)
                         onDismiss()
                     },
@@ -179,6 +182,7 @@ fun ExportFormatChooserDialog(
                 enabled = true,
                 trailing = null,
                 onClick = {
+                    ActionLog.tap(ActionId.EXPORT_MP3)
                     onChoose(ExportFormat.Mp3)
                     onDismiss()
                 },
@@ -201,6 +205,7 @@ fun ExportFormatChooserDialog(
                         null
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.EXPORT_VIDEO)
                         onChoose(ExportFormat.Video)
                         onDismiss()
                     },

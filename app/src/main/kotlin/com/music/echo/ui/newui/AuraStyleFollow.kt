@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.R
 import iad1tya.echo.music.reco.MusicStyle
 import iad1tya.echo.music.reco.StyleContinuity
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * Fila 356, punto 4 — the queue says which style the smart queue follows ("Siguiendo: Cumbia · cristiana")
@@ -62,7 +64,7 @@ internal fun AuraStyleFollowRow(
                 .minimumInteractiveComponentSize()
                 .clip(AuraShapes.Pill)
                 .background(AuraPalette.SurfaceFill)
-                .auraClickableInternal(onClick = { expanded = true }, contentDescription = description)
+                .auraClickableInternal(onClick = { ActionLog.tap(ActionId.STYLE_OPEN); expanded = true }, contentDescription = description)
                 .padding(horizontal = 14.dp, vertical = 8.dp),
         ) {
             Text(
@@ -97,6 +99,7 @@ internal fun AuraStyleFollowRow(
                     text = { Text(label, color = AuraPalette.OnGround, style = AuraType.Chip) },
                     trailingIcon = check,
                     onClick = {
+                        ActionLog.tap(ActionId.STYLE_PICK)
                         expanded = false
                         onClick()
                     },

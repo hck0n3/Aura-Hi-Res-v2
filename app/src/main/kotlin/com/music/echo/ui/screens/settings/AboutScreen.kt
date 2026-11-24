@@ -43,6 +43,8 @@ import iad1tya.echo.music.ui.theme.BrandAccent
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import java.util.Calendar
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 private data class Feature(val icon: Int, val title: String, val subtitle: String)
 
@@ -228,7 +230,7 @@ fun AboutScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = { onBack?.invoke() ?: navController.navigateUp() },
+                        onClick = { ActionLog.tap(ActionId.ABOUT_BACK); onBack?.invoke() ?: navController.navigateUp() },
                         onLongClick = null,
                     ) {
                         Icon(painterResource(R.drawable.arrow_back), contentDescription = null)
@@ -337,7 +339,7 @@ fun AboutScreen(
             }
             item {
                 AboutSectionCard(title = "Información legal", skin = skin) {
-                    LegalTermsRow(skin = skin, onClick = { navController.navigate("settings/terms") })
+                    LegalTermsRow(skin = skin, onClick = { ActionLog.tap(ActionId.ABOUT_TERMS); navController.navigate("settings/terms") })
                     AboutDivider(skin)
                     AboutFeatureRow(
                         icon = painterResource(R.drawable.security),
@@ -352,7 +354,7 @@ fun AboutScreen(
                         title = stringResource(R.string.feedback_title),
                         subtitle = stringResource(R.string.feedback_settings_desc, "aurahires@gmail.com"),
                         skin = skin,
-                        onClick = { navController.navigate("settings/feedback") },
+                        onClick = { ActionLog.tap(ActionId.ABOUT_FEEDBACK); navController.navigate("settings/feedback") },
                     )
                     AboutDivider(skin)
                     SuperpoweredAttributionRow(skin)
@@ -513,6 +515,7 @@ private fun AboutAppCard(skin: AuraPanelSkin) {
             val context = LocalContext.current
             FilledTonalButton(
                 onClick = {
+                    ActionLog.tap(ActionId.ABOUT_SHARE_APP)
                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                         putExtra(Intent.EXTRA_TEXT, "Aura Hi-Res Player: https://github.com/hck0n3/Aura-Hi-Res-v2/releases/latest")
                         type = "text/plain"

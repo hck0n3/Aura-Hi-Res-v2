@@ -190,6 +190,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import iad1tya.echo.music.viewmodels.DailyDiscoverItem
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 
 sealed class HomeSection(val id: String, val baseWeight: Int) {
@@ -515,7 +517,7 @@ fun CommunityPlaylistCard(
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .combinedClickable(onClick = { onSongClick(song) }),
+                            .combinedClickable(onClick = { ActionLog.tap(ActionId.HOMECOMM_SONG); onSongClick(song) }),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -554,6 +556,7 @@ fun CommunityPlaylistCard(
             ) {
                 IconButton(
                     onClick = {
+                        ActionLog.tap(ActionId.HOMECOMM_PLAY)
                         item.playlist.playEndpoint?.let {
                             playerConnection?.playQueue(YouTubeQueue(it))
                         }
@@ -572,6 +575,7 @@ fun CommunityPlaylistCard(
 
                 IconButton(
                     onClick = {
+                        ActionLog.tap(ActionId.HOMECOMM_RADIO)
                         item.playlist.radioEndpoint?.let {
                             playerConnection?.playQueue(YouTubeQueue(it))
                         }
@@ -590,6 +594,7 @@ fun CommunityPlaylistCard(
 
                 IconButton(
                     onClick = {
+                        ActionLog.tap(ActionId.HOMECOMM_SAVE)
                         // P35: run the bookmark save on the lifecycle-safe application scope
                         // (outlives composition) instead of the composition-bound rememberCoroutineScope,
                         // so scrolling the card off-screen can't cancel a half-finished song save.

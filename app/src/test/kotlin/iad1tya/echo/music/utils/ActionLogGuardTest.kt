@@ -73,8 +73,12 @@ class ActionLogGuardTest {
         return out.toString()
     }
 
+    /** The flavour source sets (Cast lives in `gms`) hold buttons too (row 824). */
+    private val flavourDirs = listOf("gms", "foss").map { File(root, "app/src/$it/kotlin/com/music/echo") }
+
     private val sources: List<File> by lazy {
-        mainDir.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        (listOf(mainDir) + flavourDirs.filter { it.isDirectory })
+            .flatMap { dir -> dir.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }
     }
 
     /** Argument text of every `ActionLog.<fn>(…)` call, with the file it is in. Balanced parentheses, so nested calls are kept. */
@@ -165,6 +169,110 @@ class ActionLogGuardTest {
         // The only three lines it writes.
         val lines = Regex("Timber\\.tag\\(TAG\\)\\.i\\(\"([^\"]*)\"").findAll(src).map { it.groupValues[1] }.toList()
         assertEquals(listOf("ACT a=%d %s", "ACT a=%d %s key=%s value=%b", "ACT a=%d %s key=%s value=%s"), lines)
+    }
+
+    // ── Row 824 (J1, owner «sin excepciones»): every screen file with a button logs it ──
+
+    private val classic = "classic screen: only the `classic =` side of NewUiGate, never composed while SINGLE_UI is true"
+    private val classicChild = "only called from a classic screen (or the classic shell) that SINGLE_UI never composes"
+    private val noCaller = "no call site: nothing in the app composes it"
+    private val forwarder = "generic component: its click is the caller's own lambda, which carries the tap where the caller writes it"
+
+    /** Files of the app's own screens with a user handler and, for the reason given, no tap of their own. */
+    private val noTapAllowlist: Map<String, String> = mapOf(
+        "ui/menu/OldPlayerMenu.kt" to classic,
+        "ui/player/Queue.kt" to classic,
+        "ui/screens/AlbumScreen.kt" to classic,
+        "ui/screens/StatsScreen.kt" to classic,
+        "ui/screens/artist/ArtistAlbumsGridScreen.kt" to classic,
+        "ui/screens/artist/ArtistItemsScreen.kt" to classic,
+        "ui/screens/artist/ArtistScreen.kt" to classic,
+        "ui/screens/library/FavoriteAlbumsScreen.kt" to classic,
+        "ui/screens/library/LibraryScreen.kt" to classic,
+        "ui/screens/migration/MigrationAppleScreen.kt" to classic,
+        "ui/screens/migration/MigrationScreen.kt" to classic,
+        "ui/screens/migration/MigrationTidalScreen.kt" to classic,
+        "ui/screens/playlist/AutoPlaylistScreen.kt" to classic,
+        "ui/screens/playlist/CachePlaylistScreen.kt" to classic,
+        "ui/screens/playlist/LocalPlaylistScreen.kt" to classic,
+        "ui/screens/playlist/OnlinePlaylistScreen.kt" to classic,
+        "ui/screens/playlist/TopPlaylistScreen.kt" to classic,
+        "ui/screens/search/OnlineSearchResult.kt" to classic,
+        "ui/screens/search/SearchScreen.kt" to classic,
+        "ui/screens/settings/SettingsScreen.kt" to classic,
+        "ui/screens/library/LibraryArtistsScreen.kt" to classicChild,
+        "ui/screens/library/LibraryMixScreen.kt" to classicChild,
+        "ui/screens/library/LibraryPlaylistsScreen.kt" to classicChild,
+        "ui/screens/library/LibrarySongsScreen.kt" to classicChild,
+        "ui/screens/search/LocalSearchScreen.kt" to classicChild,
+        "ui/screens/search/OnlineSearchScreen.kt" to classicChild,
+        "ui/screens/search/suggestions/TabNewsSuggestion.kt" to classicChild,
+        "ui/component/AutoPlaylistButton.kt" to classicChild,
+        "ui/component/ExpandableText.kt" to classicChild,
+        "ui/component/AppNavigation.kt" to "the navigation rail is drawn only when !newUiShell (MainActivity showRail)",
+        "ui/component/FloatingNavigationToolbar.kt" to "the classic bottom bar: the else branch of newUiShell in MainActivity",
+        "ui/component/SortHeader.kt" to noCaller,
+        "ui/component/RandomizeGridItem.kt" to noCaller,
+        "ui/player/MiniPlayer.kt" to noCaller,
+        "ui/screens/ChartsScreen.kt" to noCaller,
+        "ui/screens/LoginScreen.kt" to "no call site for the composable: the login route opens YouTubeLoginActivity",
+        "ui/screens/SpotifyLoginScreen.kt" to "no call site for the composable: spotify_login opens SpotifyLoginActivity",
+        "ui/screens/settings/AccountSettingsScreen.kt" to noCaller,
+        "ui/component/EchoMusicLyrics.kt" to forwarder,
+        "ui/component/MetroLyrics.kt" to forwarder,
+        "ui/component/IconButton.kt" to forwarder,
+        "ui/component/Material3SettingsGroup.kt" to forwarder,
+        "ui/component/Menu.kt" to forwarder,
+        "ui/component/NavigationTitle.kt" to forwarder,
+        "ui/component/NewMenuComponents.kt" to forwarder,
+        "ui/newui/AuraDetailChrome.kt" to forwarder,
+        "ui/newui/AuraPrimitives.kt" to forwarder,
+        "ui/newui/AuraSearchWide.kt" to forwarder,
+        "ui/screens/settings/HiddenItemsScreen.kt" to "HiddenItemsTest forbids any «Log.» in this screen; excluded until the owner relaxes that guard",
+    )
+
+    /** A non-empty click / long-click lambda, or a clickable modifier. Imports and comments do not count. */
+    private val userHandler = Regex("""\b(?:onClick|onLongClick)\s*=\s*\{(?!\s*\})|\.(?:clickable|combinedClickable)\b(?!\s*\{\s*\})""")
+
+    private fun screenCode(file: File): String =
+        code(file.readText()).lines().filterNot { it.trimStart().startsWith("import ") }.joinToString("\n")
+
+    @Test
+    fun `every screen file with a button logs a tap, or says in the allowlist why not`() {
+        val screenFiles = listOf("ui", "echomusic", "legal").flatMap { File(mainDir, it).walkTopDown().toList() } +
+            File(mainDir, "MainActivity.kt") +
+            flavourDirs.flatMap { File(it, "ui").walkTopDown().toList() }
+        val files = screenFiles.filter { it.isFile && it.extension == "kt" }
+        assertTrue("the screens are where they were", files.size > 150)
+        val missing = files.filter { f ->
+            val src = screenCode(f)
+            userHandler.containsMatchIn(src) && !src.contains("ActionLog.tap(") &&
+                f.relativeTo(mainDir).invariantSeparatorsPath !in noTapAllowlist
+        }.map { it.relativeTo(root).invariantSeparatorsPath }
+        assertTrue("buttons without an ActionLog.tap (add one, or an allowlist entry with its reason): $missing", missing.isEmpty())
+    }
+
+    @Test
+    fun `the allowlist stays honest`() {
+        for ((path, reason) in noTapAllowlist) {
+            val f = File(mainDir, path)
+            assertTrue("$path is gone: drop it from the allowlist", f.isFile)
+            assertTrue("$path needs a reason", reason.isNotBlank())
+            val src = screenCode(f)
+            assertTrue("$path has no button any more: drop it from the allowlist", userHandler.containsMatchIn(src))
+            assertFalse("$path logs taps now: drop it from the allowlist", src.contains("ActionLog.tap("))
+        }
+        // The classic entries are only true while there is one interface.
+        assertTrue(main("ui/newui/NewUiAvailability.kt").contains("const val SINGLE_UI: Boolean = true"))
+    }
+
+    @Test
+    fun `the bottom bar logs one code per tab`() {
+        val shell = code(main("ui/newui/AuraShell.kt"))
+        assertEquals("both bars", 2, Regex("""onClick = \{ auraNavTap\(screen\); onItemClick\(screen, selected\) \}""").findAll(shell).count())
+        for (tab in listOf("Home", "Novedades", "Library", "Search", "ListenTogether")) {
+            assertTrue("tab $tab", Regex("""Screens\.$tab -> ActionLog\.tap\(ActionId\.NAV_[A-Z]+\)""").containsMatchIn(shell))
+        }
     }
 
     @Test

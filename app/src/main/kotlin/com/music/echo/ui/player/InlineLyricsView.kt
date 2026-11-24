@@ -39,6 +39,8 @@ import iad1tya.echo.music.ui.utils.ShowOffsetDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -110,6 +112,7 @@ fun InlineLyricsView(
                     if (searchMeta != null) {
                         TextButton(
                             onClick = {
+                                ActionLog.tap(ActionId.LYRINLINE_SEARCH)
                                 menuState.show {
                                     val song by playerConnection.currentSong.collectAsState(initial = null)
                                     LyricsMenu(

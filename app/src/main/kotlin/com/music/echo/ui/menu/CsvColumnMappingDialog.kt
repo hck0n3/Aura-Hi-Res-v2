@@ -39,6 +39,8 @@ import androidx.compose.ui.window.DialogProperties
 import iad1tya.echo.music.R
 import iad1tya.echo.music.viewmodels.ConvertedSongLog
 import iad1tya.echo.music.viewmodels.CsvImportState
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 @Composable
 fun CsvColumnMappingDialog(
@@ -178,11 +180,12 @@ fun CsvColumnMappingDialog(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = onDismiss) {
+                iad1tya.echo.music.ui.component.AuraOutlinedButton(onClick = { ActionLog.tap(ActionId.CSV_CANCEL); onDismiss() }) {
                     Text(stringResource(R.string.cancel))
                 }
                 Button(
                     onClick = {
+                        ActionLog.tap(ActionId.CSV_CONTINUE)
                         onConfirm(
                             CsvImportState(
                                 previewRows = csvState.previewRows,
@@ -228,14 +231,14 @@ private fun ColumnSelector(
             if (allowNone) {
                 if (selectedIndex == -1) {
                     Button(
-                        onClick = { onSelected(-1) },
+                        onClick = { ActionLog.tap(ActionId.CSV_COLUMN_NONE); onSelected(-1) },
                         modifier = Modifier.height(36.dp),
                     ) {
                         Text(stringResource(R.string.none), style = MaterialTheme.typography.labelSmall)
                     }
                 } else {
                     iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                        onClick = { onSelected(-1) },
+                        onClick = { ActionLog.tap(ActionId.CSV_COLUMN_NONE); onSelected(-1) },
                         modifier = Modifier.height(36.dp),
                     ) {
                         Text(stringResource(R.string.none), style = MaterialTheme.typography.labelSmall)
@@ -246,7 +249,7 @@ private fun ColumnSelector(
             repeat(maxColumns) { index ->
                 if (selectedIndex == index) {
                     Button(
-                        onClick = { onSelected(index) },
+                        onClick = { ActionLog.tap(ActionId.CSV_COLUMN); onSelected(index) },
                         modifier = Modifier.height(36.dp),
                     ) {
                         Text(
@@ -256,7 +259,7 @@ private fun ColumnSelector(
                     }
                 } else {
                     iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                        onClick = { onSelected(index) },
+                        onClick = { ActionLog.tap(ActionId.CSV_COLUMN); onSelected(index) },
                         modifier = Modifier.height(36.dp),
                     ) {
                         Text(

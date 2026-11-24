@@ -69,6 +69,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * # Descargado / auto-listas — "Interfaz nueva"
@@ -182,11 +184,12 @@ fun AuraAutoPlaylistScreen(
                 )
             },
             buttons = {
-                TextButton(onClick = { showRemoveDownloadDialog = false }) {
+                TextButton(onClick = { ActionLog.tap(ActionId.AUTOPL_REMOVE_DOWNLOAD_CANCEL); showRemoveDownloadDialog = false }) {
                     Text(text = stringResource(android.R.string.cancel))
                 }
                 TextButton(
                     onClick = {
+                        ActionLog.tap(ActionId.AUTOPL_REMOVE_DOWNLOAD_CONFIRM)
                         showRemoveDownloadDialog = false
                         songs?.forEach { song ->
                             DownloadService.sendRemoveDownload(
@@ -428,7 +431,7 @@ private fun AuraDownloadStorageCard(
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
             .auraClickableInternal(
-                onClick = onOpenStorageSettings,
+                onClick = { ActionLog.tap(ActionId.AUTOPL_STORAGE); onOpenStorageSettings() },
                 contentDescription = stringResource(R.string.storage),
             )
             .padding(horizontal = 14.dp, vertical = 13.dp),
@@ -527,7 +530,7 @@ private fun AuraActiveDownloadRow(
                         AuraIconButton(
                             icon = AuraIcons.Download,
                             contentDescription = stringResource(R.string.retry),
-                            onClick = onRetry,
+                            onClick = { ActionLog.tap(ActionId.AUTOPL_RETRY); onRetry() },
                             size = 18.dp,
                             tint = AuraPalette.Teal,
                         )
@@ -536,7 +539,7 @@ private fun AuraActiveDownloadRow(
                         // A "+" turned 45° is the render's close glyph.
                         icon = AuraIcons.Plus,
                         contentDescription = stringResource(R.string.remove_download),
-                        onClick = onCancel,
+                        onClick = { ActionLog.tap(ActionId.AUTOPL_CANCEL_DOWNLOAD); onCancel() },
                         size = 18.dp,
                         tint = AuraPalette.OnGroundDisabled,
                         modifier = Modifier.graphicsLayer { rotationZ = 45f },

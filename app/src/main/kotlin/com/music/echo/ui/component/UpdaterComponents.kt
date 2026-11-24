@@ -48,6 +48,8 @@ import androidx.core.content.ContextCompat
 import iad1tya.echo.music.echomusic.updater.extractUrls
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 @Composable
 fun AnimatedActionButton(
     text: String,
@@ -279,6 +281,7 @@ fun ChangelogItem(
             ClickableText(
                 text = annotatedText,
                 onClick = { offset ->
+                    ActionLog.tap(ActionId.UPDATER_LINK)
                     annotatedText.getStringAnnotations("URL", offset, offset).firstOrNull()?.let {
                         ContextCompat.startActivity(context, Intent(Intent.ACTION_VIEW, Uri.parse(it.item)), null)
                     }

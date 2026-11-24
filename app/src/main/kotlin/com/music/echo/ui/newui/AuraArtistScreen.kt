@@ -390,6 +390,7 @@ fun AuraArtistScreen(
                                             .size(45.dp)
                                             .clip(AuraShapes.Artwork),
                                         onClick = {
+                                            ActionLog.tap(ActionId.ART_VIDEO)
                                             val watchEndpoint = artistVideoSong?.endpoint
                                                 ?: radioEndpoint
                                             playerConnection.playQueue(YouTubeQueue(watchEndpoint))
@@ -492,6 +493,7 @@ fun AuraArtistScreen(
                                         label = stringResource(R.string.radio),
                                         accent = true,
                                         onClick = {
+                                            ActionLog.tap(ActionId.ART_RADIO)
                                             playerConnection.playQueue(YouTubeQueue(radioEndpoint))
                                         },
                                         modifier = Modifier
@@ -505,6 +507,7 @@ fun AuraArtistScreen(
                                         label = stringResource(R.string.shuffle),
                                         accent = false,
                                         onClick = {
+                                            ActionLog.tap(ActionId.ART_SHUFFLE)
                                             playerConnection.playQueue(YouTubeQueue(shuffleEndpoint))
                                         },
                                         modifier = Modifier
@@ -609,6 +612,7 @@ fun AuraArtistScreen(
                             AuraSectionHeader(
                                 title = stringResource(R.string.songs),
                                 onClick = {
+                                    ActionLog.tap(ActionId.ART_SONGS)
                                     navController.navigate("artist/${viewModel.artistId}/songs")
                                 },
                                 modifier = Modifier.animateItem(),
@@ -646,6 +650,7 @@ fun AuraArtistScreen(
                             AuraSectionHeader(
                                 title = stringResource(R.string.albums),
                                 onClick = {
+                                    ActionLog.tap(ActionId.ART_ALBUMS)
                                     navController.navigate("artist/${viewModel.artistId}/albums")
                                 },
                                 modifier = Modifier.animateItem(),
@@ -675,8 +680,9 @@ fun AuraArtistScreen(
                                         width = albumW,
                                         isActive = mediaMetadata?.album?.id == album.id,
                                         isPlaying = isPlaying,
-                                        onClick = { navController.navigateOnce("album/${album.id}") },
+                                        onClick = { ActionLog.tap(ActionId.ART_ALBUM); navController.navigateOnce("album/${album.id}") },
                                         onLongClick = {
+                                            ActionLog.tap(ActionId.ART_ALBUM_MENU)
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                             menuState.show {
                                                 AlbumMenu(
@@ -767,6 +773,7 @@ fun AuraArtistScreen(
                                 // endpoint when there is one, otherwise the already-loaded items in a
                                 // grid through ArtistSectionBuffer — the classic rule.
                                 onClick = {
+                                    ActionLog.tap(ActionId.ART_SECTION_MORE)
                                     val more = section.moreEndpoint
                                     if (more != null) {
                                         navController.navigate(
@@ -885,6 +892,7 @@ fun AuraArtistScreen(
                                                 },
                                                 isPlaying = isPlaying,
                                                 onClick = {
+                                                    ActionLog.tap(ActionId.ART_SECTION_ITEM)
                                                     if (item is SongItem && sectionItems.all { it is SongItem }) {
                                                         if (item.id == mediaMetadata?.id) {
                                                             playerConnection.togglePlayPause()
@@ -905,6 +913,7 @@ fun AuraArtistScreen(
                                                     }
                                                 },
                                                 onLongClick = {
+                                                    ActionLog.tap(ActionId.ART_SECTION_ITEM_MENU)
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                     openYtMenu(item)
                                                 },
@@ -948,6 +957,7 @@ fun AuraArtistScreen(
                                             },
                                             isPlaying = isPlaying,
                                             onClick = {
+                                                ActionLog.tap(ActionId.ART_SECTION_GRID_ITEM)
                                                 if (item is SongItem && sectionItems.all { it is SongItem }) {
                                                     if (item.id == mediaMetadata?.id) {
                                                         playerConnection.togglePlayPause()
@@ -968,6 +978,7 @@ fun AuraArtistScreen(
                                                 }
                                             },
                                             onLongClick = {
+                                                ActionLog.tap(ActionId.ART_SECTION_GRID_ITEM_MENU)
                                                 haptic.performHapticFeedback(
                                                     HapticFeedbackType.LongPress,
                                                 )
@@ -1017,6 +1028,7 @@ fun AuraArtistScreen(
                     icon = AuraIcons.Share,
                     contentDescription = stringResource(R.string.share),
                     onClick = {
+                        ActionLog.tap(ActionId.ART_SHARE)
                         val artistId = viewModel.artistPage?.artist?.id
                             ?: viewModel.artistId
                         val link = iad1tya.echo.music.utils.ShareLinks.artistShareText(
@@ -1241,6 +1253,7 @@ private fun AuraArtistLibrarySongRow(
         format = song.format,
         playedInShuffle = song.song.totalPlayTime > 0L,
         onClick = {
+            ActionLog.tap(ActionId.ART_LIBRARY_SONG)
             if (song.id == mediaMetadataId) {
                 playerConnection.togglePlayPause()
             } else {
@@ -1254,6 +1267,7 @@ private fun AuraArtistLibrarySongRow(
             }
         },
         onLongClick = {
+            ActionLog.tap(ActionId.ART_LIBRARY_SONG_MENU)
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             menuState.show {
                 SongMenu(
@@ -1304,6 +1318,7 @@ private fun AuraArtistYtSongRow(
         format = dbSong?.format,
         playedInShuffle = (dbSong?.song?.totalPlayTime ?: 0L) > 0L,
         onClick = {
+            ActionLog.tap(ActionId.ART_TOP_SONG)
             if (song.id == mediaMetadataId) {
                 playerConnection.togglePlayPause()
             } else {
@@ -1317,6 +1332,7 @@ private fun AuraArtistYtSongRow(
             }
         },
         onLongClick = {
+            ActionLog.tap(ActionId.ART_TOP_SONG_MENU)
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             onMenu()
         },

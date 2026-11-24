@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.PlaybackException
 import iad1tya.echo.music.R
 import iad1tya.echo.music.utils.YTPlayerUtils
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 /**
  * @param onNavigate opens an app route (the card's next step: «Ver música sin conexión», «Iniciar sesión»). Null keeps
@@ -122,7 +124,7 @@ fun PlaybackError(
         
         val route = action.route
         Button(
-            onClick = { if (route != null && onNavigate != null) onNavigate(route) else retry() },
+            onClick = { ActionLog.tap(ActionId.PLRERR_ACTION); if (route != null && onNavigate != null) onNavigate(route) else retry() },
             shape = RoundedCornerShape(20.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary
@@ -141,7 +143,7 @@ fun PlaybackError(
 
         // «Reintentar» never disappears: when the primary step is somewhere else, it stays as the secondary button.
         if (action != PlaybackErrorAdvice.Action.RETRY) {
-            TextButton(onClick = retry) {
+            TextButton(onClick = { ActionLog.tap(ActionId.PLRERR_RETRY); retry() }) {
                 Text(text = stringResource(R.string.retry))
             }
         }

@@ -59,6 +59,8 @@ import iad1tya.echo.music.echomusic.updater.saveBetaUpdatesSetting
 import iad1tya.echo.music.echomusic.updater.autoClearOldApks
 import androidx.compose.material3.MaterialTheme
 import iad1tya.echo.music.BuildConfig
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 
 
 
@@ -130,7 +132,7 @@ fun UpdateSettings(
                             Text(stringResource(R.string.app_update_uptodate))
                         }
                     },
-                    onClick = { navController.navigate("update") }
+                    onClick = { ActionLog.tap(ActionId.SETUPD_SYSTEM_UPDATE); navController.navigate("update") }
                 ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.info),
@@ -142,7 +144,7 @@ fun UpdateSettings(
                         val variant = if (BuildConfig.CAST_AVAILABLE) "GMS" else "FOSS"
                         Text("$arch - $variant · Ver cambios de esta versión")
                     },
-                    onClick = { navController.navigate("settings/changelog") }
+                    onClick = { ActionLog.tap(ActionId.SETUPD_CHANGELOG); navController.navigate("settings/changelog") }
                 ),
                 
                 Material3SettingsItem(
@@ -171,6 +173,7 @@ fun UpdateSettings(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.SETUPD_AUTO_CHECK)
                         autoUpdateEnabled = !autoUpdateEnabled
                         saveAutoUpdateCheckSetting(context, autoUpdateEnabled)
                         if (!autoUpdateEnabled) {
@@ -202,6 +205,7 @@ fun UpdateSettings(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.SETUPD_NOTIFICATIONS)
                         updateNotificationsEnabled = !updateNotificationsEnabled
                         saveUpdateNotificationsSetting(context, updateNotificationsEnabled)
                     }
@@ -231,6 +235,7 @@ fun UpdateSettings(
                         )
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.SETUPD_BETA)
                         betaUpdatesEnabled = !betaUpdatesEnabled
                         saveBetaUpdatesSetting(context, betaUpdatesEnabled)
                     }
@@ -257,7 +262,7 @@ fun UpdateSettings(
                     },
                     trailingContent = {
                         IconButton(
-                            onClick = { showInfoDialog = true },
+                            onClick = { ActionLog.tap(ActionId.SETUPD_BETA_INFO); showInfoDialog = true },
                             onLongClick = null
                         ) {
                             Icon(
@@ -268,6 +273,7 @@ fun UpdateSettings(
                         }
                     },
                     onClick = {
+                        ActionLog.tap(ActionId.SETUPD_CLEAR_DOWNLOADS)
                         if (apkCount > 0) {
                             scope.launch {
                                 val result = withContext(Dispatchers.IO) { clearDownloadedApksDetailed(context) }
@@ -308,7 +314,7 @@ fun UpdateSettings(
         title = { Text(stringResource(R.string.update_settings_title)) },
         navigationIcon = {
             IconButton(
-                onClick = navController::navigateUp,
+                onClick = { ActionLog.tap(ActionId.SETUPD_BACK); navController.navigateUp() },
                 onLongClick = null
             ) {
                 Icon(
