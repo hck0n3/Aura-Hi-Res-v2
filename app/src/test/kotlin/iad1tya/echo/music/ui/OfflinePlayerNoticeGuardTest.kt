@@ -69,24 +69,29 @@ class OfflinePlayerNoticeGuardTest {
     fun `the full player and the mini player both render the sign from the service flow`() {
         val player = main("ui/newui/AuraPlayer.kt")
         val sleepChip = player.indexOf("AuraSleepTimerChip(visible = state.isExpanded)")
-        val offlineChip = player.indexOf("AuraOfflinePlaybackChip()")
+        val offlineChip = player.indexOf("AuraOfflinePlaybackChip(playsHere = !isCasting)")
         assertTrue("next to the sleep-timer chip in the header", sleepChip >= 0 && offlineChip > sleepChip)
         assertTrue(offlineChip < player.indexOf("val artworkContent: @Composable (Modifier) -> Unit"))
 
         val chip = main("ui/newui/AuraOfflinePlaybackNotice.kt")
         val full = chip.substringAfter("internal fun AuraOfflinePlaybackChip(").substringBefore("internal fun AuraMiniOfflineBadge(")
         assertTrue(full.contains("val notice by service.offlinePlaybackNotice.collectAsState()"))
-        assertTrue(full.contains("if (!notice.visible) return"))
+        // Casting or controlling another device (row 537): what is heard is not this phone's offline music.
+        assertTrue(full.contains("val shown = notice.visible && playsHere"))
+        assertTrue(full.contains("if (showDialog && shown) AuraOfflinePlaybackDialog("))
+        assertTrue(full.contains("if (!shown) return"))
         assertTrue("a tap opens the explanation", full.contains(".unstealableClick(open)"))
         assertTrue(full.contains("stringResource(R.string.offline_player_chip)"))
 
         val shell = main("ui/newui/AuraShell.kt")
         val mini = shell.substringAfter("fun AuraMiniPlayer(").substringBefore("internal fun Modifier.unstealableClick(")
         assertTrue(mini.contains("val offlineNotice by playerConnection.service.offlinePlaybackNotice.collectAsState()"))
-        assertTrue(mini.contains("if (artists.isNotBlank() || explicit || offlineNotice.visible) {"))
-        assertTrue(mini.contains("AuraMiniOfflineBadge(offlineNotice)"))
+        assertTrue(mini.contains("val isCasting = castingReal || remoteActive"))
+        assertTrue(mini.contains("val offlineBadge = offlineNotice.visible && !isCasting"))
+        assertTrue(mini.contains("if (artists.isNotBlank() || explicit || offlineBadge) {"))
+        assertTrue(mini.contains("AuraMiniOfflineBadge(visible = offlineBadge)"))
         val badge = chip.substringAfter("internal fun AuraMiniOfflineBadge(").substringBefore("private fun AuraOfflinePlaybackDialog(")
-        assertTrue(badge.contains("if (!notice.visible) return"))
+        assertTrue(badge.contains("if (!visible) return"))
         assertTrue(badge.contains("stringResource(R.string.offline_player_mini)"))
 
         for (text in listOf(full, badge)) {

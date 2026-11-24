@@ -44,16 +44,19 @@ import iad1tya.echo.music.utils.rememberPreference
  * Registry row 795: the full player's «SIN CONEXIÓN · SONANDO TU MÚSICA SIN CONEXIÓN» under the header, while the player goes
  * on with offline music only (the automatic session or the manual switch, [OfflinePlaybackNotice]). It never blocks anything;
  * a tap opens [AuraOfflinePlaybackDialog]. Read from the service's flow: nothing ticks or polls (AGENTS rule 7).
+ * [playsHere] is false while casting or controlling another device (row 537): what is heard then is not this phone's offline
+ * music, so the sign is not shown.
  */
 @Composable
-internal fun AuraOfflinePlaybackChip(modifier: Modifier = Modifier) {
+internal fun AuraOfflinePlaybackChip(playsHere: Boolean, modifier: Modifier = Modifier) {
     val service = (LocalPlayerConnection.current ?: return).service
     val notice by service.offlinePlaybackNotice.collectAsState()
+    val shown = notice.visible && playsHere
     var showDialog by rememberSaveable { mutableStateOf(false) }
     // The session ended with the explanation open: it closes, and does not pop up again on the next session.
-    LaunchedEffect(notice.visible) { if (!notice.visible) showDialog = false }
-    if (showDialog && notice.visible) AuraOfflinePlaybackDialog(notice = notice, onDismiss = { showDialog = false })
-    if (!notice.visible) return
+    LaunchedEffect(shown) { if (!shown) showDialog = false }
+    if (showDialog && shown) AuraOfflinePlaybackDialog(notice = notice, onDismiss = { showDialog = false })
+    if (!shown) return
 
     val label = stringResource(R.string.offline_player_chip)
     val description = stringResource(R.string.offline_player_chip_cd)
@@ -98,11 +101,11 @@ internal fun AuraOfflinePlaybackChip(modifier: Modifier = Modifier) {
 
 /**
  * Row 795: the mini player's short form of the same sign («SIN CONEXIÓN» in the artist line). Not a button of its own: a tap
- * on the pill opens the full player, where the chip explains it.
+ * on the pill opens the full player, where the chip explains it. [visible]: the notice is on and this device is the one playing.
  */
 @Composable
-internal fun AuraMiniOfflineBadge(notice: OfflinePlaybackNotice) {
-    if (!notice.visible) return
+internal fun AuraMiniOfflineBadge(visible: Boolean) {
+    if (!visible) return
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),

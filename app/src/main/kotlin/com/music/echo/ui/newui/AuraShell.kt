@@ -1261,12 +1261,14 @@ fun AuraMiniPlayer(
                 // Row 348 (C2 audit, UI_INVENTORY §2.12): the classic mini player marks explicit songs; the
                 // Aura pill did not. Same "E" badge the Aura song rows use.
                 val explicit = mediaMetadata?.explicit == true
-                if (artists.isNotBlank() || explicit || offlineNotice.visible) {
+                // Row 795: only while THIS device plays; casting or controlling another device (row 537), it says nothing.
+                val offlineBadge = offlineNotice.visible && !isCasting
+                if (artists.isNotBlank() || explicit || offlineBadge) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
-                        AuraMiniOfflineBadge(offlineNotice)
+                        AuraMiniOfflineBadge(visible = offlineBadge)
                         if (explicit) {
                             AuraTechnicalText(
                                 text = "E",
