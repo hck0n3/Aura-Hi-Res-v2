@@ -740,6 +740,11 @@ class LibraryUploadSync @Inject constructor(
         val pending = runCatching { database.playlistsPendingUpload(MAX_PLAYLISTS_PER_RUN) }
             .getOrNull().orEmpty()
         if (pending.isEmpty()) {
+            // Row 841: while the devices own the library the saved-playlists pull does not run (SyncUtils, row 536) and this
+            // pass reads nothing, so an earlier «lista incompleta» for playlists would never clear.
+            if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {
+                noteAccountRead(AccountReadLists.PLAYLISTS, complete = true)
+            }
             _progress.value = _progress.value.copy(playlists = _progress.value.playlists.copy(running = false))
             return
         }

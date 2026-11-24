@@ -144,4 +144,12 @@ class SyncFullReadGuardTest {
         val spotify = body(upload, "private suspend fun reconcileSpotifyMirrors() {")
         assertTrue(spotify.contains("?.takeIf { it.songsContinuation == null }?.songs"))
     }
+
+    @Test
+    fun `the playlists incomplete mark clears while the devices own the library`() {
+        val playlists = body(src(uploadPath), "private suspend fun uploadPlaylists() {")
+        val empty = playlists.substringAfter("if (pending.isEmpty()) {").substringBefore("return\n")
+        assertTrue(empty.contains("if (iad1tya.echo.music.devicesync.DeviceSyncHub.libraryOwnedByDevices) {"))
+        assertTrue(empty.contains("noteAccountRead(AccountReadLists.PLAYLISTS, complete = true)"))
+    }
 }
