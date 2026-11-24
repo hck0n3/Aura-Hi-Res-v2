@@ -110,4 +110,42 @@ class OddTapsGuardTest {
         assertTrue(quick.contains("val hideKeyboardOnTouch = Modifier.pointerInput(keyboardController) {"))
         assertTrue(quick.contains(".collect { if (lazyListState.isScrollInProgress) keyboardController?.hide() }"))
     }
+
+    // ── 826 · TV remote / D-pad ──────────────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `every button of the mini pill shows the TV focus ring`() {
+        val mini = shell.substringAfter("fun AuraMiniPlayer(").substringBefore("internal fun Modifier.unstealableClick(")
+        assertTrue(mini.contains("val isTvOrCar = rememberIsTvOrCar()"))
+        val firstTap = Regex("""firstTap = true,""").findAll(mini).count()
+        assertEquals(
+            "like, anterior, play/pausa y siguiente: the first-tap path has focus but draws no focus indication",
+            firstTap,
+            Regex("""modifier = Modifier\.tvFocusable\(isTvOrCar, CircleShape\),""").findAll(mini).count(),
+        )
+        assertTrue(mini.contains("modifier = Modifier.tvFocusable(isTvOrCar, CircleShape).then(if (gesturesEnabled) {"))
+        val output = shell.substringAfter("private fun AuraMiniOutputButton(").substringBefore("\n}\n")
+        assertTrue(output.indexOf(".tvFocusable(rememberIsTvOrCar(), CircleShape)") in 0 until output.indexOf(".clickable("))
+    }
+
+    @Test
+    fun `the first-tap buttons still take focus and answer OK and Enter`() {
+        val primitives = main("ui/newui/AuraPrimitives.kt")
+        val helper = primitives.substringAfter("private fun Modifier.auraFirstTap(").take(2500)
+        assertTrue(helper.contains("event.key == Key.Enter || event.key == Key.NumPadEnter || event.key == Key.DirectionCenter"))
+        assertTrue(helper.contains("event.type == KeyEventType.KeyUp"))
+        assertTrue(helper.contains(".focusable()"))
+    }
+
+    @Test
+    fun `the Home hero card is focused by its own clickable, so OK opens it`() {
+        val hero = main("ui/newui/AuraHomeScreen.kt").substringAfter("private fun AuraHeroCarouselCard(")
+        val ring = hero.indexOf(".tvFocusable(isTvOrCar, AuraShapes.Card, scaleFocused = 1f)")
+        val click = hero.indexOf(".combinedClickable(")
+        assertTrue(ring in 0 until click)
+        assertFalse(
+            "a .focusable() in front of the clickable takes the D-pad focus and OK never reaches the clickable",
+            hero.substring(ring, click).contains(".focusable()"),
+        )
+    }
 }

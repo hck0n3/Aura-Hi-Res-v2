@@ -849,6 +849,7 @@ private fun AuraMiniOutputButton(interactive: Boolean) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .sizeIn(minWidth = AuraSpacing.MinTouchTarget, minHeight = AuraSpacing.MinTouchTarget)
+            .tvFocusable(rememberIsTvOrCar(), CircleShape)
             .clip(CircleShape)
             .then(if (interactive) Modifier.unstealableClick { ActionLog.tap(ActionId.MINI_OUTPUT); show = true } else Modifier)
             .clickable(
@@ -1035,6 +1036,9 @@ fun AuraMiniPlayer(
     // Wide windows (new UI): the pill carries Spotify's «me gusta» and «salida de audio», and when it is narrow it
     // drops anterior/siguiente (still in the player and on the swipe) to leave the title room.
     val widePillMode = LocalAuraWidePlayerMode.current
+    // Row 826: the transport buttons fire on lift (`firstTap`), a path with focus but no focus indication; the TV ring
+    // is what shows a D-pad user which of them OK will press. A no-op off TV / car.
+    val isTvOrCar = rememberIsTvOrCar()
 
     val castHandler = remember(playerConnection) {
         runCatching { playerConnection.service.castConnectionHandler }.getOrNull()
@@ -1390,6 +1394,7 @@ fun AuraMiniPlayer(
                         firstTap = true,
                         size = 22.dp,
                         tint = if (songLiked) AuraPalette.Teal else AuraPalette.OnGround,
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
                 }
                 if (widePillMode?.miniCompact != true) {
@@ -1404,6 +1409,7 @@ fun AuraMiniPlayer(
                         interactive = gesturesEnabled,
                         firstTap = true,
                         size = 22.dp,
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
                 }
 
@@ -1443,6 +1449,7 @@ fun AuraMiniPlayer(
                     } else {
                         AuraPalette.OnGround
                     },
+                    modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                 )
 
                 if (widePillMode?.miniCompact != true) {
@@ -1457,6 +1464,7 @@ fun AuraMiniPlayer(
                         interactive = gesturesEnabled,
                         firstTap = true,
                         size = 22.dp,
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
                 }
 
@@ -1481,11 +1489,11 @@ fun AuraMiniPlayer(
                         // fía del `clickable` de dentro, se queda el gesto en la pasada INICIAL.
                         // Invisible strip of the expanded sheet: no gesture grabbing at all (it would
                         // swallow the Cast tap that lands on top of this corner).
-                        modifier = if (gesturesEnabled) {
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape).then(if (gesturesEnabled) {
                             Modifier.unstealableClick { ActionLog.tap(ActionId.MINI_HOME); homeShortcut?.invoke() }
                         } else {
                             Modifier
-                        },
+                        }),
                         interactive = gesturesEnabled,
                         // El valor se captura ARRIBA y no se lee aquí: `CompositionLocal.current` solo
                         // existe en contexto composable, y este `onClick` es una lambda normal. Y
