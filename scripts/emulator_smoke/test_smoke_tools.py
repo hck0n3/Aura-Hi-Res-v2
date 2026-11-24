@@ -131,7 +131,11 @@ class AppLiteralsTest(unittest.TestCase):
         screens = ("app", "src", "main", "kotlin", "com", "music", "echo", "ui", "screens")
         self.assertIn('Text("Omitir")', _read(*screens, "OnboardingArtistsScreen.kt"))
         self.assertIn('Text("Omitir")', _read(*screens, "OnboardingGenresScreen.kt"))
-        self.assertIn('Text("Siguiente: YouTube Music")', _read(*screens, "OnboardingSpotifyScreen.kt"))
+        # Decision A1 (2026-11-24, row 815): the onboarding step now reads «Siguiente: tu cuenta de Google»; the previous build
+        # used in phase 2 still says «Siguiente: YouTube Music», so AuraDevice accepts both.
+        self.assertIn('Text("Siguiente: tu cuenta de Google")', _read(*screens, "OnboardingSpotifyScreen.kt"))
+        device = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest", "AuraDevice.java")
+        self.assertIn("Siguiente: tu cuenta de Google|Siguiente: YouTube Music", device)
         self.assertIn('Text("Comenzar")', _read(*screens, "OnboardingYouTubeScreen.kt"))
         self.assertIn('"Omitir"', _read(*screens, "WelcomeDialog.kt"))
         self.assertIn('Text("Ajustes")', _read(*screens, "SettingDialoge.kt"))

@@ -260,7 +260,7 @@ final class AuraDevice {
         UiLabel acceptTerms = appString("terms_accept", "Accept and continue");
         UiLabel later = appString("open_links_prompt_later", "Later");
         Pattern steps = Pattern.compile("\\s*(" + acceptTerms.regex()
-                + "|Omitir|Siguiente: YouTube Music|Comenzar|" + later.regex() + ")\\s*");
+                + "|Omitir|Siguiente: tu cuenta de Google|Siguiente: YouTube Music|Comenzar|" + later.regex() + ")\\s*");
         long deadline = SystemClock.uptimeMillis() + timeoutMs;
         long quietSince = SystemClock.uptimeMillis();
         while (SystemClock.uptimeMillis() < deadline) {
