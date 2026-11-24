@@ -4497,3 +4497,9 @@ Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión 
 | Ajustes ▸ Sincronizar dispositivos ▸ «Mostrar código QR»: texto de ayuda | «…Aura se abre y pregunta antes de emparejar» (antes: «…y se empareja sola») | 836 |
 | Biblioteca ▸ Canciones | Sincronizar una lista de YouTube ya no mete sus canciones en Biblioteca ▸ Canciones (siguen en la lista). Las que ya estaban se quedan | 834 |
 | Sincronizar desde YouTube Music: categoría «Me gusta (canciones)» del informe de subida (`YtmSyncScreen.kt:538`) | Mientras la biblioteca se sincroniza entre aparatos, esa categoría no se sube y sale sin pendientes | 834 |
+
+## Anexo 2026-11-24 (fila 851): orden O2 del dueño, la clave maestra no se empareja sola por correo (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Ajustes ▸ Sincronizar dispositivos ▸ «Emparejamiento» (descripción, solo con «Emparejar con mi licencia» encendido y sin código) | Con una clave maestra dice «Con una clave maestra los aparatos no se emparejan solos: usa un código de emparejamiento» en vez de pedir el correo de la compra. Con licencia de Gumroad, igual que antes. El interruptor, el código, el QR y todo lo demás siguen igual | 851 |
