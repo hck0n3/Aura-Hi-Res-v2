@@ -172,7 +172,7 @@ if (-not $SkipSdkPackages) {
             "platform-tools",
             "platforms;android-36",
             "build-tools;36.0.0",
-            "ndk;27.0.12077973",
+            "ndk;27.3.13750724",
             "cmake;3.22.1"
         )
         & $sdkmanager --sdk_root=$sdk $packages 2>&1 | Out-Host
