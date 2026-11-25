@@ -105,6 +105,17 @@ class SettingsTwoPaneGuardTest {
     }
 
     @Test
+    fun `with two panes every copy of the index keeps the scroll, stored at the end of a gesture, and a phone keeps its own`() {
+        assertTrue("only with two panes", screen.contains("val sharedScroll = sharedIndexState?.takeIf { twoPanes }"))
+        assertTrue("a phone starts at 0, as rememberScrollState() did",
+            screen.contains("val scrollState = rememberScrollState(initial = sharedScroll?.get<Int>(INDEX_KEY_SCROLL) ?: 0)"))
+        assertTrue("stored when the scroll stops, not per frame",
+            screen.contains("snapshotFlow { scrollState.isScrollInProgress }.collect { moving ->\n                if (!moving) sharedScroll[INDEX_KEY_SCROLL] = scrollState.value"))
+        assertFalse(screen.contains("snapshotFlow { scrollState.value }"))
+        assertTrue(screen.contains("private const val INDEX_KEY_SCROLL = \"aura_settings_index_scroll\""))
+    }
+
+    @Test
     fun `a phone draws the index exactly as before`() {
         val phone = screen.substringAfter("if (!twoPanes) {\n        Box(").substringBefore("return\n    }")
         assertTrue(phone.contains(".auraScreenBackground(bloom, intensity = 0.32f)"))

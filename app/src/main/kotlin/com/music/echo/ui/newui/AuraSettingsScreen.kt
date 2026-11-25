@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -414,7 +416,18 @@ internal fun AuraSettingsIndexHost(
     val mediaMetadata by playerConnection?.mediaMetadata?.collectAsState()
         ?: remember { mutableStateOf(null) }
     val bloom = rememberAuraBloom(mediaMetadata?.id)
-    val scrollState = rememberScrollState()
+    // Two panes: every page has its own copy of the index, so the index's scroll is shared like the search text — each copy
+    // starts where the last one was left and stores where it stops (at the end of each gesture or fling, not per frame).
+    // A phone keeps its one plain scroll state.
+    val sharedScroll = sharedIndexState?.takeIf { twoPanes }
+    val scrollState = rememberScrollState(initial = sharedScroll?.get<Int>(INDEX_KEY_SCROLL) ?: 0)
+    if (sharedScroll != null) {
+        LaunchedEffect(scrollState, sharedScroll) {
+            snapshotFlow { scrollState.isScrollInProgress }.collect { moving ->
+                if (!moving) sharedScroll[INDEX_KEY_SCROLL] = scrollState.value
+            }
+        }
+    }
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { scrollState.isScrollInProgress }
 
@@ -650,6 +663,7 @@ private fun AuraSettingsPanePlaceholder() {
 
 private const val INDEX_KEY_QUERY = "aura_settings_index_query"
 private const val INDEX_KEY_EXPANDED = "aura_settings_index_expanded"
+private const val INDEX_KEY_SCROLL = "aura_settings_index_scroll"
 
 /**
  * One value of the index (search text, open group). With the `settings` entry's saved state ([shared]) every copy of the
