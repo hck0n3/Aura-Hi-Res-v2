@@ -66,8 +66,10 @@ internal fun AuraViewTypeToggle(viewType: LibraryViewType, onChange: (LibraryVie
  */
 @Composable
 internal fun auraLibraryCellSize(big: Boolean): Dp {
+    // Registry row 875: the window fallback is the layer's container width (`auraPaneWidthDp()`), the same reading the
+    // track columns and the list columns use, no longer Configuration's (row 869, item 7).
     val windowWidth = iad1tya.echo.music.ui.utils.LocalContentPaneWidth.current?.value
-        ?: auraWindowInfo().configWidthDp.toFloat()
+        ?: auraWindowInfo().widthDp
     return auraLibraryCellDp(windowWidth, big).dp
 }
 
@@ -83,7 +85,7 @@ private const val AURA_LIBRARY_GRID_GAP_DP = 11f
  * less a dp of slack for rounding).
  */
 internal fun auraLibraryCellDp(windowWidthDp: Float, big: Boolean): Float {
-    if (windowWidthDp < 600f) return if (big) 150f else 104f
+    if (windowWidthDp < AURA_MEDIUM_MIN_WIDTH_DP) return if (big) 150f else 104f
     if (windowWidthDp < AURA_LIBRARY_TABLET_MIN_DP) return if (big) 176f else 132f
     val columns = when {
         windowWidthDp < 1100f -> if (big) 3 else 4
