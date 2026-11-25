@@ -69,6 +69,18 @@ jobs:
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
 
+      - name: Cap Gradle memory for the 16 GB runner
+        # The repo's gradle.properties asks for -Xmx10g (Gradle) + -Xmx6g (Kotlin daemon) and 16 workers,
+        # sized for the owner's PC. On a 16 GB / 4-core hosted runner that over-commits RAM before R8
+        # starts. ~/.gradle/gradle.properties overrides the project file for this job only.
+        run: |
+          mkdir -p ~/.gradle
+          {
+            echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
+            echo "kotlin.daemon.jvmargs=-Xmx3g"
+            echo "org.gradle.workers.max=4"
+          } >> ~/.gradle/gradle.properties
+
       - name: Run unit tests (quality gate)
         # FASE 17 (2026-08-24, súper auditoría): suite mínima de seguridad — 630 tests unitarios
         # JVM deterministas (sin red, sin dispositivo). Suite roja = no se construye ni firma
