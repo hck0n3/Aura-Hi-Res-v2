@@ -78,6 +78,7 @@ import iad1tya.echo.music.LocalListenTogetherManager
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.LocalSyncUtils
 import iad1tya.echo.music.R
+import iad1tya.echo.music.applicationScope
 import iad1tya.echo.music.constants.EnableExportAsMp3Key
 import iad1tya.echo.music.constants.ExportDirectoryUriKey
 import iad1tya.echo.music.constants.ExportedSongIdsKey
@@ -683,6 +684,38 @@ fun SongMenu(
                                 onDismiss()
                                 playerConnection.addToQueue(song.toMediaItem())
                                 confirmQueueEdit(context, playerConnection, R.string.add_to_queue)
+                            }
+                        )
+                    } else null,
+                    // Row 861: the online menu's «Menos de esto» (YouTubeSongMenu, rows 721/803/852), same store edit and
+                    // same «Deshacer»; YouTube catalogue songs only. The song stays liked and in its lists.
+                    if (iad1tya.echo.music.dislike.SoftDislikeUndoRule.isYouTubeCatalogueSong(song.id, song.song.isLocal)) {
+                        Material3MenuItemData(
+                            title = { Text(text = "Menos de esto") },
+                            description = { Text(text = "Se recomendará menos parecido a esto") },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.thumb_down),
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                ActionLog.tap(ActionId.SONGMENU_LESS_LIKE_THIS)
+                                val primary = orderedArtists.firstOrNull() ?: song.artists.firstOrNull()
+                                val artistKey = iad1tya.echo.music.reco.SoftDislikeRank.artistKey(
+                                    iad1tya.echo.music.dislike.SoftDislikeUndoRule.youTubeArtistId(primary?.id),
+                                    primary?.name,
+                                )
+                                val artistName = primary?.name
+                                val songId = song.id
+                                context.applicationScope.launch {
+                                    val store = iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context)
+                                    val before = store.snapshot()
+                                    store
+                                        .softDislikeSongAndArtist(songId, artistKey)
+                                    iad1tya.echo.music.dislike.SoftDislikeUndo.offer(before, songId, artistKey, artistName)
+                                }
+                                onDismiss()
                             }
                         )
                     } else null

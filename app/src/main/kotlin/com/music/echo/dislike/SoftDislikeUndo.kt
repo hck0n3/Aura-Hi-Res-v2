@@ -22,6 +22,23 @@ object SoftDislikeUndoRule {
      */
     fun addedByTap(before: DislikeStore.Disliked, songId: String, artistKey: String?): Pair<String?, String?> =
         Pair(songId.takeIf { it !in before.softSongs }, artistKey?.takeIf { it !in before.softArtists })
+
+    /**
+     * Row 861 — the library and queue menus offer «Menos de esto» only for a YouTube catalogue song: not a device file
+     * ([isLocal], a `content://` id) and an id that is a YouTube video id (11 chars of [A-Za-z0-9_-], the same rule as
+     * `SponsorBlockManager.isYouTubeVideoId`). Home and the radio only ever rank YouTube ids, so any other mark would do nothing.
+     */
+    fun isYouTubeCatalogueSong(songId: String, isLocal: Boolean): Boolean =
+        !isLocal && songId.length == 11 &&
+            songId.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == '_' || it == '-' }
+
+    /**
+     * Row 861 — the artist id the online menu would store: a YouTube channel id (same test as
+     * `ArtistEntity.isYouTubeArtist`). An id the library made up for an artist YouTube gave none ("LA…", `LOCAL_ARTIST_…`)
+     * matches no candidate, so it is dropped and [iad1tya.echo.music.reco.SoftDislikeRank.artistKey] falls back to the name.
+     */
+    fun youTubeArtistId(id: String?): String? =
+        id?.takeIf { it.startsWith("UC") || it.startsWith("FEmusic_library_privately_owned_artist") }
 }
 
 /** One «Menos de esto» the shell offers to undo. [artistName] is only shown, never logged (AGENTS.md rule 4). */

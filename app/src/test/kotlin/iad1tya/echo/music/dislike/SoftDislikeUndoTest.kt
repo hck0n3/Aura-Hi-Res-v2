@@ -28,6 +28,33 @@ class SoftDislikeUndoTest {
     }
 
     @Test
+    fun `the library and queue menus offer it only for a YouTube catalogue song`() {
+        // Row 861: a YouTube video id, not a device file.
+        assertTrue(SoftDislikeUndoRule.isYouTubeCatalogueSong("dQw4w9WgXcQ", isLocal = false))
+        assertTrue(SoftDislikeUndoRule.isYouTubeCatalogueSong("a-b_C1d2E3f", isLocal = false))
+        assertFalse(SoftDislikeUndoRule.isYouTubeCatalogueSong("dQw4w9WgXcQ", isLocal = true))
+        assertFalse(SoftDislikeUndoRule.isYouTubeCatalogueSong("content://media/external/audio/media/42", isLocal = false))
+        assertFalse(SoftDislikeUndoRule.isYouTubeCatalogueSong("file:///sdcard/a.mp3", isLocal = false))
+        assertFalse(SoftDislikeUndoRule.isYouTubeCatalogueSong("https://x.y/a", isLocal = false))
+        assertFalse(SoftDislikeUndoRule.isYouTubeCatalogueSong("", isLocal = false))
+        assertFalse(SoftDislikeUndoRule.isYouTubeCatalogueSong("dQw4w9WgXc", isLocal = false))
+        assertFalse(SoftDislikeUndoRule.isYouTubeCatalogueSong("dQw4w9WgX/Q", isLocal = false))
+    }
+
+    @Test
+    fun `a library-made artist id falls back to the name like the online menu`() {
+        assertEquals("UCabc", SoftDislikeUndoRule.youTubeArtistId("UCabc"))
+        assertEquals("FEmusic_library_privately_owned_artist_x", SoftDislikeUndoRule.youTubeArtistId("FEmusic_library_privately_owned_artist_x"))
+        assertEquals(null, SoftDislikeUndoRule.youTubeArtistId("LAabcdefgh"))
+        assertEquals(null, SoftDislikeUndoRule.youTubeArtistId("LOCAL_ARTIST_0123"))
+        assertEquals(null, SoftDislikeUndoRule.youTubeArtistId(null))
+        assertEquals(
+            "artist name",
+            iad1tya.echo.music.reco.SoftDislikeRank.artistKey(SoftDislikeUndoRule.youTubeArtistId("LAabcdefgh"), " Artist Name "),
+        )
+    }
+
+    @Test
     fun `same window as Cola cerrada`() {
         assertEquals(iad1tya.echo.music.playback.DismissedQueueUndoRule.UNDO_WINDOW_MS, SoftDislikeUndoRule.UNDO_WINDOW_MS)
     }
@@ -123,6 +150,55 @@ class SoftDislikeUndoTest {
                 from = mark + 1
             }
             assertTrue("${f.name} shows «Menos de esto» but never marks through the shared path", marks > 0)
+        }
+    }
+
+    @Test
+    fun `Menos de esto in the online, library and queue menus is the same action with the same undo`() {
+        // Row 861: Biblioteca, «Me gusta», local lists and history (SongMenu) and the queue (QueueMenu) got the online
+        // menu's action. Every entry point, old and new, must mark song + artist in one edit and hand the shell the offer.
+        val menus = listOf("ui/menu/YouTubeSongMenu.kt", "ui/menu/SongMenu.kt", "ui/menu/QueueMenu.kt")
+        for (path in menus) {
+            val src = main(path)
+            val title = "title = { Text(text = \"Menos de esto\") }"
+            assertEquals("$path: one «Menos de esto»", 1, Regex(Regex.escape(title)).findAll(src).count())
+            val item = src.substringAfter(title).substringBefore("onDismiss()")
+            assertTrue(path, item.contains("description = { Text(text = \"Se recomendará menos parecido a esto\") }"))
+            assertTrue(path, item.contains("painterResource(R.drawable.thumb_down)"))
+            assertTrue(path, item.contains("iad1tya.echo.music.reco.SoftDislikeRank.artistKey("))
+            assertTrue(path, item.contains("context.applicationScope.launch {"))
+            assertTrue(path, item.contains("val store = iad1tya.echo.music.dislike.DislikeStoreEntryPoint.get(context)"))
+            val before = item.indexOf("val before = store.snapshot()")
+            val mark = item.indexOf(".softDislikeSongAndArtist(")
+            val offer = item.indexOf("iad1tya.echo.music.dislike.SoftDislikeUndo.offer(before, ")
+            assertTrue(path, before >= 0 && mark > before && offer > mark)
+            // The song id marked is the song id offered for «Deshacer», with the same artist key and name.
+            val markedId = item.substring(mark).substringAfter("(").substringBefore(",")
+            val offeredId = item.substring(offer).substringAfter("offer(before, ").substringBefore(",")
+            assertEquals(path, markedId, offeredId)
+            assertTrue(path, item.contains(".softDislikeSongAndArtist($markedId, artistKey)"))
+            assertTrue(path, item.contains("SoftDislikeUndo.offer(before, $offeredId, artistKey, artistName)"))
+            // Never a Toast, never an unlike, never a removal from a list or the queue.
+            for (forbidden in listOf("Toast", "toggleLike", "likeSong(", "removeMediaItem", "delete(", "remove(")) {
+                assertFalse("$path: «Menos de esto» must not $forbidden", item.contains(forbidden))
+            }
+        }
+        // The two new ones: only for YouTube catalogue songs, and a library-made artist id falls back to the name.
+        val song = main("ui/menu/SongMenu.kt")
+        assertTrue(
+            song.substringBefore("title = { Text(text = \"Menos de esto\") }").takeLast(300)
+                .contains("if (iad1tya.echo.music.dislike.SoftDislikeUndoRule.isYouTubeCatalogueSong(song.id, song.song.isLocal)) {"),
+        )
+        assertTrue(song.contains("ActionLog.tap(ActionId.SONGMENU_LESS_LIKE_THIS)"))
+        val queue = main("ui/menu/QueueMenu.kt")
+        assertTrue(
+            queue.substringBefore("title = { Text(text = \"Menos de esto\") }").takeLast(300)
+                .contains("if (iad1tya.echo.music.dislike.SoftDislikeUndoRule.isYouTubeCatalogueSong(mediaMetadata.id, librarySong?.song?.takeIf { it.id == mediaMetadata.id }?.isLocal == true)) {"),
+        )
+        assertTrue(queue.contains("ActionLog.tap(ActionId.QMENU_LESS_LIKE_THIS)"))
+        for (src in listOf(song, queue)) {
+            val item = src.substringAfter("title = { Text(text = \"Menos de esto\") }").substringBefore("onDismiss()")
+            assertTrue(item.contains("iad1tya.echo.music.dislike.SoftDislikeUndoRule.youTubeArtistId(primary?.id),"))
         }
     }
 }
