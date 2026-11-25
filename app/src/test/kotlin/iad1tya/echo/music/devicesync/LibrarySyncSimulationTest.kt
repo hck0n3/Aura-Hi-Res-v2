@@ -279,7 +279,9 @@ class LibrarySyncSimulationTest {
         fun changed() = sync.kick(fast = true)
     }
 
-    private fun eventually(what: String, ms: Long = 4_000, condition: () -> Boolean) = runBlocking {
+    // 15 s, not 4 s: the simulation runs on the real clock and a loaded CI runner missed 4 s twice (beta6 and beta9
+    // builds) on code nothing had changed. Only the ceiling grows: each check still returns as soon as it holds.
+    private fun eventually(what: String, ms: Long = 15_000, condition: () -> Boolean) = runBlocking {
         try {
             withTimeout(ms) { while (!condition()) delay(10) }
         } catch (e: Exception) {
