@@ -13,12 +13,28 @@ enum class OfflinePlaybackNotice {
     NONE,
     AUTOMATIC,
     MANUAL,
+
+    /**
+     * Row 854: automatic, but the song that was playing when the connection went away is still the current one — it goes on
+     * from what was already loaded, and the offline music comes after it.
+     */
+    BUFFERED,
     ;
+
+    /** Row 854: what the full player's chip says. [FROM_LOADED] «esta canción sigue desde lo cargado; después, tu música sin conexión». */
+    enum class Wording { FROM_LOADED, OFFLINE_MUSIC }
 
     val visible: Boolean get() = this != NONE
 
     /** The sign offers «Volver online» (turns the manual switch off). Never for the automatic session: it ends by itself. */
     val offersGoOnline: Boolean get() = this == MANUAL
+
+    /** Row 854: the chip's text by state; null while nothing is shown. */
+    val wording: Wording? get() = when (this) {
+        NONE -> null
+        BUFFERED -> Wording.FROM_LOADED
+        AUTOMATIC, MANUAL -> Wording.OFFLINE_MUSIC
+    }
 
     companion object {
         fun of(sessionActive: Boolean, queueParked: Boolean, manual: Boolean): OfflinePlaybackNotice = when {
@@ -26,5 +42,33 @@ enum class OfflinePlaybackNotice {
             sessionActive || queueParked -> AUTOMATIC
             else -> NONE
         }
+
+        /**
+         * Row 853 (owner test #17, beta8: airplane mode on, 25 s, no sign): the device itself has no network — no transport
+         * at all ([iad1tya.echo.music.utils.NetworkState.online], the same reading as Inicio's automatic offline mode) and the
+         * default network is not validated — with "que se ponga solo" on. Only then does the player go on with offline music
+         * by itself, so only then may the sign say so. A VPN, IPv6-only or signed-in captive portal keeps a transport and is
+         * never taken for "no network" here (they carry traffic).
+         */
+        fun deviceOffline(online: Boolean, validated: Boolean, autoOffline: Boolean): Boolean = autoOffline && !online && !validated
+
+        /**
+         * Row 853: the sign does not wait for the player's offline session (its entry hangs on one live read at the moment
+         * the network drops, and a network song reaching READY ends it): with the device offline it is on at once.
+         * Row 854: while [fromLoaded] holds ([loadedSongGoesOn]), the automatic sign says the current song goes on from what
+         * was loaded ([BUFFERED]); the manual switch keeps its own sign.
+         */
+        fun shown(base: OfflinePlaybackNotice, deviceOffline: Boolean, fromLoaded: Boolean): OfflinePlaybackNotice {
+            val on = if (base == NONE && deviceOffline) AUTOMATIC else base
+            return if (on == AUTOMATIC && fromLoaded) BUFFERED else on
+        }
+
+        /**
+         * Row 854, read once when the sign comes on: a song was really playing ([playingNow]: play pressed and READY) and it is
+         * not one the offline queue already moved on to ([songMovedOn]). A paused, idle or never-prepared song (a restored
+         * queue at a cold start with no network) has nothing loaded to go on with. The phase ends on the next song change or
+         * when the current song fails or is stopped on an error.
+         */
+        fun loadedSongGoesOn(playingNow: Boolean, songMovedOn: Boolean): Boolean = playingNow && !songMovedOn
     }
 }

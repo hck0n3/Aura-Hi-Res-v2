@@ -44,6 +44,28 @@ class OfflinePlayerNoticeGuardTest {
     }
 
     @Test
+    fun `row 853 - the sign is on as soon as the device has no network, from NetworkState's events`() {
+        val service = main("playback/MusicService.kt")
+        val marker = "// Row 795: the players' «Sin conexión» sign follows the session, its parked queue and the manual switch as they change."
+        val feed = service.substringAfter(marker).substringBefore(".collect { _offlinePlaybackNotice.value = it }")
+        assertTrue(feed.contains("iad1tya.echo.music.utils.NetworkState.online,"))
+        assertTrue(feed.contains("iad1tya.echo.music.utils.NetworkState.validated,"))
+        assertTrue(feed.contains("dataStore.data.map { it[iad1tya.echo.music.constants.AutoOfflineModeKey] ?: true }.distinctUntilChanged(),"))
+        assertTrue(
+            feed.contains(
+                "OfflinePlaybackNotice.deviceOffline(online = online, validated = validated, autoOffline = auto)",
+            ),
+        )
+        assertTrue(feed.contains("OfflinePlaybackNotice.shown("))
+        assertTrue(feed.contains("deviceOffline = offline,"))
+        assertTrue("row 854", feed.contains("offlineFromLoadedState,"))
+        assertTrue("row 854", feed.contains("fromLoaded = fromLoaded,"))
+        // It does not hang on the session's entry (one live read when the network drops) nor on hasLiveInternetConnection.
+        assertFalse(feed.contains("hasLiveInternetConnection"))
+        assertFalse("rule 7: nothing ticks", feed.contains("delay(") || feed.contains("while (true)"))
+    }
+
+    @Test
     fun `the parked offline queue keeps the sign, from the same predicate as offlineQueueModeNow`() {
         val service = main("playback/MusicService.kt")
         // The predicate the sign mirrors (row 717): the parked queue is still offline music only.
@@ -100,6 +122,45 @@ class OfflinePlayerNoticeGuardTest {
     }
 
     @Test
+    fun `row 854 - the chip says the current song goes on from what was loaded until another one starts`() {
+        val service = main("playback/MusicService.kt")
+        assertTrue(service.contains("private val offlineSongMovedOnState = MutableStateFlow(false)"))
+        val transition = service.substringAfter("override fun onMediaItemTransition(").substringBefore("if (onlyShowingMirror) {")
+        assertTrue(transition.contains("if (trackChanged) offlineSongMovedOnState.value = _offlinePlaybackNotice.value.visible || PlaybackOfflineSession.isActive"))
+        assertEquals("one place writes it", 1, Regex("""offlineSongMovedOnState\.value =""").findAll(service).count())
+
+        // Repair: the first phase is set only when the sign comes on with a song really playing, and ends when that song
+        // changes, fails or is stopped on an error (it never outlives the song, and never starts for a paused/idle one).
+        assertTrue(service.contains("private val offlineFromLoadedState = MutableStateFlow(false)"))
+        val marker = "// Row 795: the players' «Sin conexión» sign follows the session, its parked queue and the manual switch as they change."
+        val feed = service.substringAfter(marker).substringBefore(".collect { _offlinePlaybackNotice.value = it }")
+        assertTrue(feed.contains("if (!notice.visible) offlineFromLoadedState.value = false"))
+        assertTrue(feed.contains("if (!notice.visible || _offlinePlaybackNotice.value.visible) return@map notice"))
+        assertTrue(feed.contains("playingNow = player.playWhenReady && player.playbackState == Player.STATE_READY,"))
+        assertTrue(feed.contains("songMovedOn = offlineSongMovedOnState.value,"))
+        assertTrue(transition.contains("if (trackChanged) offlineFromLoadedState.value = false"))
+        val onError = service.substringAfter("    override fun onPlayerError(error: PlaybackException) {\n        super.onPlayerError(error)")
+            .substringBefore("val wasPlayWhenReady = player.playWhenReady")
+        assertTrue(onError.contains("offlineFromLoadedState.value = false"))
+        val stop = service.substringAfter("internal fun stopOnError() {").substringBefore("player.pause()")
+        assertTrue(stop.contains("offlineFromLoadedState.value = false"))
+        assertEquals(
+            "the edge, the sign going away, a song change, an error and an error stop",
+            5,
+            Regex("""offlineFromLoadedState\.value =""").findAll(service).count(),
+        )
+
+        val chip = main("ui/newui/AuraOfflinePlaybackNotice.kt")
+        val full = chip.substringAfter("internal fun AuraOfflinePlaybackChip(").substringBefore("internal fun AuraMiniOfflineBadge(")
+        assertTrue(full.contains("val fromLoaded = notice.wording == OfflinePlaybackNotice.Wording.FROM_LOADED"))
+        assertTrue(full.contains("if (fromLoaded) stringResource(R.string.offline_player_chip_buffered) else stringResource(R.string.offline_player_chip)"))
+        assertTrue(full.contains("if (fromLoaded) stringResource(R.string.offline_player_chip_buffered_cd) else stringResource(R.string.offline_player_chip_cd)"))
+        val es = src("app/src/main/res/values-es/offline_player_notice_strings.xml")
+        assertTrue(es.contains("Sin conexión · esta canción sigue desde lo cargado; después, tu música sin conexión"))
+        assertTrue(es.contains("Sin conexión · sonando tu música sin conexión"))
+    }
+
+    @Test
     fun `only the manual switch gets a way out, and it is the user's own switch`() {
         val chip = main("ui/newui/AuraOfflinePlaybackNotice.kt")
         val dialog = chip.substringAfter("private fun AuraOfflinePlaybackDialog(")
@@ -114,7 +175,8 @@ class OfflinePlayerNoticeGuardTest {
     fun `the sign is translated`() {
         val keys = listOf(
             "offline_player_chip", "offline_player_chip_cd", "offline_player_mini", "offline_player_notice_title",
-            "offline_player_notice_auto", "offline_player_notice_manual",
+            "offline_player_notice_auto", "offline_player_notice_manual", "offline_player_chip_buffered",
+            "offline_player_chip_buffered_cd",
         )
         for (dir in listOf("values", "values-es")) {
             val strings = src("app/src/main/res/$dir/offline_player_notice_strings.xml")

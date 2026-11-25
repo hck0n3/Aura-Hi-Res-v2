@@ -2700,12 +2700,35 @@ class MusicService :
             PlaybackOfflineSession.userRetries.collect { onOfflineSessionExited("user_retry") }
         }
         // Row 795: the players' «Sin conexión» sign follows the session, its parked queue and the manual switch as they change.
+        // Row 853: and the device's own network state, so it is on as soon as the network is gone (event-driven, NetworkState).
         scope.launch {
             combine(
                 PlaybackOfflineSession.active,
                 offlineQueueParkedState,
                 dataStore.data.map { it[OfflineModeKey] ?: false }.distinctUntilChanged(),
-            ) { session, parked, manual -> OfflinePlaybackNotice.of(sessionActive = session, queueParked = parked, manual = manual) }
+                combine(
+                    iad1tya.echo.music.utils.NetworkState.online,
+                    iad1tya.echo.music.utils.NetworkState.validated,
+                    dataStore.data.map { it[iad1tya.echo.music.constants.AutoOfflineModeKey] ?: true }.distinctUntilChanged(),
+                ) { online, validated, auto -> OfflinePlaybackNotice.deviceOffline(online = online, validated = validated, autoOffline = auto) },
+                offlineFromLoadedState,
+            ) { session, parked, manual, offline, fromLoaded ->
+                OfflinePlaybackNotice.shown(
+                    OfflinePlaybackNotice.of(sessionActive = session, queueParked = parked, manual = manual),
+                    deviceOffline = offline,
+                    fromLoaded = fromLoaded,
+                )
+            }
+                // Row 854: «esta canción sigue desde lo cargado» only for a song really playing when the sign came on (main thread).
+                .map { notice ->
+                    if (!notice.visible) offlineFromLoadedState.value = false
+                    if (!notice.visible || _offlinePlaybackNotice.value.visible) return@map notice
+                    offlineFromLoadedState.value = OfflinePlaybackNotice.loadedSongGoesOn(
+                        playingNow = player.playWhenReady && player.playbackState == Player.STATE_READY,
+                        songMovedOn = offlineSongMovedOnState.value,
+                    )
+                    OfflinePlaybackNotice.shown(notice, deviceOffline = false, fromLoaded = offlineFromLoadedState.value)
+                }
                 .collect { _offlinePlaybackNotice.value = it }
         }
 
@@ -4043,11 +4066,26 @@ class MusicService :
     private var offlineStallJob: Job? = null
 
     private val _offlinePlaybackNotice = MutableStateFlow(OfflinePlaybackNotice.NONE)
-    /** Row 795: the players' «Sin conexión» sign — the same three states as [offlineQueueModeNow]. Fed by events, never polled. */
+    /**
+     * Row 795: the players' «Sin conexión» sign — the same three states as [offlineQueueModeNow], plus (row 853) the device
+     * having no network at all. Fed by events, never polled.
+     */
     val offlinePlaybackNotice: kotlinx.coroutines.flow.StateFlow<OfflinePlaybackNotice> get() = _offlinePlaybackNotice
 
     /** Row 795: [offlineQueueParkedNow] for the sign, refreshed where the flag is written and when the queue changes. */
     private val offlineQueueParkedState = MutableStateFlow(false)
+
+    /**
+     * Row 854: another song started while the sign was on, so the one playing when the connection went away is over. Written
+     * on every song change (a change with no sign resets it), read when the sign comes on.
+     */
+    private val offlineSongMovedOnState = MutableStateFlow(false)
+
+    /**
+     * Row 854: the sign's first phase («esta canción sigue desde lo cargado»). Set when the sign comes on with a song really
+     * playing; ended by a song change, an error of the current song, an error stop, and the sign going away.
+     */
+    private val offlineFromLoadedState = MutableStateFlow(false)
 
     /** The same "que se ponga solo" switch as the UI's automatic offline mode (AutoOfflineModeKey, ON by default). */
     private fun offlineSessionAllowed(): Boolean =
@@ -4728,6 +4766,8 @@ class MusicService :
         // Mark that the imminent pause is OURS, so onPlayWhenReadyChanged keeps pausedByNetwork (whereas a
         // genuine user/external pause clears it and is therefore never auto-resumed).
         expectingOwnStopPause = true
+        // Row 854: a song stopped on an error does not «sigue desde lo cargado».
+        offlineFromLoadedState.value = false
         if (player.playWhenReady) pausedByPlaybackFailure = true
         Timber.tag(TAG).i("START_CAUSE=error_stop")
         player.pause()
@@ -7227,6 +7267,10 @@ class MusicService :
         if (trackChanged) streamTierOpens.trackChanged(mediaItem?.mediaId)
         // A stale offline refusal earns one re-prepare per item: a new item starts with its own.
         if (trackChanged) staleRejectionRetryId = null
+        // Row 854: once another song starts with the «Sin conexión» sign on, it no longer says «esta canción sigue desde lo cargado».
+        // The session is read directly too: the error path enters it and skips in the same frame, before the sign's flow runs.
+        if (trackChanged) offlineSongMovedOnState.value = _offlinePlaybackNotice.value.visible || PlaybackOfflineSession.isActive
+        if (trackChanged) offlineFromLoadedState.value = false
         // Review C4 (rule 7): a song change of an unprepared device-sync mirror is another device's, nothing was heard here. None of
         // what follows (style learning, preload, SponsorBlock, video prefetch, no-repeat and shuffle memory, radio pre-seed,
         // pagination) may run; only the listen session of what played here before is closed.
@@ -9178,6 +9222,8 @@ class MusicService :
             return
         }
 
+        // Row 854: the current song failed, so the «Sin conexión» sign no longer says it goes on from what was loaded.
+        offlineFromLoadedState.value = false
         // Registry 763: the user's play intent, read before any handling below can pause or re-prepare.
         val wasPlayWhenReady = player.playWhenReady
         val mediaId = player.currentMediaItem?.mediaId

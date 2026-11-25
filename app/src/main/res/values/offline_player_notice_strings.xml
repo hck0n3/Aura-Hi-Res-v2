@@ -7,4 +7,6 @@
     <string name="offline_player_notice_title">Playing offline</string>
     <string name="offline_player_notice_auto">There is no internet, so Aura keeps playing what is available offline: downloads, songs fully saved in the cache and the music on this device. When the connection is back, your queue comes back by itself.</string>
     <string name="offline_player_notice_manual">Offline mode is on: Aura plays only what is available offline and does not use the network. Turn it off to play online music again.</string>
+    <string name="offline_player_chip_buffered">Offline · this song goes on from what was loaded; then, your offline music</string>
+    <string name="offline_player_chip_buffered_cd">Offline: this song goes on from what was loaded, then your offline music plays. Tap for details</string>
 </resources>

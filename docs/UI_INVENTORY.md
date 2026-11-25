@@ -4512,3 +4512,15 @@ Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión 
 | Dónde | Qué hay ahora | Fila del registro |
 |---|---|---|
 | Ajustes ▸ Sincronizar dispositivos ▸ «Emparejamiento» (descripción, solo con «Emparejar con mi licencia» encendido y sin código) | Con una clave maestra dice «Con una clave maestra los aparatos no se emparejan solos: usa un código de emparejamiento» en vez de pedir el correo de la compra. Con licencia de Gumroad, igual que antes. El interruptor, el código, el QR y todo lo demás siguen igual | 851 |
+
+## Anexo 2026-11-25 (fila 853): el aviso «Sin conexión» sale en cuanto el aparato pierde la red (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Reproductor Aura > cabecera: chip «SIN CONEXIÓN · …» (anexo de la fila 795) y Mini reproductor Aura: «SIN CONEXIÓN» en la línea del artista | Los mismos dos avisos, ahora también en cuanto el aparato se queda sin ninguna red (modo avión, sin cobertura ni wifi; ~2,5 s de espera contra parpadeos, la misma que Inicio) y con «que se ponga solo» encendido, sin esperar a la sesión sin conexión del reproductor. Se quitan en cuanto vuelve la red. Siguen sin salir mientras se envía a Cast o se controla otro dispositivo. Con VPN, IPv6 puro o un portal ya firmado (hay red, sin validar) salen solo como antes, cuando el reproductor detecta fallos reales | 853 |
+
+## Anexo 2026-11-25 (fila 854): el chip «Sin conexión» dice la verdad en sus dos fases (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Reproductor Aura > cabecera: chip «SIN CONEXIÓN · …» (mismo sitio, icono y toque que en el anexo de la fila 795) | Mientras sigue la canción que sonaba al cortarse la red: «SIN CONEXIÓN · ESTA CANCIÓN SIGUE DESDE LO CARGADO; DESPUÉS, TU MÚSICA SIN CONEXIÓN» (TalkBack: «Sin conexión: esta canción sigue desde lo cargado y después suena tu música sin conexión. Toca para ver más»). Solo si esa canción estaba sonando de verdad cuando salió el aviso (no si estaba en pausa o recién restaurada al abrir la app sin red), y deja de decirlo si esa canción falla o el reproductor se para por un error. En cuanto empieza otra canción, o en esos casos: «SIN CONEXIÓN · SONANDO TU MÚSICA SIN CONEXIÓN», como antes. Con el modo sin conexión manual, siempre el de antes. El mini sigue diciendo «SIN CONEXIÓN» y el diálogo «Sonando sin conexión» no cambia | 854 |
