@@ -136,6 +136,23 @@ class SettingsTwoPaneGuardTest {
     }
 
     @Test
+    fun `Suscripcion Pro opened beside a page covers the window without throwing the page away`() {
+        // A phone (and `settings` itself) keeps the early return: the same full screen as always.
+        assertTrue(screen.contains("if (showSubscribe && page == null) {\n        SubscriptionEntryScreen("))
+        // Beside a page it is drawn over the two panes, which stay composed.
+        val over = screen.substringAfter("        if (showSubscribe) {\n            Box(").substringBefore("\n        }\n    }\n}")
+        assertTrue(over.contains(".fillMaxSize()"))
+        assertTrue("opaque", over.contains(".auraGroundFill()"))
+        assertTrue("takes every touch", over.contains(".pointerInput(Unit) {}"))
+        assertTrue("back closes it before any back handler of the page", over.contains("BackHandler { showSubscribe = false }"))
+        assertTrue(over.contains("onActivated = { showSubscribe = false },"))
+        assertTrue(over.contains("onBack = { showSubscribe = false },"))
+        assertTrue("the panes underneath are hidden from TalkBack",
+            screen.contains(".then(if (showSubscribe) Modifier.clearAndSetSemantics {} else Modifier)"))
+        assertEquals("still one subscription screen per path", 2, Regex("""SubscriptionEntryScreen\(""").findAll(screen).count())
+    }
+
+    @Test
     fun `a phone draws the index exactly as before`() {
         val phone = screen.substringAfter("if (!twoPanes) {\n        Box(").substringBefore("return\n    }")
         assertTrue(phone.contains(".auraScreenBackground(bloom, intensity = 0.32f)"))

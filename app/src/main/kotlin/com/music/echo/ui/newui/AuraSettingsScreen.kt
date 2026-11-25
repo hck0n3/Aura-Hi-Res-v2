@@ -57,7 +57,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -155,7 +157,8 @@ internal fun AuraSettingsIndexHost(
     val showSubscribeEntry = BuildConfig.REQUIRE_SUBSCRIPTION &&
         subState != LicenseLogic.AppState.SUBSCRIPTION_ACTIVE
     BackHandler(showSubscribe) { showSubscribe = false }
-    if (showSubscribe) {
+    // Two panes with a page on the right: shown over the panes instead (at the end), so the page is not thrown away.
+    if (showSubscribe && page == null) {
         SubscriptionEntryScreen(
             onActivated = { showSubscribe = false },
             onBack = { showSubscribe = false },
@@ -615,32 +618,54 @@ internal fun AuraSettingsIndexHost(
     // ── Two panes: the index on the left, the page on the right ──────────────────────────────────────
     val paneWidthDp = auraPaneWidthDp()
     val indexWidth = auraSettingsIndexWidthDp(paneWidthDp).dp
-    Row(
-        Modifier
-            .fillMaxSize()
-            // `settings` paints its own ground, as it always did. A page already stands on the cover ground the shell
-            // paints behind every settings page, so nothing is painted twice.
-            .then(if (page == null) Modifier.auraScreenBackground(bloom, intensity = 0.32f) else Modifier)
-    ) {
-        indexColumn(
+    Box(Modifier.fillMaxSize()) {
+        Row(
             Modifier
-                .width(indexWidth)
-                .fillMaxHeight()
-        )
-        Box(
-            Modifier
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(AuraPalette.SurfaceLine)
-        )
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxHeight()
+                .fillMaxSize()
+                // `settings` paints its own ground, as it always did. A page already stands on the cover ground the shell
+                // paints behind every settings page, so nothing is painted twice.
+                .then(if (page == null) Modifier.auraScreenBackground(bloom, intensity = 0.32f) else Modifier)
+                // Under «Suscripción Pro» (below): still composed, out of TalkBack's reach.
+                .then(if (showSubscribe) Modifier.clearAndSetSemantics {} else Modifier)
         ) {
-            // The page lays itself out for the pane it is in, not for the whole window.
-            CompositionLocalProvider(LocalContentPaneWidth provides (paneWidthDp.dp - indexWidth - 1.dp)) {
-                if (page != null) page() else AuraSettingsPanePlaceholder()
+            indexColumn(
+                Modifier
+                    .width(indexWidth)
+                    .fillMaxHeight()
+            )
+            Box(
+                Modifier
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(AuraPalette.SurfaceLine)
+            )
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                // The page lays itself out for the pane it is in, not for the whole window.
+                CompositionLocalProvider(LocalContentPaneWidth provides (paneWidthDp.dp - indexWidth - 1.dp)) {
+                    if (page != null) page() else AuraSettingsPanePlaceholder()
+                }
+            }
+        }
+        // «Suscripción Pro» picked beside a page: the same full-window screen, drawn OVER the two panes so the page on the
+        // right stays composed and keeps its scroll and state for when the user comes back. The empty pointerInput takes
+        // every touch, so nothing underneath can be tapped; the BackHandler here is composed after the page, so back closes
+        // this screen first even if the page has a back handler of its own.
+        if (showSubscribe) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .auraGroundFill()
+                    .pointerInput(Unit) {}
+            ) {
+                BackHandler { showSubscribe = false }
+                SubscriptionEntryScreen(
+                    onActivated = { showSubscribe = false },
+                    onBack = { showSubscribe = false },
+                )
             }
         }
     }
