@@ -94,9 +94,10 @@ fun PlayerProgressSlider(
     when (sliderStyle) {
         SliderStyle.DEFAULT -> {
             if (bufferedFraction != null) {
+                val state = remember(valueRange) { SliderState(value, trackRange = valueRange) }
+                state.value = value
                 Slider(
-                    value = value,
-                    valueRange = valueRange,
+                    state = state,
                     onValueChange = { if (enabled) onValueChange(it) },
                     onValueChangeFinished = { if (enabled) onValueChangeFinished() },
                     enabled = enabled,
@@ -165,9 +166,10 @@ fun PlayerProgressSlider(
                 label = "trackHeight",
             )
 
+            val state = remember(valueRange) { SliderState(value, trackRange = valueRange) }
+            state.value = value
             Slider(
-                value = value,
-                valueRange = valueRange,
+                state = state,
                 onValueChange = { if (enabled) onValueChange(it) },
                 onValueChangeFinished = { if (enabled) onValueChangeFinished() },
                 enabled = enabled,
@@ -217,7 +219,7 @@ fun PlayerSliderTrack(
     val activeTrackColor = colors.activeTrackColor
     val inactiveTickColor = colors.inactiveTickColor
     val activeTickColor = colors.activeTickColor
-    val valueRange = sliderState.valueRange
+    val valueRange = sliderState.trackRange
     Canvas(
         modifier
             .fillMaxWidth()
@@ -323,7 +325,7 @@ fun BufferedSliderTrack(
     val inactiveTrackColor = colors.inactiveTrackColor
     val activeTrackColor = colors.activeTrackColor
     val bufferedColor = activeTrackColor.copy(alpha = 0.30f)
-    val valueRange = sliderState.valueRange
+    val valueRange = sliderState.trackRange
     val fraction = calcFraction(
         valueRange.start,
         valueRange.endInclusive,

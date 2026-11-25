@@ -1610,7 +1610,7 @@ fun HomeScreen(
                                         // Scale the hero item to the REAL panel width (split/wide aware),
                                         // clamped so phone stays ~250dp and the width is NEVER 0/negative — a
                                         // 0 or non-finite width makes the carousel render nothing.
-                                        maxItemWidth = (maxWidth * 0.5f).coerceIn(250.dp, 420.dp),
+                                        preferredItemWidth = (maxWidth * 0.5f).coerceIn(250.dp, 420.dp),
                                         itemSpacing = 8.dp,
                                         contentPadding = PaddingValues(horizontal = 16.dp),
                                         modifier = Modifier

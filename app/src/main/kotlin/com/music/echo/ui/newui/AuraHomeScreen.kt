@@ -1875,7 +1875,7 @@ private fun AuraQuickPicksCarousel(
                 } else {
                     HorizontalCenteredHeroCarousel(
                         state = carouselState,
-                        maxItemWidth = itemWidth,
+                        preferredItemWidth = itemWidth,
                         itemSpacing = 8.dp,
                         contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
                         modifier = carouselModifier,

@@ -33,6 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -930,10 +931,9 @@ fun AppearanceSettings(
                             .padding(12.dp)
                     ) {
                         val sliderValue = 0.65f
+                        val slimPreviewState = remember { SliderState(sliderValue, trackRange = 0f..1f) }
                         Slider(
-                            value = sliderValue,
-                            valueRange = 0f..1f,
-                                    
+                            state = slimPreviewState,
                             onValueChange = {  },
                             thumb = { Spacer(modifier = Modifier.size(0.dp)) },
                             track = { sliderState ->

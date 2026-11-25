@@ -392,7 +392,7 @@ fun AccountsScreen(
                             },
                             modifier = Modifier.weight(1f),
                             shapes = ButtonGroupDefaults.connectedMiddleButtonShapes(),
-                            colors = ToggleButtonDefaults.toggleButtonColors(
+                            colors = ToggleButtonDefaults.colors(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {
@@ -448,7 +448,7 @@ fun AccountsScreen(
                             },
                             modifier = Modifier.weight(1f),
                             shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
-                            colors = ToggleButtonDefaults.toggleButtonColors(
+                            colors = ToggleButtonDefaults.colors(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {
@@ -496,7 +496,7 @@ fun AccountsScreen(
                             },
                             modifier = Modifier.weight(1f),
                             shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
-                            colors = ToggleButtonDefaults.toggleButtonColors(
+                            colors = ToggleButtonDefaults.colors(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
                         ) {

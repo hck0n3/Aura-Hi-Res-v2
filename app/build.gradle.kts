@@ -535,7 +535,11 @@ ksp {
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions {
         freeCompilerArgs.addAll(
-            "-opt-in=kotlin.RequiresOptIn"
+            "-opt-in=kotlin.RequiresOptIn",
+            // Material 3 1.5.0 stable re-marked MaterialShapes, LoadingIndicator and the tooltips as
+            // experimental; the app used them as stable APIs under 1.5.0-alpha18 (row 747).
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
         )
         suppressWarnings.set(false)
     }
