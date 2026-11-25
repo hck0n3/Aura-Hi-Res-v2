@@ -118,4 +118,17 @@ fun auraSettingsSwapIsInstant(
 object AuraSettingsPanes {
     @Volatile
     var twoPanesNow: Boolean = false
+
+    /** The answer when no two-pane index is on screen. */
+    val NotScrolling: () -> Boolean = { false }
+
+    /**
+     * Two panes: is the INDEX on the left being scrolled (dragged or flung) right now? The shell's app-bar scroll behavior
+     * asks this in its `canScroll`: the index sits inside the same nested-scroll parent as the page on the right, so without
+     * it scrolling the index would collapse or expand the page's top bar (e.g. the large title of «Acerca de»). The page's
+     * own scroll still drives its bar. Registered by the composed two-pane index (AuraSettingsScreen.kt) and cleared when it
+     * leaves; a phone never registers one. Read only when a scroll is dispatched: nothing per frame.
+     */
+    @Volatile
+    var indexScrolling: () -> Boolean = NotScrolling
 }

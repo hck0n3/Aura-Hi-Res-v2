@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
@@ -430,6 +431,16 @@ internal fun AuraSettingsIndexHost(
     }
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { scrollState.isScrollInProgress }
+    // Two panes: scrolling the index must not collapse the top bar of the page on the right (see indexScrolling).
+    if (twoPanes) {
+        DisposableEffect(scrollState) {
+            val probe: () -> Boolean = { scrollState.isScrollInProgress }
+            AuraSettingsPanes.indexScrolling = probe
+            onDispose {
+                if (AuraSettingsPanes.indexScrolling === probe) AuraSettingsPanes.indexScrolling = AuraSettingsPanes.NotScrolling
+            }
+        }
+    }
 
     // The index column: the whole screen on a phone, the left pane with two panes. In the left pane its top clears only
     // the status bar: a settings page reserves the height of its own top bar in the shared insets, and the index must sit

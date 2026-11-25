@@ -116,6 +116,26 @@ class SettingsTwoPaneGuardTest {
     }
 
     @Test
+    fun `scrolling the two-pane index does not collapse the top bar of the page beside it`() {
+        // The index and the page share the NavHost's nested-scroll parent, which feeds the shell's app-bar behavior that the
+        // pages' top bars use (AboutScreen, LogsScreen, FeedbackScreen, SubscriptionCleanupScreen…).
+        val activity = main("MainActivity.kt")
+        assertTrue(activity.contains(".nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)"))
+        val canScroll = activity.substringAfter("val topAppBarScrollBehavior = appBarScrollBehavior(").substringBefore("\n                )")
+        assertTrue(canScroll.contains("!inSearchScreen &&"))
+        assertTrue(canScroll.contains("(playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed) &&"))
+        assertTrue(canScroll.contains("!iad1tya.echo.music.ui.newui.AuraSettingsPanes.indexScrolling()"))
+        // Only the composed two-pane index registers its probe, and clears only its own.
+        val probe = screen.substringAfter("    if (twoPanes) {\n        DisposableEffect(scrollState) {").substringBefore("\n    }\n")
+        assertTrue(probe.contains("val probe: () -> Boolean = { scrollState.isScrollInProgress }"))
+        assertTrue(probe.contains("AuraSettingsPanes.indexScrolling = probe"))
+        assertTrue(probe.contains("if (AuraSettingsPanes.indexScrolling === probe) AuraSettingsPanes.indexScrolling = AuraSettingsPanes.NotScrolling"))
+        val panes = main("ui/newui/AuraSettingsPanes.kt")
+        assertTrue(panes.contains("var indexScrolling: () -> Boolean = NotScrolling"))
+        assertTrue(panes.contains("val NotScrolling: () -> Boolean = { false }"))
+    }
+
+    @Test
     fun `a phone draws the index exactly as before`() {
         val phone = screen.substringAfter("if (!twoPanes) {\n        Box(").substringBefore("return\n    }")
         assertTrue(phone.contains(".auraScreenBackground(bloom, intensity = 0.32f)"))

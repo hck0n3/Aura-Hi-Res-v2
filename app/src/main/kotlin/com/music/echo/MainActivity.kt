@@ -1304,7 +1304,9 @@ class MainActivity : ComponentActivity() {
                 val topAppBarScrollBehavior = appBarScrollBehavior(
                     canScroll = {
                         !inSearchScreen &&
-                            (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
+                            (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed) &&
+                            // Row 873: the two-pane Ajustes index does not drive the page's top bar beside it.
+                            !iad1tya.echo.music.ui.newui.AuraSettingsPanes.indexScrolling()
                     },
                 )
 
