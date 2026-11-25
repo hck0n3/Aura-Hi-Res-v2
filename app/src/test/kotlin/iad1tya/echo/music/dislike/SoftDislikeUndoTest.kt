@@ -76,12 +76,53 @@ class SoftDislikeUndoTest {
         assertTrue(effect.contains("if (data != null && data.visuals.message != message && data.visuals.actionLabel == null) data.dismiss()"))
         assertFalse(effect.contains("if (data != null && data.visuals.message != message) data.dismiss()"))
         assertTrue(effect.contains("data != null && (data.visuals.message == message || data.visuals.actionLabel != null)"))
-        // With the player sheet open the shell snackbar is off-screen: the notice falls back to a Toast.
-        assertTrue(effect.contains("var asToast = !playerBottomSheetState.isCollapsed && !playerBottomSheetState.isDismissed"))
-        assertTrue(effect.contains("android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_SHORT).show()"))
+        // Row 852: with the player sheet open, or a notice with an action in front, it keeps «Deshacer» in the overlay
+        // host (drawn after BottomSheetMenu, above the player) — never a Toast, which has no button.
+        val softEffect = effect.substringBefore("// Row 805 (owner decision H8)")
+        assertTrue(softEffect.contains("var inOverlay = !playerBottomSheetState.isCollapsed && !playerBottomSheetState.isDismissed"))
+        assertTrue(softEffect.contains("softDislikeOverlayHostState.showSnackbar("))
+        assertEquals(2, Regex(Regex.escape("actionLabel = if (offer.canUndo) queueClosedUndoLabel else null,")).findAll(softEffect).count())
+        assertFalse(softEffect.contains("Toast"))
+        val menuHost = shell.indexOf("LocalMenuState.current,")
+        val overlayHost = shell.indexOf("hostState = softDislikeOverlayHostState,")
+        assertTrue(menuHost >= 0)
+        assertTrue("the overlay host must compose after the menu and the player sheet", overlayHost > menuHost)
         assertTrue(shell.contains("this@MainActivity.applicationScope.launch {"))
         assertTrue(shell.contains("iad1tya.echo.music.dislike.SoftDislikeUndo.drop(offer.token)"))
         val es = File(root, "app/src/main/res/values-es/strings.xml").readText()
         assertTrue(es.contains("<string name=\"soft_dislike_undo_artist\">Se recomendará menos a %1\$s</string>"))
+    }
+
+    @Test
+    fun `every Menos de esto entry point hands its tap to the shared undo offer`() {
+        // Row 852 (owner test #14): a «Menos de esto» that marks without SoftDislikeUndo.offer has no «Deshacer».
+        // Only the store itself (dislike/) and the device sync, which applies another device's state, may write the soft sets.
+        val src = File(root, "app/src/main/kotlin/com/music/echo")
+        val writers = src.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filterNot { it.parentFile.name == "dislike" || it.name == "LibrarySyncAdapter.kt" }
+            .filter { f ->
+                val t = f.readText()
+                t.contains("softDislikeSongAndArtist(") || t.contains("softDislikeSong(") || t.contains("softDislikeArtist(") ||
+                    t.contains("\"Menos de esto\")")
+            }
+            .toList()
+        assertTrue("no «Menos de esto» entry point found: update this test", writers.isNotEmpty())
+        for (f in writers) {
+            val t = f.readText()
+            assertFalse("${f.name} marks one half only, without the shared undo", t.contains("softDislikeSong(") || t.contains("softDislikeArtist("))
+            var from = 0
+            var marks = 0
+            while (true) {
+                val mark = t.indexOf(".softDislikeSongAndArtist(", from)
+                if (mark < 0) break
+                marks++
+                val next = t.indexOf(".softDislikeSongAndArtist(", mark + 1).let { if (it < 0) t.length else it }
+                val offer = t.indexOf("iad1tya.echo.music.dislike.SoftDislikeUndo.offer(before, ", mark)
+                assertTrue("${f.name}: a «Menos de esto» without SoftDislikeUndo.offer right after it", offer in (mark + 1) until next)
+                from = mark + 1
+            }
+            assertTrue("${f.name} shows «Menos de esto» but never marks through the shared path", marks > 0)
+        }
     }
 }

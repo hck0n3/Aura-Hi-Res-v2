@@ -1596,6 +1596,9 @@ class MainActivity : ComponentActivity() {
                 // Row 803: «Se recomendará menos a X · Deshacer» after «Menos de esto». The song menu is a sheet that has
                 // already closed, so the shell shows it, for the same 6 s window and clearing the way like «Cola cerrada».
                 val softDislikeGenericMessage = stringResource(R.string.soft_dislike_undo_generic)
+                // Row 852: where the shell snackbar cannot show it, the notice keeps its «Deshacer» in this host, drawn
+                // above the player sheet and the menu (composed after BottomSheetMenu below) instead of a Toast.
+                val softDislikeOverlayHostState = remember { SnackbarHostState() }
                 LaunchedEffect(Unit) {
                     iad1tya.echo.music.dislike.SoftDislikeUndo.offer.collectLatest { offer ->
                         if (offer == null) return@collectLatest
@@ -1611,9 +1614,9 @@ class MainActivity : ComponentActivity() {
                             ?.let { this@MainActivity.getString(R.string.soft_dislike_undo_artist, it) }
                             ?: softDislikeGenericMessage
                         // The shell snackbar sits above the Scaffold's bottomBar, which holds the player sheet: with the
-                        // player open it would be off-screen, so the notice falls back to the Toast it replaced.
-                        var asToast = !playerBottomSheetState.isCollapsed && !playerBottomSheetState.isDismissed
-                        val result = if (asToast) null else kotlinx.coroutines.withTimeoutOrNull(remaining) {
+                        // player open it would be off-screen, so the notice goes to the overlay host (row 852).
+                        var inOverlay = !playerBottomSheetState.isCollapsed && !playerBottomSheetState.isDismissed
+                        val shellResult = if (inOverlay) null else kotlinx.coroutines.withTimeoutOrNull(remaining) {
                             kotlinx.coroutines.coroutineScope {
                                 val shown = async {
                                     snackbarHostState.showSnackbar(
@@ -1624,7 +1627,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 // Only a plain notice gives way. One with an action (the previous-queue offer, «Cola
                                 // cerrada · Deshacer») answers as dismissed when cleared, losing what it offered, so this
-                                // notice yields to it as a Toast instead of waiting unseen behind it.
+                                // notice yields to it in the overlay host instead of waiting unseen behind it.
                                 val front = androidx.compose.runtime.snapshotFlow { snackbarHostState.currentSnackbarData }.first { data ->
                                     if (data != null && data.visuals.message != message && data.visuals.actionLabel == null) data.dismiss()
                                     data != null && (data.visuals.message == message || data.visuals.actionLabel != null)
@@ -1633,13 +1636,22 @@ class MainActivity : ComponentActivity() {
                                     shown.await()
                                 } else {
                                     shown.cancel()
-                                    asToast = true
+                                    inOverlay = true
                                     null
                                 }
                             }
                         }
-                        if (asToast) {
-                            android.widget.Toast.makeText(this@MainActivity, message, android.widget.Toast.LENGTH_SHORT).show()
+                        val result = if (!inOverlay) shellResult else kotlinx.coroutines.withTimeoutOrNull(
+                            iad1tya.echo.music.playback.DismissedQueueUndoRule.remainingMs(
+                                android.os.SystemClock.elapsedRealtime(),
+                                offer.expiresAtElapsed,
+                            ),
+                        ) {
+                            softDislikeOverlayHostState.showSnackbar(
+                                message = message,
+                                actionLabel = if (offer.canUndo) queueClosedUndoLabel else null,
+                                duration = SnackbarDuration.Indefinite,
+                            )
                         }
                         if (result == SnackbarResult.ActionPerformed) {
                             this@MainActivity.applicationScope.launch {
@@ -2869,6 +2881,14 @@ class MainActivity : ComponentActivity() {
                     BottomSheetMenu(
                         state = LocalMenuState.current,
                         modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+
+                    // Row 852: «Menos de esto · Deshacer» with the player open or another notice with an action up.
+                    SnackbarHost(
+                        hostState = softDislikeOverlayHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)),
                     )
 
                     // Floating windows (dialogs) LAST: above the page, the menu and the player sheet,
