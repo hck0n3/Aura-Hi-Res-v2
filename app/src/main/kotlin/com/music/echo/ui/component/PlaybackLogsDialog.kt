@@ -93,6 +93,7 @@ fun PlaybackLogsDialog(
     ) {
         Box(
             modifier = Modifier
+                .weight(1f, fill = false)
                 .fillMaxWidth()
                 .height(400.dp)
         ) {
