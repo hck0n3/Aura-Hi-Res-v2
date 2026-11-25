@@ -773,6 +773,12 @@ class CastConnectionHandler(
 
     @Synchronized
     private fun relayFor(url: String): String? {
+        // Registry row 864: on Android 17 the TV's connection to the phone needs ACCESS_LOCAL_NETWORK. Without it the relay
+        // URL would only time out on the TV, so null: the caller falls back to audio and says so.
+        if (!LocalNetworkAccess.isGranted(context)) {
+            Timber.w("CAST_VIDEO_SRC relay blocked: local network permission not granted")
+            return null
+        }
         val address = lanAddress() ?: return null
         val existing = relay
         val active = if (existing != null && existing.bindAddress == address) {
