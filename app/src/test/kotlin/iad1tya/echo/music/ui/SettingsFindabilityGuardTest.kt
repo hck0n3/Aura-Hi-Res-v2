@@ -84,4 +84,24 @@ class SettingsFindabilityGuardTest {
         }
         assertFalse("INDEX-ECHO RULE: an Ajustes row is not repeated in the index", index.contains("Triple(\"$syncLabel\""))
     }
+
+    // Row 859: «no hay chip Suscribirme» in the full player. Not reproducible in the code: the chip exists in every player
+    // shape, but only inside the artist actions, which open when the artist line is tapped. These pins keep the answer true.
+    @Test
+    fun `the player's Suscribirme chip lives behind the artist line, in every shape, with no sign-in or width gate`() {
+        val player = src("ui/newui/AuraPlayer.kt")
+        val controls = player.substringAfter("val controlsContent: @Composable (Boolean) -> Unit = { dense ->")
+        assertTrue("one controls block for every device class", player.contains("ONE block for every device class."))
+        assertTrue(controls.contains("val hasArtists = meta.artists.any { it.name.isNotBlank() }"))
+        assertTrue("closed for each new song", controls.contains("var showArtistActions by remember(meta.id) { mutableStateOf(false) }"))
+        assertTrue("the artist line opens it", controls.contains("ActionLog.tap(ActionId.PLR_ARTISTS)"))
+        assertTrue(controls.contains("showArtistActions = !showArtistActions"))
+        val actions = controls.substringAfter("visible = showArtistActions,").substringBefore("PlayerPlaylistRoute.door(songPlaylists)")
+        assertTrue(actions.contains("val followable = meta.artists.filter { it.name.isNotBlank() }.distinctBy { it.id to it.name }"))
+        assertTrue("one artist: the chip itself", actions.contains("if (followable.size == 1) {"))
+        assertTrue("several: the chip that opens the chooser", actions.contains("} else if (followable.isNotEmpty()) {"))
+        listOf("isLoggedIn", "SAPISID", "InnerTubeCookie", "useWideShape", "isWideLayout", "dense").forEach { gate ->
+            assertFalse("the chip is not gated on $gate", actions.contains(gate))
+        }
+    }
 }
