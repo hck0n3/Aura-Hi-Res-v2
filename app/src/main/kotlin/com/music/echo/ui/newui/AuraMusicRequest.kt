@@ -46,7 +46,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -318,7 +317,7 @@ private fun AuraMusicRequestSheetBody(
     // barra de estado) y se desplaza por dentro; el relleno de abajo va DENTRO del desplazamiento, así que la última fila
     // se puede subir por encima del borde. El tope también es lo que hace seguro `verticalScroll` aquí: sin él, una
     // restricción de alto infinita lo rompería.
-    val maxBodyHeight = (LocalConfiguration.current.screenHeightDp * MUSIC_REQUEST_BODY_MAX_HEIGHT_FRACTION).dp
+    val maxBodyHeight = (auraWindowInfo().configHeightDp * MUSIC_REQUEST_BODY_MAX_HEIGHT_FRACTION).dp
     Column(
         modifier = Modifier
             .fillMaxWidth()

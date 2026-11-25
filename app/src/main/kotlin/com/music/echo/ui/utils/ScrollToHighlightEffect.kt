@@ -8,7 +8,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -22,7 +21,7 @@ fun Modifier.scrollToOnHighlight(
     val targetScroll = remember { mutableStateOf<Int?>(null) }
 
     val screenHeightPx = with(LocalDensity.current) {
-        LocalConfiguration.current.screenHeightDp.dp.toPx()
+        iad1tya.echo.music.ui.newui.auraWindowInfo().configHeightDp.dp.toPx()
     }
 
     // We want the item to be positioned roughly in the center of the screen

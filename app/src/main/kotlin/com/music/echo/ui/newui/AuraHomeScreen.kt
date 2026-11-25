@@ -62,7 +62,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -238,11 +237,10 @@ fun AuraHomeScreen(
     // same width scale rather than becoming a second one, so the two controls compose instead of
     // fighting: `SmallGridThumbnailHeight / GridThumbnailHeight` is exactly the ratio the classic Home
     // shrinks by.
-    val configuration = LocalConfiguration.current
     // Capped at a big phone's width: on an unfolded foldable / tablet the shelves keep PHONE-sized cards and
     // simply show more of them per row. Scaling the cards by the window made them 2× bigger there — the
     // "todo gigante" the owner reported (2026-10-15), and a Home that did not look like the phone's.
-    val screenWidth = configuration.screenWidthDp.dp.coerceAtMost(AURA_HOME_REFERENCE_MAX_WIDTH)
+    val screenWidth = auraWindowInfo().configWidthDp.dp.coerceAtMost(AURA_HOME_REFERENCE_MAX_WIDTH)
     // Match the exact width calculation from AuraArtistItemsScreen (GridCells.Fixed(2) with 14.dp gap)
     val twoColumnWidth = (screenWidth - AuraSpacing.Gutter * 2 - 14.dp) / 2
     val referenceScale = twoColumnWidth / 156.dp
@@ -713,7 +711,7 @@ fun AuraHomeScreen(
                             if (heroIsRecents) R.string.home_recently_played else R.string.home_for_you,
                         )
                         val distinctQuickPicks = remember(heroCarouselSongs) { heroCarouselSongs.distinctBy { it.id } }
-                        val carouselWidth = (LocalConfiguration.current.screenWidthDp.dp * 0.58f).coerceIn(220.dp, 340.dp)
+                        val carouselWidth = (auraWindowInfo().configWidthDp.dp * 0.58f).coerceIn(220.dp, 340.dp)
                         Column(Modifier.animateItem()) {
                             Spacer(Modifier.height(AuraSpacing.SectionGap))
                             AuraSectionHeader(
@@ -1820,7 +1818,7 @@ private fun AuraQuickPicksCarousel(
     // Read once for the whole carousel instead of once per item: the value is identical for every item
     // and this keeps the per-item composable call count down (standing heat gate).
     val isTvOrCar = rememberIsTvOrCar()
-    val screenHeightDp = LocalConfiguration.current.screenHeightDp
+    val screenHeightDp = auraWindowInfo().configHeightDp
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // Wide pane (an unfolded foldable, a tablet) and not a phone turned on its side (needs height too — the
         // same rule as the rest of the wide chrome). Owner 2026-10-18, fourth round: *«el carrusel en modo plegable no me

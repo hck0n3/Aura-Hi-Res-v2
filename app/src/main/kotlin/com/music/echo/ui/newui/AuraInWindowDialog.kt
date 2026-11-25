@@ -146,7 +146,7 @@ private fun AuraInWindowDialogPanel(
         center -> AuraShapes.Card
         else -> AuraShapes.Sheet
     }
-    val wideMaxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp *
+    val wideMaxHeight = (auraWindowInfo().configHeightDp *
         AuraWideWindowMaxHeightFraction).dp
     // Cerrar arrastrando la barrita (dueño, 2026-10-18); solo las hojas inferiores la tienen.
     val drag = rememberAuraSheetDragState()

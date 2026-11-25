@@ -24,8 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -36,7 +34,6 @@ import androidx.compose.ui.unit.sp
 import iad1tya.echo.music.R
 import iad1tya.echo.music.reco.ContextPattern
 import iad1tya.echo.music.reco.GenreCache
-import iad1tya.echo.music.ui.utils.LocalContentPaneWidth
 import iad1tya.echo.music.ui.utils.WIDE_LAYOUT_BREAKPOINT_DP
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -84,10 +81,7 @@ internal val AuraTrackActionSlotWidth: Dp = AuraSpacing.MinTouchTarget
  */
 @Composable
 internal fun rememberAuraTrackColumns(): Boolean {
-    val widthPx = LocalWindowInfo.current.containerSize.width
-    val density = LocalDensity.current
-    val pane = LocalContentPaneWidth.current ?: with(density) { widthPx.toDp() }
-    return auraTrackColumnsFit(pane)
+    return auraTrackColumnsFit(auraPaneWidthDp().dp)
 }
 
 /**

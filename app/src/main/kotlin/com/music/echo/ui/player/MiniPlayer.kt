@@ -300,8 +300,9 @@ private fun NewMiniPlayer(
     val coroutineScope = rememberCoroutineScope()
     
     val configuration = LocalConfiguration.current
-    val isTabletLandscape = remember(configuration.screenWidthDp, configuration.orientation) {
-        configuration.screenWidthDp >= 600 && configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val windowWidthDp = iad1tya.echo.music.ui.newui.auraWindowInfo().configWidthDp
+    val isTabletLandscape = remember(windowWidthDp, configuration.orientation) {
+        windowWidthDp >= 600 && configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     }
 
     
@@ -692,8 +693,9 @@ private fun LegacyMiniPlayer(
     val coroutineScope = rememberCoroutineScope()
     
     val configuration = LocalConfiguration.current
-    val isTabletLandscape = remember(configuration.screenWidthDp, configuration.orientation) {
-        configuration.screenWidthDp >= 600 && configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val windowWidthDp = iad1tya.echo.music.ui.newui.auraWindowInfo().configWidthDp
+    val isTabletLandscape = remember(windowWidthDp, configuration.orientation) {
+        windowWidthDp >= 600 && configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     }
 
     val offsetXAnimatable = remember { Animatable(0f) }

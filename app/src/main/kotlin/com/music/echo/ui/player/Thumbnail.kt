@@ -436,7 +436,7 @@ fun Thumbnail(
     val isWideLayout = rememberIsWideLayout()
     // Row 522: a TABLET window (Galaxy Tab S12 Ultra ~1 600 dp wide) is not an unfolded foldable: the 420 dp ceiling below was
     // made for the fold (#50) and left a small cover in a huge pane. See [TABLET_COVER_MIN_WINDOW_DP].
-    val isTabletWindow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= TABLET_COVER_MIN_WINDOW_DP
+    val isTabletWindow = iad1tya.echo.music.ui.newui.auraWindowInfo().configWidthDp >= TABLET_COVER_MIN_WINDOW_DP
 
     
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()

@@ -32,7 +32,6 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.ui.utils.isWideLayoutWindow
@@ -64,9 +63,9 @@ import iad1tya.echo.music.utils.rememberLeanMode
 /** Is the current window big enough for the wide floating-window recipe? Same rule as the wide shell. */
 @Composable
 fun rememberAuraWideWindows(): Boolean {
-    val configuration = LocalConfiguration.current
-    val width = configuration.screenWidthDp
-    val height = configuration.screenHeightDp
+    val window = auraWindowInfo()
+    val width = window.configWidthDp
+    val height = window.configHeightDp
     return remember(width, height) { isWideLayoutWindow(width.toFloat(), height.toFloat()) }
 }
 
