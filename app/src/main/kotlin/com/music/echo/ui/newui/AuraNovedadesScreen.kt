@@ -315,7 +315,9 @@ fun AuraNovedadesScreen(
         return
     }
 
-    val screenHeightDp = auraWindowInfo().configHeightDp
+    // Row 877: the same window reading and height line (`isCompactHeight`, 480 dp) as the wide shell.
+    val window = auraWindowInfo()
+    val screenHeightDp = window.heightDp.toInt()
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -323,7 +325,7 @@ fun AuraNovedadesScreen(
     ) {
         val paneWidth = maxWidth
         // Same rule as Inicio's carousel: a wide pane that is not a phone on its side.
-        val wide = paneWidth >= AURA_WIDE_HERO_MIN_WIDTH && screenHeightDp >= 480
+        val wide = paneWidth >= AURA_WIDE_HERO_MIN_WIDTH && !window.isCompactHeight
         val shelfScale = if (wide) cardScale * 1.15f else cardScale
         val layout = NovedadesShelfLayout(
             paneWidth = paneWidth,
@@ -381,7 +383,7 @@ fun AuraNovedadesScreen(
                 // Nothing to show and nothing loading: say so, and offer the retry the pull gesture also gives.
                 if (!isRefreshing && allShelvesEmpty) {
                     item(key = "aura_novedades_empty", contentType = "aura_novedades_empty") {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.auraReadableWidth()) {
                             // Row 674: every release the radar had is seen and played (or too old) — not "never loaded".
                             if (radarCaughtUp) {
                                 AuraEmpty(text = stringResource(R.string.novedades_caught_up))

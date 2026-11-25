@@ -24,22 +24,33 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.navigation.NavController
 import com.music.innertube.models.AlbumItem
 import com.music.innertube.models.ArtistItem
@@ -506,6 +517,11 @@ internal fun AuraSearchGridCard(
  * Results on the left, detail on the right. Only a layout: it measures nothing per frame and animates nothing; the caller
  * decides WHEN it applies ([auraSearchSplitFits] on the room it really has).
  *
+ * Book posture (a foldable half opened like a book, row 878): the split moves onto the hinge, so the list is one page and
+ * the detail the other ([auraSearchHingeDetailWidth]). Only then does it read where it sits in the window (a layout
+ * callback, never a frame loop), and it keeps that place only once the screen has settled: flat and folded it is exactly
+ * the split it always was.
+ *
  * @param endPadding air to the right of the detail card (the screens' gutter; the floating card has its own padding).
  * @param bottomPadding room kept under the detail card for the floating bottom bar, like the list's own content padding.
  */
@@ -518,15 +534,52 @@ internal fun AuraSearchSplit(
     list: @Composable () -> Unit,
     detail: @Composable () -> Unit,
 ) {
-    Row(modifier.fillMaxSize()) {
+    val window = auraWindowInfo()
+    val book = window.posture == AuraPosture.Book
+    val density = LocalDensity.current.density
+    val detailOnLeft = LocalLayoutDirection.current == LayoutDirection.Rtl
+    // Left edge and width of this split in window pixels; only tracked in book posture.
+    var box by remember { mutableStateOf<Pair<Float, Float>?>(null) }
+    // The NavHost slides a screen in and out (AuraNavMotion) and a predictive back drags it, so its place in the window
+    // moves on every frame of that. The destination's lifecycle reaches RESUMED only once the transition has finished:
+    // the place is kept (state written, split re-laid out) only then, and the last one seen is committed at that moment.
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val settled = lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    val seen = remember { AuraSplitPlace() }
+    LaunchedEffect(book, settled) {
+        if (book && settled) seen.value?.let { if (it != box) box = it }
+    }
+    val band = box?.takeIf { book }?.let { (left, width) -> auraBookHingeBand(window.posture, window.hinges, left, width, density) }
+    val hingeDetail = box?.let { (_, width) -> auraSearchHingeDetailWidth(width / density, band, detailOnLeft) }
+    Row(
+        modifier
+            .fillMaxSize()
+            .then(
+                if (book) {
+                    Modifier.onGloballyPositioned { coordinates ->
+                        val next = coordinates.positionInWindow().x to coordinates.size.width.toFloat()
+                        seen.value = next
+                        if (lifecycleState.isAtLeast(Lifecycle.State.RESUMED) && next != box) box = next
+                    }
+                } else {
+                    Modifier
+                },
+            ),
+    ) {
         Box(Modifier.weight(1f).fillMaxHeight()) { list() }
+        if (band != null && hingeDetail != null) Spacer(Modifier.width((band.endDp - band.startDp).dp))
         Box(
             Modifier
-                .width(detailWidth)
+                .width(hingeDetail?.dp ?: detailWidth)
                 .fillMaxHeight()
                 .padding(start = 4.dp, end = endPadding, top = 4.dp, bottom = bottomPadding),
         ) { detail() }
     }
+}
+
+/** The split's last place seen while the screen was still moving: plain memory, not state, so writing it redraws nothing. */
+private class AuraSplitPlace {
+    var value: Pair<Float, Float>? = null
 }
 
 /** The card the detail sits in: the app's translucent surface with its hairline, 22 dp corners as the split player's cards. */

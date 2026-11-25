@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -76,6 +78,7 @@ import iad1tya.echo.music.ui.newui.AuraShapes
 import iad1tya.echo.music.ui.newui.AuraSongRow
 import iad1tya.echo.music.ui.newui.AuraSpacing
 import iad1tya.echo.music.ui.newui.AuraType
+import iad1tya.echo.music.ui.newui.auraQuickTileHeight
 import iad1tya.echo.music.ui.newui.OfflineHideKeyboardOnScroll
 import iad1tya.echo.music.ui.newui.OfflineSearchFilter
 import iad1tya.echo.music.ui.newui.OfflineSearchIndex
@@ -687,7 +690,8 @@ private fun OfflineTileCard(tile: OfflineTile, isTvOrCar: Boolean, modifier: Mod
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .height(AURA_QUICK_TILE_HEIGHT)
+            // Row 877: the Inicio tiles' own height, so with large font the count of downloads is not clipped either.
+            .height(auraQuickTileHeight())
             // TV/car: the ring sits ABOVE the clip and the clickable so it draws outside them. No-op on touch.
             .tvFocusable(isTvOrCar, AuraShapes.Card, scaleFocused = 1f)
             .clip(AuraShapes.Card)
@@ -698,7 +702,8 @@ private fun OfflineTileCard(tile: OfflineTile, isTvOrCar: Boolean, modifier: Mod
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(AURA_QUICK_TILE_HEIGHT)
+                .width(AURA_QUICK_TILE_HEIGHT)
+                .fillMaxHeight()
                 .background(AuraPalette.PlayButtonGradient),
         ) {
             AuraIconGlyph(

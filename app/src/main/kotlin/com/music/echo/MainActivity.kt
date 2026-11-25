@@ -2206,6 +2206,7 @@ class MainActivity : ComponentActivity() {
                                                         letterSpacing = 0.2.em
                                                     ),
                                                     maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                                     softWrap = false,
                                                     autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(
                                                         minFontSize = 12.sp,
@@ -2701,6 +2702,12 @@ class MainActivity : ComponentActivity() {
                                         .width(sidePanelWidth),
                                 )
                             }
+                            // Row 877: which sides of the screens' container touch the window edge (the gates of
+                            // the rail and of the two side panels above and below, and the split player's pane).
+                            val cutoutAtStart = !(showRail && currentRoute != "update") &&
+                                !(showSideNowPlaying && sidePanelOnLeft && currentRoute != "update" && !playerBottomSheetState.isExpanded)
+                            val cutoutAtEnd = splitContentEnd == 0.dp &&
+                                !(showSideNowPlaying && !sidePanelOnLeft && currentRoute != "update" && !playerBottomSheetState.isExpanded)
                             // HAZE SOURCE — NEVER UNMOUNTS while children live (unification
                             // 2026-08-31, owner: "problemas de transparencia y lógica"): the
                             // anti-crash evidence closed (row 196 + haze 1.7.2 Samsung shader
@@ -2729,6 +2736,21 @@ class MainActivity : ComponentActivity() {
                                             Modifier.shellHazeSource(shellHazeState)
                                         } else {
                                             Modifier
+                                        }
+                                    )
+                                    // Row 877: in landscape the camera cut-out is beside the content. Every screen,
+                                    // its own header included, moves off it here (consumed, so nothing below adds it
+                                    // twice); the shell top bar already pads the same insets. 0 in portrait. Only a
+                                    // side that meets the window edge: not beside the rail or a side panel, not at
+                                    // the split player's seam. Modo Ambiente glows to every edge and keeps its own
+                                    // content off the camera (safeDrawingPadding), so it is never padded here.
+                                    .then(
+                                        when {
+                                            currentRoute == "ambient_mode" -> Modifier
+                                            cutoutAtStart && cutoutAtEnd -> Modifier.windowInsetsPadding(cutoutInsets.only(WindowInsetsSides.Horizontal))
+                                            cutoutAtStart -> Modifier.windowInsetsPadding(cutoutInsets.only(WindowInsetsSides.Start))
+                                            cutoutAtEnd -> Modifier.windowInsetsPadding(cutoutInsets.only(WindowInsetsSides.End))
+                                            else -> Modifier
                                         }
                                     )
                             ) {

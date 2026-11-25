@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
@@ -152,6 +155,21 @@ internal val AURA_QUICK_ACCESS_WIDE_MIN_WIDTH = 880.dp
 internal val AURA_QUICK_TILE_HEIGHT = 72.dp
 internal val AURA_QUICK_TILE_GAP = 10.dp
 
+/**
+ * Room around the text of a tile: at 100 % two title lines + one subtitle line (18 + 18 + 16 sp) plus this is exactly
+ * [AURA_QUICK_TILE_HEIGHT]. With large font the tile grows by the lines' own growth instead of clipping them (row 877).
+ */
+internal val AURA_QUICK_TILE_TEXT_PAD = 20.dp
+
+/**
+ * One height for every Inicio tile, «Pedir música» and the Inicio-without-internet tiles (row 877): the tile's worst case, two
+ * title lines + one subtitle line (the invite's one + two is never taller), so they never jump between each other.
+ */
+@Composable
+internal fun auraQuickTileHeight(): Dp = with(LocalDensity.current) {
+    maxOf(AURA_QUICK_TILE_HEIGHT, AuraType.MiniTitle.lineHeight.toDp() * 2 + AuraType.MiniArtist.lineHeight.toDp() + AURA_QUICK_TILE_TEXT_PAD)
+}
+
 /** The «Pedir música» card: the same height as a tile (it is the same card, spanning the whole row). */
 internal val AURA_INVITE_CARD_HEIGHT = AURA_QUICK_TILE_HEIGHT
 
@@ -241,10 +259,11 @@ internal fun AuraHomeInviteCard(
 }
 
 /**
- * The one card of the Inicio shortcuts — the four tiles AND «Pedir música» are drawn by this, so they cannot drift apart: a fixed
- * [AURA_QUICK_TILE_HEIGHT] row on the SurfaceFill plate with its SurfaceLine hairline and the card corners; at the left a SQUARE
- * block that fills the card's whole height with the play button's own gradient (so it follows the cover's colours, with its own
- * ink guaranteed to read); at the right the title ([titleMaxLines] lines at most) and the subtitle.
+ * The one card of the Inicio shortcuts — the four tiles AND «Pedir música» are drawn by this, so they cannot drift apart: an
+ * [AURA_QUICK_TILE_HEIGHT] row (taller only with large font) on the SurfaceFill plate with its SurfaceLine hairline and the card
+ * corners; at the left a block [AURA_QUICK_TILE_HEIGHT] wide (a square at 100 %) that fills the card's whole height with the
+ * play button's own gradient (so it follows the cover's colours, with its own ink guaranteed to read); at the right the title
+ * ([titleMaxLines] lines at most) and the subtitle.
  */
 @Composable
 private fun AuraBlockCard(
@@ -261,10 +280,11 @@ private fun AuraBlockCard(
     icon: @Composable () -> Unit,
 ) {
     val toneOf = rememberAuraTileTone(tone)
+    val tileHeight = auraQuickTileHeight()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .height(AURA_QUICK_TILE_HEIGHT)
+            .height(tileHeight)
             // TV/car: the ring sits ABOVE the clip and the clickable so it draws outside them. No-op on touch.
             .tvFocusable(isTvOrCar, AuraShapes.Card, scaleFocused = 1f)
             .clip(AuraShapes.Card)
@@ -287,7 +307,8 @@ private fun AuraBlockCard(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(AURA_QUICK_TILE_HEIGHT)
+                .width(AURA_QUICK_TILE_HEIGHT)
+                .fillMaxHeight()
                 .background(toneOf.block),
         ) {
             if (loading) {
