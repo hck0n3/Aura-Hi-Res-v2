@@ -28,3 +28,27 @@ internal fun auraLibraryListColumns(paneWidthDp: Float): Int {
     if (auraWidthClassOf(paneWidthDp) == AuraWidthClass.Compact) return 1
     return (paneWidthDp / AURA_LIBRARY_LIST_MIN_COLUMN_DP).toInt().coerceIn(1, AURA_LIBRARY_LIST_MAX_COLUMNS)
 }
+
+/** Share of the pane the header column takes on a detail page (plan: «~40 %»). */
+internal const val AURA_DETAIL_HEADER_FRACTION = 0.4f
+
+/** The header column is the phone header: never narrower than the narrowest phone it is drawn for… */
+internal const val AURA_DETAIL_HEADER_MIN_DP = 320f
+
+/** …and never wider than the widest phone (`AURA_HOME_REFERENCE_MAX_WIDTH`, 430 dp), so its square cover stays a cover. */
+internal const val AURA_DETAIL_HEADER_MAX_DP = 430f
+
+/** The track column must keep at least one readable column of rows. */
+internal const val AURA_DETAIL_BODY_MIN_DP = AURA_LIBRARY_LIST_MIN_COLUMN_DP
+
+/**
+ * Pure: width (dp) of the header column of a detail page in a pane [paneWidthDp] wide, or `null` = one column, exactly as
+ * before. Two columns need a window that is not compact (width) nor compact-height (a phone on its side keeps its page),
+ * and room for both: the header at 40 % of the pane between 320 and 430 dp, and at least 400 dp left for the tracks —
+ * from a 720 dp pane on (a medium pane where it fits, every expanded pane).
+ */
+internal fun auraDetailHeaderWidthDp(paneWidthDp: Float, compactHeight: Boolean): Float? {
+    if (compactHeight || auraWidthClassOf(paneWidthDp) == AuraWidthClass.Compact) return null
+    val header = (paneWidthDp * AURA_DETAIL_HEADER_FRACTION).coerceIn(AURA_DETAIL_HEADER_MIN_DP, AURA_DETAIL_HEADER_MAX_DP)
+    return header.takeIf { paneWidthDp - header >= AURA_DETAIL_BODY_MIN_DP }
+}

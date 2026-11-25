@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -527,6 +526,8 @@ fun AuraLocalPlaylistScreen(
     // ── Reordenar arrastrando ─────────────────────────────────────────────────────────────────────
 
     val lazyListState = rememberLazyListState()
+    // Row 876: in two columns the header has a list of its own (the hero's parallax follows it there).
+    val headerListState = rememberLazyListState()
     // Opens on the cover, never scrolled past it (see AuraOpenAtTop).
     AuraOpenAtTop(lazyListState)
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
@@ -618,6 +619,14 @@ fun AuraLocalPlaylistScreen(
         trackGenres.anyKnown(rows) { row -> row.song.artists.map { it.name } }
     }
 
+    // Row 876 (plan, phase 1 item 4): a pane wide enough for two columns keeps the phone header (cover with its ✎, title,
+    // buttons, «Acerca de») in a left column that stays in view; the sort bar, the songs (drag-reorder, swipe, selection)
+    // and the footers scroll on their own in the right one. Only with songs and outside the search, as the header itself.
+    val headerWidth = rememberAuraDetailHeaderWidth()?.takeIf {
+        !isSearching && playlist?.let { it.songCount != 0 || it.playlist.remoteSongCount != 0 } == true
+    }
+    val heroListState = if (headerWidth != null) headerListState else lazyListState
+
     Box(modifier = Modifier.fillMaxSize().auraScreenBackground(bloom, intensity = 0.40f)) {
         Column(Modifier.fillMaxSize()) {
             if (isSearching) {
@@ -632,8 +641,10 @@ fun AuraLocalPlaylistScreen(
                         .padding(start = 44.dp),
                 )
             }
-            LazyColumn(
-            state = lazyListState,
+            AuraDetailColumns(
+            headerWidth = headerWidth,
+            listState = lazyListState,
+            headerListState = headerListState,
             contentPadding = if (isSearching) {
                 LocalPlayerAwareWindowInsets.current
                     .union(WindowInsets.ime)
@@ -653,7 +664,7 @@ fun AuraLocalPlaylistScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxSize(),
-        ) {
+            header = {
             val current = playlist
             if (current != null) {
                 if (current.songCount == 0 && current.playlist.remoteSongCount == 0) {
@@ -672,7 +683,7 @@ fun AuraLocalPlaylistScreen(
                                 contextId = contextId,
                                 snackbarHostState = snackbarHostState,
                                 onSearch = { isSearching = true },
-                                listState = lazyListState,
+                                listState = heroListState,
                                 downloadState = downloadState,
                                 onMenu = {
                                     menuState.show {
@@ -697,7 +708,13 @@ fun AuraLocalPlaylistScreen(
                             )
                         }
                     }
-
+                }
+            }
+            },
+        ) {
+            val current = playlist
+            if (current != null) {
+                if (current.songCount != 0 || current.playlist.remoteSongCount != 0) {
                     item(key = "aura_lp_sort", contentType = "aura_lp_sort") {
                         AuraInlineSortControl(
                             sortType = sortType,
@@ -1071,7 +1088,8 @@ fun AuraLocalPlaylistScreen(
                 )
                 .align(Alignment.CenterEnd),
             scrollState = lazyListState,
-            headerItems = 2,
+            // In two columns the header is in the other list: only the sort bar sits above the songs here.
+            headerItems = if (headerWidth != null) 1 else 2,
         )
 
         // Sticky chrome: back only. Title/search stay in the scrolling header (owner: no black
