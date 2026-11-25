@@ -3,7 +3,6 @@ package iad1tya.echo.music.ui.component
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.constants.ListItemHeight
@@ -42,7 +41,7 @@ const val ROOMY_LIST_WIDE_DP = 560
 /** Rows for a picker: the whole name always, and a big cover when the window is wide (an unfolded foldable, a tablet). */
 @Composable
 fun roomyListItemSizing(): ListItemSizing =
-    if (LocalConfiguration.current.screenWidthDp >= ROOMY_LIST_WIDE_DP) {
+    if (iad1tya.echo.music.ui.newui.auraWindowInfo().configWidthDp >= ROOMY_LIST_WIDE_DP) {
         ListItemSizing(thumbnail = 72.dp, minHeight = 88.dp, titleLines = 3, fixedHeight = false)
     } else {
         ListItemSizing(thumbnail = ListThumbnailSize, minHeight = ListItemHeight, titleLines = 3, fixedHeight = false)

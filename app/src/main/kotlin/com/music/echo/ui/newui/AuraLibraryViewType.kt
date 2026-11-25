@@ -67,7 +67,7 @@ internal fun AuraViewTypeToggle(viewType: LibraryViewType, onChange: (LibraryVie
 @Composable
 internal fun auraLibraryCellSize(big: Boolean): Dp {
     val windowWidth = iad1tya.echo.music.ui.utils.LocalContentPaneWidth.current?.value
-        ?: androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.toFloat()
+        ?: auraWindowInfo().configWidthDp.toFloat()
     return auraLibraryCellDp(windowWidth, big).dp
 }
 

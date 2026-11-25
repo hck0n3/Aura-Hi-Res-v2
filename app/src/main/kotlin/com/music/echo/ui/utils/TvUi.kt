@@ -105,7 +105,7 @@ fun rememberIsWideLayout(): Boolean {
 }
 
 /** Window width (dp) at/above which the wide two-pane layouts turn on. See [rememberIsWideLayout]. */
-const val WIDE_LAYOUT_BREAKPOINT_DP = 600
+const val WIDE_LAYOUT_BREAKPOINT_DP = iad1tya.echo.music.ui.newui.AURA_MEDIUM_MIN_WIDTH_DP
 
 /**
  * Window HEIGHT (dp) the wide layouts also need. Material's own "compact height" line: below it the window is a phone
@@ -114,7 +114,7 @@ const val WIDE_LAYOUT_BREAKPOINT_DP = 600
  * dressed as an unfolded foldable (capsule bar, split player, two cards). An unfolded Z Fold 7 is ~750 x 832 dp in
  * EITHER orientation and a tablet is taller than this in both, so they keep the wide layout.
  */
-const val WIDE_LAYOUT_MIN_HEIGHT_DP = 480
+const val WIDE_LAYOUT_MIN_HEIGHT_DP = iad1tya.echo.music.ui.newui.AURA_COMPACT_HEIGHT_BELOW_DP
 
 /** Is a window of [widthDp] x [heightDp] big enough for the wide layouts? Pure, for test. */
 fun isWideLayoutWindow(widthDp: Float, heightDp: Float): Boolean =
@@ -126,11 +126,8 @@ fun isWideLayoutWindow(widthDp: Float, heightDp: Float): Boolean =
  */
 @Composable
 private fun rememberIsExpandedWidth(): Boolean {
-    val widthPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width
-    val density = androidx.compose.ui.platform.LocalDensity.current
     // A screen that only owns PART of the window (the split player takes the right pane) is as wide as that part.
-    val paneOverride = LocalContentPaneWidth.current
-    val width = paneOverride ?: with(density) { widthPx.toDp() }
+    val width = iad1tya.echo.music.ui.newui.auraPaneWidthDp().dp
     return width >= WIDE_LAYOUT_BREAKPOINT_DP.dp
 }
 
@@ -145,9 +142,8 @@ fun rememberIsWideShell(): Boolean {
     val forceSplit by iad1tya.echo.music.utils.rememberPreference(
         iad1tya.echo.music.constants.ForceSplitViewKey, false,
     )
-    val size = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val wide = with(density) { isWideLayoutWindow(size.width.toDp().value, size.height.toDp().value) }
+    val window = iad1tya.echo.music.ui.newui.auraWindowInfo()
+    val wide = isWideLayoutWindow(window.widthDp, window.heightDp)
     return forceSplit || wide
 }
 

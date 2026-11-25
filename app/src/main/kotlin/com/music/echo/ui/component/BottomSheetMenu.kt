@@ -171,7 +171,7 @@ fun BottomSheetMenu(
                 val windowEnter = iad1tya.echo.music.ui.newui.rememberAuraWindowEnter(wide)
                 val windowExit = iad1tya.echo.music.ui.newui.rememberAuraWindowExit(wide)
                 val panelShape = if (wide) iad1tya.echo.music.ui.newui.AuraWindowShapeWide else AuraShapes.Sheet
-                val wideMaxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp *
+                val wideMaxHeight = (iad1tya.echo.music.ui.newui.auraWindowInfo().configHeightDp *
                     iad1tya.echo.music.ui.newui.AuraWideWindowMaxHeightFraction).dp
                 // The area the card floats in: inside the bars and the keyboard, with a margin. A no-op on a phone.
                 Box(

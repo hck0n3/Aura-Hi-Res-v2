@@ -33,7 +33,6 @@ import iad1tya.echo.music.utils.DeviceTier
 import iad1tya.echo.music.utils.PrefsBridge
 import iad1tya.echo.music.utils.isWindowBlurSupported
 import iad1tya.echo.music.utils.rememberPreference
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 
 /**
@@ -126,7 +125,7 @@ fun auraSheetMaxHeightDp(screenHeightDp: Int): Float = screenHeightDp * AuraShee
 /** El [AuraSheetMaxHeightFraction] de la altura de la ventana, en dp. */
 @Composable
 fun rememberAuraSheetMaxHeight(): Dp {
-    val screenHeightDp = LocalConfiguration.current.screenHeightDp
+    val screenHeightDp = auraWindowInfo().configHeightDp
     return remember(screenHeightDp) { auraSheetMaxHeightDp(screenHeightDp).dp }
 }
 

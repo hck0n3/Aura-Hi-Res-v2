@@ -36,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -101,8 +100,7 @@ fun LocalSearchScreen(
         viewModel.query.value = query
     }
 
-    val configuration = LocalWindowInfo.current
-    val isLandscape = configuration.containerSize.width > configuration.containerSize.height
+    val isLandscape = iad1tya.echo.music.ui.newui.auraWindowInfo().isLandscape
 
     LazyColumn(
         state = lazyListState,

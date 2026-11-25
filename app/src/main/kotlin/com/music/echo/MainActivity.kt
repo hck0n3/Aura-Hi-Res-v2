@@ -126,7 +126,6 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -664,6 +663,8 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+            // The window (size, compact height, posture, hinge) is measured ONCE here for the whole app: AuraWindowInfo.kt.
+            iad1tya.echo.music.ui.newui.ProvideAuraWindowInfo {
             // Terms & Conditions gate OUTSIDE the license gate: until the user accepts the current
             // TermsInfo.TERMS_VERSION, the acceptance screen renders INSTEAD of everything else
             // (license flow included, untouched behind it). Re-appears only when the version bumps.
@@ -676,6 +677,7 @@ class MainActivity : ComponentActivity() {
                         syncUtils = syncUtils,
                     )
                 }
+            }
             }
         }
     }
@@ -939,7 +941,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 val focusManager = LocalFocusManager.current
                 val density = LocalDensity.current
-                val configuration = LocalWindowInfo.current
+                val auraWindow = iad1tya.echo.music.ui.newui.auraWindowInfo()
                 val cutoutInsets = WindowInsets.displayCutout
                 val windowsInsets = WindowInsets.systemBars
                 val bottomInset = with(density) { windowsInsets.getBottom(density).toDp() }
@@ -1065,7 +1067,7 @@ class MainActivity : ComponentActivity() {
                             currentRoute == "settings"
                         )
 
-                val isLandscape = configuration.containerDpSize.width > configuration.containerDpSize.height
+                val isLandscape = auraWindow.isLandscape
 
                 // #47 — the nav rail is a WIDTH decision, not an orientation one. An unfolded foldable is a
                 // near-square PORTRAIT window (~700x900): it reports ORIENTATION_PORTRAIT, so `isLandscape`
