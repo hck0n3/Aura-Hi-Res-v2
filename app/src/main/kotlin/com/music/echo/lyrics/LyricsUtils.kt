@@ -4,10 +4,13 @@ package iad1tya.echo.music.lyrics
 
 import android.text.format.DateUtils
 import com.atilika.kuromoji.ipadic.Tokenizer
-import com.github.promeg.pinyinhelper.Pinyin
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Locale
+import net.sourceforge.pinyin4j.PinyinHelper
+import net.sourceforge.pinyin4j.format.HanyuPinyinCaseType
+import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat
+import net.sourceforge.pinyin4j.format.HanyuPinyinToneType
+import net.sourceforge.pinyin4j.format.HanyuPinyinVCharType
 
 @Suppress("RegExpRedundantEscape")
 object LyricsUtils {
@@ -729,12 +732,19 @@ object LyricsUtils {
         romajaBuilder.toString()
     }
 
+    // tinypinyin's output: first reading, lowercase here, no tone marks, ü written as v.
+    private val PINYIN_FORMAT = HanyuPinyinOutputFormat().apply {
+        setCaseType(HanyuPinyinCaseType.LOWERCASE)
+        setToneType(HanyuPinyinToneType.WITHOUT_TONE)
+        setVCharType(HanyuPinyinVCharType.WITH_V)
+    }
+
     suspend fun romanizeChinese(text: String): String = withContext(Dispatchers.Default) {
         if (text.isEmpty()) return@withContext ""
         val builder = StringBuilder(text.length * 2)
         for (ch in text) {
             if (ch in '\u4E00'..'\u9FFF') {
-                val py = Pinyin.toPinyin(ch).lowercase(Locale.getDefault())
+                val py = PinyinHelper.toHanyuPinyinStringArray(ch, PINYIN_FORMAT)?.firstOrNull() ?: ch.toString()
                 builder.append(py).append(' ')
             } else {
                 builder.append(ch)

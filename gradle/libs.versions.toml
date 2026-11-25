@@ -39,7 +39,7 @@ materialKolor = "5.0.1"
 kuromojiIpadic = "0.9.0"
 pipepipeextractor = "bba8d84453"
 bravenewpipeextractor = "991b158fee"
-tinypinyin = "2.0.3"
+pinyin4j = "2.5.1"
 protobuf = "4.36.2"
 protobufPlugin = "0.10.1"
 smoothCorner = "v1.0.0"
@@ -143,7 +143,7 @@ pipepipeextractor = { module = "com.github.maxrave-dev:PipePipeExtractor", versi
 bravenewpipeextractor = { module = "com.github.maxrave-dev:BravePipeExtractor", version.ref = "bravenewpipeextractor" }
 
 kuromoji-ipadic = { module = "com.atilika.kuromoji:kuromoji-ipadic", version.ref = "kuromojiIpadic" }
-tinypinyin = { module = "com.github.promeG:tinypinyin", version.ref = "tinypinyin" }
+pinyin4j = { module = "com.belerweb:pinyin4j", version.ref = "pinyin4j" }
 
 protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
 protobuf-kotlin-lite = { module = "com.google.protobuf:protobuf-kotlin-lite", version.ref = "protobuf" }

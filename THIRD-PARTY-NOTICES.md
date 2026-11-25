@@ -133,3 +133,15 @@ BSD-style; opencore-amr, VisualOn AMR-WB: Apache-2.0) are all GPL-3.0 compatible
 (separate `.so` files in the APK), as the LGPL expects. Used for MP3/MP4 export (`AudioExportService.kt`) and
 for reading ReplayGain tags of local files (`LocalSongScanner.kt`). Replaces `com.arthenica:ffmpeg-kit-full:6.0-2`
 (abandoned upstream; registry row 865).
+
+---
+
+## pinyin4j — BSD (Maven dependency, not vendored)
+
+| Coordinate | Contents |
+| --- | --- |
+| `com.belerweb:pinyin4j:2.5.1` (Maven Central) | Chinese character → Hanyu Pinyin tables (`pinyindb/`) and the `net.sourceforge.pinyin4j` / `com.hp.hpl.sparta` classes |
+
+Source: <https://github.com/belerweb/pinyin4j>, licence declared in its POM: BSD
+(<http://opensource.org/licenses/bsd-license.html>), GPL-3.0 compatible. Used only to romanize Chinese lyrics
+(`LyricsUtils.romanizeChinese`). Replaces `com.github.promeG:tinypinyin:2.0.3` (registry row 866).

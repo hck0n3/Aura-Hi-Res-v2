@@ -620,7 +620,7 @@ dependencies {
 
     implementation(libs.room.runtime)
     implementation(libs.kuromoji.ipadic)
-    implementation(libs.tinypinyin)
+    implementation(libs.pinyin4j)
     ksp(libs.room.compiler)
     implementation(libs.room.ktx)
 

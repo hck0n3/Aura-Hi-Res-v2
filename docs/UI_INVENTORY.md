@@ -2950,6 +2950,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/RomanizationSet
 | Romanizar letras japonesas | Ajustes > Contenido > Romanización | RomanizationSettings.kt:105 | conmutador | rara | siempre |
 | Romanizar letras coreanas | Ajustes > Contenido > Romanización | RomanizationSettings.kt:125 | conmutador | rara | siempre |
 | Romanizar letras chinas | Ajustes > Contenido > Romanización | RomanizationSettings.kt:145 | conmutador | rara | siempre |
+| ↳ Texto romanizado del chino (**fila 866**, 2026-11-25): pinyin sin tonos en minúsculas, «ü» escrita «v» (`LyricsUtils.romanizeChinese`, ahora con pinyin4j en vez de tinypinyin). Sale igual que antes salvo 这, que pasa de «zhei» a «zhe» | Letras (línea romanizada) | lyrics/LyricsUtils.kt | informativo | ocasional | con el conmutador activo y letra en chino |
 | Romanizar letras en hindi | Ajustes > Contenido > Romanización | RomanizationSettings.kt:165 | conmutador | rara | siempre |
 | Romanizar letras en panyabí | Ajustes > Contenido > Romanización | RomanizationSettings.kt:185 | conmutador | rara | siempre |
 
