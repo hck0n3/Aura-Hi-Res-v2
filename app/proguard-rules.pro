@@ -202,3 +202,17 @@
 -keepclasseswithmembers class iad1tya.echo.music.listentogether.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
+
+## ffmpeg-kit (com.antonkarpenko:ffmpeg-kit-audio): its native code calls these back by name over JNI
+## (log, statistics, safOpen, safClose; class names in libffmpegkit.so). The old com.arthenica AAR shipped
+## these as consumer rules; the replacement AAR ships none, so R8 would strip or rename them in release.
+-keep class com.antonkarpenko.ffmpegkit.FFmpegKitConfig {
+    native <methods>;
+    void log(long, int, byte[]);
+    void statistics(long, int, float, float, long, double, double, double);
+    int safOpen(int);
+    int safClose(int);
+}
+-keep class com.antonkarpenko.ffmpegkit.AbiDetect {
+    native <methods>;
+}
