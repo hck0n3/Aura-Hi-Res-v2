@@ -3,6 +3,8 @@
 package iad1tya.echo.music.ui.component
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,6 +36,7 @@ import com.google.android.gms.cast.framework.CastContext
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.EnableGoogleCastKey
+import iad1tya.echo.music.playback.LocalNetworkAccess
 import iad1tya.echo.music.ui.newui.unstealableClick
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.rememberPreference
@@ -75,6 +78,15 @@ fun CastButton(
     
     // Get current media metadata
     val currentMetadata by playerConnection?.mediaMetadata?.collectAsState() ?: remember { mutableStateOf(null) }
+
+    // Registry row 864: Android 17 asks for local network access («Dispositivos cercanos») before the TV may fetch a video
+    // through the phone (CastMediaRelay). Asked when a TV is picked, the moment casting is chosen. Casting goes on whatever
+    // the answer; without it a video the TV cannot fetch itself plays as audio with its notice.
+    val localNetworkLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        Timber.i("CAST_LOCAL_NETWORK granted=%b", granted)
+        // The first video may already have fallen back to audio while the dialog was open: put it back on video.
+        if (granted) castHandler?.onLocalNetworkGranted()
+    }
 
     // Check if Cast is available and disconnect if disabled while casting
     LaunchedEffect(enableGoogleCast) {
@@ -202,6 +214,10 @@ fun CastButton(
                 isConnecting = isConnecting,
                 currentlyConnectedRoute = currentRoute,
                 onRouteSelected = { route ->
+                    if (!LocalNetworkAccess.isGranted(context)) {
+                        // launch() throws once this button has left composition; casting must not depend on it.
+                        runCatching { localNetworkLauncher.launch(LocalNetworkAccess.PERMISSION) }
+                    }
                     castHandler?.connectToRoute(route)
                     menuState.dismiss()
                 },

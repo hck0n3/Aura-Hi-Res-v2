@@ -762,6 +762,13 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             try {
                 settings[ProxyUrlKey]?.let {
                     YouTube.proxy = Proxy(type, it.toInetSocketAddress())
+                    // Registry row 864: on Android 17 a LAN proxy without ACCESS_LOCAL_NETWORK fails every request, as if
+                    // offline. Own launch: the check may resolve DNS. No address in the log (rule 4).
+                    applicationScope.launch(Dispatchers.IO) {
+                        if (iad1tya.echo.music.playback.LocalNetworkAccess.proxyNeedsPermission(this@App, it)) {
+                            Timber.w("PROXY_LAN_BLOCKED local network permission not granted")
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

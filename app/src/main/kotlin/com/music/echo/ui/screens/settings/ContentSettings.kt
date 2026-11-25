@@ -7,6 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -111,6 +114,11 @@ import iad1tya.echo.music.utils.PlaybackLogManager
 import iad1tya.echo.music.ui.component.PlaybackLogsDialog
 import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import iad1tya.echo.music.playback.LocalNetworkAccess
+import timber.log.Timber
 import iad1tya.echo.music.utils.dataStore
 import java.net.Proxy
 import iad1tya.echo.music.utils.ActionId
@@ -143,6 +151,20 @@ fun ContentSettings(
     val (proxyUrl, onProxyUrlChange) = rememberPreference(key = ProxyUrlKey, defaultValue = "host:port")
     val (proxyUsername, onProxyUsernameChange) = rememberPreference(key = ProxyUsernameKey, defaultValue = "username")
     val (proxyPassword, onProxyPasswordChange) = rememberPreference(key = ProxyPasswordKey, defaultValue = "password")
+    // Registry row 864: on Android 17 a proxy on the LAN needs local network access («Dispositivos cercanos»), or every
+    // request through it fails. Asked when such a proxy is saved or switched on; the setting is kept whatever the answer.
+    val localNetworkLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        Timber.i("PROXY_LOCAL_NETWORK granted=%b", granted)
+    }
+    val proxyPermissionScope = rememberCoroutineScope()
+    val askLocalNetworkForProxy: (String) -> Unit = { hostPort ->
+        proxyPermissionScope.launch {
+            if (withContext(Dispatchers.IO) { LocalNetworkAccess.proxyNeedsPermission(context, hostPort) }) {
+                // launch() throws once this screen has left composition; saving must not depend on it.
+                runCatching { localNetworkLauncher.launch(LocalNetworkAccess.PERMISSION) }
+            }
+        }
+    }
     val (enableKugou, onEnableKugouChange) = rememberPreference(key = EnableKugouKey, defaultValue = true)
     val (enableLrclib, onEnableLrclibChange) = rememberPreference(key = EnableLrcLibKey, defaultValue = true)
     val (enableBetterLyrics, onEnableBetterLyricsChange) = rememberPreference(key = EnableBetterLyricsKey, defaultValue = true)
@@ -316,6 +338,7 @@ fun ContentSettings(
                     onClick = {
                         ActionLog.tap(ActionId.SETCONT_PROXY_SAVE)
                         onProxyUrlChange(tempProxyUrl)
+                        askLocalNetworkForProxy(tempProxyUrl)
                         onProxyUsernameChange(if (authEnabled) tempProxyUsername else "")
                         onProxyPasswordChange(if (authEnabled) tempProxyPassword else "")
                         showProxyConfigurationDialog = false
@@ -919,7 +942,7 @@ fun ContentSettings(
                         trailingContent = {
                             Switch(
                                 checked = proxyEnabled,
-                                onCheckedChange = onProxyEnabledChange,
+                                onCheckedChange = { onProxyEnabledChange(it); if (it) askLocalNetworkForProxy(proxyUrl) },
                                 thumbContent = {
                                     Icon(
                                         painter = painterResource(
@@ -931,7 +954,7 @@ fun ContentSettings(
                                 }
                             )
                         },
-                        onClick = { onProxyEnabledChange(!proxyEnabled) }
+                        onClick = { onProxyEnabledChange(!proxyEnabled); if (!proxyEnabled) askLocalNetworkForProxy(proxyUrl) }
                     )
                 )
                 if (proxyEnabled) {

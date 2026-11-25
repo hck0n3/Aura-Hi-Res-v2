@@ -6,6 +6,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Registry row 864 (targetSdk 37, Android 17): traffic to a LAN address needs this runtime permission. Used by the
+         user's proxy when it is on the LAN (asked when it is saved or switched on, ContentSettings) and, in the gms build,
+         by the Cast video relay (asked when a TV is picked, CastButton). -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

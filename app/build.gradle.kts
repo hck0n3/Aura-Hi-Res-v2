@@ -227,7 +227,9 @@ android {
         if (noSub) versionNameSuffix = "-nosub"
         buildConfigField("Boolean", "REQUIRE_SUBSCRIPTION", (!noSub).toString())
         minSdk = 26
-        targetSdk = 36
+        // Owner decision H18 (docs/plan/DECISIONES_2026-11-24.md): Android 17. Every API 37 behaviour change is listed,
+        // affected or not, in registry row 864 (local network permission for the Cast video relay, background audio).
+        targetSdk = 37
         // Aura Hi-Res v2 (owner decision, 2026-08-25): fresh public identity 2.0.0 for the new
         // repository/app "Aura Hi-Res v2" — the old published app (iad1tya.echo.music) is frozen
         // and never receives another update. versionCode stays monotonic (never below the last
