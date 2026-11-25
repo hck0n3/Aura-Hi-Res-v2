@@ -154,7 +154,8 @@ class SpotifyLoginActivity : ComponentActivity() {
         text = label
         setTextColor(Color.rgb(30, 215, 96))
         textSize = sizeSp
-        maxLines = 1
+        maxLines = 2
+        ellipsize = android.text.TextUtils.TruncateAt.END
         setPadding(dp(10), dp(12), dp(10), dp(12))
         setOnClickListener { onClick() }
     }

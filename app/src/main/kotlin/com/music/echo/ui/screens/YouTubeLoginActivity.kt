@@ -177,7 +177,8 @@ class YouTubeLoginActivity : ComponentActivity() {
         text = label
         setTextColor(Color.rgb(255, 68, 68))
         textSize = sizeSp
-        maxLines = 1
+        maxLines = 2
+        ellipsize = TextUtils.TruncateAt.END
         setPadding(dp(10), dp(12), dp(10), dp(12))
         setOnClickListener { onClick() }
     }
