@@ -98,9 +98,11 @@ class AuraHomeLayoutTest {
         val home = main("ui/newui/AuraHomeScreen.kt")
         assertTrue("pulsarlo mientras carga cancela la elección (UI_INVENTORY §10)", home.contains("running.cancel()"))
         assertTrue(home.contains("viewModel.getRandomItem()"))
-        // The counts are read in the block, so a finished download does not recompose the whole Home.
-        assertTrue(layout.contains("LocalDownloadUtil.current.downloads.collectAsState()"))
+        // The counts are read in the block, so a finished download does not recompose the whole Home. Row 855: the
+        // «Descargado» count is the list's own rows (song.isDownloaded), not Media3's download index.
+        assertTrue(layout.contains("remember(database) { database.downloadedSongCounts() }.collectAsState(initial = DownloadedSongCounts.EMPTY)"))
         assertFalse(home.contains("LocalDownloadUtil"))
+        assertFalse(home.contains("downloadedSongCounts"))
     }
 
     @Test

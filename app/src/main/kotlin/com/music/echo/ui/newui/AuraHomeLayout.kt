@@ -27,12 +27,12 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.media3.exoplayer.offline.Download
 import androidx.navigation.NavController
 import iad1tya.echo.music.LocalDatabase
-import iad1tya.echo.music.LocalDownloadUtil
 import iad1tya.echo.music.R
+import iad1tya.echo.music.constants.HideVideoSongsKey
 import iad1tya.echo.music.constants.TopSize
+import iad1tya.echo.music.db.DownloadedSongCounts
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
@@ -351,8 +351,11 @@ internal fun AuraQuickAccess(
 ) {
     val database = LocalDatabase.current
     val likedCount by remember(database) { database.likedSongsCount() }.collectAsState(initial = 0)
-    val downloads by LocalDownloadUtil.current.downloads.collectAsState()
-    val downloadedCount = remember(downloads) { downloads.values.count { it.state == Download.STATE_COMPLETED } }
+    // Row 855: the same rows and filter as the «Descargado» list it opens, never Media3's index (which also counts the
+    // `<id>::video` companions and records the library no longer lists).
+    val downloadedCounts by remember(database) { database.downloadedSongCounts() }.collectAsState(initial = DownloadedSongCounts.EMPTY)
+    val (hideVideoSongs) = rememberPreference(HideVideoSongsKey, false)
+    val downloadedCount = downloadedCounts.listed(hideVideoSongs)
     val isTvOrCar = rememberIsTvOrCar()
 
     val likedTitle = stringResource(R.string.liked)
