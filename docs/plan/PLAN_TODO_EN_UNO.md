@@ -73,3 +73,18 @@ Herramienta para limpiar artistas que no siguió el usuario · IA que lee tu gus
 iniciar sesión en la TV con QR (cifrado, un solo uso) · copia de seguridad automática periódica (sin cookies ni licencia).
 
 ## Fase 10 — Wrapped y estadísticas (al final, por orden del dueño)
+
+## Agrupación en 7 betas (decisión del dueño, 2026-11-25)
+
+El dueño preguntó si podían ser menos betas y aceptó («si») agrupar las fases así. Cada beta se prueba más a fondo
+en el emulador y lleva una lista corta de pruebas para el móvil del dueño.
+
+| Beta | Contenido |
+|---|---|
+| 1 | Librerías retenidas (Cast/MediaRouter, targetSdk 37, ffmpeg-kit → variante de audio, tinypinyin → pinyin4j) + Fase 3 (textos sin «YouTube» donde no es funcional, decisión A1) |
+| 2 | Fases 1 y 2 (pantallas grandes/plegables y nueva bienvenida) |
+| 3 | Fase 4 completa (música local) |
+| 4 | Fase 5 completa (OneDrive y Dropbox), sola por ser la más delicada |
+| 5 | Fases 6 y 7 (modo TV y rendimiento) |
+| 6 | Fase 8 + modo «Fidelidad» (H17) |
+| 7 | Fases 9 y 10 (extras y Wrapped) |
