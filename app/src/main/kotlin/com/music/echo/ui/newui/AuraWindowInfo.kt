@@ -56,9 +56,10 @@ data class AuraHinge(
  * Two readings of the same window are kept, ON PURPOSE, until wave 2 unifies them (registry row 869):
  *  - [widthDp] / [heightDp]: `LocalWindowInfo.containerSize` in dp (Float). The wide shell, the width-only layouts and the
  *    track columns have always decided on this one.
- *  - [configWidthDp] / [configHeightDp]: `Configuration.screenWidthDp` / `screenHeightDp` (whole dp). The floating-window
- *    recipe, the sheet height caps, the roomy picker rows, the library cells, Home's shelves and the tablet cover have
- *    always decided on this one.
+ *  - [configWidthDp] / [configHeightDp]: `Configuration.screenWidthDp` / `screenHeightDp` (whole dp). The phone sheet height
+ *    caps (85 % and the quick search's 72 %), the roomy picker rows, the library cells, Home's shelves and the tablet cover
+ *    have always decided on this one. (The floating-window recipe and the wide 80 % caps moved to the window's own size in
+ *    row 874.)
  * They describe the same window but can differ by a rounding (or by the system bars on old platform versions), so
  * moving a call site from one to the other could move a layout across a threshold. Each call site keeps the one it had.
  */

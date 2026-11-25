@@ -76,19 +76,40 @@ class FloatingWindowsWideWidthGuardTest {
 
     @Test
     fun `the containers read the window the way the wide shell does, not Configuration`() {
+        // The two phone-only height caps keep Configuration's height on purpose (next test); nothing else may read it.
+        val phoneCaps = mapOf(
+            "ui/newui/AuraFloatingChrome.kt" to 1,
+            "ui/component/BottomSheetPage.kt" to 1,
+        )
         for (path in containers) {
             val src = main(path)
             assertFalse("$path still reads Configuration's width", src.contains("configWidthDp"))
-            assertFalse("$path still reads Configuration's height", src.contains("configHeightDp"))
+            assertEquals("$path reads Configuration's height only for a phone cap", phoneCaps[path] ?: 0,
+                Regex("configHeightDp").findAll(src).count())
         }
         assertTrue(main("ui/utils/TvUi.kt").contains("val wide = isWideLayoutWindow(window.widthDp, window.heightDp)"))
         val recipe = main("ui/newui/AuraWindowRecipe.kt").substringAfter("fun rememberAuraWideWindows(): Boolean {").substringBefore("\n}")
         assertTrue(recipe.contains("val width = window.widthDp"))
         assertTrue(recipe.contains("val height = window.heightDp"))
-        assertTrue(main("ui/newui/AuraFloatingChrome.kt").contains("val screenHeightDp = auraWindowInfo().heightDp.toInt()"))
         assertEquals(1, Regex(Regex.escape("auraWindowInfo().heightDp *")).findAll(main("ui/component/BottomSheetMenu.kt")).count())
         assertEquals(1, Regex(Regex.escape("auraWindowInfo().heightDp *")).findAll(main("ui/component/BottomSheetPage.kt")).count())
-        assertTrue(main("ui/component/BottomSheetPage.kt").contains("val screenHeightDp = iad1tya.echo.music.ui.newui.auraWindowInfo().heightDp\n"))
+        assertTrue("the wide quick search reads the window",
+            main("ui/component/BottomSheetPage.kt").contains("((if (wideSpotlight) window.heightDp else screenHeightDp.toFloat()) *"))
         assertTrue(main("ui/newui/AuraInWindowDialog.kt").contains("val wideMaxHeight = (auraWindowInfo().heightDp *"))
+    }
+
+    @Test
+    fun `a phone sheet keeps the height cap it had, read from Configuration`() {
+        // Configuration's height leaves the system bars out on older Android versions; the window's own size may not, so a
+        // phone sheet would grow there (review of row 874). The phone caps stay on the reading they always had.
+        val chrome = main("ui/newui/AuraFloatingChrome.kt").substringAfter("fun rememberAuraSheetMaxHeight(): Dp {").substringBefore("\n}")
+        assertTrue(chrome.contains("val screenHeightDp = auraWindowInfo().configHeightDp"))
+        val spotlight = main("ui/component/BottomSheetPage.kt").substringAfter("private fun AuraSpotlightHost(")
+        assertTrue(spotlight.contains("val window = iad1tya.echo.music.ui.newui.auraWindowInfo()\n    val screenHeightDp = window.configHeightDp\n"))
+        assertTrue("the phone keeps its 72 % cap", spotlight.contains("else 0.72f"))
+        // And only the phone paths use them.
+        listOf("ui/component/BottomSheetMenu.kt", "ui/component/BottomSheetPage.kt").forEach {
+            assertTrue(it, main(it).contains("val sheetMaxHeight = rememberAuraSheetMaxHeight()"))
+        }
     }
 }
