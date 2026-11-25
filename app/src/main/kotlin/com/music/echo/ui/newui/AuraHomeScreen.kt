@@ -1819,7 +1819,9 @@ private fun AuraQuickPicksCarousel(
     // Read once for the whole carousel instead of once per item: the value is identical for every item
     // and this keeps the per-item composable call count down (standing heat gate).
     val isTvOrCar = rememberIsTvOrCar()
-    val screenHeightDp = auraWindowInfo().configHeightDp
+    // Row 877: the same window reading and height line (`isCompactHeight`, 480 dp) as the wide shell.
+    val window = auraWindowInfo()
+    val screenHeightDp = window.heightDp.toInt()
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // Wide pane (an unfolded foldable, a tablet) and not a phone turned on its side (needs height too — the
         // same rule as the rest of the wide chrome). Owner 2026-10-18, fourth round: *«el carrusel en modo plegable no me
@@ -1831,7 +1833,7 @@ private fun AuraQuickPicksCarousel(
         // Fifth round, 2026-10-19: *«el carrusel está muy pequeño en modo plegable»*. The large card used to be the phone's
         // 340 × 260 dp inside a 700–900 dp window. [auraWideHeroCardSize] makes it follow the pane (about 46 % of its width
         // and a taller card, capped by the window's height) so two large cards and the smaller ones peeking fill the row.
-        val wide = maxWidth >= AURA_WIDE_HERO_MIN_WIDTH && screenHeightDp >= 480
+        val wide = maxWidth >= AURA_WIDE_HERO_MIN_WIDTH && !window.isCompactHeight
         val wideSize = if (wide) auraWideHeroCardSize(maxWidth, screenHeightDp) else null
         key(songs.size) {
             val carouselState = rememberCarouselState { songs.size }

@@ -315,7 +315,9 @@ fun AuraNovedadesScreen(
         return
     }
 
-    val screenHeightDp = auraWindowInfo().configHeightDp
+    // Row 877: the same window reading and height line (`isCompactHeight`, 480 dp) as the wide shell.
+    val window = auraWindowInfo()
+    val screenHeightDp = window.heightDp.toInt()
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -323,7 +325,7 @@ fun AuraNovedadesScreen(
     ) {
         val paneWidth = maxWidth
         // Same rule as Inicio's carousel: a wide pane that is not a phone on its side.
-        val wide = paneWidth >= AURA_WIDE_HERO_MIN_WIDTH && screenHeightDp >= 480
+        val wide = paneWidth >= AURA_WIDE_HERO_MIN_WIDTH && !window.isCompactHeight
         val shelfScale = if (wide) cardScale * 1.15f else cardScale
         val layout = NovedadesShelfLayout(
             paneWidth = paneWidth,
