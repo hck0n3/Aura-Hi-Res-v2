@@ -171,6 +171,7 @@ if (-not $SkipSdkPackages) {
         $packages = @(
             "platform-tools",
             "platforms;android-36",
+            "platforms;android-37.1",
             "build-tools;36.0.0",
             "ndk;27.3.13750724",
             "cmake;3.22.1"

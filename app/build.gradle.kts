@@ -578,6 +578,7 @@ dependencies {
 
     implementation(libs.compose.runtime)
     implementation(libs.compose.foundation)
+    implementation(libs.compose.material.ripple)
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.util)
     // HALLAZGO-025 (FASE 22): ui-tooling arrastraba PreviewActivity exportada al APK release sin

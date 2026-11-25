@@ -25,7 +25,11 @@ class ComposeVersionAlignmentTest {
         val toml = File(repoRoot, "gradle/libs.versions.toml").readText()
         val declared = Regex("""(?m)^compose = "([^"]+)"""").find(toml)!!.groupValues[1]
         val lock = File(repoRoot, "app/gradle.lockfile").readLines()
-        listOf("androidx.compose.ui:ui:", "androidx.compose.foundation:foundation:", "androidx.compose.runtime:runtime:")
+        listOf(
+            "androidx.compose.ui:ui:", "androidx.compose.foundation:foundation:", "androidx.compose.runtime:runtime:",
+            // Beta9 review: Material 3 1.5.0 alone pulls material-ripple 1.12.0; the BOM pairs it with the Compose line.
+            "androidx.compose.material:material-ripple:",
+        )
             .forEach { artifact ->
                 val locked = lock.filter { it.startsWith(artifact) && it.contains("ReleaseRuntimeClasspath") }
                     .map { it.removePrefix(artifact).substringBefore('=') }
