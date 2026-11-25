@@ -309,28 +309,38 @@ def open_settings():
     return find(dump(), text="Apariencia", exact=False) is not None
 
 
-def settings_search(term):
-    """Types [term] into the Ajustes search box: its results list the row even when every section is collapsed."""
-    root = dump()
-    field = next((n for n in root.walk() if n.cls.endswith("EditText")), None) if root else None
-    if not field:
-        return False
-    tap(*field.center)
-    shell("input text " + term.replace(" ", "%s"))
-    time.sleep(2.0)
-    shell("input keyevent 111")  # ESC hides the keyboard without leaving the screen
-    time.sleep(1.0)
-    return True
+# Ajustes (interfaz nueva) shows collapsed sections; each row lives in one of them (AuraSettingsScreen.kt).
+SETTINGS_GROUP = {
+    "Contenido": "Contenido y letras",
+    "Cuentas": "Cuentas y sincronización",
+    "Acerca de": "Acerca de",
+}
+
+
+def find_all(root, text):
+    return [n for n in root.walk() if n.text == text] if root else []
 
 
 def open_in_settings(label):
-    """Ajustes ▸ [label], whether its section is collapsed or not: search first, plain scrolling as a fallback."""
-    if settings_search(label):
-        n = find(dump(), text=label)
-        if n:
-            tap_node(n)
-            time.sleep(2.0)
-            return True
+    """Ajustes ▸ [label]: taps its collapsed section open first (no typing: the phone keyboard autocorrects),
+    then the row itself. The section and the row can share a name (Acerca de): the row is the lower one."""
+    group = SETTINGS_GROUP.get(label)
+    if group:
+        header, _ = find_scrolling(group, tries=10)
+        if header:
+            tap_node(header)
+            time.sleep(1.5)
+    root = dump()
+    hits = find_all(root, label)
+    if group == label and len(hits) < 2:
+        swipe_up()
+        root = dump()
+        hits = find_all(root, label)
+    if hits:
+        row = max(hits, key=lambda n: n.bounds[1]) if group == label else hits[0]
+        tap_node(row)
+        time.sleep(2.0)
+        return True
     entry, _ = find_scrolling(label, tries=10)
     if entry:
         tap_node(entry)
