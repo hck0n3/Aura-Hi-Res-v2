@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
+import iad1tya.echo.music.ui.screens.welcome.WELCOME_CONNECT_ROUTE
 
 /*
  * The Compose side of the two-pane Ajustes (registry row 873). The decisions are pure, in AuraSettingsPanes.kt; the index
@@ -29,17 +30,30 @@ fun rememberAuraSettingsTwoPanes(): Boolean {
 private fun NavBackStackEntry.isOnboarding(): Boolean = arguments?.getBoolean("onboarding") == true
 
 /**
+ * A step of the welcome: a page in its welcome mode, or a page «Conecta tu música» opened (it sits right above
+ * [WELCOME_CONNECT_ROUTE], e.g. «Restaurar copia» → `settings/backup_restore`). The same test as MainActivity's
+ * `inOnboarding` (row 871). An entry no longer on the back stack (being popped) is not one: the move it is part of always
+ * involves the entry below it, which is the welcome itself or a page that is not a step of it.
+ */
+private fun NavController.isWelcomeStep(entry: NavBackStackEntry): Boolean {
+    if (entry.isOnboarding()) return true
+    val stack = currentBackStack.value
+    val index = stack.indexOfFirst { it.id == entry.id }
+    return index > 0 && stack[index - 1].destination.route == WELCOME_CONNECT_ROUTE
+}
+
+/**
  * For the NavHost's transitions: is the move from [from] to [to] only a change of the right pane of the two-pane Ajustes?
  * Then it has no transition (the full-width slide would carry the unchanged index out and back in). False on a phone,
- * when leaving Ajustes, and for a page in its welcome mode: the app's own transition runs as before.
+ * when leaving Ajustes, and for a step of the welcome: the app's own transition runs as before.
  */
-fun auraSettingsInstantSwap(from: NavBackStackEntry, to: NavBackStackEntry): Boolean =
+fun auraSettingsInstantSwap(navController: NavController, from: NavBackStackEntry, to: NavBackStackEntry): Boolean =
     auraSettingsSwapIsInstant(
         twoPanes = AuraSettingsPanes.twoPanesNow,
         fromRoute = from.destination.route,
-        fromOnboarding = from.isOnboarding(),
+        fromOnboarding = navController.isWelcomeStep(from),
         toRoute = to.destination.route,
-        toOnboarding = to.isOnboarding(),
+        toOnboarding = navController.isWelcomeStep(to),
     )
 
 /**
@@ -62,7 +76,10 @@ fun AuraSettingsPaneFrame(
     val route = entry.destination.route
     val currentContent by rememberUpdatedState(content)
     val page = remember { movableContentOf { currentContent() } }
-    if (auraSettingsPaneSelectionOf(route) == null || !newUi || !twoPanes || entry.isOnboarding()) {
+    // Decided once per entry: what sits below an entry never changes while it is on the stack, and while it is being
+    // popped it is no longer there to be looked up.
+    val welcome = remember(entry) { navController.isWelcomeStep(entry) }
+    if (auraSettingsPaneSelectionOf(route) == null || !newUi || !twoPanes || welcome) {
         page()
     } else {
         AuraSettingsIndexHost(navController = navController, hostRoute = route.orEmpty(), page = page)

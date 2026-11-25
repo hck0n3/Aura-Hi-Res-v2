@@ -2771,7 +2771,7 @@ class MainActivity : ComponentActivity() {
                                     // estaban aqui, solo movidos alla para poder probarlos.
                                     enterTransition = {
                                         // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
-                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(initialState, targetState)) {
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(navController, initialState, targetState)) {
                                             androidx.compose.animation.EnterTransition.None
                                         } else AuraNavMotion.enter(
                                             AuraNavMotion.forward(
@@ -2787,7 +2787,7 @@ class MainActivity : ComponentActivity() {
 
                                     exitTransition = {
                                         // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
-                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(initialState, targetState)) {
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(navController, initialState, targetState)) {
                                             androidx.compose.animation.ExitTransition.None
                                         } else AuraNavMotion.exit(
                                             AuraNavMotion.forward(
@@ -2803,7 +2803,7 @@ class MainActivity : ComponentActivity() {
 
                                     popEnterTransition = {
                                         // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
-                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(initialState, targetState)) {
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(navController, initialState, targetState)) {
                                             androidx.compose.animation.EnterTransition.None
                                         } else AuraNavMotion.enter(
                                             AuraNavMotion.popForward(
@@ -2819,7 +2819,7 @@ class MainActivity : ComponentActivity() {
 
                                     popExitTransition = {
                                         // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
-                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(initialState, targetState)) {
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(navController, initialState, targetState)) {
                                             androidx.compose.animation.ExitTransition.None
                                         } else AuraNavMotion.exit(
                                             AuraNavMotion.popForward(

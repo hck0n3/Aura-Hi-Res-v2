@@ -4680,7 +4680,7 @@ exactamente el de antes. Todas las filas, textos, toques y códigos de `ActionId
 | Búsqueda de Ajustes en ventana ancha | Igual: sus resultados abren la página en el panel derecho, desplazada hasta la fila y con el destello de siempre; el texto buscado y el grupo abierto se conservan al elegir | 873 |
 | Atrás (gesto, botón o flecha) en ventana ancha | Igual que antes: desde una página vuelve a Ajustes (índice con el panel derecho vacío) y desde ahí sale de Ajustes | 873 |
 | Cambio de página dentro de Ajustes en ventana ancha | Barrido de pantalla completa → **sin animación** (solo cambia el panel derecho). Entrar y salir de Ajustes conserva su barrido | 873 |
-| Siguen a pantalla completa también en ventana ancha | Ecualizador, Importar de Spotify, Términos, Política de privacidad, Novedades, Descifrado de reproducción, Estadísticas, Migrar listas, Escuchar juntos (pantalla principal), Suscripción Pro, y cualquier página en su modo de bienvenida («Conecta tu música») | 873 |
+| Siguen a pantalla completa también en ventana ancha | Ecualizador, Importar de Spotify, Términos, Política de privacidad, Novedades, Descifrado de reproducción, Estadísticas, Migrar listas, Escuchar juntos (pantalla principal), Suscripción Pro, y cualquier página en su modo de bienvenida o abierta desde «Conecta tu música» (también «Restaurar copia») | 873 |
 
 ## Anexo 2026-11-25 (fila 874): Fase 1.2, diálogos y hojas centrados en la pantalla ancha (no se quitó ni se ocultó nada)
 

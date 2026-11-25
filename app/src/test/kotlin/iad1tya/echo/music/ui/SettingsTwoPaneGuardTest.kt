@@ -61,7 +61,22 @@ class SettingsTwoPaneGuardTest {
         assertFalse("Spotify import has a welcome mode", registration("settings/spotify_import?onboarding={onboarding}&link={link}").contains("AuraSettingsPaneFrame"))
         // ytm_sync is a pane, but never in its welcome mode.
         assertTrue(frame.contains("arguments?.getBoolean(\"onboarding\") == true"))
-        assertTrue(frame.contains("|| entry.isOnboarding()) {"))
+        assertTrue(frame.contains("|| welcome) {"))
+    }
+
+    @Test
+    fun `a page the welcome opens is a step of the welcome, never a pane with the index`() {
+        // «Conecta tu música ▸ Restaurar copia» opens a plain settings/backup_restore (no onboarding argument).
+        assertTrue(main("ui/screens/welcome/WelcomeConnectScreen.kt").contains("open(\"settings/backup_restore\")"))
+        val step = frame.substringAfter("private fun NavController.isWelcomeStep(entry: NavBackStackEntry): Boolean {").substringBefore("\n}")
+        assertTrue(step.contains("if (entry.isOnboarding()) return true"))
+        assertTrue("the entry right below it is the welcome, as in MainActivity's inOnboarding",
+            step.contains("return index > 0 && stack[index - 1].destination.route == WELCOME_CONNECT_ROUTE"))
+        assertTrue(main("MainActivity.kt").contains("navController.previousBackStackEntry?.destination?.route ==\n                        iad1tya.echo.music.ui.screens.welcome.WELCOME_CONNECT_ROUTE"))
+        // The frame and the transitions use the same test.
+        assertTrue(frame.contains("val welcome = remember(entry) { navController.isWelcomeStep(entry) }"))
+        assertTrue(frame.contains("fromOnboarding = navController.isWelcomeStep(from),"))
+        assertTrue(frame.contains("toOnboarding = navController.isWelcomeStep(to),"))
     }
 
     @Test
@@ -97,10 +112,10 @@ class SettingsTwoPaneGuardTest {
         assertTrue(screen.contains("else WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom"))
         assertTrue(screen.contains("else LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)"))
         // A page on a phone (or with the classic interface) is the page itself, nothing around it.
-        assertTrue(frame.contains("if (auraSettingsPaneSelectionOf(route) == null || !newUi || !twoPanes || entry.isOnboarding()) {\n        page()"))
+        assertTrue(frame.contains("if (auraSettingsPaneSelectionOf(route) == null || !newUi || !twoPanes || welcome) {\n        page()"))
         // A phone keeps the app's slide: only a move between two-pane Ajustes routes skips it, in the four transitions.
         val activity = main("MainActivity.kt")
-        val swap = "if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(initialState, targetState)) {"
+        val swap = "if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(navController, initialState, targetState)) {"
         assertEquals(4, Regex(Regex.escape(swap)).findAll(activity).count())
         assertEquals(2, Regex("""\} else AuraNavMotion\.enter\(""").findAll(activity).count())
         assertEquals(2, Regex("""\} else AuraNavMotion\.exit\(""").findAll(activity).count())
