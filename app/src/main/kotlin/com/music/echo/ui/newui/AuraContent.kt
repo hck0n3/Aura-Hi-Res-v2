@@ -1189,6 +1189,7 @@ fun AuraSongRow(
                                 style = AuraType.QualityBadge,
                                 color = AuraPalette.Teal,
                                 maxLines = 1,
+                                overflow = AuraDefaultOverflow,
                             )
                         }
                     }
@@ -1299,7 +1300,8 @@ internal const val AuraSongPageSize = 4
 private val AuraSongPagePeek = 64.dp
 private val AuraSongPageGap = 12.dp
 private val AuraSongRowSlot = 66.dp
-private val AuraSongPageHeight = AuraSongRowSlot * AuraSongPageSize
+/** [AuraSongRowSlot] minus the row's two text lines at 100 % ([AuraType.RowTitle] 20 sp + [AuraType.RowSubtitle] 18 sp). */
+private val AuraSongRowTextPad = 28.dp
 private val AuraSongDividerInset = 50.dp + AuraSpacing.RowInner
 
 @Composable
@@ -1310,6 +1312,11 @@ fun AuraSongPages(
 ) {
     if (itemCount <= 0) return
     val pageCount = (itemCount + AuraSongPageSize - 1) / AuraSongPageSize
+    // Row 870 (large font): a fixed 66 dp slot clipped the artist line; the slot now grows with the two text lines.
+    val rowSlot = with(LocalDensity.current) {
+        maxOf(AuraSongRowSlot, AuraType.RowTitle.lineHeight.toDp() + AuraType.RowSubtitle.lineHeight.toDp() + AuraSongRowTextPad)
+    }
+    val pageHeight = rowSlot * AuraSongPageSize
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         // Row 522 (owner 2026-10-29, Galaxy Tab S12 Ultra): one page took the whole width and the next one only peeked at
         // the far right edge, so a tablet showed four rows of songs lost in an empty strip. A wide pane now shows several
@@ -1330,7 +1337,7 @@ fun AuraSongPages(
             horizontalArrangement = Arrangement.spacedBy(AuraSongPageGap),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(AuraSongPageHeight + AuraSpacing.SectionGap)
+                .height(pageHeight + AuraSpacing.SectionGap)
                 .padding(top = AuraSpacing.SectionGap)
                 .passVerticalToParent(listState)
                 .tvFocusRestorer(),
@@ -1344,13 +1351,13 @@ fun AuraSongPages(
                 Column(
                     modifier = Modifier
                         .width(pageWidth)
-                        .height(AuraSongPageHeight),
+                        .height(pageHeight),
                 ) {
                     for (i in start until end) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(AuraSongRowSlot),
+                                .height(rowSlot),
                         ) {
                             Box(
                                 contentAlignment = Alignment.CenterStart,

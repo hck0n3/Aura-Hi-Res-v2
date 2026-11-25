@@ -85,7 +85,7 @@ class SpotifyLoginActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(background)
             fitsSystemWindows = true
-            addView(topBar(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)))
+            addView(topBar(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
         setContentView(root)
@@ -154,7 +154,8 @@ class SpotifyLoginActivity : ComponentActivity() {
         text = label
         setTextColor(Color.rgb(30, 215, 96))
         textSize = sizeSp
-        maxLines = 1
+        maxLines = 2
+        ellipsize = android.text.TextUtils.TruncateAt.END
         setPadding(dp(10), dp(12), dp(10), dp(12))
         setOnClickListener { onClick() }
     }

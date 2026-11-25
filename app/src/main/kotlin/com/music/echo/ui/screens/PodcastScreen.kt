@@ -928,7 +928,7 @@ private fun ClassicRegionDialog(
             TextButton(onClick = { ActionLog.tap(ActionId.PODCAST_REGION_DIALOG_CLOSE); onDismiss() }) { Text("Cerrar") }
         },
     ) {
-        LazyColumn(modifier = Modifier.height(360.dp)) {
+        LazyColumn(modifier = Modifier.weight(1f, fill = false).height(360.dp)) {
             items(regions, key = { it.first }) { (code, name) ->
                 Text(
                     text = name,

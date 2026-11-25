@@ -336,6 +336,7 @@ fun LyricsMenu(
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                                 if (result.lyrics.startsWith("[")) {
                                     Icon(

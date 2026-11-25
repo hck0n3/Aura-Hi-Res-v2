@@ -754,7 +754,8 @@ private fun ConnectedUsersSection(
                                         text = stringResource(R.string.listen_together_you_are_host),
                                         style = if (skin.enabled) AuraType.QualityBadge else MaterialTheme.typography.labelSmall,
                                         color = if (skin.enabled) skin.accent else MaterialTheme.colorScheme.primary,
-                                        maxLines = 1
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }

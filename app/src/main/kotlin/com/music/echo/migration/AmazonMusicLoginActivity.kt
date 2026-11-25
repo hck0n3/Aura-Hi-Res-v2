@@ -127,6 +127,7 @@ class AmazonMusicLoginActivity : ComponentActivity() {
                 textSize = 18f
                 setTypeface(typeface, Typeface.BOLD)
                 maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
             },
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
         )
@@ -137,7 +138,8 @@ class AmazonMusicLoginActivity : ComponentActivity() {
         text = label
         setTextColor(Color.rgb(37, 209, 218))
         textSize = sizeSp
-        maxLines = 1
+        maxLines = 2
+        ellipsize = android.text.TextUtils.TruncateAt.END
         setPadding(dp(10), dp(12), dp(10), dp(12))
         setOnClickListener { onClick() }
     }

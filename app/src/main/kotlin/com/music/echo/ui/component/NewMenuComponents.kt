@@ -264,6 +264,7 @@ fun MenuHeader(
                             color = inkMuted,
                             style = AuraType.RowSubtitle,
                             maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             softWrap = false,
                         )
                     }

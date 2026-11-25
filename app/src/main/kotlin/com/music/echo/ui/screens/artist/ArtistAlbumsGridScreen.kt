@@ -176,7 +176,7 @@ fun ArtistAlbumsGridScreen(
 
     Column(Modifier.fillMaxSize()) {
         iad1tya.echo.music.ui.component.AuraTopAppBar(
-            title = { Text(title, maxLines = 1) },
+            title = { Text(title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
             navigationIcon = {
                 IconButton(onClick = navController::navigateUp, onLongClick = null) {
                     Icon(painter = painterResource(R.drawable.arrow_back), contentDescription = null)

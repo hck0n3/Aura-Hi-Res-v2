@@ -913,7 +913,7 @@ private fun GlassAudioDeviceBody(
                     .auraClickableInternal(onClick = { ActionLog.tap(ActionId.AUDIODEV_PICKER_DONE); onDone() }, contentDescription = doneText)
                     .padding(horizontal = 28.dp, vertical = 10.dp),
             ) {
-                Text(text = doneText, style = AuraType.Chip, color = AuraPalette.OnGround, maxLines = 1)
+                Text(text = doneText, style = AuraType.Chip, color = AuraPalette.OnGround, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
     }

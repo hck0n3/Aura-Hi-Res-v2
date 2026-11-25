@@ -174,6 +174,7 @@ internal fun AuraTypeBadge(
             style = AuraType.QualityBadge,
             color = tint,
             maxLines = 1,
+            overflow = AuraDefaultOverflow,
         )
     }
 }

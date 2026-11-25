@@ -300,6 +300,7 @@ fun BlockedUsersDialog(
             LazyColumn(
                 state = listState,
                 modifier = Modifier
+                    .weight(1f, fill = false)
                     .fillMaxWidth()
                     .height(280.dp)
             ) {

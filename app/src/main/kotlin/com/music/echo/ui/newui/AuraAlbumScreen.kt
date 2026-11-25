@@ -1640,7 +1640,8 @@ internal fun AuraDetailDescription(
                 text = stringResource(if (expanded) R.string.show_less else R.string.show_more),
                 style = AuraType.Chip,
                 color = AuraPalette.Teal,
-                maxLines = 1,
+                maxLines = 2,
+                overflow = AuraDefaultOverflow,
                 modifier = Modifier
                     .padding(top = 4.dp)
                     .clip(AuraShapes.Pill)
