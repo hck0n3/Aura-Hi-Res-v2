@@ -344,8 +344,7 @@ private fun RecognitionWindow(
                 Toast.makeText(context, R.string.recognition_resolve_failed, Toast.LENGTH_SHORT).show()
                 return@launch
             }
-            // shown == played: log the recognized metadata and the resolved song right before play, so
-            // any future mismatch is visible in the log.
+            // shown == played: log the resolved video id right before play (rule 4: no titles or artists).
             Timber.i("Recognition Play: resolved -> videoId=%s", song.id)
             withContext(Dispatchers.Main) {
                 // THE preloadItem IS THE FIX — this was the actual "plays a completely unrelated song"

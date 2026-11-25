@@ -11,6 +11,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 /**
@@ -103,6 +104,16 @@ class LocalNetworkPermissionGuardTest {
         assertEquals(ActionNotices.Kind.LAN_PROXY_NEEDS_PERMISSION, withTimeout(1_000) { got.await() })
         withTimeout(1_000) { poster.join() }
         screen.cancelAndJoin()
+    }
+
+    @Test
+    fun `a start-up notice whose cause went away before the first screen is dropped`() = runBlocking {
+        val screen = launch(start = CoroutineStart.UNDISPATCHED) { ActionNotices.events.collect { fail("shown: $it") } }
+        withTimeout(1_000) { ActionNotices.postWhenShown(ActionNotices.Kind.LAN_PROXY_NEEDS_PERMISSION) { false } }
+        screen.cancelAndJoin()
+        // App re-checks the permission at that moment (granted from the system settings meanwhile = no notice).
+        val app = read("app/src/main/kotlin/com/music/echo/App.kt")
+        assertTrue(app.contains(") { iad1tya.echo.music.playback.LocalNetworkAccess.proxyNeedsPermission(this@App, it) }"))
     }
 
     @Test

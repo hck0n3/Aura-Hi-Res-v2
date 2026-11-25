@@ -34,8 +34,15 @@ object ActionNotices {
     /** True when a started screen took [kind]; false means nobody would see it and the caller must show its toast. */
     fun post(kind: Kind): Boolean = _events.subscriptionCount.value > 0 && _events.tryEmit(kind)
 
-    /** Suspends until a started screen takes [kind] (a check made at process start, before any screen exists). */
-    suspend fun postWhenShown(kind: Kind) {
-        while (!post(kind)) _events.subscriptionCount.first { it > 0 }
+    /**
+     * Suspends until a started screen takes [kind] (a check made at process start, before any screen exists). [stillNeeded]
+     * runs again once a screen is there, so a notice whose cause went away meanwhile is dropped instead of shown.
+     */
+    suspend fun postWhenShown(kind: Kind, stillNeeded: suspend () -> Boolean = { true }) {
+        while (true) {
+            _events.subscriptionCount.first { it > 0 }
+            if (!stillNeeded()) return
+            if (post(kind)) return
+        }
     }
 }
