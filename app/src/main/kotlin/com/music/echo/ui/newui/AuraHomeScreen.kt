@@ -1126,6 +1126,7 @@ fun AuraHomeScreen(
                                                                                 style = AuraType.QualityBadge,
                                                                                 color = AuraPalette.Teal,
                                                                                 maxLines = 1,
+                                                                                overflow = AuraDefaultOverflow,
                                                                             )
                                                                         }
                                                                     }
@@ -2088,6 +2089,7 @@ internal fun AuraSongShelfCard(
                             style = AuraType.QualityBadge,
                             color = AuraPalette.Teal,
                             maxLines = 1,
+                            overflow = AuraDefaultOverflow,
                         )
                     }
                 }
@@ -2239,6 +2241,7 @@ internal fun AuraTypedYtCoverCard(
                             color = if (visual.kind == AuraContentKind.Video) AuraPalette.Teal
                             else AuraPalette.OnGround,
                             maxLines = 1,
+                            overflow = AuraDefaultOverflow,
                         )
                     }
                 }

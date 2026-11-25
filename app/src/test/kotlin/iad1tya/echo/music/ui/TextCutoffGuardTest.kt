@@ -27,8 +27,6 @@ class TextCutoffGuardTest {
     private companion object {
         /** File (relative to com/music/echo) → (most hits it may keep, why). */
         val ALLOWED: Map<String, Pair<Int, String>> = mapOf(
-            "MainActivity.kt" to (1 to "window-measurement file owned by the phase 1.1 package; reviewed in wave 2"),
-            "ui/newui/AuraHomeScreen.kt" to (3 to "window-measurement file owned by the phase 1.1 package; reviewed in wave 2"),
             "ui/newui/AuraTrackColumns.kt" to (1 to "window-measurement file owned by the phase 1.1 package; reviewed in wave 2"),
             "ui/player/Thumbnail.kt" to (1 to "window-measurement file owned by the phase 1.1 package; reviewed in wave 2"),
             "ui/screens/equalizer/axion/AxionEqScreen.kt" to

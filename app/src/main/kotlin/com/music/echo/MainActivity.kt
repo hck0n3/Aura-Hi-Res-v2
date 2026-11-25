@@ -2204,6 +2204,7 @@ class MainActivity : ComponentActivity() {
                                                         letterSpacing = 0.2.em
                                                     ),
                                                     maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                                     softWrap = false,
                                                     autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(
                                                         minFontSize = 12.sp,
