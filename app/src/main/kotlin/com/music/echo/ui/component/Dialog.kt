@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.text.KeyboardActions
@@ -151,6 +152,9 @@ fun DefaultDialog(
         return
     }
 
+    // WIDE WINDOW (row 874): as a window too, the dialog is a card of the same width as the in-window one, centred, not a
+    // slab across the whole unfolded screen. A phone keeps exactly what it had.
+    val wideWindow = iad1tya.echo.music.ui.newui.rememberAuraWideWindows()
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -158,7 +162,12 @@ fun DefaultDialog(
         CompositionLocalProvider(iad1tya.echo.music.ui.newui.LocalInsideDialogWindow provides true) {
             AuraDialogWindowEffects(enabled = premium)
             AuraFloatingSurface(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .padding(24.dp)
+                    .then(
+                        if (wideWindow) Modifier.widthIn(max = iad1tya.echo.music.ui.newui.AuraDialogMaxWidthDp.dp)
+                        else Modifier,
+                    ),
                 shape = if (premium) AuraShapes.Card else AlertDialogDefaults.shape,
             ) {
                 DialogBody(
@@ -344,6 +353,8 @@ fun ListDialog(
         return
     }
 
+    // WIDE WINDOW (row 874): the same width as the in-window list card (AuraInWindowDialog), centred. Phone: unchanged.
+    val wideWindow = iad1tya.echo.music.ui.newui.rememberAuraWideWindows()
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -351,7 +362,12 @@ fun ListDialog(
         CompositionLocalProvider(iad1tya.echo.music.ui.newui.LocalInsideDialogWindow provides true) {
             AuraDialogWindowEffects(enabled = premium)
             AuraFloatingSurface(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .padding(24.dp)
+                    .then(
+                        if (wideWindow) Modifier.widthIn(max = iad1tya.echo.music.ui.newui.AuraWideCompactWidthDp.dp)
+                        else Modifier,
+                    ),
                 shape = if (premium) AuraShapes.Card else AlertDialogDefaults.shape,
             ) {
                 Column(

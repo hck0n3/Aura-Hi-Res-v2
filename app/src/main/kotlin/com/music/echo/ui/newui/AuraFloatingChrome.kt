@@ -125,6 +125,9 @@ fun auraSheetMaxHeightDp(screenHeightDp: Int): Float = screenHeightDp * AuraShee
 /** El [AuraSheetMaxHeightFraction] de la altura de la ventana, en dp. */
 @Composable
 fun rememberAuraSheetMaxHeight(): Dp {
+    // Only the phone sheets use this cap, and it keeps Configuration's height as it always had: on older Android versions the
+    // window's own height can also count the system bars, so every phone sheet would grow (row 874). The wide caps read the
+    // window.
     val screenHeightDp = auraWindowInfo().configHeightDp
     return remember(screenHeightDp) { auraSheetMaxHeightDp(screenHeightDp).dp }
 }

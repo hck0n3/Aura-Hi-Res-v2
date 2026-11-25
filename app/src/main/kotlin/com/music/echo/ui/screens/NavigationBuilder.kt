@@ -59,6 +59,7 @@ import iad1tya.echo.music.echomusic.changelog.ChangelogScreen
 import iad1tya.echo.music.ui.screens.equalizer.axion.AxionEqScreen
 import iad1tya.echo.music.ui.screens.ambient.AmbientModeScreen
 import iad1tya.echo.music.ui.newui.AlbumScreenHost
+import iad1tya.echo.music.ui.newui.AuraSettingsPaneFrame
 import iad1tya.echo.music.ui.newui.ArtistScreenHost
 import iad1tya.echo.music.ui.newui.AutoPlaylistScreenHost
 import iad1tya.echo.music.ui.newui.CachePlaylistScreenHost
@@ -387,34 +388,48 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable("settings") {
-        SettingsScreenHost(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            SettingsScreenHost(navController, scrollBehavior)
+        }
     }
 
     composable("settings/update") {
-       UpdateSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            UpdateSettings(navController, scrollBehavior)
+        }
     }
 
     // IA hygiene (F0): "settings/account" (AccountSettingsScreen) de-registered — orphan, no navigate() caller.
 
     composable("settings/accounts") {
-        AccountsScreen(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            AccountsScreen(navController, scrollBehavior)
+        }
     }
 
     // Registry row 813: «Revisar suscripciones», from Ajustes ▸ Cuentas ▸ YouTube.
     composable("settings/accounts/subscription_cleanup") {
-        iad1tya.echo.music.ui.screens.settings.SubscriptionCleanupScreen(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.SubscriptionCleanupScreen(navController, scrollBehavior)
+        }
     }
 
     composable("settings/lastfm") {
-        iad1tya.echo.music.ui.screens.settings.LastFMSettingsScreen(navController)
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.LastFMSettingsScreen(navController)
+        }
     }
 
     composable("settings/appearance") {
-        AppearanceSettings(navController, scrollBehavior, activity)
+        AuraSettingsPaneFrame(navController, it) {
+            AppearanceSettings(navController, scrollBehavior, activity)
+        }
     }
 
     composable("settings/appearance/theme") {
-        ThemeScreen(navController)
+        AuraSettingsPaneFrame(navController, it) {
+            ThemeScreen(navController)
+        }
     }
 
     // Liquid Glass settings, reachable in BOTH interfaces.
@@ -426,11 +441,15 @@ fun NavGraphBuilder.navigationBuilder(
     // per-component switches for mini/nav (classic-only render sites) stay hidden on the screen
     // itself under the flag, which is where that truth belongs.
     composable(LIQUID_GLASS_ROUTE) {
-        GlassEffectSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            GlassEffectSettings(navController, scrollBehavior)
+        }
     }
 
     composable("settings/content") {
-        ContentSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            ContentSettings(navController, scrollBehavior)
+        }
     }
 
     composable("uptime") {
@@ -438,20 +457,28 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable("settings/content/romanization") {
-        RomanizationSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            RomanizationSettings(navController, scrollBehavior)
+        }
     }
 
     // Registry 811 (owner H6a): «Ocultos», reached from Ajustes ▸ Contenido ▸ Inicio y descubrimiento.
     composable("settings/content/hidden") {
-        iad1tya.echo.music.ui.screens.settings.HiddenItemsScreen(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.HiddenItemsScreen(navController, scrollBehavior)
+        }
     }
 
     composable("settings/ai") {
-        AiSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            AiSettings(navController, scrollBehavior)
+        }
     }
     
     composable("settings/player") {
-        PlayerSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            PlayerSettings(navController, scrollBehavior)
+        }
     }
 
     composable("settings/youtube_decryption") {
@@ -459,15 +486,21 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable("settings/sound") {
-        iad1tya.echo.music.ui.screens.settings.SoundSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.SoundSettings(navController, scrollBehavior)
+        }
     }
 
     composable("settings/performance") {
-        iad1tya.echo.music.ui.screens.settings.PerformanceSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.PerformanceSettings(navController, scrollBehavior)
+        }
     }
 
     composable("settings/sound/autoeq") {
-        iad1tya.echo.music.ui.screens.equalizer.autoeq.AutoEqScreen(navController)
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.equalizer.autoeq.AutoEqScreen(navController)
+        }
     }
 
     composable(
@@ -481,11 +514,13 @@ fun NavGraphBuilder.navigationBuilder(
     ) { backStackEntry ->
         val autoOpenExportPicker =
             backStackEntry.arguments?.getBoolean("autoOpenExportPicker") ?: false
-        StorageSettings(
-            navController = navController,
-            scrollBehavior = scrollBehavior,
-            autoOpenExportPicker = autoOpenExportPicker,
-        )
+        AuraSettingsPaneFrame(navController, backStackEntry) {
+            StorageSettings(
+                navController = navController,
+                scrollBehavior = scrollBehavior,
+                autoOpenExportPicker = autoOpenExportPicker,
+            )
+        }
     }
 
     composable("settings/equalizer") {
@@ -496,11 +531,15 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable("settings/privacy") {
-        PrivacySettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            PrivacySettings(navController, scrollBehavior)
+        }
     }
 
     composable("settings/backup_restore") {
-        BackupAndRestore(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            BackupAndRestore(navController, scrollBehavior)
+        }
     }
 
     // IA hygiene: "settings/integrations" (IntegrationScreen) removed — its Column body was empty, so the
@@ -543,35 +582,49 @@ fun NavGraphBuilder.navigationBuilder(
         route = "settings/ytm_sync?onboarding={onboarding}",
         arguments = listOf(navArgument("onboarding") { type = NavType.BoolType; defaultValue = false }),
     ) { backStackEntry ->
-        iad1tya.echo.music.ui.screens.settings.YtmSyncScreen(
-            navController,
-            scrollBehavior,
-            onboarding = backStackEntry.arguments?.getBoolean("onboarding") ?: false,
-        )
+        AuraSettingsPaneFrame(navController, backStackEntry) {
+            iad1tya.echo.music.ui.screens.settings.YtmSyncScreen(
+                navController,
+                scrollBehavior,
+                onboarding = backStackEntry.arguments?.getBoolean("onboarding") ?: false,
+            )
+        }
     }
 
     composable(route = "settings/integrations/listen_together") {
-        ListenTogetherSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            ListenTogetherSettings(navController, scrollBehavior)
+        }
     }
 
     composable(route = "settings/device_sync") {
-        iad1tya.echo.music.ui.screens.settings.integrations.DeviceSyncSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.integrations.DeviceSyncSettings(navController, scrollBehavior)
+        }
     }
 
     composable(route = "settings/device_sync/held") {
-        iad1tya.echo.music.ui.screens.settings.integrations.HeldRemovalsScreen(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.integrations.HeldRemovalsScreen(navController, scrollBehavior)
+        }
     }
 
     composable(route = "settings/aura_services") {
-        iad1tya.echo.music.ui.screens.settings.integrations.AuraServicesSettings(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.integrations.AuraServicesSettings(navController, scrollBehavior)
+        }
     }
 
     composable("settings/about") {
-        AboutScreen(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            AboutScreen(navController, scrollBehavior)
+        }
     }
 
     composable("settings/feedback") {
-        FeedbackScreen(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            FeedbackScreen(navController, scrollBehavior)
+        }
     }
 
     composable("settings/terms") {
@@ -583,7 +636,9 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable("settings/logs") {
-        LogsScreen(navController, scrollBehavior)
+        AuraSettingsPaneFrame(navController, it) {
+            LogsScreen(navController, scrollBehavior)
+        }
     }
 
     composable("update") {

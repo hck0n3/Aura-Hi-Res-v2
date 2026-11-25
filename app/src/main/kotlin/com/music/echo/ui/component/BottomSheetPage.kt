@@ -172,7 +172,7 @@ fun BottomSheetPage(
                     wide -> iad1tya.echo.music.ui.newui.AuraWindowShapeWide
                     else -> AuraShapes.Sheet
                 }
-                val wideMaxHeight = (iad1tya.echo.music.ui.newui.auraWindowInfo().configHeightDp *
+                val wideMaxHeight = (iad1tya.echo.music.ui.newui.auraWindowInfo().heightDp *
                     iad1tya.echo.music.ui.newui.AuraWideWindowMaxHeightFraction).dp
                 Box(
                     modifier = Modifier
@@ -330,7 +330,9 @@ private fun AuraSpotlightHost(
     hazeState: dev.chrisbanes.haze.HazeState,
 ) {
     val focusManager = LocalFocusManager.current
-    val screenHeightDp = iad1tya.echo.music.ui.newui.auraWindowInfo().configHeightDp
+    // Phone: the 72 % cap keeps Configuration's height, as it always had (row 874); the wide card reads the window itself.
+    val window = iad1tya.echo.music.ui.newui.auraWindowInfo()
+    val screenHeightDp = window.configHeightDp
     androidx.compose.animation.AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = tween(160)),
@@ -364,7 +366,8 @@ private fun AuraSpotlightHost(
                 val wideSpotlight = iad1tya.echo.music.ui.newui.rememberAuraWideWindows()
                 val cap = minOf(
                     maxHeight,
-                    (screenHeightDp * (if (wideSpotlight) iad1tya.echo.music.ui.newui.AuraWideWindowMaxHeightFraction else 0.72f)).dp,
+                    ((if (wideSpotlight) window.heightDp else screenHeightDp.toFloat()) *
+                        (if (wideSpotlight) iad1tya.echo.music.ui.newui.AuraWideWindowMaxHeightFraction else 0.72f)).dp,
                 )
                 androidx.compose.animation.AnimatedVisibility(
                     visible = visible,

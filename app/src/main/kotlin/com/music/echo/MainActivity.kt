@@ -1304,7 +1304,9 @@ class MainActivity : ComponentActivity() {
                 val topAppBarScrollBehavior = appBarScrollBehavior(
                     canScroll = {
                         !inSearchScreen &&
-                            (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
+                            (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed) &&
+                            // Row 873: the two-pane Ajustes index does not drive the page's top bar beside it.
+                            !iad1tya.echo.music.ui.newui.AuraSettingsPanes.indexScrolling()
                     },
                 )
 
@@ -2770,7 +2772,10 @@ class MainActivity : ComponentActivity() {
                                     // AuraNavMotion; los predicados de direccion son los mismos que
                                     // estaban aqui, solo movidos alla para poder probarlos.
                                     enterTransition = {
-                                        AuraNavMotion.enter(
+                                        // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(navController, initialState, targetState)) {
+                                            androidx.compose.animation.EnterTransition.None
+                                        } else AuraNavMotion.enter(
                                             AuraNavMotion.forward(
                                                 fromIndex = navigationItems.indexOfFirst {
                                                     it.route == initialState.destination.route
@@ -2783,7 +2788,10 @@ class MainActivity : ComponentActivity() {
                                     },
 
                                     exitTransition = {
-                                        AuraNavMotion.exit(
+                                        // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(navController, initialState, targetState)) {
+                                            androidx.compose.animation.ExitTransition.None
+                                        } else AuraNavMotion.exit(
                                             AuraNavMotion.forward(
                                                 fromIndex = navigationItems.indexOfFirst {
                                                     it.route == initialState.destination.route
@@ -2796,7 +2804,10 @@ class MainActivity : ComponentActivity() {
                                     },
 
                                     popEnterTransition = {
-                                        AuraNavMotion.enter(
+                                        // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(navController, initialState, targetState)) {
+                                            androidx.compose.animation.EnterTransition.None
+                                        } else AuraNavMotion.enter(
                                             AuraNavMotion.popForward(
                                                 fromIndex = navigationItems.indexOfFirst {
                                                     it.route == initialState.destination.route
@@ -2809,7 +2820,10 @@ class MainActivity : ComponentActivity() {
                                     },
 
                                     popExitTransition = {
-                                        AuraNavMotion.exit(
+                                        // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(navController, initialState, targetState)) {
+                                            androidx.compose.animation.ExitTransition.None
+                                        } else AuraNavMotion.exit(
                                             AuraNavMotion.popForward(
                                                 fromIndex = navigationItems.indexOfFirst {
                                                     it.route == initialState.destination.route
