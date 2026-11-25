@@ -111,9 +111,17 @@ def parse_ui(xml_text):
     return build(root_el, None)
 
 
-def dump():
+DUMP_COUNT = [0]
+
+
+def dump(save_as=None):
     shell("uiautomator dump /sdcard/aura_ui.xml", timeout=30)
-    return parse_ui(shell("cat /sdcard/aura_ui.xml", timeout=30))
+    xml_text = shell("cat /sdcard/aura_ui.xml", timeout=30)
+    if save_as and OUT:
+        DUMP_COUNT[0] += 1
+        with open(os.path.join(OUT, f"ui-{DUMP_COUNT[0]:02d}-{save_as}.xml"), "w", encoding="utf-8") as f:
+            f.write(xml_text)
+    return parse_ui(xml_text)
 
 
 def all_text(root):
@@ -204,7 +212,7 @@ def check_device():
         sys.exit(f"No encuentro Aura ({PKG}) instalada en el celular.")
     model = shell("getprop ro.product.model").strip()
     sdk = shell("getprop ro.build.version.release").strip()
-    record("Celular y versión", "BIEN", f"{model}, Android {sdk}, Aura {m.group(1)}")
+    record("Celular y versión", "BIEN", f"{model}, Android {sdk}, Aura {m.group(1)}, pantalla {layout_name()}")
 
 
 def check_cold_start():
@@ -223,15 +231,25 @@ def check_cold_start():
 
 
 def tab_cell(root, label):
-    n = find(root, text=label)
-    return clickable_ancestor(n) if n else None
+    """The bar/rail cell of a top-level tab: its label as text, or as content-desc on an icon-only rail."""
+    if root is None:
+        return None
+    for n in root.walk():
+        if n.text == label or n.desc == label or n.desc.startswith(label + ","):
+            return clickable_ancestor(n) or n
+    return None
 
 
 def tab_selected(root, label):
     for n in root.walk() if root else []:
-        if n.selected and any(c.text == label for c in n.walk()):
+        if n.selected and any(c.text == label or c.desc == label or c.desc.startswith(label + ",") for c in n.walk()):
             return True
     return False
+
+
+def layout_name():
+    w, h = screen_size()
+    return f"{w}x{h} ({'pantalla grande/abierto' if min(w, h) >= 1600 else 'teléfono'})"
 
 
 def check_tabs():
@@ -239,7 +257,9 @@ def check_tabs():
         root = dump()
         cell = tab_cell(root, label)
         if not cell:
-            record(f"Pestaña {label}", "MAL", "no encuentro la pestaña en la barra")
+            dump(save_as=f"pestana-{label}-no-encontrada")
+            shot = screenshot(f"pestana-{label}-no-encontrada")
+            record(f"Pestaña {label}", "MAL", f"no encuentro la pestaña ({layout_name()}) · captura {shot}")
             continue
         tap(*cell.center)
         time.sleep(1.5)
@@ -249,19 +269,25 @@ def check_tabs():
         record(f"Pestaña {label}", "BIEN" if ok else "MAL", ("" if ok else "no quedó seleccionada · ") + f"captura {shot}")
     # Edge taps (beta5 fix): 6 px inside each edge of each cell must still select that tab.
     bad = []
+    tested = 0
     for label in TABS:
         for side in ("izq", "der"):
             root = dump()
             cell = tab_cell(root, label)
             if not cell:
                 continue
+            tested += 1
             l, t, r, b = cell.bounds
             x = l + 6 if side == "izq" else r - 6
             tap(x, (t + b) // 2)
             time.sleep(1.0)
             if not tab_selected(dump(), label):
                 bad.append(f"{label} borde {side}")
-    record("Toques en el borde de las pestañas", "BIEN" if not bad else "MAL", ", ".join(bad) if bad else "los 8 bordes abren su pestaña")
+    if tested == 0:
+        record("Toques en el borde de las pestañas", "SALTADA", "no encontré las pestañas, así que no se probó")
+    else:
+        record("Toques en el borde de las pestañas", "BIEN" if not bad else "MAL",
+               ", ".join(bad) if bad else f"los {tested} bordes probados abren su pestaña")
 
 
 def open_settings():
@@ -296,6 +322,8 @@ def check_about():
         texts += all_text(dump())
         swipe_up()
     joined = " ".join(texts)
+    with open(os.path.join(OUT, "acerca-de-texto.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(dict.fromkeys(texts)))
     bad = [w for w in ("Qobuz", "Sin pérdida", "Saavn") if w.lower() in joined.lower()]
     devices_ok = "3 equipos" in joined
     shot = screenshot("acerca-de")
@@ -309,12 +337,16 @@ def check_about():
 def check_settings_screen(path, final_check, name):
     """Opens Ajustes ▸ path[0] ▸ path[1]…, screenshots it and runs final_check(root) -> (status, detail)."""
     if not open_settings():
-        record(name, "MAL", "no pude abrir Ajustes")
+        dump(save_as="no-abre-ajustes")
+        shot = screenshot("no-abre-ajustes")
+        record(name, "MAL", f"no pude abrir Ajustes ({layout_name()}) · captura {shot}")
         return
     for step in path:
         entry, _ = find_scrolling(step, tries=10)
         if not entry:
-            record(name, "MAL", f"no encuentro «{step}»")
+            dump(save_as=f"no-encuentro-{step}")
+            shot = screenshot(f"no-encuentro-{step}")
+            record(name, "MAL", f"no encuentro «{step}» ({layout_name()}) · captura {shot}")
             for _ in path:
                 back()
             return
@@ -346,13 +378,16 @@ def subs_check(root):
 
 
 def check_offline():
-    input("\nPrueba de modo avión: pon una canción a sonar en Aura (de internet) y pulsa Enter aquí... ")
+    input("\nPrueba de modo avión: pon una canción a sonar en Aura (de internet), deja visible el mini reproductor y pulsa Enter aquí... ")
+    if not is_playing():
+        record("Modo avión: aviso «Sin conexión»", "SALTADA", "no detecté música sonando antes de activar el modo avión")
+        return
     shell("cmd connectivity airplane-mode enable")
     time.sleep(20)
-    root = dump()
+    root = dump(save_as="modo-avion")
     seen = any("Sin conexión" in t for t in all_text(root))
     shot = screenshot("modo-avion")
-    playing = "state=3" in shell("dumpsys media_session")
+    playing = is_playing()
     record("Modo avión: aviso «Sin conexión»", "BIEN" if seen else "MAL", f"{'se ve' if seen else 'no se ve'} el aviso · ¿suena? {'sí' if playing else 'no'} · captura {shot}")
     shell("cmd connectivity airplane-mode disable")
     time.sleep(25)
@@ -360,6 +395,11 @@ def check_offline():
     still = any("Sin conexión" in t for t in all_text(root))
     shot = screenshot("vuelve-la-red")
     record("Al volver la red se quita el aviso", "BIEN" if not still else "MAL", f"captura {shot}")
+
+
+def is_playing():
+    out = shell("dumpsys media_session")
+    return bool(re.search(r"state=(3|PlaybackState\.STATE_PLAYING|PLAYING)", out))
 
 
 def check_crashes():
