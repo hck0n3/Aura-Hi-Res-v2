@@ -105,7 +105,8 @@ internal fun auraLibraryColumns(viewType: LibraryViewType, gridCellSize: Dp, lis
 
 /** The Biblioteca list-view column count for the pane this screen is laid out in (window layer, registry row 875). */
 @Composable
-internal fun rememberAuraLibraryListColumns(): Int = auraLibraryListColumns(auraPaneWidthDp())
+internal fun rememberAuraLibraryListColumns(): Int =
+    auraLibraryListColumns(auraPaneWidthDp(), auraWindowInfo().isCompactHeight)
 
 /**
  * A Biblioteca item in either view: the cover card in the grid, a row (same data, same taps) in the list.

@@ -67,7 +67,7 @@ class LibraryDetailColumnsGuardTest {
 
         val viewType = main("ui/newui/AuraLibraryViewType.kt")
         assertTrue(viewType.contains("if (viewType == LibraryViewType.LIST) GridCells.Fixed(listColumns) else GridCells.Adaptive(minSize = gridCellSize)"))
-        assertTrue(viewType.contains("internal fun rememberAuraLibraryListColumns(): Int = auraLibraryListColumns(auraPaneWidthDp())"))
+        assertTrue(viewType.contains("internal fun rememberAuraLibraryListColumns(): Int =\n    auraLibraryListColumns(auraPaneWidthDp(), auraWindowInfo().isCompactHeight)"))
         assertTrue("una sola columna sangra como siempre", viewType.contains("modifier = if (bleed) modifier.auraBleedHorizontal(AuraSpacing.Gutter) else modifier,"))
     }
 
@@ -75,7 +75,8 @@ class LibraryDetailColumnsGuardTest {
     fun `the pinned hub lists its pins in columns on a wide pane and keeps one column while reordering`() {
         val tabs = main("ui/newui/AuraLibraryTabs.kt")
         val hub = tabs.substringAfter("fun AuraLibraryHub(").substringBefore("private fun auraIsPlaylistPinned(")
-        assertTrue(hub.contains("val listColumns = auraLibraryListColumns(paneWidth.value)"))
+        assertTrue(hub.contains("val compactHeight = auraWindowInfo().isCompactHeight"))
+        assertTrue("un móvil tumbado conserva su lista", hub.contains("val listColumns = auraLibraryListColumns(paneWidth.value, compactHeight)"))
         assertTrue(hub.contains("visible.chunked(listColumns)"))
         assertTrue("una fila por columna, la misma fila", hub.contains("line.forEach { r -> pinListRow(r, Modifier.weight(1f)) }"))
         assertTrue("el teléfono conserva su lista", hub.contains("pinListRow(r, Modifier.animateItem())"))

@@ -21,11 +21,12 @@ internal const val AURA_LIBRARY_LIST_MAX_COLUMNS = 3
 
 /**
  * Pure: columns of the Biblioteca LIST view (songs, albums, artists, playlists, the pinned hub) for a pane [paneWidthDp]
- * wide. One on a compact window, as always; from the medium width, as many 400 dp columns as fit (two from 800 dp, three
- * from 1200 dp). The GRID view is not decided here: it keeps its own adaptive cells (`auraLibraryCellDp`).
+ * wide. One on a compact window or a compact-height one ([compactHeight]: a phone on its side keeps its list), as always;
+ * from the medium width, as many 400 dp columns as fit (two from 800 dp, three from 1200 dp). The GRID view is not decided
+ * here: it keeps its own adaptive cells (`auraLibraryCellDp`).
  */
-internal fun auraLibraryListColumns(paneWidthDp: Float): Int {
-    if (auraWidthClassOf(paneWidthDp) == AuraWidthClass.Compact) return 1
+internal fun auraLibraryListColumns(paneWidthDp: Float, compactHeight: Boolean): Int {
+    if (compactHeight || auraWidthClassOf(paneWidthDp) == AuraWidthClass.Compact) return 1
     return (paneWidthDp / AURA_LIBRARY_LIST_MIN_COLUMN_DP).toInt().coerceIn(1, AURA_LIBRARY_LIST_MAX_COLUMNS)
 }
 

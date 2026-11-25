@@ -15,33 +15,41 @@ class AuraLibraryDetailLayoutTest {
     @Test
     fun `a compact window keeps one column of rows`() {
         for (w in listOf(0f, 320f, 360f, 384f, 411f, 480f, 599.9f)) {
-            assertEquals("$w", 1, auraLibraryListColumns(w))
+            assertEquals("$w", 1, auraLibraryListColumns(w, compactHeight = false))
+        }
+    }
+
+    @Test
+    fun `a phone on its side keeps one column of rows`() {
+        // Wide but short (compact height): its width class is medium or expanded, the list stays the phone's.
+        for (w in listOf(640f, 800f, 851f, 915f, 1000f, 1200f)) {
+            assertEquals("$w", 1, auraLibraryListColumns(w, compactHeight = true))
         }
     }
 
     @Test
     fun `a medium pane gets a second column only where two 400 dp columns fit`() {
-        assertEquals(1, auraLibraryListColumns(600f))
-        assertEquals(1, auraLibraryListColumns(750f))
-        assertEquals(1, auraLibraryListColumns(799.9f))
-        assertEquals(2, auraLibraryListColumns(800f))
-        assertEquals(2, auraLibraryListColumns(839.9f))
+        assertEquals(1, auraLibraryListColumns(600f, compactHeight = false))
+        assertEquals(1, auraLibraryListColumns(750f, compactHeight = false))
+        assertEquals(1, auraLibraryListColumns(799.9f, compactHeight = false))
+        assertEquals(2, auraLibraryListColumns(800f, compactHeight = false))
+        assertEquals(2, auraLibraryListColumns(839.9f, compactHeight = false))
     }
 
     @Test
     fun `an expanded pane gets two or three columns and never more`() {
-        assertEquals(2, auraLibraryListColumns(840f))
-        assertEquals(2, auraLibraryListColumns(1199f))
-        assertEquals(3, auraLibraryListColumns(1200f))
-        assertEquals(3, auraLibraryListColumns(1480f))
-        assertEquals(AURA_LIBRARY_LIST_MAX_COLUMNS, auraLibraryListColumns(4000f))
+        assertEquals(2, auraLibraryListColumns(840f, compactHeight = false))
+        assertEquals(2, auraLibraryListColumns(1199f, compactHeight = false))
+        assertEquals(3, auraLibraryListColumns(1200f, compactHeight = false))
+        assertEquals(3, auraLibraryListColumns(1480f, compactHeight = false))
+        assertEquals(AURA_LIBRARY_LIST_MAX_COLUMNS, auraLibraryListColumns(4000f, compactHeight = false))
     }
 
     @Test
     fun `every column of rows is at least 400 dp wide`() {
         var w = 600f
         while (w <= 3000f) {
-            val columns = auraLibraryListColumns(w)
+            val columns = auraLibraryListColumns(w, compactHeight = false)
             if (columns > 1) assertEquals("$w", true, w / columns >= AURA_LIBRARY_LIST_MIN_COLUMN_DP)
             w += 7f
         }

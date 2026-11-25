@@ -579,6 +579,7 @@ fun AuraLibraryHub(
             val paneWidth = maxWidth
             val columns = auraLibraryPinColumns(paneWidth)
             val cardWidth = auraLibraryPinCardWidth(paneWidth, columns)
+            val compactHeight = auraWindowInfo().isCompactHeight
             LazyColumn(
                 state = listState,
                 contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
@@ -776,7 +777,7 @@ fun AuraLibraryHub(
                             )
                         }
                         // Row 875: on a wide pane the pinned rows sit in two or three columns; one on a phone, as always.
-                        val listColumns = auraLibraryListColumns(paneWidth.value)
+                        val listColumns = auraLibraryListColumns(paneWidth.value, compactHeight)
                         if (listColumns > 1) {
                             items(
                                 visible.chunked(listColumns),
