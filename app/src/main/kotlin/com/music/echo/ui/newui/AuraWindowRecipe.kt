@@ -60,12 +60,16 @@ import iad1tya.echo.music.utils.rememberLeanMode
  * constants. This file only decides the SHAPE, the EDGE, the SHADOW, the SIZE and the MOTION of the card.
  */
 
-/** Is the current window big enough for the wide floating-window recipe? Same rule as the wide shell. */
+/**
+ * Is the current window big enough for the wide floating-window recipe? Same rule AND same reading of the window as the wide
+ * shell (`rememberIsWideShell`): the window's own size (registry row 874). Until then this read `Configuration`, so at a
+ * rounding of the threshold a floating window could be a card while the shell around it was still the phone's, or the reverse.
+ */
 @Composable
 fun rememberAuraWideWindows(): Boolean {
     val window = auraWindowInfo()
-    val width = window.configWidthDp
-    val height = window.configHeightDp
+    val width = window.widthDp
+    val height = window.heightDp
     return remember(width, height) { isWideLayoutWindow(width.toFloat(), height.toFloat()) }
 }
 

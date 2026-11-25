@@ -72,8 +72,9 @@ class AuraWindowInfoSourceGuardTest {
         assertTrue(tv.contains("return width >= WIDE_LAYOUT_BREAKPOINT_DP.dp"))
         assertTrue(tv.contains("val wide = isWideLayoutWindow(window.widthDp, window.heightDp)"))
         val recipe = main("ui/newui/AuraWindowRecipe.kt")
-        assertTrue(recipe.contains("val width = window.configWidthDp"))
-        assertTrue(recipe.contains("val height = window.configHeightDp"))
+        // Row 874 (wave 2): the floating-window recipe now reads the same window size as the wide shell above.
+        assertTrue(recipe.contains("val width = window.widthDp"))
+        assertTrue(recipe.contains("val height = window.heightDp"))
         assertTrue(main("ui/newui/AuraTrackColumns.kt").contains("auraTrackColumnsFit(auraPaneWidthDp().dp)"))
     }
 

@@ -172,7 +172,7 @@ fun BottomSheetPage(
                     wide -> iad1tya.echo.music.ui.newui.AuraWindowShapeWide
                     else -> AuraShapes.Sheet
                 }
-                val wideMaxHeight = (iad1tya.echo.music.ui.newui.auraWindowInfo().configHeightDp *
+                val wideMaxHeight = (iad1tya.echo.music.ui.newui.auraWindowInfo().heightDp *
                     iad1tya.echo.music.ui.newui.AuraWideWindowMaxHeightFraction).dp
                 Box(
                     modifier = Modifier
@@ -330,7 +330,7 @@ private fun AuraSpotlightHost(
     hazeState: dev.chrisbanes.haze.HazeState,
 ) {
     val focusManager = LocalFocusManager.current
-    val screenHeightDp = iad1tya.echo.music.ui.newui.auraWindowInfo().configHeightDp
+    val screenHeightDp = iad1tya.echo.music.ui.newui.auraWindowInfo().heightDp
     androidx.compose.animation.AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = tween(160)),

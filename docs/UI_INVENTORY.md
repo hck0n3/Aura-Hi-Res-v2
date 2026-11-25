@@ -4681,3 +4681,13 @@ exactamente el de antes. Todas las filas, textos, toques y códigos de `ActionId
 | Atrás (gesto, botón o flecha) en ventana ancha | Igual que antes: desde una página vuelve a Ajustes (índice con el panel derecho vacío) y desde ahí sale de Ajustes | 873 |
 | Cambio de página dentro de Ajustes en ventana ancha | Barrido de pantalla completa → **sin animación** (solo cambia el panel derecho). Entrar y salir de Ajustes conserva su barrido | 873 |
 | Siguen a pantalla completa también en ventana ancha | Ecualizador, Importar de Spotify, Términos, Política de privacidad, Novedades, Descifrado de reproducción, Estadísticas, Migrar listas, Escuchar juntos (pantalla principal), Suscripción Pro, y cualquier página en su modo de bienvenida («Conecta tu música») | 873 |
+
+## Anexo 2026-11-25 (fila 874): Fase 1.2, diálogos y hojas centrados en la pantalla ancha (no se quitó ni se ocultó nada)
+
+Solo en una ventana ancha (≥ 600 dp de ancho y ≥ 480 dp de alto). En el móvil y en la pantalla exterior del Fold, todo igual.
+
+| Dónde | Antes → ahora | Fila del registro |
+|---|---|---|
+| Diálogos que salen como ventana propia (`DefaultDialog`: confirmaciones de Ajustes, «Crear lista» abierto desde «Añadir a lista», los `AuraAlertDialog` —inicio de sesión de Last.fm, tempo y tono…—, `ui/component/Dialog.kt:168`) | Ocupaban todo el ancho de la pantalla interior menos 24 dp → **tarjeta centrada de hasta 520 dp**, el mismo ancho que esos diálogos tienen cuando salen dentro de la ventana | 874 |
+| Listas en diálogo como ventana propia (`ListDialog`, `Dialog.kt:368`) | Todo el ancho → **tarjeta centrada de hasta 460 dp**, como la lista dentro de la ventana | 874 |
+| Hojas y menús (`BottomSheetMenu`, `BottomSheetPage`, hojas de Material, búsqueda rápida) y diálogos dentro de la ventana | Sin cambios visibles: ya eran tarjetas centradas con tope. Ahora deciden «ventana ancha» y su alto máximo con la misma medida de la ventana que el resto del cromo ancho, así que nunca sale una tarjeta sobre el cromo de móvil ni al revés | 874 |

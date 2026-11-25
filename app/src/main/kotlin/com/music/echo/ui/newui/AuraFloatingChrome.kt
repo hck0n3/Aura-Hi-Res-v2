@@ -125,7 +125,8 @@ fun auraSheetMaxHeightDp(screenHeightDp: Int): Float = screenHeightDp * AuraShee
 /** El [AuraSheetMaxHeightFraction] de la altura de la ventana, en dp. */
 @Composable
 fun rememberAuraSheetMaxHeight(): Dp {
-    val screenHeightDp = auraWindowInfo().configHeightDp
+    // The window's own height, the one the wide recipe reads too (row 874).
+    val screenHeightDp = auraWindowInfo().heightDp.toInt()
     return remember(screenHeightDp) { auraSheetMaxHeightDp(screenHeightDp).dp }
 }
 
