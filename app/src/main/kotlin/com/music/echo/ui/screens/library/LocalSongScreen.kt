@@ -834,11 +834,20 @@ private fun LocalSongScanSheet(
         scanState.isScanning -> stringResource(R.string.scanning_device)
         hasError -> stringResource(R.string.local_songs_scan_failed)
         !hasStoragePermission -> stringResource(R.string.local_songs_permission_body)
-        hasSummary -> stringResource(
-            R.string.local_songs_scan_summary,
-            lastSummary!!.scannedSongs,
-            lastSummary.removedSongs,
-        )
+        // Row 855: the found count is the audio Local lists; videos and the files left out are said apart.
+        hasSummary -> listOfNotNull(
+            stringResource(
+                R.string.local_songs_scan_summary,
+                lastSummary!!.scannedSongs,
+                lastSummary.removedSongs,
+            ),
+            lastSummary.scannedVideos.takeIf { it > 0 }
+                ?.let { pluralStringResource(R.plurals.local_songs_scan_videos, it, it) },
+            lastSummary.skippedUnsupported.takeIf { it > 0 }
+                ?.let { pluralStringResource(R.plurals.local_songs_scan_skipped_unsupported, it, it) },
+            lastSummary.skippedShort.takeIf { it > 0 }
+                ?.let { pluralStringResource(R.plurals.local_songs_scan_skipped_short, it, it) },
+        ).joinToString(" · ")
         else -> stringResource(R.string.local_songs_ready_desc)
     }
 
