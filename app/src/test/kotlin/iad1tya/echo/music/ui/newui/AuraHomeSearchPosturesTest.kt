@@ -60,13 +60,22 @@ class AuraHomeSearchPosturesTest {
     }
 
     @Test
-    fun `the split reads its place in the window only in book posture, and never per frame`() {
+    fun `the split reads its place in the window only in book posture, and keeps it only once the screen has settled`() {
         val root = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "settings.gradle.kts").isFile }
         val split = File(root, "app/src/main/kotlin/com/music/echo/ui/newui/AuraSearchWide.kt").readText()
             .substringAfter("internal fun AuraSearchSplit(").substringBefore("internal fun AuraSearchDetailCard(")
         assertTrue(split.contains("val book = window.posture == AuraPosture.Book"))
         assertTrue(split.contains("if (book) {\n                    Modifier.onGloballyPositioned"))
-        assertTrue("only a changed place is written", split.contains("if (next != box) box = next"))
+        // A navigation slide or a predictive back moves the split every frame: its place is kept only once the screen has
+        // settled (the destination RESUMED), and the last place seen is committed then; while it moves nothing is written.
+        assertTrue(split.contains("seen.value = next"))
+        assertTrue(
+            "only a changed place, once settled, is written",
+            split.contains("if (lifecycleState.isAtLeast(Lifecycle.State.RESUMED) && next != box) box = next"),
+        )
+        assertTrue(split.contains("val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()"))
+        assertTrue(split.contains("LaunchedEffect(book, settled) {\n        if (book && settled) seen.value?.let { if (it != box) box = it }"))
+        assertEquals("nothing else writes the place", 2, Regex("""\bbox = """).findAll(split).count())
         assertTrue(split.contains("auraBookHingeBand(window.posture, window.hinges, left, width, density)"))
         assertTrue(split.contains(".width(hingeDetail?.dp ?: detailWidth)"))
         assertFalse(split.contains("withFrameNanos") || split.contains("while ("))
