@@ -1278,6 +1278,14 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.ONBYT.SYNC` | «Sincronizar con tu cuenta de Google» (bienvenida) |
 | `UI.ONBYT.START` | «Comenzar» (fin de la bienvenida) |
 
+### Bienvenida: permisos (fila 872)
+
+| Código | Acción |
+|---|---|
+| `UI.WELCOME.PERM_ALLOW` | «Permitir» en la tarjeta de un permiso (abre el diálogo del sistema) |
+| `UI.WELCOME.PERM_NOT_NOW` | «Ahora no» en la tarjeta de un permiso |
+| `UI.WELCOME.PERM_CONTINUE` | «Continuar» (fin del paso de permisos; sigue la licencia) |
+
 ### Abrir enlaces de música
 
 | Código | Acción |

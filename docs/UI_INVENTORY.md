@@ -312,6 +312,28 @@ Se muestra en la primera ejecución **y en cada actualización** (`MainActivity.
 | Volver *(solo icono; **pulsación larga = volver a la pantalla principal**)* | Ajustes > Acerca de > Términos | `legal/TermsScreens.kt:257-264` | navegación | rara | siempre |
 | **«Aceptados el %1$s (términos v%2$d)»** | Ajustes > Acerca de > Términos | `legal/TermsScreens.kt:290-298` | informativo | rara | solo si ya se aceptaron |
 
+## 1.10b Paso de permisos de la bienvenida (`WelcomePermissionsGate`) — NUEVO 2026-11-25, fila 872
+
+Va **entre** la puerta legal y la de licencia (`MainActivity.kt:679`: `TermsGate` → este paso → `LicenseGate`) y, como la
+legal, se dibuja EN LUGAR de todo lo demás. **Solo en una instalación nueva** (`ui/screens/welcome/WelcomeFlow.kt`, fila 871):
+quien venía de la beta12 o anterior no lo ve nunca. Desaparece al tocar «Continuar» y no vuelve. Nada se quita ni se
+oculta: cada permiso sigue pidiéndose también donde se usa (reconocer, buscar por voz, música local, salida de audio,
+proxy/Cast en Android 17) y el aviso de notificaciones de siempre al abrir la app (`MainActivity.kt:475`) solo espera a
+que este paso termine en una instalación nueva.
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| **«Permisos»** *(título)* + «Aura pide cada uno solo para lo que se explica aquí. Decir que no nunca te impide seguir…» | Paso de permisos | `ui/screens/welcome/WelcomePermissionsScreen.kt:162`, `:167` | informativo | rara | solo instalación nueva, hasta «Continuar» |
+| Tarjeta **«Notificaciones»** — «Para avisarte de las descargas, las actualizaciones de la app y los estrenos de tus artistas.» | Paso de permisos | `WelcomePermissionsScreen.kt` (`WelcomeFlow.Permission.NOTIFICATIONS`) | acción primaria | rara | solo Android 13+ |
+| Tarjeta **«Música del móvil»** — «Para encontrar y reproducir las canciones guardadas en tu móvil.» | Paso de permisos | ídem (`MUSIC_FILES` en Android 13+, `MUSIC_FILES_LEGACY` hasta Android 12) | acción primaria | rara | siempre |
+| Tarjeta **«Micrófono»** — «Para reconocer la canción que suena, buscar por voz y que el visualizador siga la música.» | Paso de permisos | ídem (`MICROPHONE`) | acción primaria | rara | siempre |
+| Tarjeta **«Dispositivos Bluetooth»** — «Para mostrar tus auriculares y altavoces Bluetooth en la lista de salidas de audio.» | Paso de permisos | ídem (`BLUETOOTH`) | acción primaria | rara | solo Android 12+ |
+| Tarjeta **«Dispositivos de tu red»** — «Para conectar con aparatos de tu red de casa, como una tele o un proxy propio.» | Paso de permisos | ídem (`LOCAL_NETWORK`) | acción primaria | rara | solo Android 17+ |
+| **«Permitir»** *(en cada tarjeta; abre el diálogo del sistema)* | Paso de permisos > tarjeta | `WelcomePermissionsScreen.kt:241` | acción primaria | rara | mientras el permiso no esté concedido (también tras «Ahora no») |
+| **«Ahora no»** *(en cada tarjeta)* | Paso de permisos > tarjeta | `WelcomePermissionsScreen.kt:233` | acción secundaria | rara | mientras no esté concedido ni omitido |
+| «Concedido» (con ✓) / «Sin conceder. Puedes darlo luego en los ajustes del sistema.» | Paso de permisos > tarjeta | `WelcomePermissionsScreen.kt:213` / `:221` | informativo | rara | según la respuesta |
+| **«Continuar»** *(siempre activo: un permiso denegado nunca bloquea)* | Paso de permisos > pie | `WelcomePermissionsScreen.kt:263` | acción primaria | rara | siempre en este paso; sigue la puerta de licencia, sin cambios |
+
 ## 1.11 Puerta de licencia (`LicenseGate`) — bloquea toda la app
 
 Es la superficie que sostiene el negocio. **Todo el texto está hardcoded en español**, salvo el precio.

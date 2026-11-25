@@ -469,7 +469,13 @@ class MainActivity : ComponentActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1000)
+                // Registry row 872: on a fresh install the welcome's permissions step asks for it on its own card, with
+                // its reason; the bare system dialog no longer jumps in front of the terms before that step is over.
+                lifecycleScope.launch {
+                    if (iad1tya.echo.music.ui.screens.welcome.WelcomeFlow.permissionsStepPending(dataStore.data.first())) return@launch
+                    if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return@launch
+                    ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1000)
+                }
             }
         }
 
@@ -668,13 +674,17 @@ class MainActivity : ComponentActivity() {
             // TermsInfo.TERMS_VERSION, the acceptance screen renders INSTEAD of everything else
             // (license flow included, untouched behind it). Re-appears only when the version bumps.
             iad1tya.echo.music.legal.TermsGate {
-                LicenseGate {
-                    echomusicApp(
-                        playerConnection = playerConnection,
-                        database = database,
-                        downloadUtil = downloadUtil,
-                        syncUtils = syncUtils,
-                    )
+                // Registry row 872: the new welcome's permissions step, after the terms and before the licence (both
+                // untouched). A pass-through for every install that predates the welcome (WelcomeFlow).
+                iad1tya.echo.music.ui.screens.welcome.WelcomePermissionsGate {
+                    LicenseGate {
+                        echomusicApp(
+                            playerConnection = playerConnection,
+                            database = database,
+                            downloadUtil = downloadUtil,
+                            syncUtils = syncUtils,
+                        )
+                    }
                 }
             }
         }

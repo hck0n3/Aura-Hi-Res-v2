@@ -976,6 +976,11 @@ enum class ActionId(val code: String) {
     ONBYT_SYNC("UI.ONBYT.SYNC"),
     ONBYT_START("UI.ONBYT.START"),
 
+    // ── Welcome: permissions (row 872) ──
+    WELCOME_PERM_ALLOW("UI.WELCOME.PERM_ALLOW"),
+    WELCOME_PERM_NOT_NOW("UI.WELCOME.PERM_NOT_NOW"),
+    WELCOME_PERM_CONTINUE("UI.WELCOME.PERM_CONTINUE"),
+
     // ── Open music links ──
     OPENLINKS_ALLOW("UI.OPENLINKS.ALLOW"),
     OPENLINKS_LATER("UI.OPENLINKS.LATER"),
