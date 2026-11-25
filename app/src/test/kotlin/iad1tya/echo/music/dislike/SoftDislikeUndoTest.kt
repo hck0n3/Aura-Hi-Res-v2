@@ -193,7 +193,7 @@ class SoftDislikeUndoTest {
         val queue = main("ui/menu/QueueMenu.kt")
         assertTrue(
             queue.substringBefore("title = { Text(text = \"Menos de esto\") }").takeLast(300)
-                .contains("if (iad1tya.echo.music.dislike.SoftDislikeUndoRule.isYouTubeCatalogueSong(mediaMetadata.id, librarySong?.song?.isLocal == true)) {"),
+                .contains("if (iad1tya.echo.music.dislike.SoftDislikeUndoRule.isYouTubeCatalogueSong(mediaMetadata.id, librarySong?.song?.takeIf { it.id == mediaMetadata.id }?.isLocal == true)) {"),
         )
         assertTrue(queue.contains("ActionLog.tap(ActionId.QMENU_LESS_LIKE_THIS)"))
         for (src in listOf(song, queue)) {

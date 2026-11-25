@@ -360,7 +360,7 @@ fun QueueMenu(
                     ),
                     // Row 861: the online menu's «Menos de esto» (YouTubeSongMenu, rows 721/803/852), same store edit and
                     // same «Deshacer»; YouTube catalogue songs only. The song stays in the queue and stays liked.
-                    if (iad1tya.echo.music.dislike.SoftDislikeUndoRule.isYouTubeCatalogueSong(mediaMetadata.id, librarySong?.song?.isLocal == true)) {
+                    if (iad1tya.echo.music.dislike.SoftDislikeUndoRule.isYouTubeCatalogueSong(mediaMetadata.id, librarySong?.song?.takeIf { it.id == mediaMetadata.id }?.isLocal == true)) {
                         Material3MenuItemData(
                             title = { Text(text = "Menos de esto") },
                             description = { Text(text = "Se recomendará menos parecido a esto") },
