@@ -646,7 +646,8 @@ private fun AuraSettingsSubRow(
             text = title,
             style = AuraType.MenuLabel,
             color = AuraPalette.OnGround.copy(alpha = 0.86f),
-            maxLines = 1,
+            // Row 858: «Estado y programación de la sincronización» does not fit one line on a ~360 dp cover screen.
+            maxLines = 2,
             overflow = AuraDefaultOverflow,
         )
         if (description != null) {

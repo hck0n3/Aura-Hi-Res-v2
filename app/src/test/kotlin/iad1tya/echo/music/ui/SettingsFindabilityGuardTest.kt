@@ -70,6 +70,8 @@ class SettingsFindabilityGuardTest {
         assertTrue("the entry, with the account sheet's label and description", accounts.contains(entry))
         val before = accounts.substringBefore(entry)
         assertFalse("not gated on the sign-in (the screen offers it)", before.substringAfterLast("add(AuraSettingsEntry(accountsText)").contains("if ("))
+        val subRow = settings.substringAfter("private fun AuraSettingsSubRow(").substringBefore("if (description != null)")
+        assertTrue("the long label wraps instead of being cut on a narrow screen", subRow.contains("maxLines = 2,"))
         // Ajustes search lists the index rows themselves, so the entry is findable by its own words.
         assertTrue(settings.contains("val topMatches = (groups + more).flatMap { group ->"))
     }
