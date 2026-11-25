@@ -3784,6 +3784,11 @@ class MusicService :
         audioFocusRequest?.let { request ->
             val result = audioManager.requestAudioFocus(request)
             hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            // Registry row 864: with targetSdk 37, Android 17 refuses focus AND silences playback started in the background
+            // without a while-in-use foreground service (mode 0 = not in a call). Logged so a silent «playing» shows in app.log.
+            if (result == AudioManager.AUDIOFOCUS_REQUEST_FAILED && Build.VERSION.SDK_INT >= 37) {
+                Timber.tag(TAG).w("AUDIO_FOCUS_REFUSED sdk=%d mode=%d", Build.VERSION.SDK_INT, audioManager.mode)
+            }
             return hasAudioFocus
         }
         return false
