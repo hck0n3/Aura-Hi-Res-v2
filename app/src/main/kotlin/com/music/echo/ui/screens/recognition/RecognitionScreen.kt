@@ -876,10 +876,7 @@ private fun bestSongMatch(songs: List<SongItem>, result: RecognitionResult): Son
                 s.artists.any { a -> artistMatches(a.name, result.artist) }
         }
     if (match == null) {
-        Timber.w(
-            "Recognition: no confident YouTube Music match for \"%s\" — %s (searched %d songs)",
-            result.title, result.artist, songs.size,
-        )
+        Timber.w("Recognition: no confident YouTube Music match (searched %d songs)", songs.size)
     }
     return match
 }
