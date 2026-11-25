@@ -161,6 +161,15 @@ internal val AURA_QUICK_TILE_GAP = 10.dp
  */
 internal val AURA_QUICK_TILE_TEXT_PAD = 20.dp
 
+/**
+ * One height for every Inicio tile, «Pedir música» and the Inicio-without-internet tiles (row 877): the tile's worst case, two
+ * title lines + one subtitle line (the invite's one + two is never taller), so they never jump between each other.
+ */
+@Composable
+internal fun auraQuickTileHeight(): Dp = with(LocalDensity.current) {
+    maxOf(AURA_QUICK_TILE_HEIGHT, AuraType.MiniTitle.lineHeight.toDp() * 2 + AuraType.MiniArtist.lineHeight.toDp() + AURA_QUICK_TILE_TEXT_PAD)
+}
+
 /** The «Pedir música» card: the same height as a tile (it is the same card, spanning the whole row). */
 internal val AURA_INVITE_CARD_HEIGHT = AURA_QUICK_TILE_HEIGHT
 
@@ -271,11 +280,7 @@ private fun AuraBlockCard(
     icon: @Composable () -> Unit,
 ) {
     val toneOf = rememberAuraTileTone(tone)
-    // One height for every tile and «Pedir música» (the tile's worst case: two title lines + one subtitle line; the
-    // invite's one + two is never taller), so they still never jump between each other.
-    val tileHeight = with(LocalDensity.current) {
-        maxOf(AURA_QUICK_TILE_HEIGHT, AuraType.MiniTitle.lineHeight.toDp() * 2 + AuraType.MiniArtist.lineHeight.toDp() + AURA_QUICK_TILE_TEXT_PAD)
-    }
+    val tileHeight = auraQuickTileHeight()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier

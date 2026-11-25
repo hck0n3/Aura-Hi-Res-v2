@@ -178,11 +178,18 @@ class AuraHomeLayoutTest {
         val block = layout.substringAfter("private fun AuraBlockCard(").substringBefore("private fun AuraQuickTileCard(").substringBefore("internal fun AuraQuickAccess(")
         val tile = layout.substringAfter("private fun AuraQuickTileCard(")
         // Row 877: one height for every tile, the fixed 72 dp at 100 %, growing with large font instead of clipping.
-        assertTrue(block.contains(".height(tileHeight)"))
+        assertTrue(block.contains("val tileHeight = auraQuickTileHeight()") && block.contains(".height(tileHeight)"))
         assertTrue(
-            block.contains("maxOf(AURA_QUICK_TILE_HEIGHT, AuraType.MiniTitle.lineHeight.toDp() * 2 + AuraType.MiniArtist.lineHeight.toDp() + AURA_QUICK_TILE_TEXT_PAD)"),
+            layout.substringAfter("internal fun auraQuickTileHeight(): Dp").substringBefore("\n}\n").contains(
+                "maxOf(AURA_QUICK_TILE_HEIGHT, AuraType.MiniTitle.lineHeight.toDp() * 2 + AuraType.MiniArtist.lineHeight.toDp() + AURA_QUICK_TILE_TEXT_PAD)",
+            ),
         )
         assertFalse("ningún alto fijo queda en la tarjeta", block.contains(".height(AURA_QUICK_TILE_HEIGHT)") || block.contains(".size(AURA_QUICK_TILE_HEIGHT)"))
+        // The Inicio-without-internet tiles are drawn like these: the same height, the same full-height block.
+        val offline = main("ui/screens/OfflineHome.kt").substringAfter("private fun OfflineTileCard(").substringBefore("\n}\n")
+        assertTrue(offline.contains(".height(auraQuickTileHeight())"))
+        assertTrue(offline.contains(".width(AURA_QUICK_TILE_HEIGHT)\n                .fillMaxHeight()"))
+        assertFalse("ningún alto fijo en las baldosas sin conexión", offline.contains(".height(AURA_QUICK_TILE_HEIGHT)") || offline.contains(".size(AURA_QUICK_TILE_HEIGHT)"))
         val type = main("ui/newui/AuraType.kt")
         fun lineHeightSp(style: String) = Regex("""\blineHeight = (\d+)\.sp""")
             .find(type.substringAfter("val $style = TextStyle(").substringBefore(")"))?.groupValues?.get(1)?.toFloat()
