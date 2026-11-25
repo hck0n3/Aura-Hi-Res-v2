@@ -252,8 +252,9 @@ internal fun AuraHomeInviteCard(
 /**
  * The one card of the Inicio shortcuts — the four tiles AND «Pedir música» are drawn by this, so they cannot drift apart: an
  * [AURA_QUICK_TILE_HEIGHT] row (taller only with large font) on the SurfaceFill plate with its SurfaceLine hairline and the card
- * corners; at the left a block [AURA_QUICK_TILE_HEIGHT] wide (a square at 100 %) that fills the card's whole height with the play button's own gradient (so it follows the cover's colours, with its own
- * ink guaranteed to read); at the right the title ([titleMaxLines] lines at most) and the subtitle.
+ * corners; at the left a block [AURA_QUICK_TILE_HEIGHT] wide (a square at 100 %) that fills the card's whole height with the
+ * play button's own gradient (so it follows the cover's colours, with its own ink guaranteed to read); at the right the title
+ * ([titleMaxLines] lines at most) and the subtitle.
  */
 @Composable
 private fun AuraBlockCard(
