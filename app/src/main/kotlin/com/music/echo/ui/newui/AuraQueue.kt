@@ -218,6 +218,8 @@ fun AuraQueue(
     onToggleLyrics: () -> Unit = {},
     /** Opens the full player menu (Más / Ajustes). Lives on the collapsed bar next to Letras. */
     onMore: () -> Unit = {},
+    /** The player's «Suscribirme» door, for the same menu opened from this sheet's header ⋮ (row 860). */
+    followDoor: PlayerFollowDoor? = null,
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -358,6 +360,7 @@ fun AuraQueue(
                     }
                 },
                 onDismiss = menuState::dismiss,
+                followDoor = followDoor,
             )
         }
     }

@@ -107,6 +107,7 @@ fun PlayerMenuHost(
     playerBottomSheetState: BottomSheetState,
     onShowDetailsDialog: () -> Unit,
     onDismiss: () -> Unit,
+    followDoor: PlayerFollowDoor? = null,
 ) {
     NewUiGate(
         classic = {
@@ -125,6 +126,7 @@ fun PlayerMenuHost(
                 playerBottomSheetState = playerBottomSheetState,
                 onShowDetailsDialog = onShowDetailsDialog,
                 onDismiss = onDismiss,
+                followDoor = followDoor,
             )
         },
     )
@@ -152,6 +154,7 @@ fun QueueHost(
     playerBackground: PlayerBackgroundStyle = PlayerBackgroundStyle.DEFAULT,
     onToggleLyrics: () -> Unit = {},
     onMore: () -> Unit = {},
+    followDoor: PlayerFollowDoor? = null,
 ) {
     NewUiGate(
         classic = {
@@ -187,6 +190,7 @@ fun QueueHost(
                 playerBackground = playerBackground,
                 onToggleLyrics = onToggleLyrics,
                 onMore = onMore,
+                followDoor = followDoor,
             )
         },
     )

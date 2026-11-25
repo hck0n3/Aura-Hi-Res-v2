@@ -114,6 +114,7 @@ fun AuraPlayerMenu(
     playerBottomSheetState: BottomSheetState,
     onShowDetailsDialog: () -> Unit,
     onDismiss: () -> Unit,
+    followDoor: PlayerFollowDoor? = null,
 ) {
     mediaMetadata ?: return
     val context = LocalContext.current
@@ -146,6 +147,7 @@ fun AuraPlayerMenu(
         ?: remember { mutableStateOf(emptyList()) }
 
     val currentSong by playerConnection.currentSong.collectAsState(initial = null)
+    val playingMetadata by playerConnection.mediaMetadata.collectAsState()
     val librarySong by database
         .songWithEquivalent(
             mediaMetadata.id,
@@ -422,6 +424,44 @@ fun AuraPlayerMenu(
                                     }
                                 } else {
                                     showSelectArtistDialog = true
+                                }
+                            },
+                        )
+                    }
+                    // Row 860 (owner test #5): «Suscribirme / Suscrito» right after «Ver artista», through the artist-actions
+                    // chip's own door: same tap, same state, same chooser. Only for the song still playing, as the chip.
+                    val followable = mediaMetadata.artists.filter { it.name.isNotBlank() }.distinctBy { it.id to it.name }
+                    if (followDoor != null && followable.isNotEmpty() &&
+                        followDoor.songId == mediaMetadata.id && playingMetadata?.id == mediaMetadata.id
+                    ) {
+                        val followedEach = followable.map { artist ->
+                            androidx.compose.runtime.key(PlayerArtistFollow.key(artist)) {
+                                rememberPlayerArtistFollowed(database, followDoor.channelIdOf(artist)).value
+                            }
+                        }
+                        val several = PlayerArtistFollow.several(followedEach)
+                        row(
+                            icon = if (several == PlayerArtistFollow.Several.ALL) AuraIcons.Check else AuraIcons.Plus,
+                            label = when (several) {
+                                PlayerArtistFollow.Several.ALL -> stringResource(R.string.subscribed)
+                                PlayerArtistFollow.Several.SOME -> stringResource(
+                                    R.string.player_artists_some_subscribed,
+                                    followedEach.count { it },
+                                    followedEach.size,
+                                )
+                                PlayerArtistFollow.Several.NONE -> stringResource(R.string.subscribe)
+                            },
+                            iconTint = if (several == PlayerArtistFollow.Several.ALL) AuraPalette.Teal
+                            else AuraPalette.OnGround.copy(alpha = 0.75f),
+                            onClick = {
+                                ActionLog.tap(ActionId.PMENU_SUBSCRIBE)
+                                if (followable.size == 1) {
+                                    // One artist: toggles here and the row flips to «Suscrito», as the chip does.
+                                    followDoor.follow(followable.single(), followedEach.single())
+                                } else {
+                                    // Several: the chip's chooser, one «Suscribirme / Suscrito» per artist.
+                                    onDismiss()
+                                    followDoor.chooseArtistToFollow(mediaMetadata.id)
                                 }
                             },
                         )

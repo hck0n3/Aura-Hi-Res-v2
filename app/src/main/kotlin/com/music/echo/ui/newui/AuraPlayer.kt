@@ -929,6 +929,20 @@ private fun AuraPlayerShape(
             }
         }
     }
+    // Row 860: the player ⋮ menu's «Suscribirme / Suscrito» goes through this door — the chip's tap, channels and chooser.
+    val latestFollowArtist by rememberUpdatedState(followArtistFromPlayer)
+    val followDoor = remember(mediaMetadata?.id, followChannelIds) {
+        PlayerFollowDoor(
+            songId = mediaMetadata?.id,
+            channelIdOf = { artist -> followChannelIds[PlayerArtistFollow.key(artist)] ?: artist.id?.takeIf { PlayerArtistFollow.isChannelId(it) } },
+            follow = { artist, shownFollowed -> latestFollowArtist(artist, shownFollowed) },
+            chooseArtistToFollow = { songId ->
+                chooserSongId = songId
+                selectArtistToFollow = true
+                showSelectArtistDialog = true
+            },
+        )
+    }
     var showDownloadOrExportDialog by rememberSaveable { mutableStateOf(false) }
     val downloadChooserMeta = mediaMetadata
     // Row 348 (C2 audit, UI_INVENTORY §20.1): «Exportar como MP3» OFF means the download button just
@@ -2766,9 +2780,11 @@ private fun AuraPlayerShape(
                                 }
                             },
                             onDismiss = menuState::dismiss,
+                            followDoor = followDoor,
                         )
                     }
                 },
+                followDoor = followDoor,
             )
         }
         }
