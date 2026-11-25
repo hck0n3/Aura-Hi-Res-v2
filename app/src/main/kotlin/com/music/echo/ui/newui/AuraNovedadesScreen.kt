@@ -383,7 +383,7 @@ fun AuraNovedadesScreen(
                 // Nothing to show and nothing loading: say so, and offer the retry the pull gesture also gives.
                 if (!isRefreshing && allShelvesEmpty) {
                     item(key = "aura_novedades_empty", contentType = "aura_novedades_empty") {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.auraReadableWidth()) {
                             // Row 674: every release the radar had is seen and played (or too old) — not "never loaded".
                             if (radarCaughtUp) {
                                 AuraEmpty(text = stringResource(R.string.novedades_caught_up))

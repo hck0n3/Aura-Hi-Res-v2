@@ -904,6 +904,7 @@ fun AuraHomeScreen(
                                 text = stringResource(R.string.home_cold_empty_hint),
                                 style = AuraType.RowSubtitle,
                                 color = AuraPalette.OnGroundMuted,
+                                modifier = Modifier.auraReadableWidth(),
                             )
                         }
                     }
@@ -1586,6 +1587,7 @@ fun AuraHomeScreen(
                     text = stringResource(R.string.home_offline_downloads_hint),
                     style = AuraType.RowSubtitle,
                     color = AuraPalette.OnGroundMuted,
+                    modifier = Modifier.auraReadableWidth(),
                 )
                 Spacer(Modifier.height(4.dp))
                 Box(

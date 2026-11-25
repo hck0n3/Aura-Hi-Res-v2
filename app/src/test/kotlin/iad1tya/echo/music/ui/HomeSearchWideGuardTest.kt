@@ -32,4 +32,21 @@ class HomeSearchWideGuardTest {
             assertFalse("$name: sin el alto de Configuration", src.contains("configHeightDp"))
         }
     }
+
+    @Test
+    fun `explanatory text is capped at a readable width that no phone row reaches`() {
+        val readable = main("ui/newui/AuraHomeSearchReadable.kt")
+        assertTrue(readable.contains("internal val AURA_READABLE_MAX_WIDTH = 560.dp"))
+        assertTrue(readable.contains(".fillMaxWidth()\n        .wrapContentWidth(Alignment.CenterHorizontally)\n        .widthIn(max = AURA_READABLE_MAX_WIDTH)"))
+        val home = main("ui/newui/AuraHomeScreen.kt")
+        for (hint in listOf("R.string.home_cold_empty_hint", "R.string.home_offline_downloads_hint")) {
+            val text = home.substringAfter("text = stringResource($hint),").substringBefore(")")
+            assertTrue("$hint no cruza una pantalla ancha de lado a lado", text.contains("modifier = Modifier.auraReadableWidth("))
+        }
+        val novedades = main("ui/newui/AuraNovedadesScreen.kt").substringAfter("item(key = \"aura_novedades_empty\"").substringBefore("AuraChip(")
+        assertTrue(
+            "el vacío de Novedades (texto, pista y Reintentar) en una columna de ancho legible",
+            novedades.contains("Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.auraReadableWidth()) {"),
+        )
+    }
 }
