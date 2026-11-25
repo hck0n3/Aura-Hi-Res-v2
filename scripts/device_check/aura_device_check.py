@@ -74,6 +74,7 @@ class Node:
         self.desc = el.get("content-desc", "") or ""
         self.selected = el.get("selected") == "true"
         self.clickable = el.get("clickable") == "true"
+        self.cls = el.get("class", "") or ""
         m = BOUNDS.match(el.get("bounds", "") or "")
         self.bounds = tuple(int(x) for x in m.groups()) if m else (0, 0, 0, 0)
         self.children = []
@@ -308,15 +309,45 @@ def open_settings():
     return find(dump(), text="Apariencia", exact=False) is not None
 
 
+def settings_search(term):
+    """Types [term] into the Ajustes search box: its results list the row even when every section is collapsed."""
+    root = dump()
+    field = next((n for n in root.walk() if n.cls.endswith("EditText")), None) if root else None
+    if not field:
+        return False
+    tap(*field.center)
+    shell("input text " + term.replace(" ", "%s"))
+    time.sleep(2.0)
+    shell("input keyevent 111")  # ESC hides the keyboard without leaving the screen
+    time.sleep(1.0)
+    return True
+
+
+def open_in_settings(label):
+    """Ajustes ▸ [label], whether its section is collapsed or not: search first, plain scrolling as a fallback."""
+    if settings_search(label):
+        n = find(dump(), text=label)
+        if n:
+            tap_node(n)
+            time.sleep(2.0)
+            return True
+    entry, _ = find_scrolling(label, tries=10)
+    if entry:
+        tap_node(entry)
+        time.sleep(2.0)
+        return True
+    return False
+
+
 def check_about():
     if not open_settings():
         record("Ajustes ▸ Acerca de", "MAL", "no pude abrir Ajustes")
         return
-    entry, _ = find_scrolling("Acerca de", tries=10)
-    if not entry:
-        record("Ajustes ▸ Acerca de", "MAL", "no encuentro «Acerca de»")
+    if not open_in_settings("Acerca de"):
+        dump(save_as="no-encuentro-acerca-de")
+        shot = screenshot("no-encuentro-acerca-de")
+        record("Ajustes ▸ Acerca de", "MAL", f"no encuentro «Acerca de» · captura {shot}")
         return
-    tap_node(entry)
     texts = []
     for _ in range(8):
         texts += all_text(dump())
@@ -341,7 +372,9 @@ def check_settings_screen(path, final_check, name):
         shot = screenshot("no-abre-ajustes")
         record(name, "MAL", f"no pude abrir Ajustes ({layout_name()}) · captura {shot}")
         return
-    for step in path:
+    for i, step in enumerate(path):
+        if i == 0 and open_in_settings(step):
+            continue
         entry, _ = find_scrolling(step, tries=10)
         if not entry:
             dump(save_as=f"no-encuentro-{step}")
