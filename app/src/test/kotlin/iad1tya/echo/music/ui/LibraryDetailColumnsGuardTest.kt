@@ -48,4 +48,38 @@ class LibraryDetailColumnsGuardTest {
             assertEquals(104f, auraLibraryCellDp(w, false), 0f)
         }
     }
+
+    // ── 875 · the Biblioteca list view in columns ───────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `the four library tabs lay their list view out in the layer's column count and keep the user's view type`() {
+        val tabs = main("ui/newui/AuraLibraryTabs.kt")
+        assertEquals("las cuatro pestañas cuentan columnas", 4, Regex("""val listColumns = rememberAuraLibraryListColumns\(\)""").findAll(tabs).count())
+        assertEquals(4, Regex("""columns = auraLibraryColumns\(viewType, gridCellSize, listColumns\),""").findAll(tabs).count())
+        assertFalse("ninguna pestaña se queda en una columna fija", tabs.contains("columns = auraLibraryColumns(viewType, gridCellSize),"))
+        assertEquals("las filas de álbum, artista y lista no invaden la columna vecina", 3, Regex("""bleed = listColumns == 1,""").findAll(tabs).count())
+        // The view-type switch, the sort control and the shuffle chip are full-line items, whatever the column count.
+        assertTrue(tabs.contains("AuraViewTypeToggle(viewType) { viewType = it }"))
+        assertTrue(tabs.contains("item(key = \"aura_songs_sort\", contentType = \"aura_songs_sort\", span = { GridItemSpan(maxLineSpan) })"))
+        assertTrue(tabs.contains("item(key = \"aura_songs_shuffle_chip\", contentType = \"aura_songs_shuffle_chip\", span = { GridItemSpan(maxLineSpan) })"))
+        // The song rows keep their swipe actions.
+        assertTrue(tabs.contains("swipeMediaItem = song.toMediaItem(),"))
+
+        val viewType = main("ui/newui/AuraLibraryViewType.kt")
+        assertTrue(viewType.contains("if (viewType == LibraryViewType.LIST) GridCells.Fixed(listColumns) else GridCells.Adaptive(minSize = gridCellSize)"))
+        assertTrue(viewType.contains("internal fun rememberAuraLibraryListColumns(): Int = auraLibraryListColumns(auraPaneWidthDp())"))
+        assertTrue("una sola columna sangra como siempre", viewType.contains("modifier = if (bleed) modifier.auraBleedHorizontal(AuraSpacing.Gutter) else modifier,"))
+    }
+
+    @Test
+    fun `the pinned hub lists its pins in columns on a wide pane and keeps one column while reordering`() {
+        val tabs = main("ui/newui/AuraLibraryTabs.kt")
+        val hub = tabs.substringAfter("fun AuraLibraryHub(").substringBefore("private fun auraIsPlaylistPinned(")
+        assertTrue(hub.contains("val listColumns = auraLibraryListColumns(paneWidth.value)"))
+        assertTrue(hub.contains("visible.chunked(listColumns)"))
+        assertTrue("una fila por columna, la misma fila", hub.contains("line.forEach { r -> pinListRow(r, Modifier.weight(1f)) }"))
+        assertTrue("el teléfono conserva su lista", hub.contains("pinListRow(r, Modifier.animateItem())"))
+        // Reordering keeps its single draggable column.
+        assertTrue(hub.contains("items(editKeys, key = { it }, contentType = { \"aura_hub_pin_edit_row\" })"))
+    }
 }

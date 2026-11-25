@@ -755,7 +755,7 @@ fun AuraLibraryHub(
                             }
                         }
                     } else {
-                        items(visible, key = { it.key }, contentType = { "aura_hub_pin_list_row" }) { r ->
+                        val pinListRow: @Composable (AuraResolvedPin, Modifier) -> Unit = { r, rowModifier ->
                             val visual = auraTypeVisual(r.contentKind)
                             AuraSongRow(
                                 title = r.title,
@@ -771,10 +771,32 @@ fun AuraLibraryHub(
                                 onClick = { ActionLog.tap(ActionId.LIB_PIN); openPin(r) },
                                 onLongClick = { ActionLog.tap(ActionId.LIB_PIN_MENU); openPinMenu(r) },
                                 onMenuClick = { openPinMenu(r) },
-                                modifier = Modifier
-                                    .animateItem()
+                                modifier = rowModifier
                                     .padding(horizontal = AuraSpacing.Gutter),
                             )
+                        }
+                        // Row 875: on a wide pane the pinned rows sit in two or three columns; one on a phone, as always.
+                        val listColumns = auraLibraryListColumns(paneWidth.value)
+                        if (listColumns > 1) {
+                            items(
+                                visible.chunked(listColumns),
+                                key = { line -> "aura_hub_pin_list_line_" + line.first().key },
+                                contentType = { "aura_hub_pin_list_line" },
+                            ) { line ->
+                                Row(
+                                    modifier = Modifier
+                                        .animateItem()
+                                        .fillMaxWidth(),
+                                ) {
+                                    line.forEach { r -> pinListRow(r, Modifier.weight(1f)) }
+                                    // An incomplete last line keeps the column width instead of stretching its rows.
+                                    repeat(listColumns - line.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                        } else {
+                            items(visible, key = { it.key }, contentType = { "aura_hub_pin_list_row" }) { r ->
+                                pinListRow(r, Modifier.animateItem())
+                            }
                         }
                     }
 
@@ -972,6 +994,8 @@ fun AuraLibrarySongsTab(
     var viewType by rememberEnumPreference(SongViewTypeKey, LibraryViewType.LIST)
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = auraLibraryCellSize(gridItemSize == GridItemSize.BIG)
+    // Row 875: on a wide pane the list view lays its rows out in two or three columns (one on a phone, as always).
+    val listColumns = rememberAuraLibraryListColumns()
     val isGrid = viewType == LibraryViewType.GRID
     val listState = rememberLazyGridState()
     AuraScrollToTopOnReselect(navController) { listState.animateScrollToItem(0) }
@@ -989,7 +1013,7 @@ fun AuraLibrarySongsTab(
             }
             LazyVerticalGrid(
                 state = listState,
-                columns = auraLibraryColumns(viewType, gridCellSize),
+                columns = auraLibraryColumns(viewType, gridCellSize, listColumns),
                 horizontalArrangement = Arrangement.spacedBy(if (isGrid) 11.dp else 0.dp),
                 contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
                 modifier = Modifier
@@ -1266,6 +1290,8 @@ fun AuraLibraryAlbumsTab(
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = auraLibraryCellSize(gridItemSize == GridItemSize.BIG)
+    // Row 875: on a wide pane the list view lays its rows out in two or three columns (one on a phone, as always).
+    val listColumns = rememberAuraLibraryListColumns()
     // Row 349: list/grid switch, same key as the classic tab.
     var viewType by rememberEnumPreference(iad1tya.echo.music.constants.AlbumViewTypeKey, iad1tya.echo.music.constants.LibraryViewType.GRID)
     val albumPlayScope = rememberCoroutineScope()
@@ -1277,7 +1303,7 @@ fun AuraLibraryAlbumsTab(
 
     LazyVerticalGrid(
         state = listState,
-        columns = auraLibraryColumns(viewType, gridCellSize),
+        columns = auraLibraryColumns(viewType, gridCellSize, listColumns),
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
         modifier = Modifier
@@ -1335,6 +1361,7 @@ fun AuraLibraryAlbumsTab(
         items(albums, key = { it.id }) { album ->
             AuraLibraryCell(
                 viewType = viewType,
+                bleed = listColumns == 1,
                 title = album.album.title,
                 subtitle = album.artists.joinToString { it.name },
                 thumbnailUrl = album.album.thumbnailUrl,
@@ -1407,6 +1434,8 @@ fun AuraLibraryArtistsTab(
 
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = auraLibraryCellSize(gridItemSize == GridItemSize.BIG)
+    // Row 875: on a wide pane the list view lays its rows out in two or three columns (one on a phone, as always).
+    val listColumns = rememberAuraLibraryListColumns()
     // Row 349: list/grid switch, same key as the classic tab.
     var viewType by rememberEnumPreference(iad1tya.echo.music.constants.ArtistViewTypeKey, iad1tya.echo.music.constants.LibraryViewType.GRID)
     val artistVisual = auraTypeVisual(AuraContentKind.Artist)
@@ -1425,7 +1454,7 @@ fun AuraLibraryArtistsTab(
         ScrollStateBusReporter { listState.isScrollInProgress }
         LazyVerticalGrid(
         state = listState,
-        columns = auraLibraryColumns(viewType, gridCellSize),
+        columns = auraLibraryColumns(viewType, gridCellSize, listColumns),
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
         modifier = Modifier
@@ -1479,6 +1508,7 @@ fun AuraLibraryArtistsTab(
         items(artists, key = { it.id }) { artist ->
             AuraLibraryCell(
                 viewType = viewType,
+                bleed = listColumns == 1,
                 title = artist.artist.name,
                 subtitle = pluralStringResource(R.plurals.n_song, artist.songCount, artist.songCount),
                 thumbnailUrl = artist.artist.thumbnailUrl,
@@ -1568,6 +1598,8 @@ fun AuraLibraryPlaylistsTab(
     // it), rounded to the 150 this grid already drew so "Grande" is unchanged from what shipped.
     val gridItemSize by rememberEnumPreference(GridItemsSizeKey, GridItemSize.BIG)
     val gridCellSize = auraLibraryCellSize(gridItemSize == GridItemSize.BIG)
+    // Row 875: on a wide pane the list view lays its rows out in two or three columns (one on a phone, as always).
+    val listColumns = rememberAuraLibraryListColumns()
     // Row 349: list/grid switch, same key as the classic tab.
     var viewType by rememberEnumPreference(iad1tya.echo.music.constants.PlaylistViewTypeKey, iad1tya.echo.music.constants.LibraryViewType.GRID)
 
@@ -1585,7 +1617,7 @@ fun AuraLibraryPlaylistsTab(
         ScrollStateBusReporter { listState.isScrollInProgress }
         LazyVerticalGrid(
         state = listState,
-        columns = auraLibraryColumns(viewType, gridCellSize),
+        columns = auraLibraryColumns(viewType, gridCellSize, listColumns),
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
         horizontalArrangement = Arrangement.spacedBy(11.dp),
         modifier = Modifier
@@ -1684,6 +1716,7 @@ fun AuraLibraryPlaylistsTab(
         items(filteredPlaylists.distinctBy { it.id }, key = { it.id }) { playlist ->
             AuraLibraryCell(
                 viewType = viewType,
+                bleed = listColumns == 1,
                 title = playlist.playlist.name,
                 fullTitle = true,
                 subtitle = pluralStringResource(
