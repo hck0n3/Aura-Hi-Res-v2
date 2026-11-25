@@ -4665,3 +4665,19 @@ Solo cambia **cómo termina** un texto que no cabe o **cuánto mide** un hueco c
 | Diálogo **Selector de color** (Ajustes ▸ Tema y Efecto cristal, `ui/component/ColorPicker.kt:215-220`) | Mismo contenido; si la ventana es baja, el cuerpo se desplaza y **Restablecer / Cancelar / Aceptar** siguen visibles (antes se salían) | 870 |
 | Página de artista: «Canciones populares» y las páginas de 4 canciones (`ui/newui/AuraContent.kt:1315-1360`) | Cada fila tenía 66 dp fijos y con letra grande se cortaba la línea del artista; ahora la fila crece con la letra (al 100 % sigue midiendo 66 dp) | 870 |
 | **No se tocan en este paquete** (con su motivo en la fila 870): `MainActivity.kt`, `ui/newui/AuraHomeScreen.kt`, `ui/newui/AuraTrackColumns.kt`, `ui/player/Thumbnail.kt` y `ui/component/Lyrics.kt` (medidas de ventana, paquete 1.1 / ola 2); `ui/screens/equalizer/axion/AxionEqScreen.kt` (ecualizador, regla 6); las losas rápidas de Inicio (`ui/newui/AuraHomeLayout.kt:267`, Inicio es de la ola 2); los botones de los pasos de bienvenida (paquete de la bienvenida) | Sin cambios | 870 |
+
+## Anexo 2026-11-25 (fila 873): Fase 1.2, Ajustes en dos paneles en la pantalla ancha (no se quitó ni se ocultó nada)
+
+Solo en una ventana ancha (panel de contenido ≥ 600 dp y alto ≥ 480 dp: la pantalla interior del Fold, una tableta). En el
+móvil, en la pantalla exterior del Fold (también girada) y con el reproductor dividido dejando menos de 600 dp, Ajustes es
+exactamente el de antes. Todas las filas, textos, toques y códigos de `ActionId` son los mismos.
+
+| Dónde | Antes → ahora | Fila del registro |
+|---|---|---|
+| Ajustes (`settings`, `ui/newui/AuraSettingsScreen.kt:134`) en ventana ancha | Índice a todo el ancho → **índice a la izquierda** (40 % del ancho, entre 300 y 360 dp; mismos grupos, MÁS, búsqueda, «Interfaz nueva», flecha de volver) y **a la derecha el texto nuevo «Elige un ajuste de la lista»** (`settings_pane_pick`) hasta que se elige una página | 873 |
+| Las 19 páginas que abre el índice (Reproductor, Sonido, Rendimiento, Contenido, Traducción con IA, Cuentas, Estado y programación de la sincronización, Scrobbling, Almacenamiento, Ajustes de Escuchar juntos, Sincronizar dispositivos, Servicios Aura, Copias, Privacidad, Apariencia, Registros, Comentarios, Actualizaciones, Acerca de) y 7 que se abren desde ellas (Tema, Efecto cristal, Romanización, Ocultos, Auto-EQ, Revisar suscripciones, Borrados retenidos) | Abrían encima a todo el ancho → se abren **en el panel derecho**, con el índice a la izquierda y su fila (o la de su página madre) **resaltada en turquesa** (TalkBack la lee como seleccionada). La página es la misma, con su barra de arriba, su flecha y sus diálogos | 873 |
+| Elegir otra fila del índice con una página abierta | Apilaba la página nueva encima → **sustituye** a la del panel derecho (Atrás ya no recorre todas las páginas vistas). Elegir la que ya se ve no hace nada | 873 |
+| Búsqueda de Ajustes en ventana ancha | Igual: sus resultados abren la página en el panel derecho, desplazada hasta la fila y con el destello de siempre; el texto buscado y el grupo abierto se conservan al elegir | 873 |
+| Atrás (gesto, botón o flecha) en ventana ancha | Igual que antes: desde una página vuelve a Ajustes (índice con el panel derecho vacío) y desde ahí sale de Ajustes | 873 |
+| Cambio de página dentro de Ajustes en ventana ancha | Barrido de pantalla completa → **sin animación** (solo cambia el panel derecho). Entrar y salir de Ajustes conserva su barrido | 873 |
+| Siguen a pantalla completa también en ventana ancha | Ecualizador, Importar de Spotify, Términos, Política de privacidad, Novedades, Descifrado de reproducción, Estadísticas, Migrar listas, Escuchar juntos (pantalla principal), Suscripción Pro, y cualquier página en su modo de bienvenida («Conecta tu música») | 873 |

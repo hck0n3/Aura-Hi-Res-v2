@@ -804,4 +804,5 @@
     <string name="migrate_amazon_error_rejected">Amazon Music rechazó la consulta.</string>
     <string name="migrate_amazon_error_network">No pude conectar con Amazon Music. Revisa tu conexión e inténtalo de nuevo.</string>
     <string name="migrate_amazon_error_generic">Algo falló al leer Amazon Music. Inténtalo de nuevo.</string>
+    <string name="settings_pane_pick">Elige un ajuste de la lista</string>
 </resources>

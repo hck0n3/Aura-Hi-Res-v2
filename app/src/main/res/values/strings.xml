@@ -870,4 +870,5 @@
     <string name="migrate_amazon_error_rejected">Amazon Music rejected the request.</string>
     <string name="migrate_amazon_error_network">Could not reach Amazon Music. Check your connection and try again.</string>
     <string name="migrate_amazon_error_generic">Something went wrong while reading Amazon Music. Try again.</string>
+    <string name="settings_pane_pick">Pick a setting from the list</string>
 </resources>

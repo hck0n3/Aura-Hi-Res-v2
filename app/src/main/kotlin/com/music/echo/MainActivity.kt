@@ -2770,7 +2770,10 @@ class MainActivity : ComponentActivity() {
                                     // AuraNavMotion; los predicados de direccion son los mismos que
                                     // estaban aqui, solo movidos alla para poder probarlos.
                                     enterTransition = {
-                                        AuraNavMotion.enter(
+                                        // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(initialState, targetState)) {
+                                            androidx.compose.animation.EnterTransition.None
+                                        } else AuraNavMotion.enter(
                                             AuraNavMotion.forward(
                                                 fromIndex = navigationItems.indexOfFirst {
                                                     it.route == initialState.destination.route
@@ -2783,7 +2786,10 @@ class MainActivity : ComponentActivity() {
                                     },
 
                                     exitTransition = {
-                                        AuraNavMotion.exit(
+                                        // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(initialState, targetState)) {
+                                            androidx.compose.animation.ExitTransition.None
+                                        } else AuraNavMotion.exit(
                                             AuraNavMotion.forward(
                                                 fromIndex = navigationItems.indexOfFirst {
                                                     it.route == initialState.destination.route
@@ -2796,7 +2802,10 @@ class MainActivity : ComponentActivity() {
                                     },
 
                                     popEnterTransition = {
-                                        AuraNavMotion.enter(
+                                        // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(initialState, targetState)) {
+                                            androidx.compose.animation.EnterTransition.None
+                                        } else AuraNavMotion.enter(
                                             AuraNavMotion.popForward(
                                                 fromIndex = navigationItems.indexOfFirst {
                                                     it.route == initialState.destination.route
@@ -2809,7 +2818,10 @@ class MainActivity : ComponentActivity() {
                                     },
 
                                     popExitTransition = {
-                                        AuraNavMotion.exit(
+                                        // Row 873: two-pane Ajustes — picking a page only changes the right pane, so no screen transition.
+                                        if (iad1tya.echo.music.ui.newui.auraSettingsInstantSwap(initialState, targetState)) {
+                                            androidx.compose.animation.ExitTransition.None
+                                        } else AuraNavMotion.exit(
                                             AuraNavMotion.popForward(
                                                 fromIndex = navigationItems.indexOfFirst {
                                                     it.route == initialState.destination.route

@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +25,8 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,6 +38,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +55,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -64,6 +72,7 @@ import iad1tya.echo.music.license.LicenseManager
 import iad1tya.echo.music.license.SubscriptionEntryScreen
 import iad1tya.echo.music.ui.screens.Screens
 import iad1tya.echo.music.ui.screens.settings.getAllSearchableSettings
+import iad1tya.echo.music.ui.utils.LocalContentPaneWidth
 import iad1tya.echo.music.ui.utils.SettingsSearchJump
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.ActionId
@@ -109,7 +118,30 @@ fun AuraSettingsScreen(
     navController: NavController,
     @Suppress("UNUSED_PARAMETER") scrollBehavior: TopAppBarScrollBehavior,
 ) {
+    AuraSettingsIndexHost(navController = navController, hostRoute = AURA_SETTINGS_ROUTE, page = null)
+}
+
+/**
+ * The Ajustes index, drawn for [hostRoute].
+ *
+ * On a phone (and a phone on its side) this is only ever the `settings` route and it is the screen it always was. On a
+ * two-pane window (registry row 873, see AuraSettingsPanes.kt) the index is the LEFT pane and the right pane shows [page]
+ * — the settings page of [hostRoute], registered through `auraSettingsPane` — or, on `settings` itself, a short hint to
+ * pick one. Every row still runs its own navigation; the only addition is that a page picked while another page is in the
+ * right pane replaces it there instead of piling up behind it.
+ */
+@Composable
+internal fun AuraSettingsIndexHost(
+    navController: NavController,
+    hostRoute: String,
+    page: (@Composable () -> Unit)?,
+) {
     val context = LocalContext.current
+    val windowTwoPanes = rememberAuraSettingsTwoPanes()
+    val twoPanes = page != null || windowTwoPanes
+    // The page in the right pane, and the index row it highlights (null on `settings` itself and on a phone).
+    val shownPage = if (twoPanes) auraSettingsRouteBase(hostRoute)?.takeIf { it != AURA_SETTINGS_ROUTE } else null
+    val selectedPage = if (twoPanes) auraSettingsPaneSelectionOf(hostRoute) else null
 
     // ── Suscripción Pro ───────────────────────────────────────────────────────────────────────────
     // Identical to the classic screen: an inline sub-screen (not a route) that presents the existing,
@@ -128,7 +160,12 @@ fun AuraSettingsScreen(
         return
     }
 
-    var searchQuery by rememberSaveable { mutableStateOf("") }
+    // The search text and the open group belong to Ajustes, not to one route: with two panes every page has its own copy of
+    // the index, so they live in the `settings` entry's saved state and each copy starts from there (see the helper).
+    val sharedIndexState = remember(navController) {
+        runCatching { navController.getBackStackEntry(AURA_SETTINGS_ROUTE).savedStateHandle }.getOrNull()
+    }
+    var searchQuery by rememberAuraSettingsIndexValue(sharedIndexState, INDEX_KEY_QUERY, "")
     val searchLower = searchQuery.lowercase()
 
     // ── Labels ────────────────────────────────────────────────────────────────────────────────────
@@ -173,6 +210,29 @@ fun AuraSettingsScreen(
     val newUiSubtitle = "Apágala y vuelve a la clásica"
     val (newUiEnabled, onNewUiEnabledChange) = rememberPreference(NewUiEnabledKey, defaultValue = true)
 
+    // ── Two panes (row 873) ───────────────────────────────────────────────────────────────────────
+    // A page picked while another page is in the right pane REPLACES it: the pages above `settings` are popped first, so
+    // back leaves the page instead of walking through every page visited. With no `settings` below (a page opened straight
+    // from elsewhere) only the shown page is popped. Off a two-pane page — a phone, or `settings` itself — nothing happens
+    // here and the row navigates exactly as it always did. Pages that keep their own full screen are never replaced.
+    fun replaceShownPage(target: String) {
+        if (shownPage == null || auraSettingsPaneSelectionOf(target) == null) return
+        if (!navController.popBackStack(AURA_SETTINGS_ROUTE, inclusive = false)) navController.popBackStack()
+    }
+
+    // Marks an entry as opening the settings page [route] (it is highlighted while that page is shown), and makes it
+    // replace the page in the right pane. The entry's own lambda is still what navigates. Picking the page that is already
+    // shown does nothing.
+    fun AuraSettingsEntry.opensPage(route: String): AuraSettingsEntry {
+        val open = onClick
+        return AuraSettingsEntry(title, description, route) {
+            if (shownPage != route) {
+                replaceShownPage(route)
+                open()
+            }
+        }
+    }
+
     // ── The index ─────────────────────────────────────────────────────────────────────────────────
     val groups = buildList {
         add(
@@ -180,9 +240,10 @@ fun AuraSettingsScreen(
                 icon = AuraIcons.Equalizer,
                 title = groupPlayerSound,
                 entries = listOf(
-                    AuraSettingsEntry(playerText) { navController.navigate("settings/player") },
-                    AuraSettingsEntry(soundText) { navController.navigate("settings/sound") },
-                    AuraSettingsEntry(performanceText) { navController.navigate("settings/performance") },
+                    AuraSettingsEntry(playerText) { navController.navigate("settings/player") }.opensPage("settings/player"),
+                    AuraSettingsEntry(soundText) { navController.navigate("settings/sound") }.opensPage("settings/sound"),
+                    AuraSettingsEntry(performanceText) { navController.navigate("settings/performance") }
+                        .opensPage("settings/performance"),
                 ),
             )
         )
@@ -191,8 +252,8 @@ fun AuraSettingsScreen(
                 icon = AuraIcons.Lyrics,
                 title = groupContentLyrics,
                 entries = listOf(
-                    AuraSettingsEntry(contentText) { navController.navigate("settings/content") },
-                    AuraSettingsEntry(aiLyricsText) { navController.navigate("settings/ai") },
+                    AuraSettingsEntry(contentText) { navController.navigate("settings/content") }.opensPage("settings/content"),
+                    AuraSettingsEntry(aiLyricsText) { navController.navigate("settings/ai") }.opensPage("settings/ai"),
                 ),
             )
         )
@@ -209,7 +270,7 @@ fun AuraSettingsScreen(
                             ) { showSubscribe = true }
                         )
                     }
-                    add(AuraSettingsEntry(accountsText) { navController.navigate("settings/accounts") })
+                    add(AuraSettingsEntry(accountsText) { navController.navigate("settings/accounts") }.opensPage("settings/accounts"))
                     // Row 858: the sync status/schedule screen had no row in Ajustes (only the account sheet).
                     // Shown signed out too: that screen explains the sign-in and offers it.
                     add(
@@ -217,11 +278,12 @@ fun AuraSettingsScreen(
                             title = "Estado y programación de la sincronización",
                             description = "Cada 3 días por defecto, o elige cuándo",
                         ) { navController.navigate("settings/ytm_sync") }
+                            .opensPage("settings/ytm_sync")
                     )
                     add(
                         AuraSettingsEntry(scrobblingText, description = "Last.fm & ListenBrainz") {
                             navController.navigate("settings/lastfm")
-                        }
+                        }.opensPage("settings/lastfm")
                     )
                 },
             )
@@ -231,7 +293,7 @@ fun AuraSettingsScreen(
                 icon = AuraIcons.Download,
                 title = storageText,
                 entries = listOf(
-                    AuraSettingsEntry(storageText) { navController.navigate("settings/storage") },
+                    AuraSettingsEntry(storageText) { navController.navigate("settings/storage") }.opensPage("settings/storage"),
                 ),
             )
         )
@@ -255,15 +317,15 @@ fun AuraSettingsScreen(
                     // of the search index already point at but which had no index row anywhere.
                     AuraSettingsEntry(settingsWordText) {
                         navController.navigate("settings/integrations/listen_together")
-                    },
+                    }.opensPage("settings/integrations/listen_together"),
                     // Row 528: pairs the user's own devices (shuffle, hand-off, lists) through their Worker.
                     AuraSettingsEntry(deviceSyncText) {
                         navController.navigate("settings/device_sync")
-                    },
+                    }.opensPage("settings/device_sync"),
                     // Phase A/B of the Worker plan: remote switches, notices and one-tap diagnostics (off until an address is set).
                     AuraSettingsEntry(auraServicesText) {
                         navController.navigate("settings/aura_services")
-                    },
+                    }.opensPage("settings/aura_services"),
                 ),
             )
         )
@@ -272,7 +334,8 @@ fun AuraSettingsScreen(
                 icon = AuraIcons.Album,
                 title = groupBackupMigration,
                 entries = listOf(
-                    AuraSettingsEntry(backupText) { navController.navigate("settings/backup_restore") },
+                    AuraSettingsEntry(backupText) { navController.navigate("settings/backup_restore") }
+                        .opensPage("settings/backup_restore"),
                     AuraSettingsEntry(migrateText) { navController.navigate("migration") },
                 ),
             )
@@ -282,7 +345,7 @@ fun AuraSettingsScreen(
                 icon = AuraIcons.Settings,
                 title = privacyText,
                 entries = listOf(
-                    AuraSettingsEntry(privacyText) { navController.navigate("settings/privacy") },
+                    AuraSettingsEntry(privacyText) { navController.navigate("settings/privacy") }.opensPage("settings/privacy"),
                 ),
             )
         )
@@ -293,7 +356,10 @@ fun AuraSettingsScreen(
         AuraSettingsGroup(
             icon = AuraIcons.Settings,
             title = appearanceText,
-            entries = listOf(AuraSettingsEntry(appearanceText) { navController.navigate("settings/appearance") }),
+            entries = listOf(
+                AuraSettingsEntry(appearanceText) { navController.navigate("settings/appearance") }
+                    .opensPage("settings/appearance"),
+            ),
         ),
         AuraSettingsGroup(
             icon = AuraIcons.Equalizer,
@@ -306,7 +372,7 @@ fun AuraSettingsScreen(
             entries = listOf(
                 AuraSettingsEntry(logsText, description = logsDescText) {
                     navController.navigate("settings/logs")
-                }
+                }.opensPage("settings/logs")
             ),
         ),
         AuraSettingsGroup(
@@ -319,7 +385,7 @@ fun AuraSettingsScreen(
                         R.string.feedback_settings_desc,
                         iad1tya.echo.music.utils.SupportContact.EMAIL,
                     ),
-                ) { navController.navigate("settings/feedback") },
+                ) { navController.navigate("settings/feedback") }.opensPage("settings/feedback"),
             ),
         ),
         AuraSettingsGroup(
@@ -331,14 +397,18 @@ fun AuraSettingsScreen(
                 AuraSettingsEntry(
                     title = "Actualizaciones",
                     description = "Cambios de esta versión y nuevas actualizaciones",
-                ) { navController.navigate("settings/update") },
-                AuraSettingsEntry(aboutText) { navController.navigate("settings/about") },
+                ) { navController.navigate("settings/update") }.opensPage("settings/update"),
+                AuraSettingsEntry(aboutText) { navController.navigate("settings/about") }.opensPage("settings/about"),
             ),
         ),
     )
 
     // Only one group is open at a time — a settings index that can be fully unfolded is a wall of rows.
-    var expandedGroup by rememberSaveable { mutableStateOf<String?>(null) }
+    // Two panes: a page opened straight from elsewhere starts with its own group open, so its row is visible.
+    val selectedGroup = selectedPage?.let { selected ->
+        (groups + more).firstOrNull { group -> group.entries.any { it.route == selected } }?.title
+    }
+    var expandedGroup by rememberAuraSettingsIndexValue(sharedIndexState, INDEX_KEY_EXPANDED, selectedGroup)
 
     val playerConnection = LocalPlayerConnection.current
     val mediaMetadata by playerConnection?.mediaMetadata?.collectAsState()
@@ -348,24 +418,24 @@ fun AuraSettingsScreen(
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { scrollState.isScrollInProgress }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .auraScreenBackground(bloom, intensity = 0.32f) // render: `.bl { opacity:.32 }` on Ajustes
-    ) {
+    // The index column: the whole screen on a phone, the left pane with two panes. In the left pane its top clears only
+    // the status bar: a settings page reserves the height of its own top bar in the shared insets, and the index must sit
+    // at the same height on `settings` and on every page, or it would jump at each pick.
+    val indexColumn: @Composable (Modifier) -> Unit = { columnModifier ->
         Column(
-            Modifier
-                .fillMaxSize()
+            columnModifier
                 .windowInsetsPadding(
                     LocalPlayerAwareWindowInsets.current.only(
-                        WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
+                        if (twoPanes) WindowInsetsSides.Start + WindowInsetsSides.Bottom
+                        else WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
                     )
                 )
                 .verticalScroll(scrollState)
         ) {
             Spacer(
                 Modifier.windowInsetsPadding(
-                    LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)
+                    if (twoPanes) WindowInsets.systemBars.only(WindowInsetsSides.Top)
+                    else LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Top)
                 )
             )
 
@@ -409,6 +479,7 @@ fun AuraSettingsScreen(
                         onToggle = {
                             expandedGroup = if (expandedGroup == group.title) null else group.title
                         },
+                        selectedRoute = selectedPage,
                     )
                 }
 
@@ -421,6 +492,7 @@ fun AuraSettingsScreen(
                         onToggle = {
                             expandedGroup = if (expandedGroup == group.title) null else group.title
                         },
+                        selectedRoute = selectedPage,
                     )
                 }
             } else {
@@ -468,7 +540,12 @@ fun AuraSettingsScreen(
                             title = title,
                             description = parentTitle,
                             // P22D: open the screen scrolled to this exact row, and flash it.
-                            onClick = { ActionLog.tap(ActionId.SETIDX_SEARCH_RESULT); SettingsSearchJump.navigate(navController, view, route, title) },
+                            // Two panes: the result's page replaces the page in the right pane (see replaceShownPage).
+                            onClick = {
+                                ActionLog.tap(ActionId.SETIDX_SEARCH_RESULT)
+                                replaceShownPage(route)
+                                SettingsSearchJump.navigate(navController, view, route, title)
+                            },
                         )
                     }
                 }
@@ -499,14 +576,113 @@ fun AuraSettingsScreen(
             Spacer(Modifier.height(64.dp))
         }
     }
+
+    if (!twoPanes) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .auraScreenBackground(bloom, intensity = 0.32f) // render: `.bl { opacity:.32 }` on Ajustes
+        ) {
+            indexColumn(Modifier.fillMaxSize())
+        }
+        return
+    }
+
+    // ── Two panes: the index on the left, the page on the right ──────────────────────────────────────
+    val paneWidthDp = auraPaneWidthDp()
+    val indexWidth = auraSettingsIndexWidthDp(paneWidthDp).dp
+    Row(
+        Modifier
+            .fillMaxSize()
+            // `settings` paints its own ground, as it always did. A page already stands on the cover ground the shell
+            // paints behind every settings page, so nothing is painted twice.
+            .then(if (page == null) Modifier.auraScreenBackground(bloom, intensity = 0.32f) else Modifier)
+    ) {
+        indexColumn(
+            Modifier
+                .width(indexWidth)
+                .fillMaxHeight()
+        )
+        Box(
+            Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(AuraPalette.SurfaceLine)
+        )
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
+            // The page lays itself out for the pane it is in, not for the whole window.
+            CompositionLocalProvider(LocalContentPaneWidth provides (paneWidthDp.dp - indexWidth - 1.dp)) {
+                if (page != null) page() else AuraSettingsPanePlaceholder()
+            }
+        }
+    }
+}
+
+/** Two panes, on `settings` itself: the right pane says what it is for until a page is picked. */
+@Composable
+private fun AuraSettingsPanePlaceholder() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(AuraSpacing.Gutter),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = AuraIcons.Settings,
+            contentDescription = null,
+            tint = AuraPalette.OnGroundFaint,
+            modifier = Modifier.size(40.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.settings_pane_pick),
+            style = AuraType.MenuLabel,
+            color = AuraPalette.OnGroundMuted,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+private const val INDEX_KEY_QUERY = "aura_settings_index_query"
+private const val INDEX_KEY_EXPANDED = "aura_settings_index_expanded"
+
+/**
+ * One value of the index (search text, open group). With the `settings` entry's saved state ([shared]) every copy of the
+ * index — `settings` and each page of the two-pane Ajustes — starts from the latest value and writes back after each
+ * composition, so picking a page keeps the search and the open group; the entry's saved state also survives the app being
+ * closed by the system. With no `settings` entry (a page opened straight from elsewhere) it is this copy's own saved value,
+ * starting at [initial].
+ */
+@Composable
+private fun <T> rememberAuraSettingsIndexValue(
+    shared: androidx.lifecycle.SavedStateHandle?,
+    key: String,
+    initial: T,
+): androidx.compose.runtime.MutableState<T> {
+    val state = if (shared != null) {
+        remember(shared) { mutableStateOf(if (shared.contains(key)) shared.get<T>(key) as T else initial) }
+    } else {
+        rememberSaveable { mutableStateOf(initial) }
+    }
+    SideEffect { shared?.set(key, state.value) }
+    return state
 }
 
 // ── Model ─────────────────────────────────────────────────────────────────────────────────────────
 
-/** One navigable destination. [onClick] is the classic screen's own lambda — never a reimplementation. */
+/**
+ * One navigable destination. [onClick] is the classic screen's own lambda — never a reimplementation. [route] is set (by
+ * `opensPage`) when the entry opens a settings page: the two-pane index highlights the entry while that page is shown.
+ */
 private class AuraSettingsEntry(
     val title: String,
     val description: String? = null,
+    val route: String? = null,
     val onClick: () -> Unit,
 )
 
@@ -528,6 +704,7 @@ private fun AuraSettingsGroupRow(
     group: AuraSettingsGroup,
     expanded: Boolean,
     onToggle: () -> Unit,
+    selectedRoute: String? = null,
 ) {
     val single = group.entries.size == 1
     val rotation by animateFloatAsState(
@@ -542,6 +719,7 @@ private fun AuraSettingsGroupRow(
             description = if (single) group.entries.first().description else null,
             iconTint = AuraPalette.Teal,
             chevronRotation = rotation,
+            selected = single && selectedRoute != null && group.entries.first().route == selectedRoute,
             onClick = { ActionLog.tap(ActionId.SETIDX_GROUP); if (single) group.entries.first().onClick() else onToggle() },
         )
         AnimatedVisibility(
@@ -556,6 +734,7 @@ private fun AuraSettingsGroupRow(
                     AuraSettingsSubRow(
                         title = entry.title,
                         description = entry.description,
+                        selected = selectedRoute != null && entry.route == selectedRoute,
                         onClick = entry.onClick,
                     )
                 }
@@ -576,6 +755,7 @@ private fun AuraSettingsIndexRow(
     description: String? = null,
     iconTint: androidx.compose.ui.graphics.Color = AuraPalette.OnGround.copy(alpha = 0.75f),
     chevronRotation: Float = 0f,
+    selected: Boolean = false,
     onClick: () -> Unit,
 ) {
     Row(
@@ -584,6 +764,7 @@ private fun AuraSettingsIndexRow(
         modifier = Modifier
             .fillMaxWidth()
             .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
+            .auraSettingsSelected(selected)
             .clickable(onClickLabel = title, role = Role.Button, onClick = onClick)
             .padding(horizontal = AuraSpacing.Gutter, vertical = 11.dp),
     ) {
@@ -627,12 +808,14 @@ private fun AuraSettingsIndexRow(
 private fun AuraSettingsSubRow(
     title: String,
     description: String?,
+    selected: Boolean = false,
     onClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
+            .auraSettingsSelected(selected)
             .clickable(onClickLabel = title, role = Role.Button, onClick = onClick)
             .padding(
                 start = AuraSpacing.Gutter + 24.dp + 15.dp,
@@ -661,6 +844,16 @@ private fun AuraSettingsSubRow(
         }
     }
 }
+
+/**
+ * Two panes: the index row of the page shown on the right wears a teal wash and says it is the selected one (TalkBack).
+ * Every other row — and every row on a phone, where nothing is ever selected — is untouched.
+ */
+@Composable
+private fun Modifier.auraSettingsSelected(selected: Boolean): Modifier =
+    if (!selected) this else this
+        .background(AuraPalette.Teal.copy(alpha = 0.14f))
+        .semantics { this.selected = true }
 
 // ── Search field ──────────────────────────────────────────────────────────────────────────────────
 
