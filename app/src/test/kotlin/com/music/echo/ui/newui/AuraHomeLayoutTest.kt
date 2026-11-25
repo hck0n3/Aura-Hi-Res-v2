@@ -152,7 +152,10 @@ class AuraHomeLayoutTest {
             assertTrue("la pieza compartida usa $piece", block.contains(piece))
         }
         // The owner's design (screenshot of 2026-10-20): the gradient block fills the card's WHOLE height, with no rounded inner square.
-        assertTrue("el bloque de degradado ocupa toda la altura de la tarjeta", block.contains(".size(AURA_QUICK_TILE_HEIGHT)") && block.contains(".background(toneOf.block)"))
+        assertTrue(
+            "el bloque de degradado ocupa toda la altura de la tarjeta",
+            block.contains(".width(AURA_QUICK_TILE_HEIGHT)") && block.contains(".fillMaxHeight()") && block.contains(".background(toneOf.block)"),
+        )
         assertFalse("sin cuadrito redondeado dentro de la baldosa", block.contains("RoundedCornerShape("))
         assertTrue("el botón principal no lleva un borde de acento", !invite.contains("Teal.copy"))
         // The entrance keeps its action: it opens the sheet, shows the spinner while it works and speaks its label.
@@ -174,7 +177,21 @@ class AuraHomeLayoutTest {
         val layout = main("ui/newui/AuraHomeLayout.kt")
         val block = layout.substringAfter("private fun AuraBlockCard(").substringBefore("private fun AuraQuickTileCard(").substringBefore("internal fun AuraQuickAccess(")
         val tile = layout.substringAfter("private fun AuraQuickTileCard(")
-        assertTrue(block.contains(".height(AURA_QUICK_TILE_HEIGHT)"))
+        // Row 877: one height for every tile, the fixed 72 dp at 100 %, growing with large font instead of clipping.
+        assertTrue(block.contains(".height(tileHeight)"))
+        assertTrue(
+            block.contains("maxOf(AURA_QUICK_TILE_HEIGHT, AuraType.MiniTitle.lineHeight.toDp() * 2 + AuraType.MiniArtist.lineHeight.toDp() + AURA_QUICK_TILE_TEXT_PAD)"),
+        )
+        assertFalse("ningún alto fijo queda en la tarjeta", block.contains(".height(AURA_QUICK_TILE_HEIGHT)") || block.contains(".size(AURA_QUICK_TILE_HEIGHT)"))
+        val type = main("ui/newui/AuraType.kt")
+        fun lineHeightSp(style: String) = Regex("""\blineHeight = (\d+)\.sp""")
+            .find(type.substringAfter("val $style = TextStyle(").substringBefore(")"))?.groupValues?.get(1)?.toFloat()
+            ?: error("$style.lineHeight not found")
+        assertEquals(
+            "at 100 % the tile is the 72 dp it always was",
+            AURA_QUICK_TILE_HEIGHT.value,
+            lineHeightSp("MiniTitle") * 2 + lineHeightSp("MiniArtist") + AURA_QUICK_TILE_TEXT_PAD.value,
+        )
         assertTrue("el nombre completo en dos líneas", tile.contains("titleMaxLines = 2"))
         assertTrue(layout.substringAfter("internal fun AuraQuickAccess(").contains("modifier = Modifier.weight(1f)"))
         assertTrue("sobran huecos con un Spacer para que la última fila conserve el ancho", layout.contains("repeat(columns - rowTiles.size)"))
