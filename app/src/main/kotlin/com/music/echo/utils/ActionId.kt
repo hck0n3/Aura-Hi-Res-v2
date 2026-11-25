@@ -325,6 +325,7 @@ enum class ActionId(val code: String) {
 
     // ── Player menu (⋮ of the full player) ──
     PMENU_VIEW_ARTIST("UI.PMENU.VIEW_ARTIST"),
+    PMENU_SUBSCRIBE("UI.PMENU.SUBSCRIBE"),
     PMENU_VIEW_ALBUM("UI.PMENU.VIEW_ALBUM"),
     PMENU_EQUALIZER("UI.PMENU.EQUALIZER"),
     PMENU_SOUND("UI.PMENU.SOUND"),

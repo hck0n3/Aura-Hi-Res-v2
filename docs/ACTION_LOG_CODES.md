@@ -221,6 +221,7 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 | Código | Acción |
 |---|---|
 | `UI.PMENU.VIEW_ARTIST` | Ver artista |
+| `UI.PMENU.SUBSCRIBE` | «Suscribirme / Suscrito» del menú ⋮ del reproductor (fila 860): con un artista le sigue el `UI.PLR.SUBSCRIBE` del chip; con varios abre el diálogo del chip |
 | `UI.PMENU.VIEW_ALBUM` | Ver álbum |
 | `UI.PMENU.EQUALIZER` | Ecualizador |
 | `UI.PMENU.SOUND` | Sonido |

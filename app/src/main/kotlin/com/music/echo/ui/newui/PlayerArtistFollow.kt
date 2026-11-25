@@ -100,6 +100,18 @@ internal object PlayerArtistFollow {
 /** A channel found by name, waiting for the user's «¿Suscribirte a …?»; only for the song ([songId]) it was found for. */
 internal data class PendingPlayerFollow(val songId: String, val key: String, val channel: PlayerArtistFollow.Candidate)
 
+/**
+ * The artist-actions chip's own follow path, handed to the player ⋮ menu so its «Suscribirme / Suscrito» (row 860) is the SAME
+ * tap ([follow] is the chip's `followArtistFromPlayer`), reads the SAME resolved channels ([channelIdOf]) and opens the SAME
+ * chooser ([chooseArtistToFollow]) — never a second door to the account. Belongs to the song [songId] it was made for.
+ */
+class PlayerFollowDoor(
+    val songId: String?,
+    val channelIdOf: (MediaMetadata.Artist) -> String?,
+    val follow: (MediaMetadata.Artist, Boolean) -> Unit,
+    val chooseArtistToFollow: (String) -> Unit,
+)
+
 /** Live follow state of [channelId] under every spelling of it, read off `followedByUserAt` only (row 154). */
 @Composable
 internal fun rememberPlayerArtistFollowed(database: MusicDatabase, channelId: String?): State<Boolean> =
