@@ -622,7 +622,7 @@ dependencies {
 
     implementation(libs.room.runtime)
     implementation(libs.kuromoji.ipadic)
-    implementation(libs.tinypinyin)
+    implementation(libs.pinyin4j)
     ksp(libs.room.compiler)
     implementation(libs.room.ktx)
 
@@ -693,5 +693,5 @@ dependencies {
     // list it, and the build failed with "not part of the dependency lock state" — a lock this
     // container cannot regenerate, since the proxy blocks Maven. BaselineProfilePackagedTest guards
     // that the transitive never disappears without anyone noticing.
-    implementation(libs.ffmpeg.kit.full)
+    implementation(libs.ffmpeg.kit.audio)
 }

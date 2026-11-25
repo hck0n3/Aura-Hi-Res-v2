@@ -24,8 +24,8 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.documentfile.provider.DocumentFile
-import com.arthenica.ffmpegkit.FFmpegKit
-import com.arthenica.ffmpegkit.ReturnCode
+import com.antonkarpenko.ffmpegkit.FFmpegKit
+import com.antonkarpenko.ffmpegkit.ReturnCode
 import com.music.innertube.YouTube
 import dagger.hilt.android.AndroidEntryPoint
 import iad1tya.echo.music.R
@@ -483,49 +483,20 @@ class AudioExportService : Service() {
             }
             updateExportProgress(songId, 70, getString(R.string.export_processing_tags))
 
-            // Fast path: stream-copy video + AAC audio, no loudnorm.
+            // Stream-copy the video + AAC audio. The old copy-fail → x264 re-encode cascade is gone:
+            // neither ffmpeg-kit-full 6.0-2 nor the audio build ships that encoder, so it never succeeded.
             val copyCmd = buildVideoFfmpegCommand(
                 videoPath = tempVideoFile.absolutePath,
                 audioPath = tempAudioFile.absolutePath,
                 outputPath = tempMp4File.absolutePath,
-                copyVideo = true,
-                useLoudnorm = false,
             )
-            var session = FFmpegKit.execute(copyCmd)
-            var returnCode = session.returnCode
-            if (returnCode != null && ReturnCode.isSuccess(returnCode)) {
-                Log.i(TAG, "Video export mux: copy-ok")
-            } else {
-                Log.i(TAG, "Video export mux: copy-fail → encode")
-                tempMp4File.delete()
-                updateExportProgress(songId, 78, getString(R.string.export_processing_tags))
-                val encodeCmd = buildVideoFfmpegCommand(
-                    videoPath = tempVideoFile.absolutePath,
-                    audioPath = tempAudioFile.absolutePath,
-                    outputPath = tempMp4File.absolutePath,
-                    copyVideo = false,
-                    useLoudnorm = false,
-                )
-                session = FFmpegKit.execute(encodeCmd)
-                returnCode = session.returnCode
-                if (returnCode == null || !ReturnCode.isSuccess(returnCode)) {
-                    Log.i(TAG, "Video export mux: encode-fail → loudnorm last resort")
-                    tempMp4File.delete()
-                    val loudnormCmd = buildVideoFfmpegCommand(
-                        videoPath = tempVideoFile.absolutePath,
-                        audioPath = tempAudioFile.absolutePath,
-                        outputPath = tempMp4File.absolutePath,
-                        copyVideo = false,
-                        useLoudnorm = true,
-                    )
-                    session = FFmpegKit.execute(loudnormCmd)
-                    returnCode = session.returnCode
-                }
-            }
+            val session = FFmpegKit.execute(copyCmd)
+            val returnCode = session.returnCode
             if (returnCode == null || !ReturnCode.isSuccess(returnCode)) {
                 Log.e(TAG, "FFmpeg video export failed: ${session.output?.take(400)}")
                 error("FFmpeg failed")
             }
+            Log.i(TAG, "Video export mux: copy-ok")
             if (!tempMp4File.exists() || tempMp4File.length() <= 0L) {
                 error("Exported MP4 file is empty")
             }
@@ -1289,21 +1260,12 @@ class AudioExportService : Service() {
             videoPath: String,
             audioPath: String,
             outputPath: String,
-            copyVideo: Boolean = false,
-            useLoudnorm: Boolean = false,
         ): String {
             val escapedVideo = videoPath.ffmpegEscape()
             val escapedAudio = audioPath.ffmpegEscape()
             val escapedOutput = outputPath.ffmpegEscape()
-            val videoArgs = if (copyVideo) {
-                // Skip libx264 when the adaptive stream is already H.264/AVC (huge wall-clock win).
-                "-c:v copy"
-            } else {
-                "-vf scale='min(1920,iw)':-2 -c:v libx264 -pix_fmt yuv420p -preset ultrafast -crf 22"
-            }
-            val audioFilter = if (useLoudnorm) " -af loudnorm=I=-11:TP=-1.5:LRA=11" else ""
             return "-y -i '$escapedVideo' -i '$escapedAudio' -map 0:v:0 -map 1:a:0 " +
-                "$videoArgs$audioFilter -c:a aac -b:a 192k " +
+                "-c:v copy -c:a aac -b:a 192k " +
                 "-movflags +faststart '$escapedOutput'"
         }
 

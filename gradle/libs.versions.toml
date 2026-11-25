@@ -41,14 +41,14 @@ materialKolor = "5.0.1"
 kuromojiIpadic = "0.9.0"
 pipepipeextractor = "bba8d84453"
 bravenewpipeextractor = "991b158fee"
-tinypinyin = "2.0.3"
+pinyin4j = "2.5.1"
 protobuf = "4.36.2"
 protobufPlugin = "0.10.1"
 smoothCorner = "v1.0.0"
 lottie = "6.7.1"
 work = "2.12.0"
 coreSplashscreen = "1.2.0"
-ffmpegKit = "6.0-2"
+ffmpegKitAudio = "2.2.3"
 # Removed 2026-09-04 (FASE 3 audit #5): playServicesAuth/googleApiClient/googleDriveApi versions
 # and their library aliases — zero consumers since the dead Drive Sync dependencies left app/build.gradle.kts.
 
@@ -145,7 +145,7 @@ pipepipeextractor = { module = "com.github.maxrave-dev:PipePipeExtractor", versi
 bravenewpipeextractor = { module = "com.github.maxrave-dev:BravePipeExtractor", version.ref = "bravenewpipeextractor" }
 
 kuromoji-ipadic = { module = "com.atilika.kuromoji:kuromoji-ipadic", version.ref = "kuromojiIpadic" }
-tinypinyin = { module = "com.github.promeG:tinypinyin", version.ref = "tinypinyin" }
+pinyin4j = { module = "com.belerweb:pinyin4j", version.ref = "pinyin4j" }
 
 protobuf-javalite = { module = "com.google.protobuf:protobuf-javalite", version.ref = "protobuf" }
 protobuf-kotlin-lite = { module = "com.google.protobuf:protobuf-kotlin-lite", version.ref = "protobuf" }
@@ -153,7 +153,7 @@ smoothCorner = { module = "com.github.racra:smooth-corner-rect-android-compose",
 lottie-compose = { module = "com.airbnb.android:lottie-compose", version.ref = "lottie" }
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
-ffmpeg-kit-full = { module = "com.arthenica:ffmpeg-kit-full", version.ref = "ffmpegKit" }
+ffmpeg-kit-audio = { module = "com.antonkarpenko:ffmpeg-kit-audio", version.ref = "ffmpegKitAudio" }
 
 [plugins]
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

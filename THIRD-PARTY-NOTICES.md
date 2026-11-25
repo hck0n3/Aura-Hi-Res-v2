@@ -117,3 +117,31 @@ SOFTWARE.
 ```
 
 - **SongMirror — Amazon Music read path** (MIT, Copyright (c) 2026 Ahnaf An Nafee, <https://github.com/ahnafnafee/songmirror> @ `e5bad7a`): `migration/src/main/kotlin/com/aura/migration/source/amazon/` (`AmazonMusicWeb.kt`, `AmazonMusicClient.kt`, `AmazonMusicSource.kt`) adapts the read side of `songmirror/amazon_music_web.py` and `songmirror/engine/targets/amazon_music.py`; the full MIT permission notice is in the header of `AmazonMusicWeb.kt`.
+
+---
+
+## FFmpegKit, audio build — LGPL-3.0 (Maven dependency, not vendored)
+
+| Coordinate | Contents |
+| --- | --- |
+| `com.antonkarpenko:ffmpeg-kit-audio:2.2.3` (Maven Central) | FFmpegKit Android wrapper (`com.antonkarpenko.ffmpegkit`) and FFmpeg n8.1.2 shared libraries (`libav*`, `libsw*`, `libffmpegkit*.so`) for arm64-v8a, armeabi-v7a, x86, x86_64 |
+
+Source: <https://github.com/sk3llo/ffmpeg_kit_flutter_android> (branch `audio`), licence declared in its POM:
+LGPL 3.0. FFmpeg is configured with `--enable-version3` and without `--enable-gpl`, so the libraries are
+LGPL-3.0; the external codecs it links (LAME, libshine, TwoLAME, libsoxr: LGPL; libvorbis, Opus, Speex, iLBC:
+BSD-style; opencore-amr, VisualOn AMR-WB: Apache-2.0) are all GPL-3.0 compatible. It is linked dynamically
+(separate `.so` files in the APK), as the LGPL expects. Used for MP3/MP4 export (`AudioExportService.kt`) and
+for reading ReplayGain tags of local files (`LocalSongScanner.kt`). Replaces `com.arthenica:ffmpeg-kit-full:6.0-2`
+(abandoned upstream; registry row 865).
+
+---
+
+## pinyin4j — BSD (Maven dependency, not vendored)
+
+| Coordinate | Contents |
+| --- | --- |
+| `com.belerweb:pinyin4j:2.5.1` (Maven Central) | Chinese character → Hanyu Pinyin tables (`pinyindb/`) and the `net.sourceforge.pinyin4j` / `com.hp.hpl.sparta` classes |
+
+Source: <https://github.com/belerweb/pinyin4j>, licence declared in its POM: BSD
+(<http://opensource.org/licenses/bsd-license.html>), GPL-3.0 compatible. Used only to romanize Chinese lyrics
+(`LyricsUtils.romanizeChinese`). Replaces `com.github.promeG:tinypinyin:2.0.3` (registry row 866).

@@ -10,14 +10,6 @@ buildscript {
         google()
         mavenCentral()
         maven { setUrl("https://jitpack.io") }
-        // HALLAZGO-010 (verificado 2026-08-25): este mirror NO se puede retirar todavía. La prueba
-        // real de resolución sin él deja dos artefactos FAILED: com.arthenica:ffmpeg-kit-full:6.0-2
-        // (exportación de audio) y com.github.promeG:tinypinyin:2.0.3 (pinyin de letras) — ambos son
-        // dependencias EOL que ya solo existen en el espejo de JCenter que sirve aliyun/public.
-        // La salida real es reemplazar esas dos librerías (ffmpeg-kit toca la exportación; tinypinyin
-        // es una sola llamada en LyricsUtils); hasta entonces el mirror se queda, al final de la
-        // lista para que google()/mavenCentral()/jitpack tengan prioridad de resolución.
-        maven { setUrl("https://maven.aliyun.com/repository/public") }
     }
     dependencies {
         classpath(libs.gradle)
