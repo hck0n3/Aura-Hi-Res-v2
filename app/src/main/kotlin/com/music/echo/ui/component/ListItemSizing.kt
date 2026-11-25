@@ -35,13 +35,16 @@ val DefaultListItemSizing = ListItemSizing(
 
 val LocalListItemSizing = staticCompositionLocalOf { DefaultListItemSizing }
 
-/** Widest-phone / narrowest-tablet breakpoint, the same 560 dp the rest of the wide chrome uses. */
-const val ROOMY_LIST_WIDE_DP = 560
+/**
+ * Window width (dp) from which a picker row is roomy: the layer's medium width, 600 dp (registry row 875). It was 560 dp
+ * on `Configuration.screenWidthDp` (row 869, item 8); a phone and a folded foldable (< 560 dp) keep the classic row.
+ */
+const val ROOMY_LIST_WIDE_DP = iad1tya.echo.music.ui.newui.AURA_MEDIUM_MIN_WIDTH_DP
 
 /** Rows for a picker: the whole name always, and a big cover when the window is wide (an unfolded foldable, a tablet). */
 @Composable
 fun roomyListItemSizing(): ListItemSizing =
-    if (iad1tya.echo.music.ui.newui.auraWindowInfo().configWidthDp >= ROOMY_LIST_WIDE_DP) {
+    if (iad1tya.echo.music.ui.newui.auraWindowInfo().widthDp >= ROOMY_LIST_WIDE_DP) {
         ListItemSizing(thumbnail = 72.dp, minHeight = 88.dp, titleLines = 3, fixedHeight = false)
     } else {
         ListItemSizing(thumbnail = ListThumbnailSize, minHeight = ListItemHeight, titleLines = 3, fixedHeight = false)

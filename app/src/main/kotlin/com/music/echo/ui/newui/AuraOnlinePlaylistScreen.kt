@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -176,6 +175,8 @@ fun AuraOnlinePlaylistScreen(
     val hideExplicit by rememberPreference(key = HideExplicitKey, defaultValue = false)
 
     val lazyListState = rememberLazyListState()
+    // Row 876: in two columns the header has a list of its own.
+    val headerListState = rememberLazyListState()
     // Opens on the cover, never scrolled past it (see AuraOpenAtTop).
     AuraOpenAtTop(lazyListState)
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
@@ -271,6 +272,10 @@ fun AuraOnlinePlaylistScreen(
     AuraCoverFocusEffect(screenCover)
     val bloom = rememberAuraBloomForCover(screenCover, mediaMetadata?.id)
     val currentPlaylist = playlist
+    // Row 876 (plan, phase 1 item 4): a pane wide enough for two columns keeps the phone header (cover, title, buttons,
+    // «Acerca de») in a left column that stays in view; the songs, the paging and «También te puede gustar» scroll on their
+    // own in the right one. Only once the playlist is there and outside the search, as the header itself.
+    val headerWidth = rememberAuraDetailHeaderWidth()?.takeIf { currentPlaylist != null && !isSearching }
 
     Box(modifier = Modifier.fillMaxSize().auraScreenBackground(bloom, intensity = 0.40f)) {
         Column(Modifier.fillMaxSize()) {
@@ -286,8 +291,10 @@ fun AuraOnlinePlaylistScreen(
                         .padding(start = 44.dp),
                 )
             }
-            LazyColumn(
-            state = lazyListState,
+            AuraDetailColumns(
+            headerWidth = headerWidth,
+            listState = lazyListState,
+            headerListState = headerListState,
             contentPadding = if (isSearching) {
                 LocalPlayerAwareWindowInsets.current
                     .union(WindowInsets.ime)
@@ -299,7 +306,7 @@ fun AuraOnlinePlaylistScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxSize(),
-        ) {
+            header = {
             // Gated on the PLAYLIST only, never on the song list: an online playlist with 0 songs still
             // has a header, and hiding it rendered literally nothing. A terminal failure shows a retry
             // instead of a blank screen forever.
@@ -369,7 +376,10 @@ fun AuraOnlinePlaylistScreen(
                         )
                     }
                 }
-
+            }
+            },
+        ) {
+            if (currentPlaylist != null) {
                 itemsIndexed(
                     items = filteredSongs,
                     // The song's POSITION in the full list. Unique by construction; a video id is not

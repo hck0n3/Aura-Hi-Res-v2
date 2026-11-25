@@ -66,8 +66,10 @@ internal fun AuraViewTypeToggle(viewType: LibraryViewType, onChange: (LibraryVie
  */
 @Composable
 internal fun auraLibraryCellSize(big: Boolean): Dp {
+    // Registry row 875: the window fallback is the layer's container width (`auraPaneWidthDp()`), the same reading the
+    // track columns and the list columns use, no longer Configuration's (row 869, item 7).
     val windowWidth = iad1tya.echo.music.ui.utils.LocalContentPaneWidth.current?.value
-        ?: auraWindowInfo().configWidthDp.toFloat()
+        ?: auraWindowInfo().widthDp
     return auraLibraryCellDp(windowWidth, big).dp
 }
 
@@ -83,7 +85,7 @@ private const val AURA_LIBRARY_GRID_GAP_DP = 11f
  * less a dp of slack for rounding).
  */
 internal fun auraLibraryCellDp(windowWidthDp: Float, big: Boolean): Float {
-    if (windowWidthDp < 600f) return if (big) 150f else 104f
+    if (windowWidthDp < AURA_MEDIUM_MIN_WIDTH_DP) return if (big) 150f else 104f
     if (windowWidthDp < AURA_LIBRARY_TABLET_MIN_DP) return if (big) 176f else 132f
     val columns = when {
         windowWidthDp < 1100f -> if (big) 3 else 4
@@ -94,9 +96,17 @@ internal fun auraLibraryCellDp(windowWidthDp: Float, big: Boolean): Float {
     return (pane - (columns - 1) * AURA_LIBRARY_GRID_GAP_DP) / columns - 1f
 }
 
-/** One column of full-width rows in list view; the adaptive grid otherwise. */
-internal fun auraLibraryColumns(viewType: LibraryViewType, gridCellSize: Dp): GridCells =
-    if (viewType == LibraryViewType.LIST) GridCells.Fixed(1) else GridCells.Adaptive(minSize = gridCellSize)
+/**
+ * [listColumns] columns of rows in list view (one on a phone; two or three on a wide pane, registry row 875 —
+ * [auraLibraryListColumns]); the adaptive grid otherwise.
+ */
+internal fun auraLibraryColumns(viewType: LibraryViewType, gridCellSize: Dp, listColumns: Int = 1): GridCells =
+    if (viewType == LibraryViewType.LIST) GridCells.Fixed(listColumns) else GridCells.Adaptive(minSize = gridCellSize)
+
+/** The Biblioteca list-view column count for the pane this screen is laid out in (window layer, registry row 875). */
+@Composable
+internal fun rememberAuraLibraryListColumns(): Int =
+    auraLibraryListColumns(auraPaneWidthDp(), auraWindowInfo().isCompactHeight)
 
 /**
  * A Biblioteca item in either view: the cover card in the grid, a row (same data, same taps) in the list.
@@ -121,6 +131,11 @@ internal fun AuraLibraryCell(
     fullTitle: Boolean = false,
     /** Grid only: drawn over the cover (the «Fijado» pin on what is already pinned to the Library). */
     badge: (@Composable BoxScope.() -> Unit)? = null,
+    /**
+     * List only: false when the list has more than one column (row 875) — the row then stays inside its own cell instead
+     * of bleeding over the gutter into its neighbour.
+     */
+    bleed: Boolean = true,
 ) {
     if (viewType == LibraryViewType.LIST) {
         AuraSongRow(
@@ -135,7 +150,7 @@ internal fun AuraLibraryCell(
             fullTitle = fullTitle,
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = modifier.auraBleedHorizontal(AuraSpacing.Gutter),
+            modifier = if (bleed) modifier.auraBleedHorizontal(AuraSpacing.Gutter) else modifier,
         )
     } else {
         AuraCoverCard(

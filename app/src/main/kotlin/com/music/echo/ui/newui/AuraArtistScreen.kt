@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.items
@@ -225,6 +224,8 @@ fun AuraArtistScreen(
     }
 
     val listState = rememberLazyListState()
+    // Row 876: in two columns the header has a list of its own (the hero's parallax follows it there).
+    val headerListState = rememberLazyListState()
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
     ScrollStateBusReporter { listState.isScrollInProgress }
     // Fila 360: this screen wears ITS cover's colours (not the song playing) while it is shown.
@@ -339,14 +340,22 @@ fun AuraArtistScreen(
         // as an album / playlist ([AuraWideTop]: the square cover on the left, name and actions on its right); a narrow pane
         // (a folded foldable, a phone, a split screen) keeps the full-bleed hero exactly as it was.
         val wideTop = maxWidth >= AURA_WIDE_HERO_MIN_WIDTH
-        LazyColumn(
-            state = listState,
+        val isKnownArtist = libraryArtist != null || artistPage != null
+        // Row 876 (plan, phase 1 item 4): a pane wide enough for two columns keeps the phone header (hero, name, stats,
+        // «Acerca de», buttons) in a left column that stays in view, and the songs and shelves scroll on their own in the
+        // right one. Only once there is an artist to show: the skeleton and the error keep the single column (they are
+        // emitted by the header part, which then is the whole page).
+        val headerWidth = rememberAuraDetailHeaderWidth()?.takeIf { isKnownArtist || showLocal }
+        val heroListState = if (headerWidth != null) headerListState else listState
+        AuraDetailColumns(
+            headerWidth = headerWidth,
+            listState = listState,
+            headerListState = headerListState,
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(insets.only(WindowInsetsSides.Horizontal)),
             contentPadding = PaddingValues(bottom = bottomClearance + 56.dp),
-        ) {
-            val isKnownArtist = libraryArtist != null || artistPage != null
+            header = {
             if (!isKnownArtist && !showLocal && hasFailed) {
                 item(key = "aura_artist_error", contentType = "aura_artist_error") {
                     Column {
@@ -562,7 +571,7 @@ fun AuraArtistScreen(
                     }
                 }
 
-                if (wideTop) {
+                if (wideTop && headerWidth == null) {
                     item(key = "aura_artist_hero", contentType = "aura_artist_wide_top") {
                         val lean = rememberLeanMode()
                         val portrait = artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl
@@ -591,7 +600,8 @@ fun AuraArtistScreen(
                             artistName = artistName,
                             backgroundVideoUrl = backgroundVideoUrl,
                             showBackgroundVideo = showArtistBackgroundVideo,
-                            listState = listState,
+                            listState = heroListState,
+                            blurMovingMedia = headerWidth == null,
                         )
                     }
 
@@ -599,7 +609,10 @@ fun AuraArtistScreen(
                         artistHeader(false)
                     }
                 }
-
+            }
+            },
+        ) {
+            if (isKnownArtist || showLocal) {
                 if (showLocal) {
                     // Full local catalogue for play/queue; the shelf preview is only for what we DRAW.
                     val filteredLibrarySongs = if (hideExplicit) {
@@ -1069,6 +1082,11 @@ private fun AuraArtistHero(
     showBackgroundVideo: Boolean,
     listState: LazyListState,
     modifier: Modifier = Modifier,
+    /**
+     * `false` in the two-column header (registry row 876), where the hero stays in view while the songs scroll: the
+     * progressive blur is dropped while the background video plays, as [AuraWideTop] never had one. A still portrait keeps it.
+     */
+    blurMovingMedia: Boolean = true,
 ) {
     if (thumbnailUrl == null && backgroundVideoUrl == null) {
         // No portrait and no video: leave the status-bar clearance the top bar needs and nothing else,
@@ -1148,6 +1166,9 @@ private fun AuraArtistHero(
                     .align(Alignment.BottomCenter)
                     .then(
                         if (lean) {
+                            Modifier
+                        } else if (!blurMovingMedia && backgroundVideoUrl != null && showBackgroundVideo) {
+                            // Row 876: a hero that never scrolls away must not re-blur every video frame (rule 7).
                             Modifier
                         } else {
                             Modifier.hazeEffect(heroHaze) {

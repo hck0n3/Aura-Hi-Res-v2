@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -290,6 +289,8 @@ fun AuraAlbumScreen(
     }
 
     val listState = rememberLazyListState()
+    // Row 876: in two columns the header has a list of its own (the hero's parallax follows it there).
+    val headerListState = rememberLazyListState()
     // Opens on the cover, never scrolled past it (see AuraOpenAtTop).
     AuraOpenAtTop(listState)
     // Registry row 196: freeze the shell chrome's haze sampling while any list is mid-gesture/fling.
@@ -315,15 +316,22 @@ fun AuraAlbumScreen(
         // Wide pane (an unfolded foldable, a tablet): the cover on the left and the title / actions on its right,
         // songs right below — instead of a stacked hero that pushed the track list off the first screen.
         val wideTop = maxWidth >= AURA_WIDE_HERO_MIN_WIDTH
-        LazyColumn(
-            state = listState,
+        // Row 876 (plan, phase 1 item 4): a pane wide enough for two columns keeps the phone header (hero + header) in a
+        // left column that stays in view, and the songs and shelves scroll on their own in the right one. Only once the
+        // album is there: the skeleton, the error and «no longer available» keep the single column.
+        val headerWidth = rememberAuraDetailHeaderWidth()?.takeIf { album != null && album.songs.isNotEmpty() }
+        val heroListState = if (headerWidth != null) headerListState else listState
+        AuraDetailColumns(
+            headerWidth = headerWidth,
+            listState = listState,
+            headerListState = headerListState,
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(insets.only(WindowInsetsSides.Horizontal)),
             // Top = 0: the hero is full-bleed and scrolls under the status bar. See AuraDetailChrome
             // for why the redesigned pushed screens never consume the 64 dp app-bar reserve.
             contentPadding = PaddingValues(bottom = bottomClearance + 56.dp),
-        ) {
+            header = {
             if (album != null && album.songs.isNotEmpty()) {
                 // One header, two placements: centred under the full-bleed hero (phone) or beside the cover (wide).
                 val albumHeader: @Composable (Boolean) -> Unit = { startAligned ->
@@ -358,7 +366,7 @@ fun AuraAlbumScreen(
                     )
                 }
 
-                if (wideTop) {
+                if (wideTop && headerWidth == null) {
                     item(key = "aura_album_hero", contentType = "aura_album_wide_top") {
                         val lean = rememberLeanMode()
                         AuraWideTop(
@@ -393,7 +401,8 @@ fun AuraAlbumScreen(
                             canvasFallbackUrl = canvasArtwork?.videoUrl,
                             canvasEnabled = albumCanvasEnabled,
                             isPlaying = isPlaying,
-                            listState = listState,
+                            listState = heroListState,
+                            blurMovingMedia = headerWidth == null,
                         )
                     }
 
@@ -401,7 +410,10 @@ fun AuraAlbumScreen(
                         albumHeader(false)
                     }
                 }
-
+            }
+            },
+        ) {
+            if (album != null && album.songs.isNotEmpty()) {
                 if (filteredSongs.isNotEmpty()) {
                     item(key = "aura_album_songs_label", contentType = "aura_album_songs_label") {
                         AuraSectionHeader(
@@ -776,6 +788,11 @@ internal fun AuraAlbumHero(
     mosaic: List<String?>? = null,
     /** Drawn over the finished hero (a playlist's ✎ button). */
     overlay: (@Composable BoxScope.() -> Unit)? = null,
+    /**
+     * `false` in the two-column header (registry row 876), where the hero stays in view while the songs scroll: the
+     * progressive blur is dropped while the canvas video plays, as [AuraWideTop] never had one. A still cover keeps it.
+     */
+    blurMovingMedia: Boolean = true,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         // Hoisted: inside the inner Box the closest implicit receiver is BoxScope, not
@@ -873,6 +890,9 @@ internal fun AuraAlbumHero(
                     .align(Alignment.BottomCenter)
                     .then(
                         if (lean) {
+                            Modifier
+                        } else if (!blurMovingMedia && canvasEnabled && (canvasPrimaryUrl != null || canvasFallbackUrl != null)) {
+                            // Row 876: a hero that never scrolls away must not re-blur every canvas frame (rule 7).
                             Modifier
                         } else {
                             Modifier.hazeEffect(heroHaze) {

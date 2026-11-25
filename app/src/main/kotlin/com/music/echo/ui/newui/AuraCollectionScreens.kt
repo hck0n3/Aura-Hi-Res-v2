@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -257,6 +256,8 @@ internal fun AuraSongCollectionScaffold(
     }
 
     val listState = rememberLazyListState()
+    // Row 876: in two columns the header has a list of its own (the hero's parallax follows it there).
+    val headerListState = rememberLazyListState()
     // Opens on the cover, never scrolled past it: Descargado puts its cards in the list before the songs (and the header)
     // arrive, and the header inserted above them would otherwise push the page down (see AuraOpenAtTop).
     AuraOpenAtTop(listState)
@@ -264,6 +265,11 @@ internal fun AuraSongCollectionScaffold(
     ScrollStateBusReporter { listState.isScrollInProgress }
     val pullRefreshState = rememberPullToRefreshState()
     val bloom = rememberAuraBloom(mediaMetadata?.id)
+    // Row 876 (plan, phase 1 item 4): a pane wide enough for two columns keeps the phone header (cover, title, buttons,
+    // «Acerca de») in a left column that stays in view; the extra cards, the sort bar and the songs scroll on their own in
+    // the right one. Only with songs and outside the search, as the header itself.
+    val headerWidth = rememberAuraDetailHeaderWidth()?.takeIf { songs?.isNotEmpty() == true && !isSearching }
+    val heroListState = if (headerWidth != null) headerListState else listState
 
     Box(
         modifier = modifier
@@ -292,8 +298,10 @@ internal fun AuraSongCollectionScaffold(
                         .padding(start = 44.dp),
                 )
             }
-            LazyColumn(
-            state = listState,
+            AuraDetailColumns(
+            headerWidth = headerWidth,
+            listState = listState,
+            headerListState = headerListState,
             contentPadding = if (isSearching) {
                 LocalPlayerAwareWindowInsets.current
                     .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
@@ -311,10 +319,10 @@ internal fun AuraSongCollectionScaffold(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxSize(),
-        ) {
+            header = header@{
             // Still loading: nothing is drawn, exactly as the classic screens do. Bound to a local so
             // every nested lambda below reads the same non-null list without a smart cast.
-            val list = songs ?: return@LazyColumn
+            val list = songs ?: return@header
 
             if (list.isEmpty() && !extraItemsPresent) {
                 item(key = "aura_coll_empty", contentType = "aura_coll_empty") {
@@ -342,11 +350,14 @@ internal fun AuraSongCollectionScaffold(
                         onSearch = { isSearching = true },
                         useVideoCount = useVideoCount,
                         videoPosterLayout = videoPosterLayout,
-                        listState = listState,
+                        listState = heroListState,
                         modifier = Modifier.animateItem(),
                     )
                 }
             }
+            },
+        ) {
+            val list = songs ?: return@AuraDetailColumns
 
             extraItems?.invoke(this, isSearching)
 
@@ -529,7 +540,8 @@ internal fun AuraSongCollectionScaffold(
                 )
                 .align(Alignment.CenterEnd),
             scrollState = listState,
-            headerItems = 2,
+            // In two columns the header is in the other list: only the sort bar sits above the songs here.
+            headerItems = if (headerWidth != null) 1 else 2,
         )
 
         if (canRefresh) {
