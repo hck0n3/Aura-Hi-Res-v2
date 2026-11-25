@@ -259,6 +259,7 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 | `UI.SONGMENU.EDIT` | Editar |
 | `UI.SONGMENU.PLAY_NEXT` | Reproducir a continuación |
 | `UI.SONGMENU.ADD_TO_QUEUE` | Añadir a la cola |
+| `UI.SONGMENU.LESS_LIKE_THIS` | Menos parecido a esto (solo canciones de YouTube, fila 861) |
 | `UI.SONGMENU.LIBRARY_TOGGLE` | Añadir a / quitar de la biblioteca |
 | `UI.SONGMENU.REMOVE_FROM_HISTORY` | Quitar del historial |
 | `UI.SONGMENU.REMOVE_FROM_PLAYLIST` | Quitar de la lista |
@@ -776,6 +777,7 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.QMENU.SHARE` | «Compartir» |
 | `UI.QMENU.PLAY_NEXT` | «Reproducir a continuación» |
 | `UI.QMENU.ADD_TO_QUEUE` | «Añadir a la cola» |
+| `UI.QMENU.LESS_LIKE_THIS` | «Menos de esto» (solo canciones de YouTube, fila 861) |
 | `UI.QMENU.REMOVE_DOWNLOAD` | «Eliminar descarga» |
 | `UI.QMENU.CANCEL_DOWNLOAD` | «Descargando…» (cancela la descarga) |
 | `UI.QMENU.DOWNLOAD` | «Descargar» |
