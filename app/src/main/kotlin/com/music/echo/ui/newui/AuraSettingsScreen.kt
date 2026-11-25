@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -424,7 +425,13 @@ internal fun AuraSettingsIndexHost(
     // starts where the last one was left and stores where it stops (at the end of each gesture or fling, not per frame).
     // A phone keeps its one plain scroll state.
     val sharedScroll = sharedIndexState?.takeIf { twoPanes }
-    val scrollState = rememberScrollState(initial = sharedScroll?.get<Int>(INDEX_KEY_SCROLL) ?: 0)
+    // Two panes: plain remember, not the entry's own saveable scroll, so going back to a page restores the shared place
+    // instead of the one that copy had before (registry row 873).
+    val scrollState = if (sharedScroll != null) {
+        remember(sharedScroll) { ScrollState(sharedScroll.get<Int>(INDEX_KEY_SCROLL) ?: 0) }
+    } else {
+        rememberScrollState()
+    }
     if (sharedScroll != null) {
         LaunchedEffect(scrollState, sharedScroll) {
             snapshotFlow { scrollState.isScrollInProgress }.collect { moving ->

@@ -107,8 +107,11 @@ class SettingsTwoPaneGuardTest {
     @Test
     fun `with two panes every copy of the index keeps the scroll, stored at the end of a gesture, and a phone keeps its own`() {
         assertTrue("only with two panes", screen.contains("val sharedScroll = sharedIndexState?.takeIf { twoPanes }"))
-        assertTrue("a phone starts at 0, as rememberScrollState() did",
-            screen.contains("val scrollState = rememberScrollState(initial = sharedScroll?.get<Int>(INDEX_KEY_SCROLL) ?: 0)"))
+        // Plain remember with two panes: the entry's own saveable scroll would win on the way back (review of row 873).
+        assertTrue("two panes start from the shared place",
+            screen.contains("remember(sharedScroll) { ScrollState(sharedScroll.get<Int>(INDEX_KEY_SCROLL) ?: 0) }"))
+        assertTrue("a phone keeps its own saveable scroll", screen.contains("} else {\n        rememberScrollState()\n    }"))
+        assertFalse(screen.contains("rememberScrollState(initial = sharedScroll"))
         assertTrue("stored when the scroll stops, not per frame",
             screen.contains("snapshotFlow { scrollState.isScrollInProgress }.collect { moving ->\n                if (!moving) sharedScroll[INDEX_KEY_SCROLL] = scrollState.value"))
         assertFalse(screen.contains("snapshotFlow { scrollState.value }"))
