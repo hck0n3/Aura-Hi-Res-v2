@@ -40,4 +40,16 @@
     <string name="sub_cleanup_interrupted">Stopped: %1$d of %2$d; tap Continue</string>
     <string name="sub_cleanup_continue">Continue</string>
     <string name="sub_cleanup_discard">Discard</string>
+    <plurals name="sub_cleanup_total">
+        <item quantity="one">%d subscription</item>
+        <item quantity="other">%d subscriptions</item>
+    </plurals>
+    <plurals name="sub_cleanup_total_at_least">
+        <item quantity="one">At least %d subscription</item>
+        <item quantity="other">At least %d subscriptions</item>
+    </plurals>
+    <plurals name="sub_cleanup_total_suggested">
+        <item quantity="one">%d suggested</item>
+        <item quantity="other">%d suggested</item>
+    </plurals>
 </resources>

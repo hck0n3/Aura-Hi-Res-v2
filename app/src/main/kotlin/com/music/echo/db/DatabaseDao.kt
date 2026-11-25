@@ -1421,6 +1421,10 @@ interface DatabaseDao {
     @Query("SELECT id FROM song WHERE isDownloaded = 1")
     fun downloadedSongIdsOnce(): List<String>
 
+    /** Row 855: the rows [downloadedSongs] lists, for the Inicio «Descargado» tile (not Media3's download index). */
+    @Query("SELECT COUNT(1) AS total, COALESCE(SUM(isVideo), 0) AS videos FROM song WHERE isDownloaded = 1")
+    fun downloadedSongCounts(): Flow<DownloadedSongCounts>
+
     @Transaction
     @Query("SELECT * FROM song WHERE isUploaded = 1 ORDER BY dateDownload")
     fun uploadedSongsByCreateDateAsc(): Flow<List<Song>>

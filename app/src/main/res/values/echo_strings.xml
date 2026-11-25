@@ -1570,4 +1570,16 @@
     <string name="ytm_upload_count_at_least">At least %1$d synced · incomplete list</string>
     <string name="ytm_upload_list_incomplete">Incomplete list</string>
     <string name="ytm_upload_incomplete_summary">YouTube did not return some of your lists in full, so those numbers are a minimum. Sync again to see the real ones.</string>
+    <plurals name="local_songs_scan_videos">
+        <item quantity="one">%d video (in Exported videos)</item>
+        <item quantity="other">%d videos (in Exported videos)</item>
+    </plurals>
+    <plurals name="local_songs_scan_skipped_unsupported">
+        <item quantity="one">%d skipped (unsupported format)</item>
+        <item quantity="other">%d skipped (unsupported format)</item>
+    </plurals>
+    <plurals name="local_songs_scan_skipped_short">
+        <item quantity="one">%d skipped (too short or no duration)</item>
+        <item quantity="other">%d skipped (too short or no duration)</item>
+    </plurals>
 </resources>

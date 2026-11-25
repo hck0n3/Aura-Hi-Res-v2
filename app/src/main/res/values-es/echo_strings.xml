@@ -1462,4 +1462,19 @@
     <string name="ytm_upload_count_at_least">Al menos %1$d sincronizadas · lista incompleta</string>
     <string name="ytm_upload_list_incomplete">Lista incompleta</string>
     <string name="ytm_upload_incomplete_summary">YouTube no devolvió entera alguna de tus listas, así que esos números son un mínimo. Vuelve a sincronizar para ver los reales.</string>
+    <plurals name="local_songs_scan_videos">
+        <item quantity="one">%d vídeo (en Vídeos exportados)</item>
+        <item quantity="many">%d de vídeos (en Vídeos exportados)</item>
+        <item quantity="other">%d vídeos (en Vídeos exportados)</item>
+    </plurals>
+    <plurals name="local_songs_scan_skipped_unsupported">
+        <item quantity="one">%d omitida (formato no compatible)</item>
+        <item quantity="many">%d de omitidas (formato no compatible)</item>
+        <item quantity="other">%d omitidas (formato no compatible)</item>
+    </plurals>
+    <plurals name="local_songs_scan_skipped_short">
+        <item quantity="one">%d omitida (demasiado corta o sin duración)</item>
+        <item quantity="many">%d de omitidas (demasiado cortas o sin duración)</item>
+        <item quantity="other">%d omitidas (demasiado cortas o sin duración)</item>
+    </plurals>
 </resources>

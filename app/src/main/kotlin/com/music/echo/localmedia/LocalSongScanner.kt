@@ -132,10 +132,37 @@ private fun trimDanglingBracket(part: String): String {
 }
 
 data class LocalSongScanSummary(
+    /** Row 855: the AUDIO files the scan found — what Biblioteca ▸ Local lists (videos go elsewhere, row 583). */
     val scannedSongs: Int,
     val removedSongs: Int,
     /** Songs the scan no longer sees but kept because their storage volume is not mounted right now (row 694). */
     val keptMissing: Int = 0,
+    /** Row 855: video files the scan registered; they are listed under «Vídeos exportados», not in Local. */
+    val scannedVideos: Int = 0,
+    /** Row 855: audio files MediaStore listed in the chosen folders that were not imported: a format Aura does not play. */
+    val skippedUnsupported: Int = 0,
+    /** Row 855: audio files in the chosen folders that MediaStore lists with no duration, or shorter than the minimum. */
+    val skippedShort: Int = 0,
+)
+
+/**
+ * Row 855 (owner test #36, 2026-11-24: «59 canciones encontradas» in the scan, 58 in Biblioteca ▸ Local). The scan's
+ * summary counted every track it registered, videos included, while Local lists audio only (row 583). Counted here the way
+ * Local lists them, with the rest said apart.
+ */
+internal fun localScanSummary(
+    scannedIsVideo: List<Boolean>,
+    removedSongs: Int,
+    keptMissing: Int,
+    skippedUnsupported: Int,
+    skippedShort: Int,
+): LocalSongScanSummary = LocalSongScanSummary(
+    scannedSongs = scannedIsVideo.count { !it },
+    removedSongs = removedSongs,
+    keptMissing = keptMissing,
+    scannedVideos = scannedIsVideo.count { it },
+    skippedUnsupported = skippedUnsupported,
+    skippedShort = skippedShort,
 )
 
 /**
@@ -383,10 +410,12 @@ constructor(
             pruneFormats()
             prunePlayCounts()
 
-            summary = LocalSongScanSummary(
-                scannedSongs = snapshot.tracks.size,
+            summary = localScanSummary(
+                scannedIsVideo = snapshot.tracks.map(LocalTrackRecord::isVideo),
                 removedSongs = removable.size,
                 keptMissing = kept.size,
+                skippedUnsupported = snapshot.skippedUnsupported,
+                skippedShort = snapshot.skippedShort,
             )
         }
         // The kept songs keep their recorded volume, or the next scan would no longer know to keep them.
@@ -575,24 +604,29 @@ constructor(
                 add(MediaStore.MediaColumns.DATA)
             }
         }.toTypedArray()
-        val selection = buildList {
-            add("${MediaStore.Audio.Media.SIZE} > 0")
-            if (sanitizedMinimumDurationMs > 0L) {
-                add("${MediaStore.Audio.Media.DURATION} >= $sanitizedMinimumDurationMs")
-            } else {
-                add("${MediaStore.Audio.Media.DURATION} > 0")
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                add("${MediaStore.MediaColumns.IS_PENDING} = 0")
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                add("is_trashed = 0")
-            }
-        }.joinToString(" AND ")
+        val durationFloor = if (sanitizedMinimumDurationMs > 0L) {
+            "${MediaStore.Audio.Media.DURATION} >= $sanitizedMinimumDurationMs"
+        } else {
+            "${MediaStore.Audio.Media.DURATION} > 0"
+        }
+        val selectionWith = { durationClause: String ->
+            buildList {
+                add("${MediaStore.Audio.Media.SIZE} > 0")
+                add(durationClause)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    add("${MediaStore.MediaColumns.IS_PENDING} = 0")
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    add("is_trashed = 0")
+                }
+            }.joinToString(" AND ")
+        }
+        val selection = selectionWith(durationFloor)
 
         val unknownArtist = context.getString(R.string.unknown_artist)
         val unknownTitle = context.getString(R.string.unknown)
         val tracks = mutableListOf<LocalTrackRecord>()
+        var skippedUnsupported = 0
         (context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
@@ -632,6 +666,7 @@ constructor(
                 val displayName = cursor.getString(displayNameIndex)
                 val mimeType = cursor.getString(mimeTypeIndex)?.takeIf(String::isNotBlank) ?: "audio/*"
                 if (!SupportedLocalAudio.isSupported(displayName, mimeType)) {
+                    skippedUnsupported++
                     continue
                 }
 
@@ -816,8 +851,41 @@ constructor(
             tracks = tracks,
             artists = tracks.flatMap(LocalTrackRecord::artists).distinctBy(LocalArtistRecord::id),
             albums = albums,
+            skippedUnsupported = skippedUnsupported,
+            skippedShort = countShortAudio(
+                selection = selectionWith("(${MediaStore.Audio.Media.DURATION} IS NULL OR NOT ($durationFloor))"),
+                includedFolders = sanitizedIncludedFolders,
+                excludedFolders = sanitizedExcludedFolders,
+            ),
         )
     }
+
+    /**
+     * Row 855: the audio files in the chosen folders that the duration clause leaves out of the scan, only counted (never
+     * imported) so the summary can say why the device lists more audio than Local. Never fails the scan: 0 if unreadable.
+     */
+    @Suppress("DEPRECATION")
+    private fun countShortAudio(selection: String, includedFolders: Set<String>, excludedFolders: Set<String>): Int = runCatching {
+        val projection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            arrayOf(MediaStore.MediaColumns.RELATIVE_PATH)
+        } else {
+            arrayOf(MediaStore.MediaColumns.DATA)
+        }
+        context.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, selection, null, null)
+            ?.use { cursor ->
+                val relativePathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+                val dataPathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+                var count = 0
+                while (cursor.moveToNext()) {
+                    val folder = resolveNormalizedFolderPath(
+                        relativePath = cursor.getStringOrNull(relativePathIndex),
+                        absolutePath = cursor.getStringOrNull(dataPathIndex),
+                    )
+                    if (shouldIncludeFolder(folder, includedFolders) && !shouldExcludeFolder(folder, excludedFolders)) count++
+                }
+                count
+            } ?: 0
+    }.getOrDefault(0)
 
     private fun normalizeTitle(title: String?, displayName: String?, fallback: String): String {
         return title?.trim()?.takeIf { it.isNotBlank() }
@@ -975,6 +1043,8 @@ constructor(
         val tracks: List<LocalTrackRecord>,
         val artists: List<LocalArtistRecord>,
         val albums: List<LocalAlbumRecord>,
+        val skippedUnsupported: Int = 0,
+        val skippedShort: Int = 0,
     )
 
     private data class LocalTrackRecord(
