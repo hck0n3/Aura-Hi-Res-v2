@@ -4546,3 +4546,18 @@ Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión 
 |---|---|---|
 | Reproductor Aura > menú ⋮ (el de la barra de la cola y el de la cabecera de la cola abierta) > losa fija: **«Suscribirme» / «Suscrito» / «Suscrito a N de M»** (`ui/newui/AuraPlayerMenu.kt:431-469`) | **Fila nueva**, justo detrás de «Ver artista» y antes de «Ver álbum». Mismos textos que el chip (R.string.subscribe / subscribed / player_artists_some_subscribed); icono «+», o «✓» en verde azulado cuando se sigue a todos. Un artista: conmuta ahí mismo y la fila cambia a «Suscrito» (si el canal se halló por nombre, antes sale el mismo «¿Suscribirte a X?» del chip); varios: se cierra el menú y se abre el mismo selector del chip, con «Suscribirme / Suscrito» por artista. Solo si la canción tiene algún artista con nombre y sigue sonando la canción del menú. Responde solo a un toque (un desplazamiento del menú no suscribe) | 860 |
 | Reproductor Aura > fila del artista: chip **Suscribirme / Suscrito** (`ui/newui/AuraPlayer.kt:1837-1885`) | Sin cambios: mismo sitio, mismo texto, mismo toque. La fila nueva del menú usa su misma función (`followArtistFromPlayer`, a través de `PlayerFollowDoor`) | 860 |
+
+## Anexo 2026-11-25 (fila 868): fase 3b, textos escritos en Kotlin sin «YouTube» donde no hace falta (no se quitó ni se ocultó nada)
+
+Solo cambian palabras: mismo sitio, mismo toque, misma clave de ajustes y mismo código de `ActionId`. Los textos de `res/values*` son de otro paquete de esta beta.
+
+| Dónde | Antes → ahora | Fila del registro |
+|---|---|---|
+| Ajustes ▸ Contenido: título del grupo (`ui/screens/settings/ContentSettings.kt:691`) | «Configuración de YouTube» → «Configuración del catálogo en línea» | 868 |
+| Ajustes ▸ Contenido: fila que despliega los filtros (`ContentSettings.kt:695`, `UI.SETCONT.YOUTUBE_OPTIONS`) | «Opciones de YouTube» → «Opciones del catálogo en línea» (la descripción «Filtros, videos cortos y detalles de artista» no cambia) | 868 |
+| Ajustes ▸ Acerca de ▸ «Radar de novedades» (`ui/screens/settings/AboutScreen.kt:82`) | «…sin ella, YouTube solo da el año…» → «…sin ella, el catálogo en línea solo da el año…» | 868 |
+| Ajustes ▸ Acerca de ▸ «Sincronizar una playlist a mano» (`AboutScreen.kt:99`) | «…vinculada a tu cuenta de YouTube…» → «…vinculada a tu cuenta de Google…» | 868 |
+| Ajustes ▸ Acerca de ▸ «Podcasts» (`AboutScreen.kt:102`) | «…sin depender de YouTube…» → «…sin depender del catálogo en línea…» | 868 |
+| Ajustes ▸ Acerca de ▸ «Descifrado de reproducción que se repara solo» (`AboutScreen.kt:146`) | «Cuando YouTube cambia su reproductor…» → «Cuando el catálogo en línea cambia su reproductor…» | 868 |
+| Estado y programación de la sincronización: motivo de parada de la subida (`utils/LibraryUploadSync.kt:442`, se pinta en `ui/screens/settings/YtmSyncScreen.kt:658`) | «YouTube no está aceptando más suscripciones ahora mismo; se reintentará más tarde» → «Tu cuenta de Google no está aceptando más suscripciones ahora mismo; se reintentará más tarde» | 868 |
+| **Se quedan como están, a propósito:** Acerca de ▸ «Búsqueda por voz y filtros» (`AboutScreen.kt:132`, «Si pegas un enlace de YouTube…»: el buscador solo reconoce enlaces de YouTube); el aviso de edad (`utils/AgeGateChain.kt:66`: la edad se confirma en youtube.com); la guía de Apple Music (`migration/…/AppleMusicGuide.kt:25`, `:37`: la página de Apple pide elegir YouTube Music como destino); `settings/AccountSettingsScreen.kt:233`, `:340` (pantalla sin ruta, no se ve; ver «Visto, sin tocar» de la fila 868) | Sin cambios | 868 |

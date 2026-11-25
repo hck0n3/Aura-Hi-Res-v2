@@ -688,11 +688,11 @@ fun ContentSettings(
         Spacer(modifier = Modifier.height(27.dp))
 
         Material3SettingsGroup(
-            title = "Configuración de YouTube",
+            title = "Configuración del catálogo en línea",
             items = listOf(
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.slow_motion_video),
-                    title = { Text("Opciones de YouTube") },
+                    title = { Text("Opciones del catálogo en línea") },
                     description = { Text("Filtros, videos cortos y detalles de artista") },
                     trailingContent = {
                         Icon(

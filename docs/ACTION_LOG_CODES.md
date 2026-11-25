@@ -1631,7 +1631,7 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.SETCONT.CONTENT_LANGUAGE` | «Idioma de contenido predeterminado» |
 | `UI.SETCONT.CONTENT_COUNTRY` | «País de contenido predeterminado» |
 | `UI.SETCONT.SUGGESTION_REGION` | «Región de sugerencias» |
-| `UI.SETCONT.YOUTUBE_OPTIONS` | «Opciones de YouTube» (despliega) |
+| `UI.SETCONT.YOUTUBE_OPTIONS` | «Opciones del catálogo en línea» (despliega; antes «Opciones de YouTube», fila 868) |
 | `UI.SETCONT.APP_LANGUAGE_SYSTEM` | «Idioma de la aplicación» (ajustes del sistema) |
 | `UI.SETCONT.APP_LANGUAGE` | «Idioma de la aplicación» (lista) |
 | `UI.SETCONT.NETWORK_IP_VERSION` | «Versión IP de la red» |
