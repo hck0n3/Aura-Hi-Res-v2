@@ -4512,3 +4512,9 @@ Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión 
 | Dónde | Qué hay ahora | Fila del registro |
 |---|---|---|
 | Ajustes ▸ Sincronizar dispositivos ▸ «Emparejamiento» (descripción, solo con «Emparejar con mi licencia» encendido y sin código) | Con una clave maestra dice «Con una clave maestra los aparatos no se emparejan solos: usa un código de emparejamiento» en vez de pedir el correo de la compra. Con licencia de Gumroad, igual que antes. El interruptor, el código, el QR y todo lo demás siguen igual | 851 |
+
+## Anexo 2026-11-25 (filas 857-859): prueba del dueño en el Galaxy Z Fold7 — Ajustes se encuentra mejor (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Ajustes ▸ MÁS ▸ sección **«Acerca de»** (`ui/newui/AuraSettingsScreen.kt:409-417`) | Al tocarla se despliega en su sitio (el chevrón gira) y enseña sus dos filas, **«Actualizaciones»** → `settings/update` y **«Acerca de»** → `settings/about`, como las secciones de arriba; solo una abierta a la vez. Antes el toque no hacía nada. Las demás secciones de MÁS (Apariencia, Estadísticas, Registros, Comentarios) tienen una sola fila y siguen navegando al tocarlas | 857 |

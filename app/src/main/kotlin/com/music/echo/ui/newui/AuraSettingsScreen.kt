@@ -405,8 +405,15 @@ fun AuraSettingsScreen(
                 }
 
                 AuraMenuGroupLabel("MÁS")
+                // Row 857: «Acerca de» holds two rows, so it is not `single` — a no-op toggle here left it shut.
                 more.forEach { group ->
-                    AuraSettingsGroupRow(group = group, expanded = false, onToggle = {})
+                    AuraSettingsGroupRow(
+                        group = group,
+                        expanded = expandedGroup == group.title,
+                        onToggle = {
+                            expandedGroup = if (expandedGroup == group.title) null else group.title
+                        },
+                    )
                 }
             } else {
                 // ── Search ────────────────────────────────────────────────────────────────────────
