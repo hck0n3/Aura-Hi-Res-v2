@@ -46,4 +46,42 @@ class SettingsFindabilityGuardTest {
         // Single-row groups still navigate straight there; only a group with several rows calls onToggle.
         assertTrue(settings.contains("if (single) group.entries.first().onClick() else onToggle()"))
     }
+
+    // Row 858: the sync status/schedule screen (settings/ytm_sync) was reachable only from an account-sheet row labelled
+    // «Programar sincronización», and from no row of Ajustes ▸ Cuentas y sincronización.
+    private val syncLabel = "Estado y programación de la sincronización"
+    private val syncDesc = "Cada 3 días por defecto, o elige cuándo"
+
+    @Test
+    fun `the account sheet row says it is the sync status`() {
+        val sheet = src("ui/screens/SettingDialoge.kt")
+        assertFalse(sheet.contains("Text(\"Programar sincronización\")"))
+        val row = sheet.substringAfter("title = { Text(\"$syncLabel\") },").substringBefore("Material3SettingsGroup(")
+        assertTrue(row.contains("\"$syncDesc\""))
+        assertTrue(row.contains("onNavigate(\"settings/ytm_sync\")"))
+        assertFalse("decision A1 (row 815): no service name in visible text", syncLabel.contains("YouTube"))
+    }
+
+    @Test
+    fun `Ajustes lists the sync status under Cuentas y sincronizacion, signed in or not`() {
+        val accounts = settings.substringAfter("title = groupAccounts,").substringBefore("title = storageText,")
+        val entry = "title = \"$syncLabel\",\n                            description = \"$syncDesc\",\n" +
+            "                        ) { navController.navigate(\"settings/ytm_sync\") }"
+        assertTrue("the entry, with the account sheet's label and description", accounts.contains(entry))
+        val before = accounts.substringBefore(entry)
+        assertFalse("not gated on the sign-in (the screen offers it)", before.substringAfterLast("add(AuraSettingsEntry(accountsText)").contains("if ("))
+        // Ajustes search lists the index rows themselves, so the entry is findable by its own words.
+        assertTrue(settings.contains("val topMatches = (groups + more).flatMap { group ->"))
+    }
+
+    @Test
+    fun `the search index reaches the sync screen by the words on it, without echoing the Ajustes row`() {
+        val index = src("ui/screens/settings/SearchableSettings.kt")
+        val screen = src("ui/screens/settings/YtmSyncScreen.kt")
+        listOf("Sincronizar desde tu cuenta de Google", "Sincronización automática").forEach { text ->
+            assertTrue("$text is on the screen", screen.contains("\"$text\""))
+            assertTrue("$text is indexed", index.contains("Triple(\"$text\", \"Sincronización con la cuenta\", \"settings/ytm_sync\"),"))
+        }
+        assertFalse("INDEX-ECHO RULE: an Ajustes row is not repeated in the index", index.contains("Triple(\"$syncLabel\""))
+    }
 }

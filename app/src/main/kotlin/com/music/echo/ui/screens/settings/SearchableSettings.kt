@@ -580,6 +580,10 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.send_playback_metrics_title), "Scrobbling", "settings/lastfm"),
             Triple(stringResource(R.string.send_playback_metrics_description), "Scrobbling", "settings/lastfm"),
             Triple(stringResource(R.string.cipher_applied_configs), "Descifrado de reproducción", "settings/youtube_decryption"),
+            // Row 858: the screen's own title and heading (YtmSyncScreen.kt). Its Ajustes row «Estado y programación de la
+            // sincronización» is NOT repeated here: Ajustes already lists its own rows as results (INDEX-ECHO RULE).
+            Triple("Sincronizar desde tu cuenta de Google", "Sincronización con la cuenta", "settings/ytm_sync"),
+            Triple("Sincronización automática", "Sincronización con la cuenta", "settings/ytm_sync"),
             Triple(stringResource(R.string.ytm_upload_toggle_title), "Sincronización con la cuenta", "settings/ytm_sync"),
             Triple(stringResource(R.string.ytm_upload_run_now), "Sincronización con la cuenta", "settings/ytm_sync"),
             Triple(stringResource(R.string.ytm_upload_run_now_desc), "Sincronización con la cuenta", "settings/ytm_sync"),

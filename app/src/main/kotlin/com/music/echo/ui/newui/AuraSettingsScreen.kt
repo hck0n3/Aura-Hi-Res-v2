@@ -210,6 +210,14 @@ fun AuraSettingsScreen(
                         )
                     }
                     add(AuraSettingsEntry(accountsText) { navController.navigate("settings/accounts") })
+                    // Row 858: the sync status/schedule screen had no row in Ajustes (only the account sheet).
+                    // Shown signed out too: that screen explains the sign-in and offers it.
+                    add(
+                        AuraSettingsEntry(
+                            title = "Estado y programación de la sincronización",
+                            description = "Cada 3 días por defecto, o elige cuándo",
+                        ) { navController.navigate("settings/ytm_sync") }
+                    )
                     add(
                         AuraSettingsEntry(scrobblingText, description = "Last.fm & ListenBrainz") {
                             navController.navigate("settings/lastfm")
