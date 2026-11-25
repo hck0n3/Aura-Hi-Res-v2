@@ -58,6 +58,8 @@ class OfflinePlayerNoticeGuardTest {
         )
         assertTrue(feed.contains("OfflinePlaybackNotice.shown("))
         assertTrue(feed.contains("deviceOffline = offline,"))
+        assertTrue("row 854", feed.contains("offlineSongMovedOnState,"))
+        assertTrue("row 854", feed.contains("songMovedOn = movedOn,"))
         // It does not hang on the session's entry (one live read when the network drops) nor on hasLiveInternetConnection.
         assertFalse(feed.contains("hasLiveInternetConnection"))
         assertFalse("rule 7: nothing ticks", feed.contains("delay(") || feed.contains("while (true)"))
@@ -120,6 +122,24 @@ class OfflinePlayerNoticeGuardTest {
     }
 
     @Test
+    fun `row 854 - the chip says the current song goes on from what was loaded until another one starts`() {
+        val service = main("playback/MusicService.kt")
+        assertTrue(service.contains("private val offlineSongMovedOnState = MutableStateFlow(false)"))
+        val transition = service.substringAfter("override fun onMediaItemTransition(").substringBefore("if (onlyShowingMirror) {")
+        assertTrue(transition.contains("if (trackChanged) offlineSongMovedOnState.value = _offlinePlaybackNotice.value.visible || PlaybackOfflineSession.isActive"))
+        assertEquals("one place writes it", 1, Regex("""offlineSongMovedOnState\.value =""").findAll(service).count())
+
+        val chip = main("ui/newui/AuraOfflinePlaybackNotice.kt")
+        val full = chip.substringAfter("internal fun AuraOfflinePlaybackChip(").substringBefore("internal fun AuraMiniOfflineBadge(")
+        assertTrue(full.contains("val fromLoaded = notice.wording == OfflinePlaybackNotice.Wording.FROM_LOADED"))
+        assertTrue(full.contains("if (fromLoaded) stringResource(R.string.offline_player_chip_buffered) else stringResource(R.string.offline_player_chip)"))
+        assertTrue(full.contains("if (fromLoaded) stringResource(R.string.offline_player_chip_buffered_cd) else stringResource(R.string.offline_player_chip_cd)"))
+        val es = src("app/src/main/res/values-es/offline_player_notice_strings.xml")
+        assertTrue(es.contains("Sin conexión · esta canción sigue desde lo cargado; después, tu música sin conexión"))
+        assertTrue(es.contains("Sin conexión · sonando tu música sin conexión"))
+    }
+
+    @Test
     fun `only the manual switch gets a way out, and it is the user's own switch`() {
         val chip = main("ui/newui/AuraOfflinePlaybackNotice.kt")
         val dialog = chip.substringAfter("private fun AuraOfflinePlaybackDialog(")
@@ -134,7 +154,8 @@ class OfflinePlayerNoticeGuardTest {
     fun `the sign is translated`() {
         val keys = listOf(
             "offline_player_chip", "offline_player_chip_cd", "offline_player_mini", "offline_player_notice_title",
-            "offline_player_notice_auto", "offline_player_notice_manual",
+            "offline_player_notice_auto", "offline_player_notice_manual", "offline_player_chip_buffered",
+            "offline_player_chip_buffered_cd",
         )
         for (dir in listOf("values", "values-es")) {
             val strings = src("app/src/main/res/$dir/offline_player_notice_strings.xml")

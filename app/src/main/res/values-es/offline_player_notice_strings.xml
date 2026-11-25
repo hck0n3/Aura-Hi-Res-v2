@@ -7,4 +7,6 @@
     <string name="offline_player_notice_title">Sonando sin conexión</string>
     <string name="offline_player_notice_auto">No hay internet, así que Aura sigue con lo disponible sin conexión: descargas, canciones guardadas completas en la caché y la música de este dispositivo. Cuando vuelva la conexión, tu cola vuelve sola.</string>
     <string name="offline_player_notice_manual">El modo sin conexión está activado: Aura solo reproduce lo disponible sin conexión y no usa la red. Desactívalo para volver a la música en línea.</string>
+    <string name="offline_player_chip_buffered">Sin conexión · esta canción sigue desde lo cargado; después, tu música sin conexión</string>
+    <string name="offline_player_chip_buffered_cd">Sin conexión: esta canción sigue desde lo cargado y después suena tu música sin conexión. Toca para ver más</string>
 </resources>

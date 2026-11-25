@@ -2711,10 +2711,12 @@ class MusicService :
                     iad1tya.echo.music.utils.NetworkState.validated,
                     dataStore.data.map { it[iad1tya.echo.music.constants.AutoOfflineModeKey] ?: true }.distinctUntilChanged(),
                 ) { online, validated, auto -> OfflinePlaybackNotice.deviceOffline(online = online, validated = validated, autoOffline = auto) },
-            ) { session, parked, manual, offline ->
+                offlineSongMovedOnState,
+            ) { session, parked, manual, offline, movedOn ->
                 OfflinePlaybackNotice.shown(
                     OfflinePlaybackNotice.of(sessionActive = session, queueParked = parked, manual = manual),
                     deviceOffline = offline,
+                    songMovedOn = movedOn,
                 )
             }
                 .collect { _offlinePlaybackNotice.value = it }
@@ -4062,6 +4064,12 @@ class MusicService :
 
     /** Row 795: [offlineQueueParkedNow] for the sign, refreshed where the flag is written and when the queue changes. */
     private val offlineQueueParkedState = MutableStateFlow(false)
+
+    /**
+     * Row 854: another song started while the sign was on, so the one playing when the connection went away is over. Written
+     * on every song change (a change with no sign resets it), read by the sign's wording.
+     */
+    private val offlineSongMovedOnState = MutableStateFlow(false)
 
     /** The same "que se ponga solo" switch as the UI's automatic offline mode (AutoOfflineModeKey, ON by default). */
     private fun offlineSessionAllowed(): Boolean =
@@ -7241,6 +7249,9 @@ class MusicService :
         if (trackChanged) streamTierOpens.trackChanged(mediaItem?.mediaId)
         // A stale offline refusal earns one re-prepare per item: a new item starts with its own.
         if (trackChanged) staleRejectionRetryId = null
+        // Row 854: once another song starts with the «Sin conexión» sign on, it no longer says «esta canción sigue desde lo cargado».
+        // The session is read directly too: the error path enters it and skips in the same frame, before the sign's flow runs.
+        if (trackChanged) offlineSongMovedOnState.value = _offlinePlaybackNotice.value.visible || PlaybackOfflineSession.isActive
         // Review C4 (rule 7): a song change of an unprepared device-sync mirror is another device's, nothing was heard here. None of
         // what follows (style learning, preload, SponsorBlock, video prefetch, no-repeat and shuffle memory, radio pre-seed,
         // pagination) may run; only the listen session of what played here before is closed.

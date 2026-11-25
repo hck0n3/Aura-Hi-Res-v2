@@ -58,8 +58,11 @@ internal fun AuraOfflinePlaybackChip(playsHere: Boolean, modifier: Modifier = Mo
     if (showDialog && shown) AuraOfflinePlaybackDialog(notice = notice, onDismiss = { showDialog = false })
     if (!shown) return
 
-    val label = stringResource(R.string.offline_player_chip)
-    val description = stringResource(R.string.offline_player_chip_cd)
+    // Row 854: while the song from before the cut still plays, the sign says so; then, the offline music.
+    val fromLoaded = notice.wording == OfflinePlaybackNotice.Wording.FROM_LOADED
+    val label = if (fromLoaded) stringResource(R.string.offline_player_chip_buffered) else stringResource(R.string.offline_player_chip)
+    val description =
+        if (fromLoaded) stringResource(R.string.offline_player_chip_buffered_cd) else stringResource(R.string.offline_player_chip_cd)
     val open = {
         ActionLog.tap(ActionId.PLR_OFFLINE_NOTICE)
         showDialog = true

@@ -4518,3 +4518,9 @@ Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión 
 | Dónde | Qué hay ahora | Fila del registro |
 |---|---|---|
 | Reproductor Aura > cabecera: chip «SIN CONEXIÓN · …» (anexo de la fila 795) y Mini reproductor Aura: «SIN CONEXIÓN» en la línea del artista | Los mismos dos avisos, ahora también en cuanto el aparato se queda sin ninguna red (modo avión, sin cobertura ni wifi; ~2,5 s de espera contra parpadeos, la misma que Inicio) y con «que se ponga solo» encendido, sin esperar a la sesión sin conexión del reproductor. Se quitan en cuanto vuelve la red. Siguen sin salir mientras se envía a Cast o se controla otro dispositivo. Con VPN, IPv6 puro o un portal ya firmado (hay red, sin validar) salen solo como antes, cuando el reproductor detecta fallos reales | 853 |
+
+## Anexo 2026-11-25 (fila 854): el chip «Sin conexión» dice la verdad en sus dos fases (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Reproductor Aura > cabecera: chip «SIN CONEXIÓN · …» (mismo sitio, icono y toque que en el anexo de la fila 795) | Mientras sigue la canción que sonaba al cortarse la red: «SIN CONEXIÓN · ESTA CANCIÓN SIGUE DESDE LO CARGADO; DESPUÉS, TU MÚSICA SIN CONEXIÓN» (TalkBack: «Sin conexión: esta canción sigue desde lo cargado y después suena tu música sin conexión. Toca para ver más»). En cuanto empieza otra canción: «SIN CONEXIÓN · SONANDO TU MÚSICA SIN CONEXIÓN», como antes. Con el modo sin conexión manual, siempre el de antes. El mini sigue diciendo «SIN CONEXIÓN» y el diálogo «Sonando sin conexión» no cambia | 854 |
