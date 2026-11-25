@@ -6,8 +6,8 @@
     <string name="playback_error_unstable_connection">The connection failed while loading this song. Check your internet and try again.</string>
     <string name="playback_error_age_restricted">YouTube asks to confirm your age and Aura couldn\'t confirm it with your account. Open youtube.com with this same account, verify your age and try again.</string>
     <string name="playback_error_age_restricted_guest">This song is age-restricted. Sign in with an adult\'s Google account to play it.</string>
-    <string name="playback_error_not_available">YouTube doesn\'t offer this song in your country or for your account (it may be Premium-only or removed).</string>
-    <string name="playback_error_access_rejected">YouTube rejected this song. Try again; if it keeps happening, sign out and sign in again.</string>
+    <string name="playback_error_not_available">The online catalog doesn\'t offer this song in your country or for your account (it may be Premium-only or removed).</string>
+    <string name="playback_error_access_rejected">The online catalog rejected this song. Try again; if it keeps happening, sign out and sign in again.</string>
     <string name="playback_error_unresolved">Aura couldn\'t load this song.</string>
     <string name="playback_error_generic">This song couldn\'t be played. Try again.</string>
     <string name="playback_error_action_offline_music">View offline music</string>

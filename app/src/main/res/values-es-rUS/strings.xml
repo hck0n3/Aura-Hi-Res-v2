@@ -42,10 +42,10 @@
     <string name="other_versions">Otras versiones</string>
     <string name="downloaded_songs">Canciones descargadas</string>
     <string name="playlist_is_empty">La lista de reproducción está vacía</string>
-    <string name="delete_playlist_from_youtube_too">Eliminar también de YouTube</string>
+    <string name="delete_playlist_from_youtube_too">Eliminar también de tu cuenta de Google</string>
     <string name="delete_playlist_local_only">Solo eliminar de la app</string>
-    <string name="delete_playlist_only_local_note">Esta lista solo existe en Aura (no está sincronizada con tu cuenta de YouTube), así que no hay nada que eliminar allí.</string>
-    <string name="delete_playlist_youtube_failed">La lista se eliminó de la app, pero YouTube rechazó eliminarla de tu cuenta.</string>
+    <string name="delete_playlist_only_local_note">Esta lista solo existe en Aura (no está sincronizada con tu cuenta de Google), así que no hay nada que eliminar allí.</string>
+    <string name="delete_playlist_youtube_failed">La lista se eliminó de la app, pero tu cuenta de Google rechazó eliminarla.</string>
     <string name="couldnt_load_playlist">No se pudo cargar la lista. Revisa tu conexión.</string>
     <string name="couldnt_load_artist">No se pudo cargar el artista. Revisa tu conexión.</string>
     <string name="couldnt_load_album">No se pudo cargar el álbum. Revisa tu conexión.</string>

@@ -263,7 +263,7 @@
     <string name="disable">Disable</string>
 
     <string name="pause_remote_listen_history">Pause sharing listen history with your Google account</string>
-    <string name="not_logged_in_youtube">Not logged in to YouTube</string>
+    <string name="not_logged_in_youtube">You are not signed in with your Google account</string>
 
     <string name="default_links">Open supported links</string>
     <string name="open_app_settings_error">Couldn\'t open app settings</string>
@@ -300,7 +300,7 @@
     <string name="disable_load_more_when_repeat_all_desc">Don\'t auto load more songs and similar content when repeat all mode is enabled</string>
     <string name="pause_music_when_media_is_muted">Pause music when media is muted</string>
     <string name="send_playback_metrics_title">Send playback metrics to Google</string>
-    <string name="send_playback_metrics_description">When a listen counts, tell YouTube\'s servers what was played (like the official app does). Off by default</string>
+    <string name="send_playback_metrics_description">When a listen counts, tell Google\'s servers what was played (like the official app does). Off by default</string>
     <string name="resume_on_bluetooth_connect">Resume on Bluetooth connect</string>
     <string name="keep_screen_on_when_player_is_expanded">Keep screen on when player is expanded</string>
 
@@ -710,7 +710,7 @@
     <string name="feedback_settings_desc">Send error reports and ideas to %1$s</string>
     <string name="feedback_intro">Your message opens in your email app, addressed to %1$s. Nothing is sent until you tap Send there.</string>
     <string name="feedback_howto_title">How to use this</string>
-    <string name="feedback_howto_body">1. Choose Error report or Suggestion.\n2. Describe CLEARLY what you were doing RIGHT BEFORE it happened (screen, button, song/playlist action — be specific: e.g. “I liked a song while crossfade was on” or “I tapped Download on a YouTube playlist from Home”).\n3. Then say what went wrong and what you expected.\n4. For errors, leave “Attach diagnostic logs” ON — the attachment includes app log, last crash, system exits, and recent playback log (no song titles or account cookies).\n5. Tap “Open email app”. Aura opens your default mail app addressed to %1$s with the file attached when enabled.\n6. In the mail app, tap Send. Do not share the draft to WhatsApp, Drive, or other apps — that data is only for Aura support.</string>
+    <string name="feedback_howto_body">1. Choose Error report or Suggestion.\n2. Describe CLEARLY what you were doing RIGHT BEFORE it happened (screen, button, song/playlist action — be specific: e.g. “I liked a song while crossfade was on” or “I tapped Download on an online playlist from Home”).\n3. Then say what went wrong and what you expected.\n4. For errors, leave “Attach diagnostic logs” ON — the attachment includes app log, last crash, system exits, and recent playback log (no song titles or account cookies).\n5. Tap “Open email app”. Aura opens your default mail app addressed to %1$s with the file attached when enabled.\n6. In the mail app, tap Send. Do not share the draft to WhatsApp, Drive, or other apps — that data is only for Aura support.</string>
     <string name="feedback_kind_bug">Error report</string>
     <string name="feedback_kind_suggestion">Suggestion</string>
     <string name="feedback_message_hint">What were you doing last? Which screen/button? What happened vs what you expected…</string>
@@ -767,7 +767,7 @@
     <!-- Decryption Library Settings -->
     <string name="decryption_library">Decryption library</string>
     <string name="decryption_library_newpipe">NewPipe Extractor (Official)</string>
-    <string name="decryption_library_newpipe_desc">Official TeamNewPipe library. Most up-to-date with YouTube changes. Recommended as default. Automatic fallback to PipePipe API if fails.</string>
+    <string name="decryption_library_newpipe_desc">Official TeamNewPipe library. Most up-to-date with the streaming provider\'s changes. Recommended as default. Automatic fallback to PipePipe API if fails.</string>
     <string name="decryption_library_pipepipe_api">PipePipe API</string>
     <string name="decryption_library_pipepipe_api_desc">API-based decryption using MetroExtractor. Faster but depends on external API. Automatic fallback to NewPipe if fails.</string>
 
@@ -1552,7 +1552,7 @@
     <string name="device_sync_server_default">Aura\'s server (default)</string>
     <string name="device_sync_continue_here">Continue here</string>
     <string name="device_sync_library">Sync likes, dislikes and playlists</string>
-    <string name="device_sync_library_desc">Kept equal on your devices through the server, in real time or when they connect. While they are connected, YouTube does not sync them</string>
+    <string name="device_sync_library_desc">Kept equal on your devices through the server, in real time or when they connect. While they are connected, your Google account does not sync them</string>
     <string name="device_sync_lib_title">Library (tap to sync now)</string>
     <string name="device_sync_lib_off">Off</string>
     <string name="device_sync_lib_waiting">Waiting for the server…</string>
@@ -1569,7 +1569,7 @@
     <string name="ytm_upload_import_uncheck_all">Untick all</string>
     <string name="ytm_upload_count_at_least">At least %1$d synced · incomplete list</string>
     <string name="ytm_upload_list_incomplete">Incomplete list</string>
-    <string name="ytm_upload_incomplete_summary">YouTube did not return some of your lists in full, so those numbers are a minimum. Sync again to see the real ones.</string>
+    <string name="ytm_upload_incomplete_summary">Your Google account did not return some of your lists in full, so those numbers are a minimum. Sync again to see the real ones.</string>
     <plurals name="local_songs_scan_videos">
         <item quantity="one">%d video (in Exported videos)</item>
         <item quantity="other">%d videos (in Exported videos)</item>

@@ -95,7 +95,7 @@
     <string name="clear_song_cache_dialog">¿Estás seguro de que quieres borrar todas las canciones en caché?</string>
     <string name="clear_downloads_dialog">¿Estás seguro de que quieres borrar todas las descargas?</string>
     <string name="pause_remote_listen_history">Pausar historial de reproducción con tu cuenta de Google</string>
-    <string name="not_logged_in_youtube">No has iniciado sesión en YouTube</string>
+    <string name="not_logged_in_youtube">No has iniciado sesión con tu cuenta de Google</string>
     <string name="default_links">Abrir enlaces compatibles</string>
     <string name="open_app_settings_error">No se pudieron abrir los ajustes de la aplicación</string>
     <string name="release_notes">Notas de la versión</string>
@@ -423,7 +423,7 @@
     <string name="remember_shuffle_and_repeat_desc">Recuerda el modo aleatorio y repetir al reiniciar la aplicación</string>
     <string name="pause_music_when_media_is_muted">Pausar la música cuando se silencia el medio</string>
     <string name="send_playback_metrics_title">Enviar métricas de reproducción a Google</string>
-    <string name="send_playback_metrics_description">Cuando una escucha cuenta, informa a los servidores de YouTube qué se reprodujo (como la app oficial). Desactivado por defecto</string>
+    <string name="send_playback_metrics_description">Cuando una escucha cuenta, informa a los servidores de Google qué se reprodujo (como la app oficial). Desactivado por defecto</string>
     <string name="equalizer_header">Ecualizador</string>
     <string name="no_profiles">Sin perfiles de ecualizador</string>
     <string name="import_profile">Importar perfil</string>
@@ -472,7 +472,7 @@
     <string name="keep_screen_on_when_player_is_expanded">Mantener la pantalla encendida cuando el reproductor está expandido</string>
     <string name="decryption_library">Biblioteca de descifrado</string>
     <string name="decryption_library_newpipe">Extractor de NewPipe (Oficial)</string>
-    <string name="decryption_library_newpipe_desc">Biblioteca oficial de TeamNewPipe. La más actualizada con los cambios de YouTube. Recomendada como predeterminada. Retroceso automático al API de PipePipe si falla.</string>
+    <string name="decryption_library_newpipe_desc">Biblioteca oficial de TeamNewPipe. La más actualizada con los cambios del proveedor de streaming. Recomendada como predeterminada. Retroceso automático al API de PipePipe si falla.</string>
     <string name="decryption_library_pipepipe_api">Api PipePipe</string>
     <string name="decryption_library_pipepipe_api_desc">Descifrado basado en API mediante MetroExtractor. Más rápido, pero depende de una API externa. Retroceso automático a NewPipe si falla.</string>
     <string name="listen_together">Escuchar juntos</string>
@@ -914,7 +914,7 @@
     <string name="feedback_settings_desc">Envía reportes de errores e ideas a %1$s</string>
     <string name="feedback_intro">Tu mensaje se abre en tu app de correo, dirigido a %1$s. No se envía nada hasta que pulses Enviar allí.</string>
     <string name="feedback_howto_title">Cómo usar este apartado</string>
-    <string name="feedback_howto_body">1. Elige Reporte de error o Sugerencia.\n2. Describe CON CLARIDAD qué estabas haciendo JUSTO ANTES (pantalla, botón, acción de canción/playlist — sé concreto: por ejemplo «Di Me gusta con el fundido activo» o «Toqué Descargar en una playlist de YouTube desde Inicio»).\n3. Luego di qué falló y qué esperabas.\n4. Si es un error, deja activado «Adjuntar registros»: el archivo incluye registro de la app, último fallo, salidas del sistema y registro reciente de reproducción (sin títulos de canciones ni cookies de cuenta).\n5. Pulsa «Abrir app de correo». Aura abre tu correo predeterminado dirigido a %1$s con el archivo adjunto (si lo pediste).\n6. En la app de correo, pulsa Enviar. No compartas el borrador por WhatsApp, Drive u otras apps: esa información es solo para el soporte de Aura.</string>
+    <string name="feedback_howto_body">1. Elige Reporte de error o Sugerencia.\n2. Describe CON CLARIDAD qué estabas haciendo JUSTO ANTES (pantalla, botón, acción de canción/playlist — sé concreto: por ejemplo «Di Me gusta con el fundido activo» o «Toqué Descargar en una playlist en línea desde Inicio»).\n3. Luego di qué falló y qué esperabas.\n4. Si es un error, deja activado «Adjuntar registros»: el archivo incluye registro de la app, último fallo, salidas del sistema y registro reciente de reproducción (sin títulos de canciones ni cookies de cuenta).\n5. Pulsa «Abrir app de correo». Aura abre tu correo predeterminado dirigido a %1$s con el archivo adjunto (si lo pediste).\n6. En la app de correo, pulsa Enviar. No compartas el borrador por WhatsApp, Drive u otras apps: esa información es solo para el soporte de Aura.</string>
     <string name="feedback_kind_bug">Reporte de error</string>
     <string name="feedback_kind_suggestion">Sugerencia</string>
     <string name="feedback_message_hint">¿Qué hacías al final? ¿Qué pantalla/botón? ¿Qué pasó y qué esperabas…</string>
@@ -1444,7 +1444,7 @@
     <string name="device_sync_server_default">Servidor de Aura (predeterminado)</string>
     <string name="device_sync_continue_here">Continuar aquí</string>
     <string name="device_sync_library">Sincronizar me gusta, no me gusta y listas</string>
-    <string name="device_sync_library_desc">Se mantienen iguales en tus dispositivos por el servidor, al momento o cuando se conecten. Mientras estén conectados, YouTube no los sincroniza</string>
+    <string name="device_sync_library_desc">Se mantienen iguales en tus dispositivos por el servidor, al momento o cuando se conecten. Mientras estén conectados, tu cuenta de Google no los sincroniza</string>
     <string name="device_sync_lib_title">Biblioteca (toca para sincronizar ahora)</string>
     <string name="device_sync_lib_off">Apagada</string>
     <string name="device_sync_lib_waiting">Esperando al servidor…</string>
@@ -1461,7 +1461,7 @@
     <string name="ytm_upload_import_uncheck_all">Desmarcar todos</string>
     <string name="ytm_upload_count_at_least">Al menos %1$d sincronizadas · lista incompleta</string>
     <string name="ytm_upload_list_incomplete">Lista incompleta</string>
-    <string name="ytm_upload_incomplete_summary">YouTube no devolvió entera alguna de tus listas, así que esos números son un mínimo. Vuelve a sincronizar para ver los reales.</string>
+    <string name="ytm_upload_incomplete_summary">Tu cuenta de Google no devolvió entera alguna de tus listas, así que esos números son un mínimo. Vuelve a sincronizar para ver los reales.</string>
     <plurals name="local_songs_scan_videos">
         <item quantity="one">%d vídeo (en Vídeos exportados)</item>
         <item quantity="many">%d de vídeos (en Vídeos exportados)</item>

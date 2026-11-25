@@ -84,10 +84,10 @@
     <string name="playlist_is_empty">La lista de reproducción está vacía</string>
     <string name="remove_download_playlist_confirm">¿Realmente quiere quitar todas las canciones de la lista de reproducción «%s» del almacenamiento de canciones descargadas?</string>
     <string name="delete_playlist_confirm">¿Confirma que quiere eliminar la lista de reproducción «%s»?</string>
-    <string name="delete_playlist_from_youtube_too">Eliminar también de YouTube</string>
+    <string name="delete_playlist_from_youtube_too">Eliminar también de tu cuenta de Google</string>
     <string name="delete_playlist_local_only">Solo eliminar de la app</string>
-    <string name="delete_playlist_only_local_note">Esta lista solo existe en Aura (no está sincronizada con tu cuenta de YouTube), así que no hay nada que eliminar allí.</string>
-    <string name="delete_playlist_youtube_failed">La lista se eliminó de la app, pero YouTube rechazó eliminarla de tu cuenta.</string>
+    <string name="delete_playlist_only_local_note">Esta lista solo existe en Aura (no está sincronizada con tu cuenta de Google), así que no hay nada que eliminar allí.</string>
+    <string name="delete_playlist_youtube_failed">La lista se eliminó de la app, pero tu cuenta de Google rechazó eliminarla.</string>
     <string name="retry">Reintentar</string>
     <string name="radio">Radio</string>
     <string name="shuffle">Aleatorio</string>
@@ -351,7 +351,7 @@
     <string name="translation_models">Modelos de traducción</string>
     <string name="clear_translation_models">Borrar modelos de traducción</string>
     <string name="listen_history">Historial de reproducciones</string>
-    <string name="your_youtube_playlists">Sus listas de reproducción de YouTube</string>
+    <string name="your_youtube_playlists">Tus listas de la nube</string>
     <string name="remove_all_from_library">Quitar todo de la biblioteca</string>
     <string name="search_history">Historial de búsqueda</string>
     <string name="disable_screenshot">Desactivar captura de pantalla</string>
@@ -727,7 +727,7 @@
     <string name="migrate_error_artists">No pude añadir los artistas.</string>
     <string name="login_use_phone_account">Usar cuenta del teléfono</string>
     <string name="login_manual_cookie">Cookie manual</string>
-    <string name="login_manual_cookie_title">Pegar cookie de YouTube</string>
+    <string name="login_manual_cookie_title">Pegar cookie</string>
     <string name="login_manual_cookie_body">Abre music.youtube.com en tu navegador, luego DevTools ▸ Application ▸ Cookies ▸ https://music.youtube.com. Copia el valor completo de la cookie y pégalo aquí. Esto salta el inicio de sesión web por completo (vía de respaldo portada de SimpMusic).</string>
     <string name="login_manual_cookie_apply">Aplicar</string>
     <string name="spotify_manual_cookie_body">Abre open.spotify.com en tu navegador, luego DevTools ▸ Application ▸ Cookies ▸ https://open.spotify.com. Copia el valor completo de la cookie (incluye sp_dc y sp_key) y pégalo aquí. Esto salta el inicio de sesión web por completo (vía de respaldo portada de SimpMusic).</string>
