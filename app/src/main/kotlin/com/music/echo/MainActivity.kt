@@ -2730,6 +2730,10 @@ class MainActivity : ComponentActivity() {
                                             Modifier
                                         }
                                     )
+                                    // Row 877: in landscape the camera cut-out is beside the content. Every screen,
+                                    // its own header included, moves off it here (consumed, so nothing below adds it
+                                    // twice); the shell top bar already pads the same insets. 0 in portrait.
+                                    .windowInsetsPadding(cutoutInsets.only(WindowInsetsSides.Horizontal))
                             ) {
 
                                 // Ronda 5 (premium UX, dueño): transición "hero" de la portada de
