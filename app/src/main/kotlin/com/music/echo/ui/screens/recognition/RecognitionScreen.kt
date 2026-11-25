@@ -340,24 +340,13 @@ private fun RecognitionWindow(
             if (song == null) {
                 // No confident YouTube Music match: tell the user and play NOTHING. Playing an
                 // unrelated top result would again be "shown != played" — the exact bug being fixed.
-                Timber.i(
-                    "Recognition Play: no confident match for shown \"%s\" — %s; playing nothing",
-                    result.title,
-                    result.artist,
-                )
+                Timber.i("Recognition Play: no confident match; playing nothing")
                 Toast.makeText(context, R.string.recognition_resolve_failed, Toast.LENGTH_SHORT).show()
                 return@launch
             }
             // shown == played: log the recognized metadata and the resolved song right before play, so
             // any future mismatch is visible in the log.
-            Timber.i(
-                "Recognition Play: shown \"%s\" — %s -> videoId=%s \"%s\" — %s",
-                result.title,
-                result.artist,
-                song.id,
-                song.title,
-                song.artists.joinToString { it.name },
-            )
+            Timber.i("Recognition Play: resolved -> videoId=%s", song.id)
             withContext(Dispatchers.Main) {
                 // THE preloadItem IS THE FIX — this was the actual "plays a completely unrelated song"
                 // bug, and why hardening the MATCHING twice (beta7, beta8) never cured it: the call shape

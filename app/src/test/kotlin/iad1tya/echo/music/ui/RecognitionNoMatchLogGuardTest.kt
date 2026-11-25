@@ -26,4 +26,20 @@ class RecognitionNoMatchLogGuardTest {
         assertFalse(call.contains("result.artist"))
         assertFalse(call.contains("%s"))
     }
+
+    @Test
+    fun `no recognition log line carries a title or an artist`() {
+        val source = File(root, "app/src/main/kotlin/com/music/echo/ui/screens/recognition/RecognitionScreen.kt").readText()
+        var from = 0
+        while (true) {
+            val start = Regex("""Timber\.[iwe]\(""").find(source, from)?.range?.first ?: break
+            val end = source.indexOf(")\n", start).takeIf { it > 0 } ?: source.length
+            val call = source.substring(start, end)
+            for (leak in listOf("result.title", "result.artist", "song.title", "song.artists")) {
+                assertFalse("rule 4: $leak in $call", call.contains(leak))
+            }
+            from = start + 1
+        }
+        assertTrue(source.contains("Timber.i(\"Recognition Play: resolved -> videoId=%s\", song.id)"))
+    }
 }
