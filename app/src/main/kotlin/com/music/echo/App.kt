@@ -767,6 +767,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                     applicationScope.launch(Dispatchers.IO) {
                         if (iad1tya.echo.music.playback.LocalNetworkAccess.proxyNeedsPermission(this@App, it)) {
                             Timber.w("PROXY_LAN_BLOCKED local network permission not granted")
+                            iad1tya.echo.music.playback.ActionNotices.postWhenShown(
+                                iad1tya.echo.music.playback.ActionNotices.Kind.LAN_PROXY_NEEDS_PERMISSION,
+                            ) { iad1tya.echo.music.playback.LocalNetworkAccess.proxyNeedsPermission(this@App, it) }
                         }
                     }
                 }

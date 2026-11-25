@@ -2,9 +2,16 @@ package iad1tya.echo.music.playback
 
 import java.io.File
 import java.net.InetAddress
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 /**
@@ -69,6 +76,77 @@ class LocalNetworkPermissionGuardTest {
         assertTrue("saving the proxy no longer asks", settings.indexOf("askLocalNetworkForProxy(tempProxyUrl)", save) > save)
         assertTrue(settings.contains("onCheckedChange = { onProxyEnabledChange(it); if (it) askLocalNetworkForProxy(proxyUrl) },"))
         assertTrue(settings.contains("onClick = { onProxyEnabledChange(!proxyEnabled); if (!proxyEnabled) askLocalNetworkForProxy(proxyUrl) }"))
+    }
+
+    @Test
+    fun `a LAN proxy blocked at start is told to the user, not only logged`() {
+        val app = read("app/src/main/kotlin/com/music/echo/App.kt")
+        val check = app.indexOf("LocalNetworkAccess.proxyNeedsPermission(this@App, it)")
+        val warn = app.indexOf("Timber.w(\"PROXY_LAN_BLOCKED local network permission not granted\")", check)
+        val notice = app.indexOf("ActionNotices.postWhenShown(", check)
+        assertTrue("the start-up check no longer posts the notice", warn > check && notice > warn)
+        assertTrue(
+            app.substring(notice, app.indexOf(')', notice) + 1)
+                .contains("ActionNotices.Kind.LAN_PROXY_NEEDS_PERMISSION"),
+        )
+        // Its button opens Ajustes ▸ Contenido, where the Proxy group shows the permission line.
+        assertEquals("settings/content", ActionNotices.Kind.LAN_PROXY_NEEDS_PERMISSION.route)
+    }
+
+    @Test
+    fun `the start-up notice waits for the first screen instead of being dropped`() = runBlocking {
+        val poster = launch(start = CoroutineStart.UNDISPATCHED) {
+            ActionNotices.postWhenShown(ActionNotices.Kind.LAN_PROXY_NEEDS_PERMISSION)
+        }
+        assertTrue("no screen yet: the notice must wait", poster.isActive)
+        val got = CompletableDeferred<ActionNotices.Kind>()
+        val screen = launch(start = CoroutineStart.UNDISPATCHED) { ActionNotices.events.collect { got.complete(it) } }
+        assertEquals(ActionNotices.Kind.LAN_PROXY_NEEDS_PERMISSION, withTimeout(1_000) { got.await() })
+        withTimeout(1_000) { poster.join() }
+        screen.cancelAndJoin()
+    }
+
+    @Test
+    fun `a start-up notice whose cause went away before the first screen is dropped`() = runBlocking {
+        val screen = launch(start = CoroutineStart.UNDISPATCHED) { ActionNotices.events.collect { fail("shown: $it") } }
+        withTimeout(1_000) { ActionNotices.postWhenShown(ActionNotices.Kind.LAN_PROXY_NEEDS_PERMISSION) { false } }
+        screen.cancelAndJoin()
+        // App re-checks the permission at that moment (granted from the system settings meanwhile = no notice).
+        val app = read("app/src/main/kotlin/com/music/echo/App.kt")
+        assertTrue(app.contains(") { iad1tya.echo.music.playback.LocalNetworkAccess.proxyNeedsPermission(this@App, it) }"))
+    }
+
+    @Test
+    fun `the proxy row explains a missing permission and its tap asks for it or opens the app settings`() {
+        val settings = read("app/src/main/kotlin/com/music/echo/ui/screens/settings/ContentSettings.kt")
+        // Re-checked when the proxy changes and on resume (back from the system dialog or settings page), not polled.
+        assertTrue(settings.contains("produceState(false, proxyEnabled, proxyUrl, proxyLanRecheck)"))
+        assertTrue(settings.contains("if (event == Lifecycle.Event.ON_RESUME) proxyLanRecheck++"))
+        val toggle = settings.indexOf("title = { Text(stringResource(R.string.enable_proxy)) },")
+        val line = settings.indexOf("if (proxyEnabled && proxyNeedsLocalNetwork) {", toggle)
+        val config = settings.indexOf("title = { Text(stringResource(R.string.config_proxy)) },", toggle)
+        assertTrue("the permission line must sit right under the proxy switch", line in (toggle + 1) until config)
+        val row = settings.substring(line, config)
+        assertTrue(row.contains("R.string.proxy_local_network_needed"))
+        assertTrue(row.contains("runCatching { proxyLanTapLauncher.launch(LocalNetworkAccess.PERMISSION) }"))
+        val launcher = settings.substringAfter("val proxyLanTapLauncher = rememberLauncherForActivityResult(")
+            .substringBefore("Material3SettingsGroup(")
+        assertTrue(launcher.contains("if (!granted && !lanRationaleBeforeAsk && !rationaleNow) {"))
+        assertTrue(launcher.contains("Settings.ACTION_APPLICATION_DETAILS_SETTINGS"))
+
+        val es = read("app/src/main/res/values-es/echo_strings.xml")
+        assertTrue(
+            es.contains(
+                "<string name=\"proxy_local_network_needed\">Android pide permiso de red local para usar este proxy. " +
+                    "Toca para darlo.</string>",
+            ),
+        )
+        assertTrue(es.contains("<string name=\"proxy_local_network_notice\">"))
+        val en = read("app/src/main/res/values/echo_strings.xml")
+        assertTrue(en.contains("<string name=\"proxy_local_network_needed\">"))
+        assertTrue(en.contains("<string name=\"proxy_local_network_notice\">"))
+        assertTrue(read("app/src/main/res/values-es/notice_actions_strings.xml").contains("<string name=\"notice_action_view_proxy\">Ver proxy</string>"))
+        assertTrue(read("app/src/main/res/values/notice_actions_strings.xml").contains("<string name=\"notice_action_view_proxy\">View proxy</string>"))
     }
 
     @Test

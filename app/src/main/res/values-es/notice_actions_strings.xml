@@ -2,4 +2,5 @@
 <resources>
     <string name="notice_action_sign_in_again">Volver a entrar</string>
     <string name="notice_action_view_filters">Ver filtros</string>
+    <string name="notice_action_view_proxy">Ver proxy</string>
 </resources>

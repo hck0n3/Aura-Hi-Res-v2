@@ -7,6 +7,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
 
 /**
  * Registry row 805 (owner decision H8): the service's notices that ask the user to DO something reach the app's
@@ -22,6 +23,9 @@ object ActionNotices {
 
         /** «Ver filtros»: Ajustes ▸ Contenido, where «Ocultar vídeos» lives (the explicit filter's key is retired). */
         QUEUE_EMPTY_AFTER_FILTERS(R.string.queue_empty_after_filters, R.string.notice_action_view_filters, "settings/content"),
+
+        /** «Ver proxy»: Ajustes ▸ Contenido, where the Proxy group asks for local network access (registry row 864). */
+        LAN_PROXY_NEEDS_PERMISSION(R.string.proxy_local_network_notice, R.string.notice_action_view_proxy, "settings/content"),
     }
 
     private val _events = MutableSharedFlow<Kind>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -29,4 +33,16 @@ object ActionNotices {
 
     /** True when a started screen took [kind]; false means nobody would see it and the caller must show its toast. */
     fun post(kind: Kind): Boolean = _events.subscriptionCount.value > 0 && _events.tryEmit(kind)
+
+    /**
+     * Suspends until a started screen takes [kind] (a check made at process start, before any screen exists). [stillNeeded]
+     * runs again once a screen is there, so a notice whose cause went away meanwhile is dropped instead of shown.
+     */
+    suspend fun postWhenShown(kind: Kind, stillNeeded: suspend () -> Boolean = { true }) {
+        while (true) {
+            _events.subscriptionCount.first { it > 0 }
+            if (!stillNeeded()) return
+            if (post(kind)) return
+        }
+    }
 }
