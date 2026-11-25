@@ -2826,6 +2826,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/ContentSettings
 | Versión IP de la red (Automático / IPv4 forzado / IPv6 forzado) | Ajustes > Contenido | ContentSettings.kt:873 | navegación (diálogo enum) | rara | siempre |
 | Activar «proxy» | Ajustes > Contenido | ContentSettings.kt:888 | conmutador | rara | siempre |
 | Configurar proxy | Ajustes > Contenido | ContentSettings.kt:911 | navegación (diálogo) | rara | solo si `proxyEnabled` |
+| **Permiso «Dispositivos cercanos» / red local para el proxy** *(diálogo del sistema; NUEVO 2026-11-25, fila 864)* | Ajustes > Contenido > al guardar «Configurar proxy» o al activar «proxy» | `ui/screens/settings/ContentSettings.kt:156` (lanzador) · `:341` (guardar) · `:945,957` (activar) | acción secundaria | rara | **solo Android 17+**, solo si el host del proxy está en la red local (IP privada, de enlace local o IPv6 ULA, también si un nombre resuelve a una) y `ACCESS_LOCAL_NETWORK` no está concedido. El ajuste se guarda sea cual sea la respuesta; sin permiso, Android 17 bloquea el proxy y el registro compartido dice `PROXY_LAN_BLOCKED` al arrancar. Nada se oculta ni se quita |
 
 ### Grupo «Letra»
 

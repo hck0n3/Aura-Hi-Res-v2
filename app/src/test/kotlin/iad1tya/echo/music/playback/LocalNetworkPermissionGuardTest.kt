@@ -1,6 +1,7 @@
 package iad1tya.echo.music.playback
 
 import java.io.File
+import java.net.InetAddress
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -8,10 +9,11 @@ import org.junit.Test
 
 /**
  * Registry row 864 — targetSdk 37 (Android 17) blocks traffic to and from LAN addresses unless the app holds
- * ACCESS_LOCAL_NETWORK. The Cast video relay is exactly that (the TV connects to the phone). The permission is declared
- * for the gms build, asked when a TV is picked, and the relay is not handed out without it (the video then plays as
- * audio with its notice instead of a URL that only times out on the TV). Source-text checks for the parts that only
- * exist on a device or in the gms source set, which these JVM tests do not compile.
+ * ACCESS_LOCAL_NETWORK. Two paths need it: the Cast video relay (the TV connects to the phone) and the user's proxy when
+ * it is on the LAN (all YouTube traffic goes through it). The permission is declared for both flavors, asked when a TV
+ * is picked and when a LAN proxy is saved or switched on, and the relay is not handed out without it (the video then
+ * plays as audio with its notice instead of a URL that only times out on the TV). Source-text checks for the parts that
+ * only exist on a device or in the gms source set, which these JVM tests do not compile.
  */
 class LocalNetworkPermissionGuardTest {
     private val root: File = generateSequence(File("").absoluteFile) { it.parentFile }
@@ -33,15 +35,40 @@ class LocalNetworkPermissionGuardTest {
     }
 
     @Test
-    fun `the gms manifest declares the permission and the shared manifest does not`() {
+    fun `the shared manifest declares the permission for both flavors`() {
         assertTrue(
-            read("app/src/gms/AndroidManifest.xml")
+            "the FOSS build needs it too, for a LAN proxy",
+            read("app/src/main/AndroidManifest.xml")
                 .contains("<uses-permission android:name=\"android.permission.ACCESS_LOCAL_NETWORK\" />"),
         )
-        assertFalse(
-            "FOSS has no Cast: the permission belongs to the gms manifest only",
-            read("app/src/main/AndroidManifest.xml").contains("ACCESS_LOCAL_NETWORK"),
-        )
+    }
+
+    @Test
+    fun `LAN addresses are told apart from internet and loopback ones`() {
+        fun lan(literal: String) = LocalNetworkAccess.isLanAddress(InetAddress.getByName(literal))
+        listOf("192.168.1.10", "10.0.0.2", "172.16.5.4", "172.31.255.1", "169.254.3.3", "fe80::1", "fd12:3456::1", "fc00::1")
+            .forEach { assertTrue("$it is on the LAN", lan(it)) }
+        listOf("8.8.8.8", "172.32.0.1", "100.64.0.1", "127.0.0.1", "::1", "2001:4860:4860::8888")
+            .forEach { assertFalse("$it is not on the LAN", lan(it)) }
+    }
+
+    @Test
+    fun `a LAN proxy is checked at start and asked for when saved or switched on`() {
+        val app = read("app/src/main/kotlin/com/music/echo/App.kt")
+        val proxySet = app.indexOf("YouTube.proxy = Proxy(type, it.toInetSocketAddress())")
+        assertTrue("the proxy is no longer installed in App.kt", proxySet >= 0)
+        val check = app.indexOf("LocalNetworkAccess.proxyNeedsPermission(this@App, it)", proxySet)
+        assertTrue("the start-up LAN proxy check is gone", check > proxySet)
+        assertTrue(app.contains("Timber.w(\"PROXY_LAN_BLOCKED local network permission not granted\")"))
+
+        val settings = read("app/src/main/kotlin/com/music/echo/ui/screens/settings/ContentSettings.kt")
+        assertTrue(settings.contains("rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission())"))
+        assertTrue(settings.contains("withContext(Dispatchers.IO) { LocalNetworkAccess.proxyNeedsPermission(context, hostPort) }"))
+        assertTrue(settings.contains("runCatching { localNetworkLauncher.launch(LocalNetworkAccess.PERMISSION) }"))
+        val save = settings.indexOf("onProxyUrlChange(tempProxyUrl)")
+        assertTrue("saving the proxy no longer asks", settings.indexOf("askLocalNetworkForProxy(tempProxyUrl)", save) > save)
+        assertTrue(settings.contains("onCheckedChange = { onProxyEnabledChange(it); if (it) askLocalNetworkForProxy(proxyUrl) },"))
+        assertTrue(settings.contains("onClick = { onProxyEnabledChange(!proxyEnabled); if (!proxyEnabled) askLocalNetworkForProxy(proxyUrl) }"))
     }
 
     @Test

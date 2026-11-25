@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Registry row 864 (targetSdk 37, Android 17): the Cast video relay (CastMediaRelay) accepts the TV's connection on
-         the phone's LAN address, which Android 17 only allows with this runtime permission. Asked when a TV is picked
-         (CastButton); without it the video the TV cannot fetch itself plays as audio with its notice. gms only: the
-         FOSS build has no Cast. -->
-    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
-</manifest>
