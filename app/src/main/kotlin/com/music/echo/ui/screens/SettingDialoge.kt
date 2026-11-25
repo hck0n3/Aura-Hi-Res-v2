@@ -391,7 +391,8 @@ private fun SettingDialogeBody(
                     )
                     add(
                         Material3SettingsItem(
-                            title = { Text("Programar sincronización") },
+                            // Row 858: the old «Programar sincronización» hid that this is where the per-category status lives.
+                            title = { Text("Estado y programación de la sincronización") },
                             description = {
                                 Text(
                                     "Cada 3 días por defecto, o elige cuándo",

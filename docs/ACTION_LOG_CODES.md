@@ -1311,7 +1311,7 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.SETDLG.SYNC_EXPAND` | Desplegar / plegar la sincronización con Google |
 | `UI.SETDLG.SYNC_ROW` | «Sincronización con tu cuenta de Google» (despliega) |
 | `UI.SETDLG.SYNC_NOW` | «Sincronizar biblioteca ahora» |
-| `UI.SETDLG.SYNC_SCHEDULE` | «Programar sincronización» |
+| `UI.SETDLG.SYNC_SCHEDULE` | «Estado y programación de la sincronización» (antes «Programar sincronización», fila 858) |
 | `UI.SETDLG.LOGIN` | «Iniciar sesión» |
 | `UI.SETDLG.UPDATES` | «Actualizaciones» |
 | `UI.SETDLG.DEVICE_SYNC` | «Sincronizar dispositivos» |

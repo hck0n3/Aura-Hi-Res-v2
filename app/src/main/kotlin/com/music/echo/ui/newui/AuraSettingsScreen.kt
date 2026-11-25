@@ -210,6 +210,14 @@ fun AuraSettingsScreen(
                         )
                     }
                     add(AuraSettingsEntry(accountsText) { navController.navigate("settings/accounts") })
+                    // Row 858: the sync status/schedule screen had no row in Ajustes (only the account sheet).
+                    // Shown signed out too: that screen explains the sign-in and offers it.
+                    add(
+                        AuraSettingsEntry(
+                            title = "Estado y programación de la sincronización",
+                            description = "Cada 3 días por defecto, o elige cuándo",
+                        ) { navController.navigate("settings/ytm_sync") }
+                    )
                     add(
                         AuraSettingsEntry(scrobblingText, description = "Last.fm & ListenBrainz") {
                             navController.navigate("settings/lastfm")
@@ -405,8 +413,15 @@ fun AuraSettingsScreen(
                 }
 
                 AuraMenuGroupLabel("MÁS")
+                // Row 857: «Acerca de» holds two rows, so it is not `single` — a no-op toggle here left it shut.
                 more.forEach { group ->
-                    AuraSettingsGroupRow(group = group, expanded = false, onToggle = {})
+                    AuraSettingsGroupRow(
+                        group = group,
+                        expanded = expandedGroup == group.title,
+                        onToggle = {
+                            expandedGroup = if (expandedGroup == group.title) null else group.title
+                        },
+                    )
                 }
             } else {
                 // ── Search ────────────────────────────────────────────────────────────────────────
@@ -631,7 +646,8 @@ private fun AuraSettingsSubRow(
             text = title,
             style = AuraType.MenuLabel,
             color = AuraPalette.OnGround.copy(alpha = 0.86f),
-            maxLines = 1,
+            // Row 858: «Estado y programación de la sincronización» does not fit one line on a ~360 dp cover screen.
+            maxLines = 2,
             overflow = AuraDefaultOverflow,
         )
         if (description != null) {

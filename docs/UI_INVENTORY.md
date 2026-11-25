@@ -273,7 +273,7 @@ pantalla y resetea la barra superior (`MainActivity.kt:1358-1362`, `:1503-1507`)
 | **«Usar la cuenta para explorar»** *(hardcoded)* + interruptor | Hoja de cuenta | `ui/screens/SettingDialoge.kt:132-150` | conmutador | rara | solo con sesión |
 | **«Sincronización con tu cuenta de Google»** *(hardcoded)* + interruptor | Hoja de cuenta | `ui/screens/SettingDialoge.kt:151-162` | conmutador | rara | solo con sesión |
 | **«Sincronizar biblioteca ahora»** *(hardcoded)* — desc. «Toda la biblioteca con tu cuenta. Sigue en segundo plano aunque cierres la app.» | Hoja de cuenta | `ui/screens/SettingDialoge.kt:302-320` | acción primaria | rara | solo con sesión; encola `YtmSyncWorker.TYPE_ALL` |
-| **«Programar sincronización»** *(hardcoded)* — desc. «Cada 3 días por defecto, o elige cuándo» → `settings/ytm_sync` | Hoja de cuenta | `ui/screens/SettingDialoge.kt:321-328` | navegación | rara | solo con sesión |
+| **«Estado y programación de la sincronización»** *(hardcoded; hasta la fila 858 «Programar sincronización»)* — desc. «Cada 3 días por defecto, o elige cuándo» → `settings/ytm_sync` | Hoja de cuenta | `ui/screens/SettingDialoge.kt:393-404` | navegación | rara | solo con sesión |
 | Grupo **«App»** *(hardcoded)* | Hoja de cuenta | `ui/screens/SettingDialoge.kt:168` | informativo | — | siempre |
 | **«Ajustes»** *(hardcoded)* → `settings` | Hoja de cuenta | `ui/screens/SettingDialoge.kt:171-175` | navegación | diaria | siempre |
 | **«Acerca de»** *(hardcoded)* + número de versión → `settings/about` | Hoja de cuenta | `ui/screens/SettingDialoge.kt:176-181` | navegación | rara | siempre |
@@ -3362,7 +3362,7 @@ Se abre desde el icono de la barra superior en `MainActivity.kt:1309` (no desde 
 | Usar la cuenta para explorar (hardcoded) — grupo «Preferences» (hardcoded, sin traducir) | Diálogo: Ajustes rápidos | SettingDialoge.kt:133 | conmutador | rara | siempre |
 | Sincronización con tu cuenta de Google (hardcoded) | Diálogo: Ajustes rápidos | SettingDialoge.kt:152 | conmutador | rara | siempre |
 | Sincronizar biblioteca ahora (hardcoded) | Diálogo: Ajustes rápidos | SettingDialoge.kt:302 | acción primaria | rara | solo con sesión; encola `YtmSyncWorker.TYPE_ALL` |
-| Programar sincronización (hardcoded) → `settings/ytm_sync` | Diálogo: Ajustes rápidos | SettingDialoge.kt:321 | navegación | rara | solo con sesión |
+| Estado y programación de la sincronización (hardcoded; antes «Programar sincronización», fila 858) → `settings/ytm_sync` | Diálogo: Ajustes rápidos | SettingDialoge.kt:395 | navegación | rara | solo con sesión |
 | Ajustes (hardcoded) — grupo «App» (hardcoded) | Diálogo: Ajustes rápidos | SettingDialoge.kt:172 | navegación (`settings`) | ocasional | siempre |
 | Acerca de (hardcoded) — muestra `BuildConfig.VERSION_NAME` a la derecha | Diálogo: Ajustes rápidos | SettingDialoge.kt:177 | navegación (`settings/about`) | rara | siempre |
 
@@ -4525,3 +4525,13 @@ Textos de `values-es`. Los toasts de entrar y salir de la sesión sin conexión 
 | Dónde | Qué hay ahora | Fila del registro |
 |---|---|---|
 | Reproductor Aura > cabecera: chip «SIN CONEXIÓN · …» (mismo sitio, icono y toque que en el anexo de la fila 795) | Mientras sigue la canción que sonaba al cortarse la red: «SIN CONEXIÓN · ESTA CANCIÓN SIGUE DESDE LO CARGADO; DESPUÉS, TU MÚSICA SIN CONEXIÓN» (TalkBack: «Sin conexión: esta canción sigue desde lo cargado y después suena tu música sin conexión. Toca para ver más»). Solo si esa canción estaba sonando de verdad cuando salió el aviso (no si estaba en pausa o recién restaurada al abrir la app sin red), y deja de decirlo si esa canción falla o el reproductor se para por un error. En cuanto empieza otra canción, o en esos casos: «SIN CONEXIÓN · SONANDO TU MÚSICA SIN CONEXIÓN», como antes. Con el modo sin conexión manual, siempre el de antes. El mini sigue diciendo «SIN CONEXIÓN» y el diálogo «Sonando sin conexión» no cambia | 854 |
+
+## Anexo 2026-11-25 (filas 857-859): prueba del dueño en el Galaxy Z Fold7 — Ajustes se encuentra mejor (no se quitó ni se ocultó nada)
+
+| Dónde | Qué hay ahora | Fila del registro |
+|---|---|---|
+| Ajustes ▸ MÁS ▸ sección **«Acerca de»** (`ui/newui/AuraSettingsScreen.kt:417-425`) | Al tocarla se despliega en su sitio (el chevrón gira) y enseña sus dos filas, **«Actualizaciones»** → `settings/update` y **«Acerca de»** → `settings/about`, como las secciones de arriba; solo una abierta a la vez. Antes el toque no hacía nada. Las demás secciones de MÁS (Apariencia, Estadísticas, Registros, Comentarios) tienen una sola fila y siguen navegando al tocarlas | 857 |
+| Hoja de la cuenta ▸ desplegable de sincronización: **«Estado y programación de la sincronización»** (`ui/screens/SettingDialoge.kt:395`) | Misma fila, misma descripción y mismo destino (`settings/ytm_sync`); antes se llamaba «Programar sincronización» | 858 |
+| Ajustes ▸ **Cuentas y sincronización** ▸ **«Estado y programación de la sincronización»** — desc. «Cada 3 días por defecto, o elige cuándo» (`ui/newui/AuraSettingsScreen.kt:213-220`) | **Fila nueva**, detrás de «Cuentas» → `settings/ytm_sync` (la pantalla con los números por categoría, la sincronización automática y la última sincronización). Sale también sin sesión: la pantalla explica el inicio de sesión y lo ofrece. Los títulos de las filas desplegadas de Ajustes pueden ocupar dos líneas (antes una, cortada con «…»), para que este nombre se lea entero en una pantalla estrecha | 858 |
+| Ajustes ▸ buscar: «Sincronizar desde tu cuenta de Google» y «Sincronización automática», sección «Sincronización con la cuenta» (`ui/screens/settings/SearchableSettings.kt:585-586`) | Resultados nuevos → `settings/ytm_sync`. La fila nueva de Ajustes también sale al buscar «estado», «programación» o «sincronización» | 858 |
+| Reproductor Aura > fila del artista: chip **Suscribirme / Suscrito** (`ui/newui/AuraPlayer.kt:1826-1871`) | Sin cambios; solo se aclara cuándo se ve: la fila de acciones del artista está cerrada y se abre **tocando la línea del artista** bajo el título (`:1748-1752`); ahí sale el chip en las dos formas del reproductor, con o sin sesión. El menú ⋮ tiene «Ver artista» pero no «Suscribirme» | 859 |
