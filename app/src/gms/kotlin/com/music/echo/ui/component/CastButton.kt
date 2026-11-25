@@ -84,6 +84,8 @@ fun CastButton(
     // the answer; without it a video the TV cannot fetch itself plays as audio with its notice.
     val localNetworkLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         Timber.i("CAST_LOCAL_NETWORK granted=%b", granted)
+        // The first video may already have fallen back to audio while the dialog was open: put it back on video.
+        if (granted) castHandler?.onLocalNetworkGranted()
     }
 
     // Check if Cast is available and disconnect if disabled while casting

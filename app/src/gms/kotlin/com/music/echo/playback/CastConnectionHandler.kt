@@ -129,6 +129,11 @@ class CastConnectionHandler(
     private var videoLoadedAtMs: Long = 0L
     private var videoLoadStartPosition: Long = 0L
     private var videoFailureHandled: Boolean = false
+    // Registry row 864: the relay was refused during the load in flight because ACCESS_LOCAL_NETWORK was missing, and the
+    // track whose video then fell back to audio for that reason, so a later grant can put the video back (only while that
+    // track is still the current one on a live session).
+    @Volatile private var relayRefusedForPermission: Boolean = false
+    @Volatile private var videoLostToLocalNetwork: String? = null
     // A skip the PHONE asked for (queueNext/queuePrev): not evidence that the video failed.
     private var lastPhoneSkipAtMs: Long = 0L
     
@@ -657,6 +662,19 @@ class CastConnectionHandler(
         sessionManager?.endCurrentSession(true)
     }
     
+    /**
+     * Registry row 864: the user allowed local network access (CastButton's request, main thread). If the current track's
+     * video fell back to audio only for the lack of it, put the switch back on Video as a tap would: the mode change
+     * reloads the track on the TV as video through the relay.
+     */
+    fun onLocalNetworkGranted() {
+        val lostId = videoLostToLocalNetwork ?: return
+        videoLostToLocalNetwork = null
+        if (!_isCasting.value || musicService.videoMode.value || musicService.currentMediaMetadata.value?.id != lostId) return
+        Timber.i("CAST_LOCAL_NETWORK granted: back to video")
+        musicService.enterVideoModeIfNeeded(forceFromUserTap = true)
+    }
+
     fun loadCurrentMedia() {
         val metadata = musicService.currentMediaMetadata.value ?: return
         loadMediaWithQueue(metadata)
@@ -777,6 +795,7 @@ class CastConnectionHandler(
         // URL would only time out on the TV, so null: the caller falls back to audio and says so.
         if (!LocalNetworkAccess.isGranted(context)) {
             Timber.w("CAST_VIDEO_SRC relay blocked: local network permission not granted")
+            relayRefusedForPermission = true
             return null
         }
         val address = lanAddress() ?: return null
@@ -926,6 +945,7 @@ class CastConnectionHandler(
                 // Read BEFORE the bookkeeping below is overwritten: did the TV already hold this very track?
                 val tvHadTrack = loadedCurrentMediaId == metadata.id
                 videoItemPlayed = false
+                relayRefusedForPermission = false
                 // A recovery load keeps «already handled» until a normal load: the failed video's leftover status must not
                 // trigger a second recovery while the audio load is still being built.
                 if (!forceAudio) videoFailureHandled = false
@@ -1022,7 +1042,13 @@ class CastConnectionHandler(
                     // Pause local playback
                     musicService.player.pause()
 
-                    if (videoFellBack) {
+                    val lackedLocalNetwork = videoFellBack && relayRefusedForPermission
+                    if (lackedLocalNetwork && LocalNetworkAccess.isGranted(context)) {
+                        // Registry row 864: the permission was granted while this load was being built. Keep the switch on
+                        // Video; the settle step below replays the mode check, which reloads this track as video.
+                        Timber.i("CAST_LOCAL_NETWORK granted during load: retrying the video")
+                        reconcilePending = true
+                    } else if (videoFellBack) {
                         // The TV got audio only: say so, and put the switch back on Song so the app
                         // never claims a video that is not on the screen.
                         android.widget.Toast.makeText(
@@ -1031,6 +1057,7 @@ class CastConnectionHandler(
                             android.widget.Toast.LENGTH_LONG,
                         ).show()
                         musicService.exitVideoMode()
+                        videoLostToLocalNetwork = if (lackedLocalNetwork) metadata.id else null
                     } else if (wantVideo) {
                         // The picture lives on the TV now: free the phone's own video decoder/stream. Mark THIS track as the
                         // one the TV shows as video first, so the local re-prepare that follows is not mistaken for a track

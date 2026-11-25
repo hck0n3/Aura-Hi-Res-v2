@@ -83,6 +83,32 @@ class LocalNetworkPermissionGuardTest {
     }
 
     @Test
+    fun `granting local network access puts a video lost to it back on video`() {
+        val handler = read("app/src/gms/kotlin/com/music/echo/playback/CastConnectionHandler.kt")
+        val relay = handler.indexOf("private fun relayFor(url: String): String? {")
+        assertTrue(
+            "relayFor no longer records why it refused",
+            handler.indexOf("relayRefusedForPermission = true", relay) > relay,
+        )
+        assertTrue(handler.contains("val lackedLocalNetwork = videoFellBack && relayRefusedForPermission"))
+        // Granted while the load was being built: keep Video and replay the mode check instead of leaving video mode.
+        val duringLoad = handler.indexOf("if (lackedLocalNetwork && LocalNetworkAccess.isGranted(context)) {")
+        assertTrue("the granted-during-load branch is gone", duringLoad >= 0)
+        val fallback = handler.indexOf("} else if (videoFellBack) {", duringLoad)
+        assertTrue("the fallback branch moved", fallback > duringLoad)
+        assertTrue(handler.substring(duringLoad, fallback).contains("reconcilePending = true"))
+        assertTrue(handler.contains("videoLostToLocalNetwork = if (lackedLocalNetwork) metadata.id else null"))
+        // Granted after the fallback: the switch goes back to Video as a tap would.
+        val granted = handler.indexOf("fun onLocalNetworkGranted() {")
+        assertTrue("onLocalNetworkGranted is gone", granted >= 0)
+        assertTrue(
+            handler.indexOf("musicService.enterVideoModeIfNeeded(forceFromUserTap = true)", granted) > granted,
+        )
+        val button = read("app/src/gms/kotlin/com/music/echo/ui/component/CastButton.kt")
+        assertTrue(button.contains("if (granted) castHandler?.onLocalNetworkGranted()"))
+    }
+
+    @Test
     fun `picking a TV asks for local network access and still connects`() {
         val button = read("app/src/gms/kotlin/com/music/echo/ui/component/CastButton.kt")
         assertTrue(button.contains("rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission())"))
