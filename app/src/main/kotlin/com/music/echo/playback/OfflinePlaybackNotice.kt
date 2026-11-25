@@ -26,5 +26,21 @@ enum class OfflinePlaybackNotice {
             sessionActive || queueParked -> AUTOMATIC
             else -> NONE
         }
+
+        /**
+         * Row 853 (owner test #17, beta8: airplane mode on, 25 s, no sign): the device itself has no network — no transport
+         * at all ([iad1tya.echo.music.utils.NetworkState.online], the same reading as Inicio's automatic offline mode) and the
+         * default network is not validated — with "que se ponga solo" on. Only then does the player go on with offline music
+         * by itself, so only then may the sign say so. A VPN, IPv6-only or signed-in captive portal keeps a transport and is
+         * never taken for "no network" here (they carry traffic).
+         */
+        fun deviceOffline(online: Boolean, validated: Boolean, autoOffline: Boolean): Boolean = autoOffline && !online && !validated
+
+        /**
+         * Row 853: the sign does not wait for the player's offline session (its entry hangs on one live read at the moment
+         * the network drops, and a network song reaching READY ends it): with the device offline it is on at once.
+         */
+        fun shown(base: OfflinePlaybackNotice, deviceOffline: Boolean): OfflinePlaybackNotice =
+            if (base == NONE && deviceOffline) AUTOMATIC else base
     }
 }

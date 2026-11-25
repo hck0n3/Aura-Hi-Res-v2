@@ -2700,12 +2700,23 @@ class MusicService :
             PlaybackOfflineSession.userRetries.collect { onOfflineSessionExited("user_retry") }
         }
         // Row 795: the players' «Sin conexión» sign follows the session, its parked queue and the manual switch as they change.
+        // Row 853: and the device's own network state, so it is on as soon as the network is gone (event-driven, NetworkState).
         scope.launch {
             combine(
                 PlaybackOfflineSession.active,
                 offlineQueueParkedState,
                 dataStore.data.map { it[OfflineModeKey] ?: false }.distinctUntilChanged(),
-            ) { session, parked, manual -> OfflinePlaybackNotice.of(sessionActive = session, queueParked = parked, manual = manual) }
+                combine(
+                    iad1tya.echo.music.utils.NetworkState.online,
+                    iad1tya.echo.music.utils.NetworkState.validated,
+                    dataStore.data.map { it[iad1tya.echo.music.constants.AutoOfflineModeKey] ?: true }.distinctUntilChanged(),
+                ) { online, validated, auto -> OfflinePlaybackNotice.deviceOffline(online = online, validated = validated, autoOffline = auto) },
+            ) { session, parked, manual, offline ->
+                OfflinePlaybackNotice.shown(
+                    OfflinePlaybackNotice.of(sessionActive = session, queueParked = parked, manual = manual),
+                    deviceOffline = offline,
+                )
+            }
                 .collect { _offlinePlaybackNotice.value = it }
         }
 
@@ -4043,7 +4054,10 @@ class MusicService :
     private var offlineStallJob: Job? = null
 
     private val _offlinePlaybackNotice = MutableStateFlow(OfflinePlaybackNotice.NONE)
-    /** Row 795: the players' «Sin conexión» sign — the same three states as [offlineQueueModeNow]. Fed by events, never polled. */
+    /**
+     * Row 795: the players' «Sin conexión» sign — the same three states as [offlineQueueModeNow], plus (row 853) the device
+     * having no network at all. Fed by events, never polled.
+     */
     val offlinePlaybackNotice: kotlinx.coroutines.flow.StateFlow<OfflinePlaybackNotice> get() = _offlinePlaybackNotice
 
     /** Row 795: [offlineQueueParkedNow] for the sign, refreshed where the flag is written and when the queue changes. */

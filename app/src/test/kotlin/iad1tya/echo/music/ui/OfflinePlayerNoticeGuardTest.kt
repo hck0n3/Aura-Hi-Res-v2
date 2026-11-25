@@ -44,6 +44,26 @@ class OfflinePlayerNoticeGuardTest {
     }
 
     @Test
+    fun `row 853 - the sign is on as soon as the device has no network, from NetworkState's events`() {
+        val service = main("playback/MusicService.kt")
+        val marker = "// Row 795: the players' «Sin conexión» sign follows the session, its parked queue and the manual switch as they change."
+        val feed = service.substringAfter(marker).substringBefore(".collect { _offlinePlaybackNotice.value = it }")
+        assertTrue(feed.contains("iad1tya.echo.music.utils.NetworkState.online,"))
+        assertTrue(feed.contains("iad1tya.echo.music.utils.NetworkState.validated,"))
+        assertTrue(feed.contains("dataStore.data.map { it[iad1tya.echo.music.constants.AutoOfflineModeKey] ?: true }.distinctUntilChanged(),"))
+        assertTrue(
+            feed.contains(
+                "OfflinePlaybackNotice.deviceOffline(online = online, validated = validated, autoOffline = auto)",
+            ),
+        )
+        assertTrue(feed.contains("OfflinePlaybackNotice.shown("))
+        assertTrue(feed.contains("deviceOffline = offline,"))
+        // It does not hang on the session's entry (one live read when the network drops) nor on hasLiveInternetConnection.
+        assertFalse(feed.contains("hasLiveInternetConnection"))
+        assertFalse("rule 7: nothing ticks", feed.contains("delay(") || feed.contains("while (true)"))
+    }
+
+    @Test
     fun `the parked offline queue keeps the sign, from the same predicate as offlineQueueModeNow`() {
         val service = main("playback/MusicService.kt")
         // The predicate the sign mirrors (row 717): the parked queue is still offline music only.

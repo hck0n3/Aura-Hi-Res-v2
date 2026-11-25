@@ -52,4 +52,37 @@ class OfflinePlaybackNoticeTest {
         assertFalse("it ends by itself on the first real proof the network works", notice.offersGoOnline)
         assertEquals(OfflinePlaybackNotice.MANUAL, OfflinePlaybackNotice.of(sessionActive = false, queueParked = true, manual = true))
     }
+
+    // Row 853 (owner test #17, beta8): airplane mode on while an online song played, no sign after 25 s.
+
+    @Test
+    fun `the device is offline only with no transport, no validated network and the automatic mode on`() {
+        assertTrue(OfflinePlaybackNotice.deviceOffline(online = false, validated = false, autoOffline = true))
+        assertFalse("a VPN / IPv6-only / signed-in portal keeps a transport", OfflinePlaybackNotice.deviceOffline(online = true, validated = false, autoOffline = true))
+        assertFalse(OfflinePlaybackNotice.deviceOffline(online = true, validated = true, autoOffline = true))
+        assertFalse(OfflinePlaybackNotice.deviceOffline(online = false, validated = true, autoOffline = true))
+        assertFalse("with «que se ponga solo» off the player never goes offline by itself", OfflinePlaybackNotice.deviceOffline(online = false, validated = false, autoOffline = false))
+    }
+
+    @Test
+    fun `the sign is on as soon as the device is offline, without waiting for the player's session`() {
+        val none = OfflinePlaybackNotice.of(sessionActive = false, queueParked = false, manual = false)
+        val notice = OfflinePlaybackNotice.shown(none, deviceOffline = true)
+        assertTrue(notice.visible)
+        assertFalse("nothing to switch off: it ends by itself when the network is back", notice.offersGoOnline)
+    }
+
+    @Test
+    fun `the sign goes away when the network comes back`() {
+        val none = OfflinePlaybackNotice.of(sessionActive = false, queueParked = false, manual = false)
+        assertEquals(OfflinePlaybackNotice.NONE, OfflinePlaybackNotice.shown(none, deviceOffline = false))
+    }
+
+    @Test
+    fun `the device state never hides or overrides the session or the manual switch`() {
+        for (offline in listOf(true, false)) {
+            assertEquals(OfflinePlaybackNotice.MANUAL, OfflinePlaybackNotice.shown(OfflinePlaybackNotice.MANUAL, deviceOffline = offline))
+            assertTrue(OfflinePlaybackNotice.shown(OfflinePlaybackNotice.AUTOMATIC, deviceOffline = offline).visible)
+        }
+    }
 }
