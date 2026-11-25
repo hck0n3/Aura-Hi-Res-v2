@@ -470,9 +470,9 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 // Registry row 872: on a fresh install the welcome's permissions step asks for it on its own card, with
-                // its reason; the bare system dialog no longer jumps in front of the terms before that step is over.
+                // its reason; the bare system dialog waits until the welcome is over and never follows a «no» on that card.
                 lifecycleScope.launch {
-                    if (iad1tya.echo.music.ui.screens.welcome.WelcomeFlow.permissionsStepPending(dataStore.data.first())) return@launch
+                    if (iad1tya.echo.music.ui.screens.welcome.WelcomeFlow.startNotificationRequestSuppressed(dataStore.data.first())) return@launch
                     if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return@launch
                     ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1000)
                 }

@@ -6,6 +6,7 @@ import iad1tya.echo.music.constants.LastOpenedVersionCodeKey
 import iad1tya.echo.music.constants.OnboardingArtistsDoneKey
 import iad1tya.echo.music.constants.TermsAcceptedAppVersionKey
 import iad1tya.echo.music.constants.WelcomeDoneKey
+import iad1tya.echo.music.constants.WelcomeNotificationsDeclinedKey
 import iad1tya.echo.music.constants.WelcomePermissionsDoneKey
 import java.io.File
 import org.junit.Assert.assertEquals
@@ -73,14 +74,28 @@ class WelcomeFlowTest {
     }
 
     @Test
-    fun `MainActivity reads the same decision from one DataStore snapshot`() {
-        assertTrue(WelcomeFlow.permissionsStepPending(emptyPreferences()))
-        assertFalse(WelcomeFlow.permissionsStepPending(preferencesOf(LastOpenedVersionCodeKey to 1111)))
-        assertFalse(WelcomeFlow.permissionsStepPending(preferencesOf(OnboardingArtistsDoneKey to true)))
-        assertFalse(WelcomeFlow.permissionsStepPending(preferencesOf(TermsAcceptedAppVersionKey to 1111)))
-        assertTrue(WelcomeFlow.permissionsStepPending(preferencesOf(TermsAcceptedAppVersionKey to 1112)))
-        assertFalse(WelcomeFlow.permissionsStepPending(preferencesOf(TermsAcceptedAppVersionKey to 1112, WelcomePermissionsDoneKey to true)))
-        assertFalse(WelcomeFlow.permissionsStepPending(preferencesOf(TermsAcceptedAppVersionKey to 1112, WelcomeDoneKey to true)))
+    fun `the bare onStart notification request never runs over the welcome or a no on its card`() {
+        val suppressed = WelcomeFlow::startNotificationRequestSuppressed
+        // Fresh install: suppressed before the terms, on the permissions step, and after «Continuar» while the rest of
+        // the welcome is ahead (the account / Spotify screens of «Conecta tu música» bring onStart back).
+        assertTrue(suppressed(emptyPreferences()))
+        assertTrue(suppressed(preferencesOf(TermsAcceptedAppVersionKey to 1112)))
+        assertTrue(suppressed(preferencesOf(TermsAcceptedAppVersionKey to 1112, WelcomePermissionsDoneKey to true)))
+        // «Ahora no», a system denial or a bare «Continuar» on the notifications card: suppressed for good.
+        assertTrue(
+            suppressed(
+                preferencesOf(
+                    TermsAcceptedAppVersionKey to 1112, WelcomePermissionsDoneKey to true,
+                    WelcomeNotificationsDeclinedKey to true, WelcomeDoneKey to true, LastOpenedVersionCodeKey to 1112,
+                ),
+            ),
+        )
+        // Welcome finished with no «no» on that card: the request behaves as before.
+        assertFalse(suppressed(preferencesOf(TermsAcceptedAppVersionKey to 1112, WelcomePermissionsDoneKey to true, WelcomeDoneKey to true)))
+        // Installs that predate the welcome keep the old behaviour.
+        assertFalse(suppressed(preferencesOf(LastOpenedVersionCodeKey to 1111)))
+        assertFalse(suppressed(preferencesOf(OnboardingArtistsDoneKey to true)))
+        assertFalse(suppressed(preferencesOf(TermsAcceptedAppVersionKey to 1111)))
     }
 
     @Test
@@ -117,12 +132,13 @@ class WelcomeFlowTest {
         val permissions = main.indexOf("iad1tya.echo.music.ui.screens.welcome.WelcomePermissionsGate {")
         val licence = main.indexOf("LicenseGate {")
         assertTrue("order: terms → permissions → licence", terms in 0 until permissions && permissions < licence)
-        // The bare notification dialog of onStart waits until the step is over on a fresh install.
-        assertTrue(main.contains("if (iad1tya.echo.music.ui.screens.welcome.WelcomeFlow.permissionsStepPending(dataStore.data.first())) return@launch"))
+        // The bare notification dialog of onStart waits until the welcome is over and never follows a «no» on its card.
+        assertTrue(main.contains("if (iad1tya.echo.music.ui.screens.welcome.WelcomeFlow.startNotificationRequestSuppressed(dataStore.data.first())) return@launch"))
         // A denied permission never blocks: «Continuar» has no enabled condition.
         val screen = File(root, "app/src/main/kotlin/com/music/echo/ui/screens/welcome/WelcomePermissionsScreen.kt").readText()
         val cont = screen.substringAfter("ActionLog.tap(ActionId.WELCOME_PERM_CONTINUE)").substringBefore("Text(stringResource(R.string.welcome_continue))")
         assertFalse(cont.contains("enabled ="))
         assertTrue(cont.contains("it[WelcomePermissionsDoneKey] = true"))
+        assertTrue(cont.contains("if (notificationsDeclined) it[WelcomeNotificationsDeclinedKey] = true"))
     }
 }

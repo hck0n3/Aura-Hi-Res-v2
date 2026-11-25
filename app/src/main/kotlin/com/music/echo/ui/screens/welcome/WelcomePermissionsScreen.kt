@@ -52,6 +52,7 @@ import iad1tya.echo.music.constants.LastOpenedVersionCodeKey
 import iad1tya.echo.music.constants.OnboardingArtistsDoneKey
 import iad1tya.echo.music.constants.TermsAcceptedAppVersionKey
 import iad1tya.echo.music.constants.WelcomeDoneKey
+import iad1tya.echo.music.constants.WelcomeNotificationsDeclinedKey
 import iad1tya.echo.music.constants.WelcomePermissionsDoneKey
 import iad1tya.echo.music.legal.TermsAuraScheme
 import iad1tya.echo.music.ui.newui.AuraPalette
@@ -261,7 +262,14 @@ private fun WelcomePermissionsScreen() {
             Button(
                 onClick = {
                     ActionLog.tap(ActionId.WELCOME_PERM_CONTINUE)
-                    scope.launch { context.dataStore.edit { it[WelcomePermissionsDoneKey] = true } }
+                    val notificationsDeclined = WelcomeFlow.Permission.NOTIFICATIONS in cards &&
+                        !isGranted(context, WelcomeFlow.Permission.NOTIFICATIONS)
+                    scope.launch {
+                        context.dataStore.edit {
+                            if (notificationsDeclined) it[WelcomeNotificationsDeclinedKey] = true
+                            it[WelcomePermissionsDoneKey] = true
+                        }
+                    }
                 },
                 modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
                 shape = AuraShapes.Pill,

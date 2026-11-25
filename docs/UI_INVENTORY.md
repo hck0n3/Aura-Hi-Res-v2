@@ -320,8 +320,10 @@ Va **entre** la puerta legal y la de licencia (`MainActivity.kt:679`: `TermsGate
 legal, se dibuja EN LUGAR de todo lo demás. **Solo en una instalación nueva** (`ui/screens/welcome/WelcomeFlow.kt`, fila 871):
 quien venía de la beta12 o anterior no lo ve nunca. Desaparece al tocar «Continuar» y no vuelve. Nada se quita ni se
 oculta: cada permiso sigue pidiéndose también donde se usa (reconocer, buscar por voz, música local, salida de audio,
-proxy/Cast en Android 17) y el aviso de notificaciones de siempre al abrir la app (`MainActivity.kt:475`) solo espera a
-que este paso termine en una instalación nueva.
+proxy/Cast en Android 17) y el aviso de notificaciones de siempre al abrir la app (`MainActivity.kt:475`) sigue igual para
+quien venía de antes; en una instalación nueva espera a que termine toda la bienvenida y no vuelve a salir si en la tarjeta
+de notificaciones se dejó sin conceder («Ahora no», «No permitir» o «Continuar» sin tocarla): se puede activar luego desde
+los ajustes de Android de la app.
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|

@@ -5,7 +5,7 @@ import iad1tya.echo.music.constants.LastOpenedVersionCodeKey
 import iad1tya.echo.music.constants.OnboardingArtistsDoneKey
 import iad1tya.echo.music.constants.TermsAcceptedAppVersionKey
 import iad1tya.echo.music.constants.WelcomeDoneKey
-import iad1tya.echo.music.constants.WelcomePermissionsDoneKey
+import iad1tya.echo.music.constants.WelcomeNotificationsDeclinedKey
 
 /**
  * Registry rows 871/872 (plan phase 2): who sees the new welcome — Terms → Permissions → Licence/demo → «Conecta tu
@@ -55,14 +55,19 @@ object WelcomeFlow {
     ): Boolean = !permissionsDone &&
         showWelcome(welcomeDone, lastOpenedVersionCode, onboardingArtistsDone, termsAcceptedAppVersionCode)
 
-    /** [showPermissionsStep] read from one DataStore snapshot (MainActivity.onStart). */
-    fun permissionsStepPending(prefs: Preferences): Boolean = showPermissionsStep(
-        permissionsDone = prefs[WelcomePermissionsDoneKey] ?: false,
-        welcomeDone = prefs[WelcomeDoneKey] ?: false,
-        lastOpenedVersionCode = prefs[LastOpenedVersionCodeKey] ?: NEVER_OPENED,
-        onboardingArtistsDone = prefs[OnboardingArtistsDoneKey] ?: false,
-        termsAcceptedAppVersionCode = prefs[TermsAcceptedAppVersionKey] ?: 0,
-    )
+    /**
+     * MainActivity.onStart's bare notification request (one DataStore snapshot) keeps out of a fresh install's way: while
+     * any step of the welcome is still ahead (it is asked on its own card, and the account / Spotify screens of «Conecta
+     * tu música» bring the app back to the foreground), and for good once the user left that card without it — an
+     * explicit answer the bare dialog must not overrule, nor spend Android's last chance to ask on.
+     */
+    fun startNotificationRequestSuppressed(prefs: Preferences): Boolean =
+        (prefs[WelcomeNotificationsDeclinedKey] ?: false) || showWelcome(
+            welcomeDone = prefs[WelcomeDoneKey] ?: false,
+            lastOpenedVersionCode = prefs[LastOpenedVersionCodeKey] ?: NEVER_OPENED,
+            onboardingArtistsDone = prefs[OnboardingArtistsDoneKey] ?: false,
+            termsAcceptedAppVersionCode = prefs[TermsAcceptedAppVersionKey] ?: 0,
+        )
 
     /**
      * One runtime permission the welcome asks for, each with its own card. [permission] is the manifest name (all of
