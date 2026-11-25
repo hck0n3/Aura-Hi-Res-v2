@@ -1,24 +1,22 @@
-# Aura Hi-Res v2.0.69-beta8 — beta privada: el invitado ya no cambia el orden de la sala y la clave maestra deja de emparejar por correo
+# Aura Hi-Res v2.0.69-beta9 — beta privada: actualización de las librerías de la app (interfaz, imágenes y compilación)
 
-Beta solo para probar, sobre la 2.0.69-beta7 que tienes instalada (incluye todo lo de las betas anteriores; sus notas siguen valiendo y se juntarán en la versión estable). Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Te llega por el actualizador solo con «Recibir versiones beta» encendido (Ajustes ▸ Actualizaciones).
+Beta solo para probar, sobre la 2.0.69-beta8 que tienes instalada (incluye todo lo de las betas anteriores; sus notas siguen valiendo y se juntarán en la versión estable). Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Te llega por el actualizador solo con «Recibir versiones beta» encendido (Ajustes ▸ Actualizaciones).
 
-## Escuchar juntos
+## Qué cambia
 
-- **El invitado ya no puede poner el aleatorio dentro de una sala:** el orden lo decide el anfitrión. Los botones de aleatorio del reproductor y de la cola se ven atenuados y, al tocarlos, avisan «En una sala solo el anfitrión decide el orden».
-- **Tampoco desde fuera de la app:** el botón de aleatorio de la notificación, Android Auto y los mandos externos no lo cambian mientras eres invitado.
-- **Al entrar como invitado con el aleatorio encendido, se apaga solo** (era una de las causas de que cada aparato sonara en un orden distinto) y **al salir de la sala vuelve como lo tenías.**
-- El anfitrión no cambia: sigue teniendo el aleatorio como siempre.
-
-## Clave maestra
-
-- **Con una clave maestra los aparatos ya no se emparejan solos por el correo:** antes, cualquiera que tuviera la clave maestra y escribiera el correo de otra persona entraba en su sala de sincronización. Ahora hay que usar un código de emparejamiento (Ajustes ▸ Sincronizar dispositivos), y esa pantalla lo explica.
-- **Los aparatos que ya estaban emparejados así se desemparejan solos** al actualizar.
-- **Las copias en la nube no se pierden:** el correo se sigue usando solo para encontrar tu copia en la nube, nunca para emparejar.
-- Las licencias compradas en Gumroad no cambian en nada.
+- **Librerías de la interfaz al día:** Material 3 1.5.0 con Compose 1.13.0, el efecto de pulsación alineado con la misma versión, Coil 3.6.3 (carga de carátulas), Material Kolor 5.0.1 (colores del tema) y Haze 1.7.3 (efecto cristal).
+- **Herramientas de compilación al día:** Android Gradle Plugin 9.5.2 y NDK r27d para el motor de audio nativo.
+- **No cambia nada de lo que haces en la app:** es una actualización por dentro; tus ajustes, tu música y tus funciones siguen igual. Los motores de reproducción de SimpMusic no cambian.
+- **Colores del tema:** con un color de acento amarillo y tema claro, algún tono muy claro puede verse un poco distinto (es una corrección de la librería de colores).
 
 ## Para que lo pruebes y me cuentes
 
-- No pude probar nada de esto en un aparato: está revisado leyendo el código y con pruebas automáticas, pero falta tu móvil.
-- **Escuchar juntos con 2 aparatos:** en el invitado, toca aleatorio en el reproductor, en la cola y en la notificación: debe salir el aviso y no cambiar nada. Entra con el aleatorio encendido (se apaga) y sal de la sala (vuelve a encenderse).
-- **Clave maestra:** en un aparato activado con la clave maestra, Ajustes ▸ Sincronizar dispositivos debe decir que con esa clave no se empareja solo; con un código escrito sí debe emparejar.
+- No pude probarlo en un aparato: compila, pasan las 3345 pruebas automáticas y el emulador, pero falta tu móvil.
+- **Barra de progreso del reproductor:** arrástrala en los estilos Predeterminado y Fino; debe moverse bien, saltar al soltar y mostrar lo que ya está cargado.
+- **Volumen:** el deslizador de volumen y la vista previa del estilo Fino en Ajustes ▸ Apariencia.
+- **Campos de texto y hojas que se abren desde el reproductor:** «Agregar a playlist», «Pedir música» y la búsqueda; escribe en ellos.
+- **Botones de la cola y de Ajustes ▸ Cuentas** que se encienden y apagan.
+- **Inicio:** el carrusel de «Para ti».
+- **Colores, carátulas y el efecto cristal** del reproductor nuevo.
+- **Sonido con el ecualizador:** que la música suene y el ecualizador funcione como siempre.
 - Si algo falla, manda el registro desde Ajustes ▸ Registros con la hora.
