@@ -55,12 +55,20 @@ enum class OfflinePlaybackNotice {
         /**
          * Row 853: the sign does not wait for the player's offline session (its entry hangs on one live read at the moment
          * the network drops, and a network song reaching READY ends it): with the device offline it is on at once.
-         * Row 854: until another song starts ([songMovedOn] false), the automatic sign says the current song goes on from
-         * what was loaded ([BUFFERED]); the manual switch keeps its own sign.
+         * Row 854: while [fromLoaded] holds ([loadedSongGoesOn]), the automatic sign says the current song goes on from what
+         * was loaded ([BUFFERED]); the manual switch keeps its own sign.
          */
-        fun shown(base: OfflinePlaybackNotice, deviceOffline: Boolean, songMovedOn: Boolean): OfflinePlaybackNotice {
+        fun shown(base: OfflinePlaybackNotice, deviceOffline: Boolean, fromLoaded: Boolean): OfflinePlaybackNotice {
             val on = if (base == NONE && deviceOffline) AUTOMATIC else base
-            return if (on == AUTOMATIC && !songMovedOn) BUFFERED else on
+            return if (on == AUTOMATIC && fromLoaded) BUFFERED else on
         }
+
+        /**
+         * Row 854, read once when the sign comes on: a song was really playing ([playingNow]: play pressed and READY) and it is
+         * not one the offline queue already moved on to ([songMovedOn]). A paused, idle or never-prepared song (a restored
+         * queue at a cold start with no network) has nothing loaded to go on with. The phase ends on the next song change or
+         * when the current song fails or is stopped on an error.
+         */
+        fun loadedSongGoesOn(playingNow: Boolean, songMovedOn: Boolean): Boolean = playingNow && !songMovedOn
     }
 }

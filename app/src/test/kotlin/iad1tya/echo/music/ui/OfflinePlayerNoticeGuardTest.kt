@@ -58,8 +58,8 @@ class OfflinePlayerNoticeGuardTest {
         )
         assertTrue(feed.contains("OfflinePlaybackNotice.shown("))
         assertTrue(feed.contains("deviceOffline = offline,"))
-        assertTrue("row 854", feed.contains("offlineSongMovedOnState,"))
-        assertTrue("row 854", feed.contains("songMovedOn = movedOn,"))
+        assertTrue("row 854", feed.contains("offlineFromLoadedState,"))
+        assertTrue("row 854", feed.contains("fromLoaded = fromLoaded,"))
         // It does not hang on the session's entry (one live read when the network drops) nor on hasLiveInternetConnection.
         assertFalse(feed.contains("hasLiveInternetConnection"))
         assertFalse("rule 7: nothing ticks", feed.contains("delay(") || feed.contains("while (true)"))
@@ -128,6 +128,22 @@ class OfflinePlayerNoticeGuardTest {
         val transition = service.substringAfter("override fun onMediaItemTransition(").substringBefore("if (onlyShowingMirror) {")
         assertTrue(transition.contains("if (trackChanged) offlineSongMovedOnState.value = _offlinePlaybackNotice.value.visible || PlaybackOfflineSession.isActive"))
         assertEquals("one place writes it", 1, Regex("""offlineSongMovedOnState\.value =""").findAll(service).count())
+
+        // Repair: the first phase is set only when the sign comes on with a song really playing, and ends when that song
+        // changes, fails or is stopped on an error (it never outlives the song, and never starts for a paused/idle one).
+        assertTrue(service.contains("private val offlineFromLoadedState = MutableStateFlow(false)"))
+        val marker = "// Row 795: the players' «Sin conexión» sign follows the session, its parked queue and the manual switch as they change."
+        val feed = service.substringAfter(marker).substringBefore(".collect { _offlinePlaybackNotice.value = it }")
+        assertTrue(feed.contains("if (!notice.visible) offlineFromLoadedState.value = false"))
+        assertTrue(feed.contains("if (!notice.visible || _offlinePlaybackNotice.value.visible) return@map notice"))
+        assertTrue(feed.contains("playingNow = player.playWhenReady && player.playbackState == Player.STATE_READY,"))
+        assertTrue(feed.contains("songMovedOn = offlineSongMovedOnState.value,"))
+        assertTrue(transition.contains("if (trackChanged) offlineFromLoadedState.value = false"))
+        assertEquals(
+            "the edge, the sign going away and a song change",
+            3,
+            Regex("""offlineFromLoadedState\.value =""").findAll(service).count(),
+        )
 
         val chip = main("ui/newui/AuraOfflinePlaybackNotice.kt")
         val full = chip.substringAfter("internal fun AuraOfflinePlaybackChip(").substringBefore("internal fun AuraMiniOfflineBadge(")

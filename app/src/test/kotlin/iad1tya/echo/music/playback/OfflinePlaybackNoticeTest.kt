@@ -67,7 +67,7 @@ class OfflinePlaybackNoticeTest {
     @Test
     fun `the sign is on as soon as the device is offline, without waiting for the player's session`() {
         val none = OfflinePlaybackNotice.of(sessionActive = false, queueParked = false, manual = false)
-        val notice = OfflinePlaybackNotice.shown(none, deviceOffline = true, songMovedOn = false)
+        val notice = OfflinePlaybackNotice.shown(none, deviceOffline = true, fromLoaded = true)
         assertTrue(notice.visible)
         assertFalse("nothing to switch off: it ends by itself when the network is back", notice.offersGoOnline)
     }
@@ -75,18 +75,18 @@ class OfflinePlaybackNoticeTest {
     @Test
     fun `the sign goes away when the network comes back`() {
         val none = OfflinePlaybackNotice.of(sessionActive = false, queueParked = false, manual = false)
-        assertEquals(OfflinePlaybackNotice.NONE, OfflinePlaybackNotice.shown(none, deviceOffline = false, songMovedOn = false))
+        assertEquals(OfflinePlaybackNotice.NONE, OfflinePlaybackNotice.shown(none, deviceOffline = false, fromLoaded = true))
     }
 
     @Test
     fun `the device state never hides or overrides the session or the manual switch`() {
         for (offline in listOf(true, false)) {
-            for (movedOn in listOf(true, false)) {
+            for (fromLoaded in listOf(true, false)) {
                 assertEquals(
                     OfflinePlaybackNotice.MANUAL,
-                    OfflinePlaybackNotice.shown(OfflinePlaybackNotice.MANUAL, deviceOffline = offline, songMovedOn = movedOn),
+                    OfflinePlaybackNotice.shown(OfflinePlaybackNotice.MANUAL, deviceOffline = offline, fromLoaded = fromLoaded),
                 )
-                assertTrue(OfflinePlaybackNotice.shown(OfflinePlaybackNotice.AUTOMATIC, deviceOffline = offline, songMovedOn = movedOn).visible)
+                assertTrue(OfflinePlaybackNotice.shown(OfflinePlaybackNotice.AUTOMATIC, deviceOffline = offline, fromLoaded = fromLoaded).visible)
             }
         }
     }
@@ -96,15 +96,15 @@ class OfflinePlaybackNoticeTest {
     @Test
     fun `while the song from before the cut still plays, the sign says it goes on from what was loaded`() {
         val none = OfflinePlaybackNotice.of(sessionActive = false, queueParked = false, manual = false)
-        val notice = OfflinePlaybackNotice.shown(none, deviceOffline = true, songMovedOn = false)
+        val notice = OfflinePlaybackNotice.shown(none, deviceOffline = true, fromLoaded = true)
         assertEquals(OfflinePlaybackNotice.BUFFERED, notice)
         assertEquals(OfflinePlaybackNotice.Wording.FROM_LOADED, notice.wording)
         assertTrue(notice.visible)
         assertFalse(notice.offersGoOnline)
         // The session already on (it switched the queue after the current song) says the same while that song plays.
         val session = OfflinePlaybackNotice.of(sessionActive = true, queueParked = false, manual = false)
-        assertEquals(OfflinePlaybackNotice.BUFFERED, OfflinePlaybackNotice.shown(session, deviceOffline = true, songMovedOn = false))
-        assertEquals(OfflinePlaybackNotice.BUFFERED, OfflinePlaybackNotice.shown(session, deviceOffline = false, songMovedOn = false))
+        assertEquals(OfflinePlaybackNotice.BUFFERED, OfflinePlaybackNotice.shown(session, deviceOffline = true, fromLoaded = true))
+        assertEquals(OfflinePlaybackNotice.BUFFERED, OfflinePlaybackNotice.shown(session, deviceOffline = false, fromLoaded = true))
     }
 
     @Test
@@ -113,7 +113,7 @@ class OfflinePlaybackNoticeTest {
         val session = OfflinePlaybackNotice.of(sessionActive = true, queueParked = false, manual = false)
         val parked = OfflinePlaybackNotice.of(sessionActive = false, queueParked = true, manual = false)
         for ((base, offline) in listOf(none to true, session to true, session to false, parked to false)) {
-            val notice = OfflinePlaybackNotice.shown(base, deviceOffline = offline, songMovedOn = true)
+            val notice = OfflinePlaybackNotice.shown(base, deviceOffline = offline, fromLoaded = false)
             assertEquals(OfflinePlaybackNotice.AUTOMATIC, notice)
             assertEquals(OfflinePlaybackNotice.Wording.OFFLINE_MUSIC, notice.wording)
         }
@@ -121,15 +121,32 @@ class OfflinePlaybackNoticeTest {
 
     @Test
     fun `the manual switch keeps its own wording and nothing is said while online`() {
-        val manual = OfflinePlaybackNotice.shown(OfflinePlaybackNotice.MANUAL, deviceOffline = true, songMovedOn = false)
+        val manual = OfflinePlaybackNotice.shown(OfflinePlaybackNotice.MANUAL, deviceOffline = true, fromLoaded = true)
         assertEquals(OfflinePlaybackNotice.Wording.OFFLINE_MUSIC, manual.wording)
         assertTrue(manual.offersGoOnline)
-        assertEquals(null, OfflinePlaybackNotice.shown(OfflinePlaybackNotice.NONE, deviceOffline = false, songMovedOn = false).wording)
-        assertEquals(null, OfflinePlaybackNotice.shown(OfflinePlaybackNotice.NONE, deviceOffline = false, songMovedOn = true).wording)
+        assertEquals(null, OfflinePlaybackNotice.shown(OfflinePlaybackNotice.NONE, deviceOffline = false, fromLoaded = true).wording)
+        assertEquals(null, OfflinePlaybackNotice.shown(OfflinePlaybackNotice.NONE, deviceOffline = false, fromLoaded = false).wording)
     }
 
     @Test
     fun `every visible state has a wording`() {
         for (notice in OfflinePlaybackNotice.entries) assertEquals(notice.visible, notice.wording != null)
+    }
+
+    // Row 854 (repair): the first phase only for a song really playing when the sign came on.
+
+    @Test
+    fun `a paused, idle or restored song is not said to go on from what was loaded`() {
+        assertFalse("a cold start with no network: a restored queue, never prepared", OfflinePlaybackNotice.loadedSongGoesOn(playingNow = false, songMovedOn = false))
+        val none = OfflinePlaybackNotice.of(sessionActive = false, queueParked = false, manual = false)
+        val fromLoaded = OfflinePlaybackNotice.loadedSongGoesOn(playingNow = false, songMovedOn = false)
+        assertEquals(OfflinePlaybackNotice.Wording.OFFLINE_MUSIC, OfflinePlaybackNotice.shown(none, deviceOffline = true, fromLoaded = fromLoaded).wording)
+    }
+
+    @Test
+    fun `a song playing when the sign came on goes on from what was loaded, unless the offline queue already moved on`() {
+        assertTrue(OfflinePlaybackNotice.loadedSongGoesOn(playingNow = true, songMovedOn = false))
+        assertFalse("the error path entered the session and skipped before the sign came on", OfflinePlaybackNotice.loadedSongGoesOn(playingNow = true, songMovedOn = true))
+        assertFalse(OfflinePlaybackNotice.loadedSongGoesOn(playingNow = false, songMovedOn = true))
     }
 }

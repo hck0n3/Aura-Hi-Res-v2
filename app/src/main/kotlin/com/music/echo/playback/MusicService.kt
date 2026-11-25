@@ -2711,14 +2711,24 @@ class MusicService :
                     iad1tya.echo.music.utils.NetworkState.validated,
                     dataStore.data.map { it[iad1tya.echo.music.constants.AutoOfflineModeKey] ?: true }.distinctUntilChanged(),
                 ) { online, validated, auto -> OfflinePlaybackNotice.deviceOffline(online = online, validated = validated, autoOffline = auto) },
-                offlineSongMovedOnState,
-            ) { session, parked, manual, offline, movedOn ->
+                offlineFromLoadedState,
+            ) { session, parked, manual, offline, fromLoaded ->
                 OfflinePlaybackNotice.shown(
                     OfflinePlaybackNotice.of(sessionActive = session, queueParked = parked, manual = manual),
                     deviceOffline = offline,
-                    songMovedOn = movedOn,
+                    fromLoaded = fromLoaded,
                 )
             }
+                // Row 854: «esta canción sigue desde lo cargado» only for a song really playing when the sign came on (main thread).
+                .map { notice ->
+                    if (!notice.visible) offlineFromLoadedState.value = false
+                    if (!notice.visible || _offlinePlaybackNotice.value.visible) return@map notice
+                    offlineFromLoadedState.value = OfflinePlaybackNotice.loadedSongGoesOn(
+                        playingNow = player.playWhenReady && player.playbackState == Player.STATE_READY,
+                        songMovedOn = offlineSongMovedOnState.value,
+                    )
+                    OfflinePlaybackNotice.shown(notice, deviceOffline = false, fromLoaded = offlineFromLoadedState.value)
+                }
                 .collect { _offlinePlaybackNotice.value = it }
         }
 
@@ -4067,9 +4077,15 @@ class MusicService :
 
     /**
      * Row 854: another song started while the sign was on, so the one playing when the connection went away is over. Written
-     * on every song change (a change with no sign resets it), read by the sign's wording.
+     * on every song change (a change with no sign resets it), read when the sign comes on.
      */
     private val offlineSongMovedOnState = MutableStateFlow(false)
+
+    /**
+     * Row 854: the sign's first phase («esta canción sigue desde lo cargado»). Set when the sign comes on with a song really
+     * playing; ended by a song change, an error of the current song, an error stop, and the sign going away.
+     */
+    private val offlineFromLoadedState = MutableStateFlow(false)
 
     /** The same "que se ponga solo" switch as the UI's automatic offline mode (AutoOfflineModeKey, ON by default). */
     private fun offlineSessionAllowed(): Boolean =
@@ -7252,6 +7268,7 @@ class MusicService :
         // Row 854: once another song starts with the «Sin conexión» sign on, it no longer says «esta canción sigue desde lo cargado».
         // The session is read directly too: the error path enters it and skips in the same frame, before the sign's flow runs.
         if (trackChanged) offlineSongMovedOnState.value = _offlinePlaybackNotice.value.visible || PlaybackOfflineSession.isActive
+        if (trackChanged) offlineFromLoadedState.value = false
         // Review C4 (rule 7): a song change of an unprepared device-sync mirror is another device's, nothing was heard here. None of
         // what follows (style learning, preload, SponsorBlock, video prefetch, no-repeat and shuffle memory, radio pre-seed,
         // pagination) may run; only the listen session of what played here before is closed.
