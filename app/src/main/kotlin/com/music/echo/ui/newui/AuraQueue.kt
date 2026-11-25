@@ -1459,7 +1459,8 @@ private fun AuraQueueListHeader(
                 text = stringResource(R.string.start_an_radio),
                 style = AuraType.Chip,
                 color = if (radioEnabled) AuraPalette.OnGround else AuraPalette.OnGroundDisabled,
-                maxLines = 1,
+                maxLines = 2,
+                overflow = AuraDefaultOverflow,
             )
         }
     }

@@ -333,7 +333,8 @@ internal fun AuraPinsHeader(
                     text = label,
                     style = AuraType.Chip,
                     color = if (editing) AuraPalette.OnAccent else AuraPalette.OnGround,
-                    maxLines = 1,
+                    maxLines = 2,
+                    overflow = AuraDefaultOverflow,
                 )
             }
         }

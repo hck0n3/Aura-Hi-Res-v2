@@ -495,6 +495,7 @@ private fun PaneTileButton(tile: PaneTile, modifier: Modifier = Modifier) {
             color = ink,
             textAlign = TextAlign.Center,
             maxLines = 2,
+            overflow = AuraDefaultOverflow,
         )
     }
 }

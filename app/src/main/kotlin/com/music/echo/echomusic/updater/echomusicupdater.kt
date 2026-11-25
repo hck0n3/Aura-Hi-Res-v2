@@ -323,7 +323,7 @@ fun UpdateScreen(navController: NavHostController) {
                     } else {
                         AnnotatedString(stringResource(R.string.settings_check_updates_title))
                     }
-                    Text(text = titleText, maxLines = 1)
+                    Text(text = titleText, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 },
                 navigationIcon = {
                     Box(modifier = Modifier.padding(start = 16.dp, end = 16.dp)) {

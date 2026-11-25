@@ -1189,6 +1189,7 @@ fun AuraSongRow(
                                 style = AuraType.QualityBadge,
                                 color = AuraPalette.Teal,
                                 maxLines = 1,
+                                overflow = AuraDefaultOverflow,
                             )
                         }
                     }

@@ -717,7 +717,8 @@ private fun NovedadesShelfHeader(
                     text = label,
                     style = AuraType.Chip,
                     color = AuraPalette.Teal,
-                    maxLines = 1,
+                    maxLines = 2,
+                    overflow = AuraDefaultOverflow,
                 )
                 AuraIconGlyph(
                     icon = AuraIcons.ChevronRight,
@@ -806,6 +807,7 @@ private fun BoxScope.NovedadesCoverBadges(age: ReleaseAge?, explicit: Boolean) {
                 style = AuraType.QualityBadge,
                 color = AuraPalette.Teal,
                 maxLines = 1,
+                overflow = AuraDefaultOverflow,
             )
         }
     }
@@ -825,6 +827,7 @@ private fun BoxScope.NovedadesCoverBadges(age: ReleaseAge?, explicit: Boolean) {
                 style = AuraType.QualityBadge,
                 color = AuraPalette.OnGround,
                 maxLines = 1,
+                overflow = AuraDefaultOverflow,
             )
         }
     }
@@ -1059,6 +1062,7 @@ private fun NovedadesHeroInfo(
                             style = AuraType.QualityBadge,
                             color = AuraPalette.Teal,
                             maxLines = 1,
+                            overflow = AuraDefaultOverflow,
                         )
                     }
                 }
@@ -1079,6 +1083,7 @@ private fun NovedadesHeroInfo(
                             style = AuraType.QualityBadge,
                             color = AuraPalette.OnGround,
                             maxLines = 1,
+                            overflow = AuraDefaultOverflow,
                         )
                     }
                 }

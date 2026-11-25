@@ -700,6 +700,7 @@ private fun AuraSettingsSearchField(
                     style = AuraType.MenuLabel,
                     color = AuraPalette.OnGroundGhost,
                     maxLines = 1,
+                    overflow = AuraDefaultOverflow,
                 )
             }
             BasicTextField(

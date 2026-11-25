@@ -660,7 +660,8 @@ private fun AuraLyricsAppearancePanel(
             style = AuraType.Chip,
             color = AuraPalette.Teal,
             textAlign = TextAlign.Center,
-            maxLines = 1,
+            maxLines = 2,
+            overflow = AuraDefaultOverflow,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp)

@@ -626,6 +626,7 @@ fun AuraChip(
             style = AuraType.Chip,
             color = inkColor,
             maxLines = 1,
+            overflow = AuraDefaultOverflow,
         )
     }
 }
