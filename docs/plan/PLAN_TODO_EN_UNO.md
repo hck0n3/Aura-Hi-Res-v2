@@ -88,3 +88,9 @@ en el emulador y lleva una lista corta de pruebas para el móvil del dueño.
 | 5 | Fases 6 y 7 (modo TV y rendimiento) |
 | 6 | Fase 8 + modo «Fidelidad» (H17) |
 | 7 | Fases 9 y 10 (extras y Wrapped) |
+
+**Orden del dueño (2026-11-25), literal:** *«si, avísame cuando esté la beta13 y asi mismo con cada una de las betas
+que falta no pares hasta llegar a la ultima por que no puedo estar al pendiente y pidiendotelo a cada rato»*. El
+agente encadena las 7 betas sin esperar a que se lo pida (beta12 = 1 de 7, publicada; siguen beta13…beta18) y avisa
+al dueño en español al publicar cada una. Siguen valiendo las reglas de AGENTS.md: solo betas privadas, CI y
+emulador en verde, revisión con ojos frescos sin defectos abiertos; nada de estables, `main` ni PR sin su orden.
