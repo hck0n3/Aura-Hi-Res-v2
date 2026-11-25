@@ -85,7 +85,7 @@ class SpotifyLoginActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(background)
             fitsSystemWindows = true
-            addView(topBar(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)))
+            addView(topBar(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(webView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         }
         setContentView(root)
