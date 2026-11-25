@@ -439,7 +439,7 @@ class LibraryUploadSync @Inject constructor(
             // Un rechazo en cadena de la cuenta NO es un fallo de la pasada, pero sí es un motivo para
             // no encadenar la siguiente: [YtmSyncWorker.runUploadPass] para en cuanto hay razón.
             stoppedReason = if (subscribeRejectedByAccount) {
-                "YouTube no está aceptando más suscripciones ahora mismo; se reintentará más tarde"
+                "Tu cuenta de Google no está aceptando más suscripciones ahora mismo; se reintentará más tarde"
             } else {
                 null
             },

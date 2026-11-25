@@ -4572,3 +4572,17 @@ Solo cambia el **texto** (español de `values-es`, que también hereda es-419 po
 | `login_manual_cookie_title` | Título del diálogo de cookie manual (inicio de sesión de Google **y** de Spotify, que usaba este mismo título) | «Pegar cookie de YouTube» → **«Pegar cookie»** (Paste YouTube cookie → Paste cookie) |
 | `sub_cleanup_desc` | Ajustes ▸ Cuentas ▸ Revisar suscripciones (y la búsqueda de Ajustes) | «…las suscripciones de YouTube que…» → **«…las suscripciones de tu cuenta de Google que…»** |
 | `sub_cleanup_intro`, `sub_cleanup_pending_badge`, `sub_cleanup_confirm_message`, `sub_cleanup_confirmed_badge`, `sub_cleanup_resend_badge`, `sub_cleanup_incomplete` | Revisar suscripciones: texto de arriba, marcas de cada fila, diálogo «¿Quitar N suscripciones?» y aviso de lista incompleta | «tu cuenta de YouTube» / «YouTube» → **«tu cuenta de Google»** en los seis |
+## Anexo 2026-11-25 (fila 868): fase 3b, textos escritos en Kotlin sin «YouTube» donde no hace falta (no se quitó ni se ocultó nada)
+
+Solo cambian palabras: mismo sitio, mismo toque, misma clave de ajustes y mismo código de `ActionId`. Los textos de `res/values*` son de otro paquete de esta beta.
+
+| Dónde | Antes → ahora | Fila del registro |
+|---|---|---|
+| Ajustes ▸ Contenido: título del grupo (`ui/screens/settings/ContentSettings.kt:691`) | «Configuración de YouTube» → «Configuración del catálogo en línea» | 868 |
+| Ajustes ▸ Contenido: fila que despliega los filtros (`ContentSettings.kt:695`, `UI.SETCONT.YOUTUBE_OPTIONS`) | «Opciones de YouTube» → «Opciones del catálogo en línea» (la descripción «Filtros, videos cortos y detalles de artista» no cambia) | 868 |
+| Ajustes ▸ Acerca de ▸ «Radar de novedades» (`ui/screens/settings/AboutScreen.kt:82`) | «…sin ella, YouTube solo da el año…» → «…sin ella, el catálogo en línea solo da el año…» | 868 |
+| Ajustes ▸ Acerca de ▸ «Sincronizar una playlist a mano» (`AboutScreen.kt:99`) | «…vinculada a tu cuenta de YouTube…» → «…vinculada a tu cuenta de Google…» | 868 |
+| Ajustes ▸ Acerca de ▸ «Podcasts» (`AboutScreen.kt:102`) | «…sin depender de YouTube…» → «…sin depender del catálogo en línea…» | 868 |
+| Ajustes ▸ Acerca de ▸ «Descifrado de reproducción que se repara solo» (`AboutScreen.kt:146`) | «Cuando YouTube cambia su reproductor…» → «Cuando el catálogo en línea cambia su reproductor…» | 868 |
+| Estado y programación de la sincronización: motivo de parada de la subida (`utils/LibraryUploadSync.kt:442`, se pinta en `ui/screens/settings/YtmSyncScreen.kt:658`) | «YouTube no está aceptando más suscripciones ahora mismo; se reintentará más tarde» → «Tu cuenta de Google no está aceptando más suscripciones ahora mismo; se reintentará más tarde» | 868 |
+| **Se quedan como están, a propósito:** Acerca de ▸ «Búsqueda por voz y filtros» (`AboutScreen.kt:132`, «Si pegas un enlace de YouTube…»: el buscador solo reconoce enlaces de YouTube); el aviso de edad (`utils/AgeGateChain.kt:66`: la edad se confirma en youtube.com); la guía de Apple Music (`migration/…/AppleMusicGuide.kt:25`, `:37`: la página de Apple pide elegir YouTube Music como destino); `settings/AccountSettingsScreen.kt:233`, `:340` (pantalla sin ruta, no se ve; ver «Visto, sin tocar» de la fila 868) | Sin cambios | 868 |
