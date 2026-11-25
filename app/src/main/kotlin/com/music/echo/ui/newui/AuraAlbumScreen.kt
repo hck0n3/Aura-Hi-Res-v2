@@ -402,6 +402,7 @@ fun AuraAlbumScreen(
                             canvasEnabled = albumCanvasEnabled,
                             isPlaying = isPlaying,
                             listState = heroListState,
+                            blurMovingMedia = headerWidth == null,
                         )
                     }
 
@@ -787,6 +788,11 @@ internal fun AuraAlbumHero(
     mosaic: List<String?>? = null,
     /** Drawn over the finished hero (a playlist's ✎ button). */
     overlay: (@Composable BoxScope.() -> Unit)? = null,
+    /**
+     * `false` in the two-column header (registry row 876), where the hero stays in view while the songs scroll: the
+     * progressive blur is dropped while the canvas video plays, as [AuraWideTop] never had one. A still cover keeps it.
+     */
+    blurMovingMedia: Boolean = true,
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         // Hoisted: inside the inner Box the closest implicit receiver is BoxScope, not
@@ -884,6 +890,9 @@ internal fun AuraAlbumHero(
                     .align(Alignment.BottomCenter)
                     .then(
                         if (lean) {
+                            Modifier
+                        } else if (!blurMovingMedia && canvasEnabled && (canvasPrimaryUrl != null || canvasFallbackUrl != null)) {
+                            // Row 876: a hero that never scrolls away must not re-blur every canvas frame (rule 7).
                             Modifier
                         } else {
                             Modifier.hazeEffect(heroHaze) {

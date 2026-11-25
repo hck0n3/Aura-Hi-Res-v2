@@ -601,6 +601,7 @@ fun AuraArtistScreen(
                             backgroundVideoUrl = backgroundVideoUrl,
                             showBackgroundVideo = showArtistBackgroundVideo,
                             listState = heroListState,
+                            blurMovingMedia = headerWidth == null,
                         )
                     }
 
@@ -1081,6 +1082,11 @@ private fun AuraArtistHero(
     showBackgroundVideo: Boolean,
     listState: LazyListState,
     modifier: Modifier = Modifier,
+    /**
+     * `false` in the two-column header (registry row 876), where the hero stays in view while the songs scroll: the
+     * progressive blur is dropped while the background video plays, as [AuraWideTop] never had one. A still portrait keeps it.
+     */
+    blurMovingMedia: Boolean = true,
 ) {
     if (thumbnailUrl == null && backgroundVideoUrl == null) {
         // No portrait and no video: leave the status-bar clearance the top bar needs and nothing else,
@@ -1160,6 +1166,9 @@ private fun AuraArtistHero(
                     .align(Alignment.BottomCenter)
                     .then(
                         if (lean) {
+                            Modifier
+                        } else if (!blurMovingMedia && backgroundVideoUrl != null && showBackgroundVideo) {
+                            // Row 876: a hero that never scrolls away must not re-blur every video frame (rule 7).
                             Modifier
                         } else {
                             Modifier.hazeEffect(heroHaze) {

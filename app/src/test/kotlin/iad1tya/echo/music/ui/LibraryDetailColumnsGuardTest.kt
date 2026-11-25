@@ -150,6 +150,20 @@ class LibraryDetailColumnsGuardTest {
     }
 
     @Test
+    fun `the header column never re-blurs a playing canvas or artist video - rule 7`() {
+        val album = main("ui/newui/AuraAlbumScreen.kt")
+        assertTrue(album.contains("} else if (!blurMovingMedia && canvasEnabled && (canvasPrimaryUrl != null || canvasFallbackUrl != null)) {"))
+        val artist = main("ui/newui/AuraArtistScreen.kt")
+        assertTrue(artist.contains("} else if (!blurMovingMedia && backgroundVideoUrl != null && showBackgroundVideo) {"))
+        for ((path, s) in listOf("AuraAlbumScreen.kt" to album, "AuraArtistScreen.kt" to artist)) {
+            assertTrue("$path: el móvil conserva su cristal", s.contains("blurMovingMedia: Boolean = true,"))
+            assertTrue("$path: solo la columna de cabecera lo apaga", s.contains("blurMovingMedia = headerWidth == null,"))
+            // The blur band stays the lean one (LeanModeGuardTest) for every other case.
+            assertTrue("$path", s.contains("Modifier.hazeEffect(heroHaze) {"))
+        }
+    }
+
+    @Test
     fun `the two-column page needs the loaded content - loading, error and search keep one column`() {
         assertTrue(main("ui/newui/AuraAlbumScreen.kt").contains("rememberAuraDetailHeaderWidth()?.takeIf { album != null && album.songs.isNotEmpty() }"))
         assertTrue(main("ui/newui/AuraArtistScreen.kt").contains("rememberAuraDetailHeaderWidth()?.takeIf { isKnownArtist || showLocal }"))
