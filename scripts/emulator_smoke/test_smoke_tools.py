@@ -129,13 +129,20 @@ class AppLiteralsTest(unittest.TestCase):
 
     def test_hard_coded_first_run_and_settings_texts(self):
         screens = ("app", "src", "main", "kotlin", "com", "music", "echo", "ui", "screens")
-        self.assertIn('Text("Omitir")', _read(*screens, "OnboardingArtistsScreen.kt"))
-        self.assertIn('Text("Omitir")', _read(*screens, "OnboardingGenresScreen.kt"))
+        # Rows 871/872 (plan phase 2): artists and genres left the first run (Ajustes ▸ Contenido now); the new welcome's
+        # steps are the labels AuraDevice.settleOnHome taps, read from the app's own strings.
+        welcome = screens + ("welcome",)
+        self.assertIn("Text(stringResource(R.string.welcome_continue))", _read(*welcome, "WelcomePermissionsScreen.kt"))
+        connect = _read(*welcome, "WelcomeConnectScreen.kt")
+        self.assertIn("R.string.welcome_later", connect)
+        self.assertIn("Text(stringResource(R.string.welcome_done_start))", connect)
         # Decision A1 (2026-11-24, row 815): the onboarding step now reads «Siguiente: tu cuenta de Google»; the previous build
         # used in phase 2 still says «Siguiente: YouTube Music», so AuraDevice accepts both.
         self.assertIn('Text("Siguiente: tu cuenta de Google")', _read(*screens, "OnboardingSpotifyScreen.kt"))
         device = _read("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest", "AuraDevice.java")
         self.assertIn("Siguiente: tu cuenta de Google|Siguiente: YouTube Music", device)
+        for name in ("welcome_continue", "welcome_later", "welcome_done_start"):
+            self.assertIn('appString("%s"' % name, device)
         self.assertIn('Text("Comenzar")', _read(*screens, "OnboardingYouTubeScreen.kt"))
         self.assertIn('"Omitir"', _read(*screens, "WelcomeDialog.kt"))
         self.assertIn('Text("Ajustes")', _read(*screens, "SettingDialoge.kt"))
@@ -145,7 +152,8 @@ class AppLiteralsTest(unittest.TestCase):
         text = "".join(_read("app", "src", "main", "res", "values", n) for n in sorted(os.listdir(values)) if n.endswith(".xml"))
         for name in ["home", "filter_library", "search", "tab_novedades", "account", "appearance", "filter_local",
                      "local_songs_empty_scan_action", "local_songs_scan_title", "scan_device", "scanning_device",
-                     "open_links_prompt_later", "create_playlist", "filter_playlists", "terms_accept"]:
+                     "open_links_prompt_later", "create_playlist", "filter_playlists", "terms_accept",
+                     "welcome_continue", "welcome_later", "welcome_done_start"]:
             self.assertIn('<string name="%s">' % name, text, name)
 
     def test_terms_gate_is_walked_by_its_accept_label(self):

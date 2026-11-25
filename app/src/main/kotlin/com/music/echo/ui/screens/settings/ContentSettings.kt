@@ -1360,6 +1360,19 @@ fun ContentSettings(
                     title = { Text(stringResource(R.string.hidden_items_title)) },
                     description = { Text(stringResource(R.string.hidden_items_desc)) },
                     onClick = { navController.navigate("settings/content/hidden") }
+                ),
+                // Registry row 871: the old welcome's artists and genres steps, now reachable only from here.
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.artist),
+                    title = { Text(stringResource(R.string.content_favorite_artists)) },
+                    description = { Text(stringResource(R.string.content_favorite_artists_desc)) },
+                    onClick = { navController.navigate("onboarding_artists") }
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.tune),
+                    title = { Text(stringResource(R.string.content_favorite_genres)) },
+                    description = { Text(stringResource(R.string.content_favorite_genres_desc)) },
+                    onClick = { navController.navigate("onboarding_genres") }
                 )
             )
         )

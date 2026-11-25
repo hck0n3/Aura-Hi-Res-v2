@@ -468,7 +468,13 @@ class MainActivity : ComponentActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1000)
+                // Registry row 872: on a fresh install the welcome's permissions step asks for it on its own card, with
+                // its reason; the bare system dialog waits until the welcome is over and never follows a «no» on that card.
+                lifecycleScope.launch {
+                    if (iad1tya.echo.music.ui.screens.welcome.WelcomeFlow.startNotificationRequestSuppressed(dataStore.data.first())) return@launch
+                    if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return@launch
+                    ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1000)
+                }
             }
         }
 
@@ -669,13 +675,17 @@ class MainActivity : ComponentActivity() {
             // TermsInfo.TERMS_VERSION, the acceptance screen renders INSTEAD of everything else
             // (license flow included, untouched behind it). Re-appears only when the version bumps.
             iad1tya.echo.music.legal.TermsGate {
-                LicenseGate {
-                    echomusicApp(
-                        playerConnection = playerConnection,
-                        database = database,
-                        downloadUtil = downloadUtil,
-                        syncUtils = syncUtils,
-                    )
+                // Registry row 872: the new welcome's permissions step, after the terms and before the licence (both
+                // untouched). A pass-through for every install that predates the welcome (WelcomeFlow).
+                iad1tya.echo.music.ui.screens.welcome.WelcomePermissionsGate {
+                    LicenseGate {
+                        echomusicApp(
+                            playerConnection = playerConnection,
+                            database = database,
+                            downloadUtil = downloadUtil,
+                            syncUtils = syncUtils,
+                        )
+                    }
                 }
             }
             }
@@ -1035,7 +1045,10 @@ class MainActivity : ComponentActivity() {
                     currentRoute?.startsWith("onboarding_") == true ||
                         ((currentRoute?.startsWith("settings/spotify_import") == true ||
                             currentRoute?.startsWith("settings/ytm_sync") == true) &&
-                            navBackStackEntry?.arguments?.getBoolean("onboarding") == true)
+                            navBackStackEntry?.arguments?.getBoolean("onboarding") == true) ||
+                        // Row 871: what «Conecta tu música» opens (carpeta del móvil, otro servicio, restaurar copia).
+                        navController.previousBackStackEntry?.destination?.route ==
+                        iad1tya.echo.music.ui.screens.welcome.WELCOME_CONNECT_ROUTE
                 }
 
                 val shouldShowNavigationBar = remember(currentRoute, navigationItemRoutes, inOnboarding) {
@@ -1706,6 +1719,9 @@ class MainActivity : ComponentActivity() {
                 // The welcome tour pending its "de ÚLTIMO" moment (fires on arrival at home).
                 var pendingWelcomeTour by remember { mutableStateOf(false) }
                 val onboardingArtistsDone by rememberPreference(iad1tya.echo.music.constants.OnboardingArtistsDoneKey, false)
+                // Registry row 871: the new welcome (its «Conecta tu música» part comes here, after the licence).
+                val welcomeDone by rememberPreference(iad1tya.echo.music.constants.WelcomeDoneKey, false)
+                val termsAcceptedAppVersionCode by rememberPreference(iad1tya.echo.music.constants.TermsAcceptedAppVersionKey, 0)
 
                 // Tutorials / Welcome only show on FIRST RUN EVER (lastOpenedVersionCode == -1), NEVER on app updates.
                 val welcomeWillShow = lastOpenedVersionCode == -1
@@ -1734,11 +1750,21 @@ class MainActivity : ComponentActivity() {
                         // backstack observer below) — from "Comenzar a usar Aura", "Comenzar" or
                         // skipping every step. Reinstallations with the onboarding already done
                         // keep the old behavior (the tour is the only thing left to show).
-                        if (onboardingArtistsDone) {
+                        // Registry row 871 (plan phase 2): the onboarding is now the new welcome's «Conecta tu
+                        // música» → «Listo»; the artists and genres steps live in Ajustes ▸ Contenido. Anyone the
+                        // welcome is not owed to (an install from before it, or one that already reached «Listo»)
+                        // gets only the tour, as a reinstall with the onboarding done always did.
+                        if (!iad1tya.echo.music.ui.screens.welcome.WelcomeFlow.showWelcome(
+                                welcomeDone = welcomeDone,
+                                lastOpenedVersionCode = lastOpenedVersionCode,
+                                onboardingArtistsDone = onboardingArtistsDone,
+                                termsAcceptedAppVersionCode = termsAcceptedAppVersionCode,
+                            )
+                        ) {
                             showWelcomeDialog = true
                         } else {
                             pendingWelcomeTour = true
-                            navController.navigate("onboarding_artists")
+                            navController.navigate(iad1tya.echo.music.ui.screens.welcome.WELCOME_CONNECT_ROUTE)
                         }
                     } else if (lastOpenedVersionCode < BuildConfig.VERSION_CODE) {
                         // Silently advance the version code on update without interrupting the user.

@@ -65,6 +65,9 @@ final class AuraDevice {
     final Context context;
     final String target;
 
+    /** Set by {@link #settleOnHome} when it had to walk a step of the new welcome (registry rows 871/872). */
+    boolean newWelcomeSeen;
+
     AuraDevice() {
         instrumentation = InstrumentationRegistry.getInstrumentation();
         device = UiDevice.getInstance(instrumentation);
@@ -255,12 +258,20 @@ final class AuraDevice {
      * Walks whatever first-run surface is in the way (the blocking Terms & Conditions screen's «Aceptar y continuar»,
      * the onboarding's hard-coded Spanish buttons, the welcome tour, the one-shot "open links" prompt) until Home is on
      * screen with its bar and nothing new has popped up for 7 s (the links prompt waits 4 s after the tour closes).
+     * Registry rows 871/872: the new welcome's «Continuar» (permissions), «Más tarde» («Conecta tu música») and «Empezar a
+     * escuchar» («Listo») are steps too; walking the first or the last sets {@link #newWelcomeSeen}.
      */
     void settleOnHome(long timeoutMs) {
         UiLabel acceptTerms = appString("terms_accept", "Accept and continue");
         UiLabel later = appString("open_links_prompt_later", "Later");
+        UiLabel welcomeContinue = appString("welcome_continue", "Continue");
+        UiLabel welcomeLater = appString("welcome_later", "Later");
+        UiLabel welcomeStart = appString("welcome_done_start", "Start listening");
+        // «Más tarde» is left out: the one-shot "open links" prompt has a button with the same text.
+        Pattern welcomeSteps = Pattern.compile("\\s*(" + welcomeContinue.regex() + "|" + welcomeStart.regex() + ")\\s*");
         Pattern steps = Pattern.compile("\\s*(" + acceptTerms.regex()
-                + "|Omitir|Siguiente: tu cuenta de Google|Siguiente: YouTube Music|Comenzar|" + later.regex() + ")\\s*");
+                + "|Omitir|Siguiente: tu cuenta de Google|Siguiente: YouTube Music|Comenzar|" + later.regex()
+                + "|" + welcomeContinue.regex() + "|" + welcomeLater.regex() + "|" + welcomeStart.regex() + ")\\s*");
         long deadline = SystemClock.uptimeMillis() + timeoutMs;
         long quietSince = SystemClock.uptimeMillis();
         while (SystemClock.uptimeMillis() < deadline) {
@@ -268,6 +279,8 @@ final class AuraDevice {
             UiObject2 step = device.findObject(By.text(steps));
             if (step != null) {
                 log("first run: tapping '" + safeText(step) + "'");
+                String text = safeText(step);
+                if (text != null && welcomeSteps.matcher(text).matches()) newWelcomeSeen = true;
                 try {
                     step.click();
                 } catch (StaleObjectException e) {

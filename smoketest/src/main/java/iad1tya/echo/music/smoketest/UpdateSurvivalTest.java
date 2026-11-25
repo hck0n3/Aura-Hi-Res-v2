@@ -141,6 +141,8 @@ public class UpdateSurvivalTest {
         AuraDevice aura = new AuraDevice();
         aura.launchCold();
         aura.settleOnHome(180_000);
+        // Registry row 871: a user who already used the previous build never sees the new welcome after the update.
+        org.junit.Assert.assertFalse("the new welcome was shown after an update", aura.newWelcomeSeen);
         aura.openTab(aura.libraryLabel());
         AuraDevice.UiLabel chip = aura.appString("filter_playlists", "Playlists");
         // The chip is a persisted toggle (ChipSortTypeKey): 5a left Biblioteca on Playlists, and tapping the active chip

@@ -89,7 +89,7 @@ import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
 
 /** Aura premium dark scheme for both the blocking gate and the Ajustes terms reader. */
-private val TermsAuraScheme = darkColorScheme(
+internal val TermsAuraScheme = darkColorScheme(
     primary = AuraPalette.Teal,
     onPrimary = AuraPalette.OnAccent,
     secondary = BrandAccent,

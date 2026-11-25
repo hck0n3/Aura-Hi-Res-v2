@@ -20,6 +20,14 @@ import com.music.innertube.models.IpVersion
 val DataSaverEnabledKey = booleanPreferencesKey("dataSaverEnabled")
 // First-run artist onboarding (pick >=3 favourite artists) completed.
 val OnboardingArtistsDoneKey = booleanPreferencesKey("onboardingArtistsDone")
+// Registry rows 871/872 (plan phase 2): the new welcome. Its permissions step was finished (Continuar), and the
+// whole welcome reached «Listo». Fresh keys: an install that predates the welcome never has them and is told
+// apart by ui/screens/welcome/WelcomeFlow.isExistingUser, never by seeding these.
+val WelcomePermissionsDoneKey = booleanPreferencesKey("welcome_v2_permissions_done")
+val WelcomeDoneKey = booleanPreferencesKey("welcome_v2_done")
+// The notifications card of that step was left without the permission (Ahora no, a system denial, or just Continuar):
+// MainActivity.onStart then never shows its bare request on top of that answer.
+val WelcomeNotificationsDeclinedKey = booleanPreferencesKey("welcome_v2_notifications_declined")
 // Last release tag the weekly update-check worker already notified about (notify once per version).
 val LastUpdateNotifiedTagKey = stringPreferencesKey("lastUpdateNotifiedTag")
 // Home shows ONLY taste-based suggestions (followed artists / history / favourites + YouTube's

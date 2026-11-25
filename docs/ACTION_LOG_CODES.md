@@ -1251,8 +1251,8 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 
 | Código | Acción |
 |---|---|
-| `UI.ONBART.CONTINUE` | «Continuar» (bienvenida: artistas) |
-| `UI.ONBART.SKIP` | «Omitir» (bienvenida: artistas) |
+| `UI.ONBART.CONTINUE` | «Guardar» (Ajustes ▸ Contenido ▸ Artistas favoritos; hasta la fila 871, «Siguiente» de la bienvenida) |
+| `UI.ONBART.SKIP` | «Cancelar» (Ajustes ▸ Contenido ▸ Artistas favoritos; hasta la fila 871, «Omitir» de la bienvenida) |
 | `UI.ONBART.SUGGESTION` | Tocar una sugerencia de búsqueda (bienvenida: artistas) |
 | `UI.ONBART.ARTIST` | Marcar / desmarcar un artista (bienvenida) |
 
@@ -1260,8 +1260,8 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 
 | Código | Acción |
 |---|---|
-| `UI.ONBGEN.CONTINUE` | «Continuar» (bienvenida: géneros) |
-| `UI.ONBGEN.SKIP` | «Omitir» (bienvenida: géneros) |
+| `UI.ONBGEN.CONTINUE` | «Guardar» (Ajustes ▸ Contenido ▸ Géneros que te gustan; hasta la fila 871, «Continuar» de la bienvenida) |
+| `UI.ONBGEN.SKIP` | «Cancelar» (Ajustes ▸ Contenido ▸ Géneros que te gustan; hasta la fila 871, «Omitir» de la bienvenida) |
 | `UI.ONBGEN.GENRE` | Marcar / desmarcar un género (bienvenida) |
 
 ### Bienvenida: Spotify
@@ -1277,6 +1277,26 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 |---|---|
 | `UI.ONBYT.SYNC` | «Sincronizar con tu cuenta de Google» (bienvenida) |
 | `UI.ONBYT.START` | «Comenzar» (fin de la bienvenida) |
+
+### Bienvenida: permisos (fila 872)
+
+| Código | Acción |
+|---|---|
+| `UI.WELCOME.PERM_ALLOW` | «Permitir» en la tarjeta de un permiso (abre el diálogo del sistema) |
+| `UI.WELCOME.PERM_NOT_NOW` | «Ahora no» en la tarjeta de un permiso |
+| `UI.WELCOME.PERM_CONTINUE` | «Continuar» (fin del paso de permisos; sigue la licencia) |
+
+### Bienvenida: «Conecta tu música» y «Listo» (fila 871)
+
+| Código | Acción |
+|---|---|
+| `UI.WELCOME.CONNECT_GOOGLE` | «Inicia sesión con tu cuenta de Google» (abre la sincronización con la cuenta) |
+| `UI.WELCOME.CONNECT_FOLDER` | «Carpeta del móvil» (abre la música local) |
+| `UI.WELCOME.CONNECT_SPOTIFY` | «Spotify» en «Spotify u otro servicio» (abre importar Spotify) |
+| `UI.WELCOME.CONNECT_OTHER` | «Otro servicio» en «Spotify u otro servicio» (abre la migración de listas) |
+| `UI.WELCOME.CONNECT_RESTORE` | «Restaurar una copia» (abre Copia de seguridad y restauración) |
+| `UI.WELCOME.CONNECT_NEXT` | «Más tarde» / «Continuar» (va a «Listo») |
+| `UI.WELCOME.DONE_START` | «Empezar a escuchar» (fin de la bienvenida; va a Inicio) |
 
 ### Abrir enlaces de música
 
@@ -1329,7 +1349,8 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | Código | Acción |
 |---|---|
 | `UI.SPOTIMP.BACK` | Atrás (Importar de Spotify) |
-| `UI.SPOTIMP.ONBOARDING_NEXT` | «Continuar (siguiente paso)» (bienvenida) |
+| `UI.SPOTIMP.ONBOARDING_NEXT` | *(retirado 2026-11-25, fila 871: ya no hay paso siguiente; ver `UI.SPOTIMP.ONBOARDING_BACK`)* «Continuar (siguiente paso)» (bienvenida antigua) |
+| `UI.SPOTIMP.ONBOARDING_BACK` | «Volver a Conecta tu música» (importar Spotify abierto desde la bienvenida) |
 | `UI.SPOTIMP.CONNECT` | «Conectar Spotify» |
 | `UI.SPOTIMP.ADD_BY_LINK` | «Importar lista por link» (el enlace no se registra) |
 | `UI.SPOTIMP.SELECT_SOURCES` | «Seleccionar listas de Spotify» |
@@ -2162,7 +2183,8 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | Código | Acción |
 |---|---|
 | `UI.YTMSYNC.BACK` | Atrás (Sincronizar con YouTube Music) |
-| `UI.YTMSYNC.ONBOARDING_START` | «Comenzar a usar Aura» (fin de la bienvenida) |
+| `UI.YTMSYNC.ONBOARDING_START` | *(retirado 2026-11-25, fila 871: ver `UI.YTMSYNC.ONBOARDING_BACK`)* «Comenzar a usar Aura» (fin de la bienvenida antigua) |
+| `UI.YTMSYNC.ONBOARDING_BACK` | «Volver a Conecta tu música» (sincronizar con la cuenta, abierto desde la bienvenida) |
 | `UI.YTMSYNC.LOGIN` | Iniciar sesión (sincronizar) |
 | `UI.YTMSYNC.SYNC_ALL` | «Sincronizar todo» |
 | `UI.YTMSYNC.SYNC_LIKED_SONGS` | «Me gusta (canciones)» |

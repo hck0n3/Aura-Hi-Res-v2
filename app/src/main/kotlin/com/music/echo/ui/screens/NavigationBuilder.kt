@@ -632,6 +632,15 @@ fun NavGraphBuilder.navigationBuilder(
         OnboardingYouTubeScreen(navController)
     }
 
+    // Registry row 871: the new welcome's «Conecta tu música» and «Listo» (after the licence).
+    composable(iad1tya.echo.music.ui.screens.welcome.WELCOME_CONNECT_ROUTE) {
+        iad1tya.echo.music.ui.screens.welcome.WelcomeConnectScreen(navController)
+    }
+
+    composable(iad1tya.echo.music.ui.screens.welcome.WELCOME_DONE_ROUTE) {
+        iad1tya.echo.music.ui.screens.welcome.WelcomeDoneScreen(navController)
+    }
+
     composable(
         "podcasts?feedUrl={feedUrl}",
         arguments = listOf(

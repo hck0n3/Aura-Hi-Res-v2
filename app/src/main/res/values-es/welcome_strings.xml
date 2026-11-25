@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fila 872 del registro (plan, fase 2): el paso de permisos de la bienvenida, una tarjeta por permiso. -->
+    <string name="welcome_permissions_title">Permisos</string>
+    <string name="welcome_permissions_intro">Aura pide cada uno solo para lo que se explica aquí. Decir que no nunca te impide seguir: puedes darlo luego en los ajustes del sistema.</string>
+    <string name="welcome_permission_allow">Permitir</string>
+    <string name="welcome_permission_not_now">Ahora no</string>
+    <string name="welcome_permission_granted">Concedido</string>
+    <string name="welcome_permission_skipped">Sin conceder. Puedes darlo luego en los ajustes del sistema.</string>
+    <string name="welcome_permission_notifications">Notificaciones</string>
+    <string name="welcome_permission_notifications_reason">Para avisarte de las descargas, las actualizaciones de la app y los estrenos de tus artistas.</string>
+    <string name="welcome_permission_music_files">Música del móvil</string>
+    <string name="welcome_permission_music_files_reason">Para encontrar y reproducir las canciones guardadas en tu móvil.</string>
+    <string name="welcome_permission_microphone">Micrófono</string>
+    <string name="welcome_permission_microphone_reason">Para reconocer la canción que suena, buscar por voz y que el visualizador siga la música.</string>
+    <string name="welcome_permission_bluetooth">Dispositivos Bluetooth</string>
+    <string name="welcome_permission_bluetooth_reason">Para mostrar tus auriculares y altavoces Bluetooth en la lista de salidas de audio.</string>
+    <string name="welcome_permission_local_network">Dispositivos de tu red</string>
+    <string name="welcome_permission_local_network_reason">Para conectar con aparatos de tu red de casa, como una tele o un proxy propio.</string>
+    <string name="welcome_continue">Continuar</string>
+    <!-- Fila 871: «Conecta tu música» y «Listo». -->
+    <string name="welcome_connect_title">Conecta tu música</string>
+    <string name="welcome_connect_intro">Todo es opcional: trae lo que ya tienes, ahora o más tarde desde Ajustes.</string>
+    <string name="welcome_connect_google">Inicia sesión con tu cuenta de Google</string>
+    <string name="welcome_connect_google_desc">Trae tus me gusta, listas, álbumes y artistas.</string>
+    <string name="welcome_connect_folder">Carpeta del móvil</string>
+    <string name="welcome_connect_folder_desc">Añade la música guardada en tu teléfono.</string>
+    <string name="welcome_connect_services">Spotify u otro servicio</string>
+    <string name="welcome_connect_services_desc">Trae tus listas de Spotify, Tidal, Deezer, Apple Music, Amazon Music o un archivo.</string>
+    <string name="welcome_connect_spotify">Spotify</string>
+    <string name="welcome_connect_other_service">Otro servicio</string>
+    <string name="welcome_connect_restore">Restaurar una copia</string>
+    <string name="welcome_connect_restore_desc">Recupera tu biblioteca y tus ajustes desde una copia de Aura.</string>
+    <string name="welcome_later">Más tarde</string>
+    <string name="welcome_back_to_connect">Volver a Conecta tu música</string>
+    <string name="welcome_done_title">Listo</string>
+    <string name="welcome_done_body">Aura está lista. Todo lo que viste aquí sigue en Ajustes; tus artistas y géneros favoritos están en Ajustes ▸ Contenido.</string>
+    <string name="welcome_done_start">Empezar a escuchar</string>
+    <!-- Fila 871: los pasos de artistas y géneros salen de la bienvenida y viven en Ajustes ▸ Contenido. -->
+    <string name="content_favorite_artists">Artistas favoritos</string>
+    <string name="content_favorite_artists_desc">Elige artistas para afinar tu inicio y tus recomendaciones</string>
+    <string name="content_favorite_genres">Géneros que te gustan</string>
+    <string name="content_favorite_genres_desc">Opcional: ayuda a afinar tus recomendaciones</string>
+</resources>

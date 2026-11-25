@@ -321,6 +321,11 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // Registry 811 (owner H6a): the «Ocultos» row of Inicio y descubrimiento.
             Triple(stringResource(R.string.hidden_items_title), "Contenido", "settings/content"),
             Triple(stringResource(R.string.hidden_items_desc), "Contenido", "settings/content"),
+            // Registry row 871: favourite artists and genres (they left the welcome).
+            Triple(stringResource(R.string.content_favorite_artists), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.content_favorite_artists_desc), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.content_favorite_genres), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.content_favorite_genres_desc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.misc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_title), "Contenido", "settings/content"),
             Triple(stringResource(R.string.open_links_summary), "Contenido", "settings/content"),
