@@ -43,6 +43,9 @@ class SettingsSearchCoverageTest {
             "about", "account", "more_content", "yt_sync", "logout_dialog_title", "ai_lyrics_translation",
             "appearance", "content", "logs", "privacy", "storage", "logs_desc", "login",
             "update_settings_title", "liquid_glass_player_not_available",
+            // Registry row 864: a notice under «Activar proxy» shown only while Android 17 blocks a LAN proxy; the
+            // proxy rows themselves are indexed, and a search hit for a line that is usually hidden would lead nowhere.
+            "proxy_local_network_needed",
         )
     }
 }
