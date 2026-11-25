@@ -1477,4 +1477,6 @@
         <item quantity="many">%d de omitidas (demasiado cortas o sin duración)</item>
         <item quantity="other">%d omitidas (demasiado cortas o sin duración)</item>
     </plurals>
+    <string name="proxy_local_network_needed">Android pide permiso de red local para usar este proxy. Toca para darlo.</string>
+    <string name="proxy_local_network_notice">Android bloquea tu proxy de la red local hasta que des el permiso: sin él, no carga nada en línea.</string>
 </resources>

@@ -1582,4 +1582,6 @@
         <item quantity="one">%d skipped (too short or no duration)</item>
         <item quantity="other">%d skipped (too short or no duration)</item>
     </plurals>
+    <string name="proxy_local_network_needed">Android needs local network permission to use this proxy. Tap to grant it.</string>
+    <string name="proxy_local_network_notice">Android blocks your local network proxy until you grant permission: without it, nothing online loads.</string>
 </resources>

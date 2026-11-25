@@ -2,7 +2,9 @@
 
 package iad1tya.echo.music.ui.screens.settings
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -43,10 +45,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,7 +62,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.R
@@ -164,6 +173,35 @@ fun ContentSettings(
                 runCatching { localNetworkLauncher.launch(LocalNetworkAccess.PERMISSION) }
             }
         }
+    }
+    // Registry row 864: a LAN proxy saved before the update, or a denied request, would fail silently. Re-checked when
+    // the proxy changes and when this screen resumes (back from the system settings page); nothing polled.
+    var proxyLanRecheck by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) proxyLanRecheck++ }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val proxyNeedsLocalNetwork by produceState(false, proxyEnabled, proxyUrl, proxyLanRecheck) {
+        value = proxyEnabled && withContext(Dispatchers.IO) { LocalNetworkAccess.proxyNeedsPermission(context, proxyUrl) }
+    }
+    val activity = remember(context) {
+        generateSequence(context) { (it as? ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
+    }
+    var lanRationaleBeforeAsk by remember { mutableStateOf(false) }
+    val proxyLanTapLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val rationaleNow = activity != null &&
+            ActivityCompat.shouldShowRequestPermissionRationale(activity, LocalNetworkAccess.PERMISSION)
+        // No rationale before or after a denial: the system did not show the dialog, so open the app's settings page.
+        if (!granted && !lanRationaleBeforeAsk && !rationaleNow) {
+            runCatching {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")),
+                )
+            }
+        }
+        proxyLanRecheck++
     }
     val (enableKugou, onEnableKugouChange) = rememberPreference(key = EnableKugouKey, defaultValue = true)
     val (enableLrclib, onEnableLrclibChange) = rememberPreference(key = EnableLrcLibKey, defaultValue = true)
@@ -957,6 +995,19 @@ fun ContentSettings(
                         onClick = { onProxyEnabledChange(!proxyEnabled); if (!proxyEnabled) askLocalNetworkForProxy(proxyUrl) }
                     )
                 )
+                if (proxyEnabled && proxyNeedsLocalNetwork) {
+                    add(
+                        Material3SettingsItem(
+                            icon = painterResource(R.drawable.warning),
+                            title = { Text(stringResource(R.string.proxy_local_network_needed)) },
+                            onClick = {
+                                lanRationaleBeforeAsk = activity != null &&
+                                    ActivityCompat.shouldShowRequestPermissionRationale(activity, LocalNetworkAccess.PERMISSION)
+                                runCatching { proxyLanTapLauncher.launch(LocalNetworkAccess.PERMISSION) }
+                            }
+                        )
+                    )
+                }
                 if (proxyEnabled) {
                     add(
                         Material3SettingsItem(
