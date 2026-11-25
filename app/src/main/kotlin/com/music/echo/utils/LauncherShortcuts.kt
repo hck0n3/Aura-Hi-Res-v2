@@ -43,16 +43,25 @@ object LauncherShortcuts {
     /** The «Me gusta» auto-playlist's Enhanced Shuffle context (AutoPlaylistScreen: "AP:" + "liked"; the widget uses it too). */
     private const val LIKED_CONTEXT_ID = "AP:liked"
 
+    /**
+     * Registry row 862 (owner test #34, One UI): a launcher that shows only four shortcuts keeps the lowest ranks, and with
+     * no explicit rank the list position decided it, so «Descargado» (5th) was the one left out. These four come first;
+     * «Biblioteca» stays published as the 5th. Ids never change, so pinned copies keep working.
+     */
+    internal val LAUNCHER_ORDER = listOf("resume_queue", "shuffle_liked", "downloaded", "search_v2", "library_v2")
+
     fun publish(context: Context, searchAction: String, libraryAction: String) {
         val manager = context.getSystemService(ShortcutManager::class.java) ?: return
-        val all = listOf(
+        val builders = listOf(
             // New ids: a pinned copy of a removed manifest shortcut stays immutable, and reusing its id would make the call throw.
             shortcut(context, "search_v2", searchAction, R.string.search, R.drawable.shortcut_search),
             shortcut(context, "library_v2", libraryAction, R.string.filter_library, R.drawable.shortcut_library),
             shortcut(context, "resume_queue", ACTION_RESUME, R.string.shortcut_resume, R.drawable.shortcut_resume),
             shortcut(context, "shuffle_liked", ACTION_SHUFFLE_LIKED, R.string.shortcut_shuffle_liked, R.drawable.shortcut_shuffle),
             shortcut(context, "downloaded", ACTION_DOWNLOADED, R.string.shortcut_downloaded, R.drawable.shortcut_downloaded),
-        )
+        ).toMap()
+        // Explicit ranks in LAUNCHER_ORDER, and the list in that order too, so a launcher limit cuts «Biblioteca» first.
+        val all = launcherOrder(builders.keys).map { id -> builders.getValue(id).setRank(LAUNCHER_ORDER.indexOf(id)).build() }
         // setDynamicShortcuts throws on more than the launcher allows, which would drop ALL of them (row 785's two included).
         val allowed = runCatching { manager.maxShortcutCountPerActivity }.getOrDefault(all.size)
         val shortcuts = all.take(allowed)
@@ -108,10 +117,12 @@ object LauncherShortcuts {
         }
     }
 
-    private fun shortcut(context: Context, id: String, action: String, label: Int, icon: Int): ShortcutInfo =
-        ShortcutInfo.Builder(context, id)
+    /** Pure: [ids] in launcher order; an id missing from [LAUNCHER_ORDER] is left out rather than given an invalid rank. */
+    internal fun launcherOrder(ids: Collection<String>): List<String> = LAUNCHER_ORDER.filter { it in ids }
+
+    private fun shortcut(context: Context, id: String, action: String, label: Int, icon: Int): Pair<String, ShortcutInfo.Builder> =
+        id to ShortcutInfo.Builder(context, id)
             .setShortLabel(context.getString(label))
             .setIcon(Icon.createWithResource(context, icon))
             .setIntent(Intent(action).setClassName(context, MainActivity::class.java.name))
-            .build()
 }
