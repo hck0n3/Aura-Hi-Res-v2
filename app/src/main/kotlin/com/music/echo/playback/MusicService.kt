@@ -4766,6 +4766,8 @@ class MusicService :
         // Mark that the imminent pause is OURS, so onPlayWhenReadyChanged keeps pausedByNetwork (whereas a
         // genuine user/external pause clears it and is therefore never auto-resumed).
         expectingOwnStopPause = true
+        // Row 854: a song stopped on an error does not «sigue desde lo cargado».
+        offlineFromLoadedState.value = false
         if (player.playWhenReady) pausedByPlaybackFailure = true
         Timber.tag(TAG).i("START_CAUSE=error_stop")
         player.pause()
@@ -9220,6 +9222,8 @@ class MusicService :
             return
         }
 
+        // Row 854: the current song failed, so the «Sin conexión» sign no longer says it goes on from what was loaded.
+        offlineFromLoadedState.value = false
         // Registry 763: the user's play intent, read before any handling below can pause or re-prepare.
         val wasPlayWhenReady = player.playWhenReady
         val mediaId = player.currentMediaItem?.mediaId

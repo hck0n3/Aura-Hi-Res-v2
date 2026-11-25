@@ -149,4 +149,13 @@ class OfflinePlaybackNoticeTest {
         assertFalse("the error path entered the session and skipped before the sign came on", OfflinePlaybackNotice.loadedSongGoesOn(playingNow = true, songMovedOn = true))
         assertFalse(OfflinePlaybackNotice.loadedSongGoesOn(playingNow = false, songMovedOn = true))
     }
+
+    @Test
+    fun `once the current song fails or stops on an error, the sign says the offline music again`() {
+        val session = OfflinePlaybackNotice.of(sessionActive = true, queueParked = false, manual = false)
+        assertEquals(OfflinePlaybackNotice.BUFFERED, OfflinePlaybackNotice.shown(session, deviceOffline = true, fromLoaded = true))
+        val afterError = OfflinePlaybackNotice.shown(session, deviceOffline = true, fromLoaded = false)
+        assertEquals(OfflinePlaybackNotice.AUTOMATIC, afterError)
+        assertEquals(OfflinePlaybackNotice.Wording.OFFLINE_MUSIC, afterError.wording)
+    }
 }

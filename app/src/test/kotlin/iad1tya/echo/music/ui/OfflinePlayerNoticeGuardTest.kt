@@ -139,9 +139,14 @@ class OfflinePlayerNoticeGuardTest {
         assertTrue(feed.contains("playingNow = player.playWhenReady && player.playbackState == Player.STATE_READY,"))
         assertTrue(feed.contains("songMovedOn = offlineSongMovedOnState.value,"))
         assertTrue(transition.contains("if (trackChanged) offlineFromLoadedState.value = false"))
+        val onError = service.substringAfter("    override fun onPlayerError(error: PlaybackException) {\n        super.onPlayerError(error)")
+            .substringBefore("val wasPlayWhenReady = player.playWhenReady")
+        assertTrue(onError.contains("offlineFromLoadedState.value = false"))
+        val stop = service.substringAfter("internal fun stopOnError() {").substringBefore("player.pause()")
+        assertTrue(stop.contains("offlineFromLoadedState.value = false"))
         assertEquals(
-            "the edge, the sign going away and a song change",
-            3,
+            "the edge, the sign going away, a song change, an error and an error stop",
+            5,
             Regex("""offlineFromLoadedState\.value =""").findAll(service).count(),
         )
 
