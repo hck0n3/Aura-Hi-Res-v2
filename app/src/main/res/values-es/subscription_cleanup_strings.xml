@@ -42,4 +42,19 @@
     <string name="sub_cleanup_interrupted">Se detuvo: %1$d de %2$d; toca Continuar</string>
     <string name="sub_cleanup_continue">Continuar</string>
     <string name="sub_cleanup_discard">Descartar</string>
+    <plurals name="sub_cleanup_total">
+        <item quantity="one">%d suscripción</item>
+        <item quantity="many">%d de suscripciones</item>
+        <item quantity="other">%d suscripciones</item>
+    </plurals>
+    <plurals name="sub_cleanup_total_at_least">
+        <item quantity="one">Al menos %d suscripción</item>
+        <item quantity="many">Al menos %d de suscripciones</item>
+        <item quantity="other">Al menos %d suscripciones</item>
+    </plurals>
+    <plurals name="sub_cleanup_total_suggested">
+        <item quantity="one">%d sugerida</item>
+        <item quantity="many">%d de sugeridas</item>
+        <item quantity="other">%d sugeridas</item>
+    </plurals>
 </resources>

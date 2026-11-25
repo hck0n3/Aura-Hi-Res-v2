@@ -130,6 +130,23 @@ fun SubscriptionCleanupScreen(
                     }
                 }
                 Phase.READY, Phase.RUNNING -> {
+                    // Row 856: how many the account lists (a minimum when the read stopped early) and how many are suggested.
+                    if (state.candidates.isNotEmpty()) {
+                        val totals = subscriptionCleanupTotals(state.candidates, state.incomplete)
+                        item {
+                            Text(
+                                listOf(
+                                    if (totals.atLeast) {
+                                        pluralStringResource(R.plurals.sub_cleanup_total_at_least, totals.listed, totals.listed)
+                                    } else {
+                                        pluralStringResource(R.plurals.sub_cleanup_total, totals.listed, totals.listed)
+                                    },
+                                    pluralStringResource(R.plurals.sub_cleanup_total_suggested, totals.suggested, totals.suggested),
+                                ).joinToString(" · "),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                        }
+                    }
                     // Row 837: the read stopped before the end of the account's list; say so instead of passing it off as all.
                     if (state.incomplete && !running) {
                         item {
@@ -346,3 +363,19 @@ fun SubscriptionCleanupScreen(
         )
     }
 }
+
+/** Row 856: the header's numbers. [atLeast]: the read stopped before the end of the account's list (row 837). */
+internal data class SubscriptionCleanupTotals(val listed: Int, val suggested: Int, val atLeast: Boolean)
+
+/**
+ * Row 856 (owner test #3, 2026-11-24: the screen showed no total; the tester counted ~413 by scrolling). [listed] is the
+ * rows on screen; [suggested] is what «Seleccionar las sugeridas (N)» selects, so the two numbers never disagree.
+ */
+internal fun subscriptionCleanupTotals(
+    candidates: List<PhantomSubscriptionPolicy.Candidate>,
+    incomplete: Boolean,
+): SubscriptionCleanupTotals = SubscriptionCleanupTotals(
+    listed = candidates.size,
+    suggested = PhantomSubscriptionPolicy.suggestedSelection(candidates).size,
+    atLeast = incomplete,
+)
