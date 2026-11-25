@@ -212,10 +212,12 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 58 | `settings/logs` | `LogsScreen` | `:486` | sí |
 | 59 | `update` | `UpdateScreen` | `:490` | sí |
 | 60 | `login` | `LoginScreen` | `:494` | sí |
-| 61 | `onboarding_artists` | `OnboardingArtistsScreen` | `:498` | sí (solo primera ejecución) |
-| 62 | `onboarding_genres` | `OnboardingGenresScreen` | `:502` | sí |
-| 63 | `onboarding_spotify` | `OnboardingSpotifyScreen` | `:506` | sí |
-| 64 | `onboarding_youtube` | `OnboardingYouTubeScreen` | `:510` | sí |
+| 61 | `onboarding_artists` | `OnboardingArtistsScreen` | `:619` | sí (**desde la fila 871**: Ajustes > Contenido > «Artistas favoritos»; ya no está en la bienvenida) |
+| 62 | `onboarding_genres` | `OnboardingGenresScreen` | `:623` | sí (**desde la fila 871**: Ajustes > Contenido > «Géneros que te gustan») |
+| 63 | `onboarding_spotify` | `OnboardingSpotifyScreen` | `:627` | ⚠️ **NO desde la fila 871** — ruta registrada (la fija el guardián de la fila 494) pero nada navega a ella; lo que hacía (importar Spotify) está en «Conecta tu música» y en Ajustes > Copia de seguridad > Importar |
+| 64 | `onboarding_youtube` | `OnboardingYouTubeScreen` | `:631` | ⚠️ **NO desde la fila 871** — igual; sincronizar con la cuenta de Google está en «Conecta tu música», la hoja de cuenta y Ajustes > Copia de seguridad > Importar |
+| 64b | `onboarding_connect` | `ui/screens/welcome/WelcomeConnectScreen.kt` `WelcomeConnectScreen` («Conecta tu música», fila 871) | `:636` | sí (solo instalación nueva, tras la licencia) |
+| 64c | `onboarding_done` | `WelcomeDoneScreen` («Listo», fila 871) | `:640` | sí (desde «Conecta tu música») |
 | 65 | `podcasts?feedUrl=` | `PodcastScreen` | `:514` | sí |
 | 66 | `recognition?autoStart=` | `RecognitionScreen` | `:527` | sí (FAB micrófono, tile, widget) |
 | 67 | `recognition_history` | `RecognitionHistoryScreen` | `:542` | sí |
@@ -287,7 +289,7 @@ Se muestra en la primera ejecución **y en cada actualización** (`MainActivity.
 |---|---|---|---|---|---|
 | «¡Bienvenido a AURA HI-RES» + «Tu música, tu sonido, tu estilo.» + chip de versión | Bienvenida > cabecera | `ui/screens/WelcomeDialog.kt:184-251` | informativo | rara | siempre que se muestre |
 | «Todo lo que puedes hacer» + **15 filas de características** (Música ilimitada, Audio de alta calidad, Transiciones suaves, Ecualizador a tu medida, Letras sincronizadas, Aleatorio que no repite, Descubrimiento con IA, Tu biblioteca de siempre, Migra desde otros servicios, Sin conexión y ahorro de datos, Reconocer canción y buscar por voz, Escuchar juntos, Video/fondos animados y temas, En el coche/la tele/pantalla de inicio, Podcasts y música local) | Bienvenida > cuerpo | `ui/screens/WelcomeDialog.kt:75-165` | informativo | rara | siempre |
-| **«Cerrar»** | Bienvenida | `ui/screens/WelcomeDialog.kt:167-177` · efecto `MainActivity.kt:1756-1769` | acción primaria | rara | siempre; en la PRIMERA ejecución encadena con `onboarding_artists` |
+| **«Cerrar»** | Bienvenida | `ui/screens/WelcomeDialog.kt:167-177` · efecto `MainActivity.kt:1756-1769` | acción primaria | rara | siempre. El recorrido sale AL LLEGAR A INICIO, al final de la bienvenida (fila 209 e); desde la fila 871 la primera ejecución pasa antes por «Conecta tu música» → «Listo» (`MainActivity.kt:1755`), ya no por `onboarding_artists` |
 | Viñeta «Limitador y margen automático opcional; sin «mejoras» inventadas sobre Opus» (grupo «Sonido» del recorrido) — desde la fila 773 es `R.string.welcome_sound_limiter_bullet` (es + en, mismo texto en español); el resto del recorrido sigue escrito en el código | Bienvenida > «Qué puede hacer Aura» | `ui/screens/WelcomeDialog.kt` | informativo | rara | siempre |
 
 ### `BackgroundReliabilityDialog` — batería y arranque automático — **RETIRADO 2026-11-23 (fila 677)**
@@ -363,7 +365,40 @@ Con `-Pnosub=true` la puerta se salta entera (`license/LicenseGate.kt:21-24`).
 | «Conéctate a internet» + **«Reintentar»** | Sin conexión | `license/LicenseScreens.kt:491-494` | acción primaria | rara | solo `NEEDS_CONNECTION` |
 | «Suscripción en otro equipo» + explicación (un equipo sin correo, hasta 3 con el correo de la compra) + **«Escribir el correo de la compra»** + **«Reintentar»** + **«Suscribirme (mensual, trimestral, semestral o anual: US$24 al año, renovación automática)»** | Equipo bloqueado | `license/LicenseScreens.kt:502-505`, `:507`, `:509`, `:511-516` | acción primaria | rara | solo `DEVICE_BLOCKED` |
 
-## 1.12 Onboarding (4 pasos, todo hardcoded en español)
+## 1.12 Bienvenida nueva (fila 871): Términos → Permisos → Licencia/demo → «Conecta tu música» → Listo
+
+Solo en una **instalación nueva** (`ui/screens/welcome/WelcomeFlow.kt`): quien venía de la beta12 o anterior no ve
+ningún paso (se decide con claves que solo pudo escribir una versión anterior; nada se migra). Términos (§1.10) y
+licencia/demo (§1.11) **no cambian**. Permisos: §1.10b. Después de la licencia, la primera ejecución abre
+«Conecta tu música» (`MainActivity.kt:1765`) y, desde «Listo», Inicio, donde sale el recorrido de siempre (§1.9).
+
+**Qué se movió y adónde (nada se pierde):**
+- **Artistas favoritos** y **Géneros que te gustan** (antes pasos 1/4 y 2/4) → Ajustes > Contenido > «Inicio y
+  descubrimiento» (§18.9) y en la búsqueda de Ajustes. Son las mismas pantallas; ahora «Guardar» / «Cancelar» vuelven a
+  Ajustes, y la de géneros abre con los ya guardados.
+- **Migra tu Spotify** (antes 3/4) → fila «Spotify u otro servicio» de «Conecta tu música»; sigue en Ajustes > Copia de
+  seguridad > Importar y en Biblioteca > Importar.
+- **Tu cuenta de Google** (antes 4/4) → fila «Inicia sesión con tu cuenta de Google»; sigue en la hoja de cuenta y en
+  Ajustes > Copia de seguridad > Importar.
+- **Nuevo:** «Carpeta del móvil» (abre Música local) y «Restaurar una copia» (abre Copia de seguridad y restauración).
+- **Nube privada:** todavía no existe (fase 5 del plan, beta 4); no se añade una fila sin nada detrás.
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| «Conecta tu música» *(título)* + «Todo es opcional: trae lo que ya tienes, ahora o más tarde desde Ajustes.» | Conecta tu música | `ui/screens/welcome/WelcomeConnectScreen.kt:80`, `:107` | informativo | rara | solo instalación nueva |
+| **«Inicia sesión con tu cuenta de Google»** — «Trae tus me gusta, listas, álbumes y artistas.» → `settings/ytm_sync?onboarding=true` | Conecta tu música | `WelcomeConnectScreen.kt:113-115` | navegación | rara | igual |
+| **«Carpeta del móvil»** — «Añade la música guardada en tu teléfono.» → `local_songs` | Conecta tu música | `WelcomeConnectScreen.kt:119-121` | navegación | rara | igual |
+| **«Spotify u otro servicio»** — «Trae tus listas de Spotify, Tidal, Deezer, Apple Music, Amazon Music o un archivo.» con **«Spotify»** → `settings/spotify_import?onboarding=true` y **«Otro servicio»** → `migration` | Conecta tu música | `WelcomeConnectScreen.kt:125-142` | navegación | rara | igual |
+| **«Restaurar una copia»** — «Recupera tu biblioteca y tus ajustes desde una copia de Aura.» → `settings/backup_restore` | Conecta tu música | `WelcomeConnectScreen.kt:148-150` | navegación | rara | igual |
+| **«Más tarde»** / **«Continuar»** *(«Continuar» en cuanto se abrió alguna opción)* → «Listo» | Conecta tu música > pie | `WelcomeConnectScreen.kt:86-89` | acción primaria | rara | igual |
+| **«Volver a Conecta tu música»** | Sincronizar con tu cuenta / Importar Spotify > pie | `ui/screens/settings/YtmSyncScreen.kt:121` · `ui/screens/SpotifyImportScreen.kt:152` | navegación | rara | solo abiertos desde la bienvenida (`onboarding=true`); sustituyen a «Comenzar a usar Aura» y «Continuar (siguiente paso)» |
+| «Listo» + «Aura está lista. Todo lo que viste aquí sigue en Ajustes; tus artistas y géneros favoritos están en Ajustes ▸ Contenido.» | Listo | `WelcomeConnectScreen.kt:243`, `:250` | informativo | rara | al llegar (marca la bienvenida como hecha) |
+| **«Empezar a escuchar»** → Inicio (y el recorrido) | Listo > pie | `WelcomeConnectScreen.kt:213-223` | acción primaria | rara | igual |
+
+### Onboarding antiguo (4 pasos, todo hardcoded en español) — **fuera de la bienvenida desde la fila 871**
+
+Las dos primeras pantallas siguen vivas desde Ajustes > Contenido (ver arriba); la tercera y la cuarta quedan registradas
+sin entrada (su contenido está en «Conecta tu música»). Tabla conservada como histórico; donde cambió algo se indica.
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
@@ -372,10 +407,10 @@ Con `-Pnosub=true` la puerta se salta entera (`license/LicenseGate.kt:21-24`).
 | 8 chips de sugerencia (Pop, Rock, Reggaetón, Hip-Hop, Electrónica, Latina, K-Pop, Cristiana) | Onboarding 1/4 | `ui/screens/OnboardingArtistsScreen.kt:60-62`, `:147-154` | acción secundaria | rara | solo con el campo vacío |
 | Rejilla de artistas (círculo + check) | Onboarding 1/4 | `ui/screens/OnboardingArtistsScreen.kt:166-211` | conmutador | rara | solo con resultados |
 | «Seleccionados: N (faltan M)» | Onboarding 1/4 | `ui/screens/OnboardingArtistsScreen.kt:91-98` | informativo | rara | siempre |
-| **«Siguiente»** / «Guardando…» | Onboarding 1/4 | `ui/screens/OnboardingArtistsScreen.kt:100-114` | acción primaria | rara | habilitado a partir de 3 artistas |
-| **«Omitir»** | Onboarding 1/4 | `ui/screens/OnboardingArtistsScreen.kt:116-120` | acción secundaria | rara | siempre |
+| **«Guardar»** / «Guardando…» *(hasta la fila 871 «Siguiente»; ahora vuelve a Ajustes)* | Artistas favoritos | `ui/screens/OnboardingArtistsScreen.kt:117` | acción primaria | rara | habilitado a partir de 3 artistas |
+| **«Cancelar»** *(hasta la fila 871 «Omitir»)* | Artistas favoritos | `ui/screens/OnboardingArtistsScreen.kt:121-124` | acción secundaria | rara | siempre |
 | «¿Qué géneros te gustan?» + **24 chips de género** | Onboarding 2/4 | `ui/screens/OnboardingGenresScreen.kt:41-45`, `:104-112` | conmutador | rara | siempre |
-| **«Continuar»** / **«Omitir»** | Onboarding 2/4 | `ui/screens/OnboardingGenresScreen.kt:83-88` / `:89-92` | acción primaria / secundaria | rara | siempre |
+| **«Guardar»** / **«Cancelar»** *(hasta la fila 871 «Continuar» / «Omitir»; ahora vuelven a Ajustes y la pantalla abre con los géneros guardados)* | Géneros que te gustan | `ui/screens/OnboardingGenresScreen.kt:99` / `:104` | acción primaria / secundaria | rara | siempre |
 | «Migra tu Spotify» + **«Conectar Spotify y elegir qué migrar»** | Onboarding 3/4 | `ui/screens/OnboardingSpotifyScreen.kt:43`, `:48-51` | acción primaria | rara | siempre |
 | **«Siguiente: tu cuenta de Google»** | Onboarding 3/4 | `ui/screens/OnboardingSpotifyScreen.kt:53-58` | acción secundaria | rara | siempre |
 | «Trae tu biblioteca de la nube» + **«Sincronizar con tu cuenta de Google»** | Onboarding 4/4 | `ui/screens/OnboardingYouTubeScreen.kt:45`, `:50-55` | acción primaria | rara | siempre |
@@ -409,7 +444,7 @@ Con `-Pnosub=true` la puerta se salta entera (`license/LicenseGate.kt:21-24`).
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | **«Importar desde Spotify»** + volver *(long-press = principal)* | Spotify > barra | `ui/screens/SpotifyImportScreen.kt:102-110` | navegación | ocasional | siempre |
-| **«Continuar (siguiente paso)»** *(hardcoded)* | Spotify > barra inferior | `ui/screens/SpotifyImportScreen.kt:117-124` | acción primaria | rara | solo dentro del onboarding |
+| **«Volver a Conecta tu música»** *(hasta la fila 871 «Continuar (siguiente paso)», hardcoded)* | Spotify > barra inferior | `ui/screens/SpotifyImportScreen.kt:152` | navegación | rara | solo abierto desde la bienvenida |
 | **«Conectar Spotify»** → hoja WebView de login | Spotify | `ui/screens/SpotifyImportScreen.kt:144-150` | acción primaria | rara | solo sin sesión |
 | **«Importar lista por link»** | Spotify | `ui/screens/SpotifyImportScreen.kt:153-159`, `:189-195` | acción primaria | ocasional | con y sin sesión |
 | «Conectado como %1$s» | Spotify | `ui/screens/SpotifyImportScreen.kt:163-176` | informativo | ocasional | solo con sesión |
@@ -2886,6 +2921,8 @@ Las cuatro pantallas donde viven los ajustes de letras se enlazan entre sí; **n
 | Aprender géneros con datos móviles — desc. «Usa datos móviles para aprender los géneros de tus artistas… Desactivado = solo con WiFi.» | Ajustes > Contenido | ContentSettings.kt:1181 | conmutador | rara | siempre |
 | Ordenar la pantalla de inicio al azar — desc. «Reordena al azar las secciones de inicio con prioridades ponderadas» | Ajustes > Contenido | ContentSettings.kt:1202 | conmutador | rara | siempre |
 | **Ocultos** — desc. «Lo que ocultaste con «No me gusta», «No recomendar» o «Menos de esto». Desde aquí lo deshaces» (fila 811) | Ajustes > Contenido | ContentSettings.kt:1279 | navegación → `settings/content/hidden` | rara | siempre |
+| **Artistas favoritos** — desc. «Elige artistas para afinar tu inicio y tus recomendaciones» *(NUEVO 2026-11-25, fila 871: antes solo era el paso 1 de la bienvenida)* | Ajustes > Contenido | ContentSettings.kt:1367 | navegación → `onboarding_artists` | rara | siempre |
+| **Géneros que te gustan** — desc. «Opcional: ayuda a afinar tus recomendaciones» *(NUEVO 2026-11-25, fila 871: antes solo era el paso 2 de la bienvenida)* | Ajustes > Contenido | ContentSettings.kt:1373 | navegación → `onboarding_genres` | rara | siempre |
 
 #### Pantalla «Ocultos» — `settings/content/hidden` (fila 811)
 
@@ -3216,7 +3253,7 @@ Se llega desde Ajustes > Cuentas (fila YouTube), Ajustes > Copias de seguridad >
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Atrás (tap) / Ir al inicio (mantener) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:80 | navegación | constante | siempre |
-| Comenzar a usar Aura (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:93 | acción primaria | rara | solo si `onboarding == true` |
+| Volver a Conecta tu música *(hasta la fila 871 «Comenzar a usar Aura», hardcoded)* | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:121 | navegación | rara | solo si `onboarding == true` (abierta desde la bienvenida) |
 | Cuenta (botón de inicio de sesión) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:122 | acción primaria | rara | solo si `!isLoggedIn` |
 | Sincronizar todo (hardcoded) — desc. «Me gusta, álbumes, artistas, suscripciones, playlists y biblioteca» (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:148 | acción primaria | rara | siempre |
 | Me gusta (canciones) (hardcoded) | Sincronizar desde tu cuenta de Google | YtmSyncScreen.kt:159 | acción primaria | rara | siempre |

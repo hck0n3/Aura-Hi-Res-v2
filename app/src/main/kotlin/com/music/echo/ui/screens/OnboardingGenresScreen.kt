@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,13 +30,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import androidx.navigation.NavController
+import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.OnboardingGenresKey
 import iad1tya.echo.music.ui.screens.Screens
 import iad1tya.echo.music.utils.dataStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
@@ -54,16 +58,22 @@ fun OnboardingGenresScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selected by remember { mutableStateOf(setOf<String>()) }
+    // Row 871: opened from Ajustes ▸ Contenido now, so it starts from what is saved — «Guardar» must never wipe the
+    // genres picked earlier just because the screen opened empty.
+    LaunchedEffect(Unit) {
+        val saved = context.dataStore.data.first()[OnboardingGenresKey].orEmpty()
+            .split(',').map { it.trim() }.filter { it in GENRES }.toSet()
+        if (selected.isEmpty()) selected = saved
+    }
 
-    fun goSpotifyStep() {
-        // Forward only; keep this step on the back stack so the user can go back if they want.
-        navController.navigate("onboarding_spotify")
+    fun goBack() {
+        navController.popBackStack()
     }
 
     fun persistAndContinue() {
         scope.launch {
             context.dataStore.edit { it[OnboardingGenresKey] = selected.joinToString(",") }
-            goSpotifyStep()
+            goBack()
         }
     }
 
@@ -86,12 +96,12 @@ fun OnboardingGenresScreen(
                     onClick = { ActionLog.tap(ActionId.ONBGEN_CONTINUE); persistAndContinue() },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) {
-                    Text(if (selected.isEmpty()) "Continuar" else "Continuar (${selected.size})")
+                    Text(stringResource(R.string.save) + if (selected.isEmpty()) "" else " (${selected.size})")
                 }
                 TextButton(
-                    onClick = { ActionLog.tap(ActionId.ONBGEN_SKIP); goSpotifyStep() },
+                    onClick = { ActionLog.tap(ActionId.ONBGEN_SKIP); goBack() },
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Omitir") }
+                ) { Text(stringResource(R.string.cancel)) }
             }
         },
     ) { padding ->

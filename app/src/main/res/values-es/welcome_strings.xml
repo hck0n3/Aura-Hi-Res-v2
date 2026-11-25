@@ -18,4 +18,27 @@
     <string name="welcome_permission_local_network">Dispositivos de tu red</string>
     <string name="welcome_permission_local_network_reason">Para conectar con aparatos de tu red de casa, como una tele o un proxy propio.</string>
     <string name="welcome_continue">Continuar</string>
+    <!-- Fila 871: «Conecta tu música» y «Listo». -->
+    <string name="welcome_connect_title">Conecta tu música</string>
+    <string name="welcome_connect_intro">Todo es opcional: trae lo que ya tienes, ahora o más tarde desde Ajustes.</string>
+    <string name="welcome_connect_google">Inicia sesión con tu cuenta de Google</string>
+    <string name="welcome_connect_google_desc">Trae tus me gusta, listas, álbumes y artistas.</string>
+    <string name="welcome_connect_folder">Carpeta del móvil</string>
+    <string name="welcome_connect_folder_desc">Añade la música guardada en tu teléfono.</string>
+    <string name="welcome_connect_services">Spotify u otro servicio</string>
+    <string name="welcome_connect_services_desc">Trae tus listas de Spotify, Tidal, Deezer, Apple Music, Amazon Music o un archivo.</string>
+    <string name="welcome_connect_spotify">Spotify</string>
+    <string name="welcome_connect_other_service">Otro servicio</string>
+    <string name="welcome_connect_restore">Restaurar una copia</string>
+    <string name="welcome_connect_restore_desc">Recupera tu biblioteca y tus ajustes desde una copia de Aura.</string>
+    <string name="welcome_later">Más tarde</string>
+    <string name="welcome_back_to_connect">Volver a Conecta tu música</string>
+    <string name="welcome_done_title">Listo</string>
+    <string name="welcome_done_body">Aura está lista. Todo lo que viste aquí sigue en Ajustes; tus artistas y géneros favoritos están en Ajustes ▸ Contenido.</string>
+    <string name="welcome_done_start">Empezar a escuchar</string>
+    <!-- Fila 871: los pasos de artistas y géneros salen de la bienvenida y viven en Ajustes ▸ Contenido. -->
+    <string name="content_favorite_artists">Artistas favoritos</string>
+    <string name="content_favorite_artists_desc">Elige artistas para afinar tu inicio y tus recomendaciones</string>
+    <string name="content_favorite_genres">Géneros que te gustan</string>
+    <string name="content_favorite_genres_desc">Opcional: ayuda a afinar tus recomendaciones</string>
 </resources>

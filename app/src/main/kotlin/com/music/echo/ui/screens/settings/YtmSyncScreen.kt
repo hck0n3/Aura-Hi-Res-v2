@@ -113,13 +113,12 @@ fun YtmSyncScreen(
                 ) {
                     androidx.compose.material3.Button(
                         onClick = {
-                            ActionLog.tap(ActionId.YTMSYNC_ONBOARDING_START)
-                            navController.navigate("home") {
-                                popUpTo("onboarding_artists") { inclusive = true }
-                            }
+                            // Row 871: back to the welcome's «Conecta tu música», which leads on to «Listo».
+                            ActionLog.tap(ActionId.YTMSYNC_ONBOARDING_BACK)
+                            navController.popBackStack(iad1tya.echo.music.ui.screens.welcome.WELCOME_CONNECT_ROUTE, inclusive = false)
                         },
                         modifier = Modifier.fillMaxWidth().height(50.dp),
-                    ) { Text("Comenzar a usar Aura") }
+                    ) { Text(stringResource(R.string.welcome_back_to_connect)) }
                 }
             }
         },

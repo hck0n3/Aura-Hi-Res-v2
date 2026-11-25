@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -106,21 +107,21 @@ fun OnboardingArtistsScreen(
                         scope.launch {
                             viewModel.finish()
                             finishing = false
-                            // Forward only; keep this step on the back stack so the user can go back.
-                            navController.navigate("onboarding_genres")
+                            // Row 871: opened from Ajustes ▸ Contenido now (the welcome no longer has this step).
+                            navController.popBackStack()
                         }
                     },
                     enabled = selected.size >= MIN_ARTISTS && !finishing,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
-                    Text(if (finishing) "Guardando…" else "Siguiente")
+                    Text(if (finishing) "Guardando…" else stringResource(R.string.save))
                 }
                 // This step is optional too — let the user skip it like the others.
                 TextButton(
-                    onClick = { ActionLog.tap(ActionId.ONBART_SKIP); navController.navigate("onboarding_genres") },
+                    onClick = { ActionLog.tap(ActionId.ONBART_SKIP); navController.popBackStack() },
                     enabled = !finishing,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Omitir") }
+                ) { Text(stringResource(R.string.cancel)) }
             }
         },
     ) { padding ->

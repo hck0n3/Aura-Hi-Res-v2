@@ -18,4 +18,27 @@
     <string name="welcome_permission_local_network">Devices on your network</string>
     <string name="welcome_permission_local_network_reason">To connect to devices on your home network, such as a TV or your own proxy.</string>
     <string name="welcome_continue">Continue</string>
+    <!-- Registry row 871: «Connect your music» and «All set». -->
+    <string name="welcome_connect_title">Connect your music</string>
+    <string name="welcome_connect_intro">All optional: bring in what you already have, now or later from Settings.</string>
+    <string name="welcome_connect_google">Sign in with your Google account</string>
+    <string name="welcome_connect_google_desc">Bring your likes, playlists, albums and artists.</string>
+    <string name="welcome_connect_folder">Phone folder</string>
+    <string name="welcome_connect_folder_desc">Add the music saved on your phone.</string>
+    <string name="welcome_connect_services">Spotify or another service</string>
+    <string name="welcome_connect_services_desc">Bring your playlists from Spotify, Tidal, Deezer, Apple Music, Amazon Music or a file.</string>
+    <string name="welcome_connect_spotify">Spotify</string>
+    <string name="welcome_connect_other_service">Another service</string>
+    <string name="welcome_connect_restore">Restore a backup</string>
+    <string name="welcome_connect_restore_desc">Bring back your library and settings from an Aura backup.</string>
+    <string name="welcome_later">Later</string>
+    <string name="welcome_back_to_connect">Back to Connect your music</string>
+    <string name="welcome_done_title">All set</string>
+    <string name="welcome_done_body">Aura is ready. Everything you saw here is still in Settings; your favourite artists and genres are in Settings ▸ Content.</string>
+    <string name="welcome_done_start">Start listening</string>
+    <!-- Registry row 871: the artists and genres steps left the welcome and live in Settings ▸ Content. -->
+    <string name="content_favorite_artists">Favourite artists</string>
+    <string name="content_favorite_artists_desc">Pick artists to shape your Home and your recommendations</string>
+    <string name="content_favorite_genres">Genres you like</string>
+    <string name="content_favorite_genres_desc">Optional: helps tune your recommendations</string>
 </resources>

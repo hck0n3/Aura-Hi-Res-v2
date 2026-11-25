@@ -143,9 +143,13 @@ fun SpotifyImportScreen(
             if (onboarding) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Button(
-                        onClick = { ActionLog.tap(ActionId.SPOTIMP_ONBOARDING_NEXT); navController.navigate("onboarding_youtube") },
+                        // Row 871: back to the welcome's «Conecta tu música», which leads on to «Listo».
+                        onClick = {
+                            ActionLog.tap(ActionId.SPOTIMP_ONBOARDING_BACK)
+                            navController.popBackStack(iad1tya.echo.music.ui.screens.welcome.WELCOME_CONNECT_ROUTE, inclusive = false)
+                        },
                         modifier = Modifier.fillMaxWidth().height(50.dp),
-                    ) { Text("Continuar (siguiente paso)") }
+                    ) { Text(stringResource(R.string.welcome_back_to_connect)) }
                 }
             }
         }
