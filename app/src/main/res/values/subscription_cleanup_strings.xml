@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="sub_cleanup_title">Review subscriptions</string>
-    <string name="sub_cleanup_desc">Find and remove YouTube subscriptions you probably never made</string>
-    <string name="sub_cleanup_intro">These are the artists your YouTube account is subscribed to. The ones marked «Probably not yours» have no liked songs, are not in your playlists or your library and have barely been played here. Nothing is removed until you select it and confirm.</string>
+    <string name="sub_cleanup_desc">Find and remove subscriptions on your Google account that you probably never made</string>
+    <string name="sub_cleanup_intro">These are the artists your Google account is subscribed to. The ones marked «Probably not yours» have no liked songs, are not in your playlists or your library and have barely been played here. Nothing is removed until you select it and confirm.</string>
     <string name="sub_cleanup_loading">Reading your subscriptions…</string>
     <string name="sub_cleanup_signed_out">Sign in to review your subscriptions.</string>
     <string name="sub_cleanup_load_failed">Your subscriptions could not be read. Try again.</string>
     <string name="sub_cleanup_empty">Your account has no artist subscriptions.</string>
     <string name="sub_cleanup_suggested_badge">Probably not yours</string>
     <string name="sub_cleanup_suggested_reason">No likes, not in your playlists or library, almost no plays</string>
-    <string name="sub_cleanup_pending_badge">Already removed in Aura, waiting for YouTube</string>
+    <string name="sub_cleanup_pending_badge">Already removed in Aura, waiting for your Google account</string>
     <string name="sub_cleanup_select_suggested">Select suggested (%1$d)</string>
     <string name="sub_cleanup_clear_selection">Clear selection</string>
     <plurals name="sub_cleanup_remove_n">
@@ -20,7 +20,7 @@
         <item quantity="one">Remove %d subscription?</item>
         <item quantity="other">Remove %d subscriptions?</item>
     </plurals>
-    <string name="sub_cleanup_confirm_message">They are removed from your YouTube account one by one. Only the ones you selected.</string>
+    <string name="sub_cleanup_confirm_message">They are removed from your Google account one by one. Only the ones you selected.</string>
     <string name="sub_cleanup_confirm_action">Remove</string>
     <string name="sub_cleanup_progress">Removing %1$d of %2$d…</string>
     <string name="sub_cleanup_stopping">Stopping…</string>
@@ -29,9 +29,9 @@
     <string name="sub_cleanup_result">Removed: %1$d · Failed: %2$d · Not attempted: %3$d</string>
     <string name="sub_cleanup_retry_failed">Retry failed ones</string>
     <string name="sub_cleanup_reload">Reload list</string>
-    <string name="sub_cleanup_confirmed_badge">Already removed and confirmed by YouTube; its list can take a while to catch up</string>
-    <string name="sub_cleanup_resend_badge">YouTube confirmed this removal more than 24 h ago but still lists it; you can select it to send the removal again</string>
-    <string name="sub_cleanup_incomplete">Incomplete list: YouTube returned only %1$d; reload to see the rest</string>
+    <string name="sub_cleanup_confirmed_badge">Already removed and confirmed by your Google account; its list can take a while to catch up</string>
+    <string name="sub_cleanup_resend_badge">Your Google account confirmed this removal more than 24 h ago but still lists it; you can select it to send the removal again</string>
+    <string name="sub_cleanup_incomplete">Incomplete list: your Google account returned only %1$d; reload to see the rest</string>
     <string name="sub_cleanup_notification_progress">Removing subscriptions: %1$d of %2$d</string>
     <string name="sub_cleanup_background_hint">It keeps going if you leave this screen or the app; come back here to see the progress</string>
     <string name="sub_cleanup_already_running">Subscriptions are already being removed; wait for it to finish or stop it</string>

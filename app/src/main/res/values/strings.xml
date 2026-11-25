@@ -47,7 +47,7 @@
     <string name="quick_picks_empty">Listen to songs to generate your quick picks</string>
     <string name="forgotten_favorites">Forgotten favorites</string>
     <string name="keep_listening">Keep listening</string>
-    <string name="your_youtube_playlists">Your YouTube playlists</string>
+    <string name="your_youtube_playlists">Your cloud playlists</string>
     <string name="similar_to">Similar to</string>
     <string name="autoplay_chip_related">Related</string>
     <string name="new_release_albums">New release albums</string>
@@ -114,10 +114,10 @@
     <string name="playlist_is_empty">The playlist is empty</string>
     <string name="remove_download_playlist_confirm">Do you really want to remove all \"%s\" playlist songs from the Downloaded Songs storage?</string>
     <string name="delete_playlist_confirm">Do you really want to delete the playlist \"%s\"?</string>
-    <string name="delete_playlist_from_youtube_too">Delete from YouTube too</string>
+    <string name="delete_playlist_from_youtube_too">Delete from your Google account too</string>
     <string name="delete_playlist_local_only">Delete from the app only</string>
-    <string name="delete_playlist_only_local_note">This playlist only exists in Aura (it is not synced with your YouTube account), so there is nothing to delete there.</string>
-    <string name="delete_playlist_youtube_failed">The playlist was deleted from the app, but YouTube rejected deleting it from your account.</string>
+    <string name="delete_playlist_only_local_note">This playlist only exists in Aura (it is not synced with your Google account), so there is nothing to delete there.</string>
+    <string name="delete_playlist_youtube_failed">The playlist was deleted from the app, but your Google account rejected deleting it.</string>
     <string name="you_might_also_like">Related Playlist</string>
 
     <!-- Button -->
@@ -800,7 +800,7 @@
     <string name="migrate_error_artists">I couldn\'t add the artists.</string>
     <string name="login_use_phone_account">Use phone account</string>
     <string name="login_manual_cookie">Manual cookie</string>
-    <string name="login_manual_cookie_title">Paste YouTube cookie</string>
+    <string name="login_manual_cookie_title">Paste cookie</string>
     <string name="login_manual_cookie_body">Open music.youtube.com in your browser, then DevTools ▸ Application ▸ Cookies ▸ https://music.youtube.com. Copy the full Cookie header value and paste it here. This bypasses the web sign-in entirely (last-resort path ported from SimpMusic).</string>
     <string name="login_manual_cookie_apply">Apply</string>
     <string name="spotify_manual_cookie_body">Open open.spotify.com in your browser, then DevTools ▸ Application ▸ Cookies ▸ https://open.spotify.com. Copy the full Cookie header value (including sp_dc and sp_key) and paste it here. This bypasses the web sign-in entirely (last-resort path ported from SimpMusic).</string>

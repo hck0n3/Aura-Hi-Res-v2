@@ -520,7 +520,7 @@
     <string name="device_sync_server_default">Servidor de Aura (predeterminado)</string>
     <string name="device_sync_continue_here">Continuar aquí</string>
     <string name="device_sync_library">Sincronizar me gusta, no me gusta y listas</string>
-    <string name="device_sync_library_desc">Se mantienen iguales en tus dispositivos por el servidor, al momento o cuando se conecten. Mientras estén conectados, YouTube no los sincroniza</string>
+    <string name="device_sync_library_desc">Se mantienen iguales en tus dispositivos por el servidor, al momento o cuando se conecten. Mientras estén conectados, tu cuenta de Google no los sincroniza</string>
     <string name="device_sync_lib_title">Biblioteca (toca para sincronizar ahora)</string>
     <string name="device_sync_lib_off">Apagada</string>
     <string name="device_sync_lib_waiting">Esperando al servidor…</string>
@@ -537,5 +537,5 @@
     <string name="ytm_upload_import_uncheck_all">Desmarcar todos</string>
     <string name="ytm_upload_count_at_least">Al menos %1$d sincronizadas · lista incompleta</string>
     <string name="ytm_upload_list_incomplete">Lista incompleta</string>
-    <string name="ytm_upload_incomplete_summary">YouTube no devolvió entera alguna de tus listas, así que esos números son un mínimo. Vuelve a sincronizar para ver los reales.</string>
+    <string name="ytm_upload_incomplete_summary">Tu cuenta de Google no devolvió entera alguna de tus listas, así que esos números son un mínimo. Vuelve a sincronizar para ver los reales.</string>
 </resources>
