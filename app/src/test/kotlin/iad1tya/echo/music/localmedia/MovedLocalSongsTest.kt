@@ -96,6 +96,25 @@ class MovedLocalSongsTest {
     }
 
     @Test
+    fun `copy first, delete the original later - the copy an automatic scan already imported takes the data`() {
+        // The automatic scan imported «copy» (no likes, plays or lists yet); the original «old» is deleted afterwards.
+        val unused = setOf("copy")
+        val result = matchMovedLocalSongs(listOf(song("old")), listOf(song("copy"), song("other", title = "Other"))) { it in unused }
+        assertEquals(mapOf("old" to "copy"), result.moves)
+        val scanner = text("app/src/main/kotlin/com/music/echo/localmedia/LocalSongScanner.kt")
+        val helper = scanner.substringAfter("private suspend fun moveRenamedLocalSongs(").substringBefore("private suspend fun loadSongs(")
+        assertTrue(helper.contains("val verdict = matchMovedLocalSongs(missing, seen) { id -> id !in takenIds || id in unusedIds }"))
+        assertTrue("an existing row is updated, never replaced (no cascade)", helper.contains("database.update(\n                    unused.copy("))
+        val rule = helper.substringAfter("private fun unusedLocalSongIds(")
+        assertTrue(rule.contains("it.song.isLocal && !it.song.liked && it.song.likedDate == null && it.song.totalPlayTime == 0L"))
+        assertTrue(rule.contains("database.localSongIdsInPlaylists(chunk) + database.localSongIdsWithEvents(chunk) + database.localSongIdsWithPlayCounts(chunk)"))
+        val dao = text("app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt")
+        assertTrue(dao.contains("@Query(\"SELECT DISTINCT songId FROM playlist_song_map WHERE songId IN (:songIds)\")"))
+        assertTrue(dao.contains("@Query(\"SELECT DISTINCT songId FROM event WHERE songId IN (:songIds)\")"))
+        assertTrue(dao.contains("@Query(\"SELECT DISTINCT song FROM playCount WHERE song IN (:songIds)\")"))
+    }
+
+    @Test
     fun `an unknown size or an empty title never matches`() {
         assertTrue(matchMovedLocalSongs(listOf(song("old", size = 0L)), listOf(song("new", size = 0L))).moves.isEmpty())
         assertTrue(matchMovedLocalSongs(listOf(song("old", title = " ")), listOf(song("new", title = " "))).moves.isEmpty())
@@ -131,11 +150,12 @@ class MovedLocalSongsTest {
         assertTrue("a moved song is not counted as removed", scanner.contains("removedSongs = removable.size - moved.moves.size,"))
 
         val helper = scanner.substringAfter("private suspend fun moveRenamedLocalSongs(").substringBefore("private suspend fun loadSongs(")
-        assertTrue("a file with a row of its own never takes another song's data", helper.contains("val verdict = matchMovedLocalSongs(missing, seen) { id -> id !in takenIds }"))
-        assertTrue("only the matching files' rows are read", helper.contains("val takenIds = loadSongs(candidateIds.toList()).keys"))
-        val insert = helper.indexOf("database.insert(oldSongs.getValue(oldId).song.copy(id = newId))")
+        assertTrue("a file whose row the user already used never takes another song's data", helper.contains("val verdict = matchMovedLocalSongs(missing, seen) { id -> id !in takenIds || id in unusedIds }"))
+        assertTrue("only the matching files' rows are read", helper.contains("val takenRows = loadSongs(candidateIds.toList())"))
+        val insert = helper.indexOf("database.insert(old.copy(id = newId))")
+        val update = helper.indexOf("database.update(\n                    unused.copy(")
         for (call in listOf("moveLocalSongPlaylistEntries", "moveLocalSongEvents", "moveLocalSongPlayCounts", "moveLocalSongLyrics")) {
-            assertTrue("$call runs after the new row exists", helper.indexOf("database.$call(oldId, newId)") > insert)
+            assertTrue("$call runs after the new row exists", helper.indexOf("database.$call(oldId, newId)") > maxOf(insert, update))
         }
         assertTrue(insert >= 0)
     }

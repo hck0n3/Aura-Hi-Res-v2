@@ -2719,6 +2719,16 @@ interface DatabaseDao {
     @Query("UPDATE lyrics SET id = :newId WHERE id = :oldId AND NOT EXISTS (SELECT 1 FROM lyrics WHERE id = :newId)")
     fun moveLocalSongLyrics(oldId: String, newId: String)
 
+    // Row 882 (review repair): which of these rows the user already used, so only an unused one takes a moved song's data.
+    @Query("SELECT DISTINCT songId FROM playlist_song_map WHERE songId IN (:songIds)")
+    fun localSongIdsInPlaylists(songIds: List<String>): List<String>
+
+    @Query("SELECT DISTINCT songId FROM event WHERE songId IN (:songIds)")
+    fun localSongIdsWithEvents(songIds: List<String>): List<String>
+
+    @Query("SELECT DISTINCT song FROM playCount WHERE song IN (:songIds)")
+    fun localSongIdsWithPlayCounts(songIds: List<String>): List<String>
+
     // ---- Library sync between the user's devices (registry row 536) ----------------------------------------------------------
     // The reads say what this device has; the writes apply what the others changed. Plain SQL on purpose: nothing here may go
     // through the paths that push to the YouTube account (a change that CAME from another device must not be sent back there).

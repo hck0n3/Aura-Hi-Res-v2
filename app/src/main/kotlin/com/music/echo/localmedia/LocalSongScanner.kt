@@ -743,16 +743,47 @@ constructor(
         }
         val candidateIds = movedSongCandidateIds(missing, seen)
         if (candidateIds.isEmpty()) return LocalSongMoves(emptyMap(), emptySet())
-        val takenIds = loadSongs(candidateIds.toList()).keys
-        val verdict = matchMovedLocalSongs(missing, seen) { id -> id !in takenIds }
+        val takenRows = loadSongs(candidateIds.toList())
+        val takenIds = takenRows.keys
+        // Review repair: a local row nobody used yet (an automatic scan imported the copy before the original went) is
+        // the moved file too, and takes the old song's data like a brand-new file would.
+        val unusedIds = unusedLocalSongIds(takenRows.values)
+        val verdict = matchMovedLocalSongs(missing, seen) { id -> id !in takenIds || id in unusedIds }
         verdict.moves.forEach { (oldId, newId) ->
-            database.insert(oldSongs.getValue(oldId).song.copy(id = newId))
+            val old = oldSongs.getValue(oldId).song
+            val unused = takenRows[newId]?.song
+            if (unused == null) {
+                database.insert(old.copy(id = newId))
+            } else {
+                database.update(
+                    unused.copy(
+                        liked = old.liked,
+                        likedDate = old.likedDate,
+                        totalPlayTime = old.totalPlayTime,
+                        date = old.date ?: unused.date,
+                        lyricsOffset = old.lyricsOffset,
+                        romanizeLyrics = old.romanizeLyrics,
+                    ),
+                )
+            }
             database.moveLocalSongPlaylistEntries(oldId, newId)
             database.moveLocalSongEvents(oldId, newId)
             database.moveLocalSongPlayCounts(oldId, newId)
             database.moveLocalSongLyrics(oldId, newId)
         }
         return verdict
+    }
+
+    /** Row 882 (review repair): the local rows with no like, no play time, no playlist entry, no history and no play count. */
+    private fun unusedLocalSongIds(rows: Collection<Song>): Set<String> {
+        val candidates = rows
+            .filter { it.song.isLocal && !it.song.liked && it.song.likedDate == null && it.song.totalPlayTime == 0L }
+            .map { it.song.id }
+        if (candidates.isEmpty()) return emptySet()
+        val used = candidates.chunked(SqlBatchSize).flatMapTo(HashSet()) { chunk ->
+            database.localSongIdsInPlaylists(chunk) + database.localSongIdsWithEvents(chunk) + database.localSongIdsWithPlayCounts(chunk)
+        }
+        return candidates.filterNotTo(HashSet(), used::contains)
     }
 
         private suspend fun loadSongs(ids: List<String>): Map<String, Song> =
