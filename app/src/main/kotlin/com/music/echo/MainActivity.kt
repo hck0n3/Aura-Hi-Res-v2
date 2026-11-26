@@ -619,13 +619,72 @@ class MainActivity : ComponentActivity() {
     // Compose's pointer dispatch into a rare NullPointerException deep in obfuscated framework code,
     // which would otherwise take down the whole app on a single tap. Dropping one stray touch is far
     // better than crashing the session, so we log and continue instead of propagating.
-    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean =
-        try {
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        noteRefreshTouch(ev)
+        return try {
             super.dispatchTouchEvent(ev)
         } catch (e: Exception) {
             timber.log.Timber.e(e, "Swallowed touch-dispatch exception")
             false
         }
+    }
+
+    // ── Row 899: high refresh while interacting, 60 Hz at rest (RefreshIdlePolicy) ──────────────────────────────────
+    // Only DOWN / UP / CANCEL are looked at (not every MOVE), and the idle side is ONE delayed callback that every input
+    // re-arms: nothing runs while the user is not touching the app.
+    private val refreshIdle = iad1tya.echo.music.utils.RefreshIdlePolicy()
+    private val refreshIdleHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val refreshIdleTimeout = Runnable { if (refreshIdle.onIdleTimeout()) reapplyRefreshRate() }
+    // Null until the composition has read the «alta tasa de refresco» switch; nothing is asserted before that.
+    private var refreshEnabled: Boolean? = null
+    private var refreshSystemCeiling = iad1tya.echo.music.utils.RefreshRatePlanning.NO_CEILING
+
+    private fun armRefreshIdle() {
+        refreshIdleHandler.removeCallbacks(refreshIdleTimeout)
+        refreshIdleHandler.postDelayed(refreshIdleTimeout, iad1tya.echo.music.utils.RefreshIdlePolicy.IDLE_MS)
+    }
+
+    private fun reapplyRefreshRate() {
+        val enabled = refreshEnabled ?: return
+        val active = refreshIdle.active
+        applyPreferredRefreshRate(
+            enabled,
+            iad1tya.echo.music.utils.RefreshIdlePolicy.ceilingHz(active, refreshSystemCeiling),
+            iad1tya.echo.music.utils.RefreshIdlePolicy.floorHz(active),
+        )
+    }
+
+    private fun noteRefreshTouch(ev: android.view.MotionEvent) {
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> if (refreshIdle.onTouchDown()) reapplyRefreshRate()
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                if (refreshIdle.onTouchEnd()) reapplyRefreshRate()
+                armRefreshIdle()
+            }
+        }
+    }
+
+    private fun noteRefreshInput() {
+        if (refreshIdle.onOtherInput()) reapplyRefreshRate()
+        armRefreshIdle()
+    }
+
+    // Called by the platform for every key, D-pad, trackball and generic-motion event (and a touch DOWN).
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        noteRefreshInput()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        noteRefreshInput()
+    }
+
+    override fun onPause() {
+        refreshIdleHandler.removeCallbacks(refreshIdleTimeout)
+        refreshIdle.onHidden()
+        super.onPause()
+    }
 
     @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
     @OptIn(ExperimentalMaterial3Api::class)
@@ -703,6 +762,7 @@ class MainActivity : ComponentActivity() {
     private fun applyPreferredRefreshRate(
         enableHighRefreshRate: Boolean,
         ceilingHz: Float = iad1tya.echo.music.utils.RefreshRatePlanning.NO_CEILING,
+        floorHz: Float = 0f,
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val layoutParams = window.attributes
@@ -714,7 +774,20 @@ class MainActivity : ComponentActivity() {
                 modes = display.supportedModes.map { it.plan() },
                 current = display.mode.plan(),
                 ceilingHz = if (enableHighRefreshRate) ceilingHz else 60f,
+                // Row 899: the rest floor only applies with the switch on (off keeps its own 60 Hz bucket exactly).
+                floorHz = if (enableHighRefreshRate) floorHz else 0f,
             )
+            // Row 899: going to rest must never blank the panel; a switch the current mode cannot make seamlessly
+            // (API 31+ tells) keeps the request it already has.
+            if (floorHz > 0f && target != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                !iad1tya.echo.music.utils.RefreshIdlePolicy.seamless(
+                    display.mode.refreshRate,
+                    target.hz,
+                    display.mode.alternativeRefreshRates.toList(),
+                )
+            ) {
+                return
+            }
             // Re-asserting the same mode is pointless and, since a window-attribute change can itself raise
             // onDisplayChanged, is exactly how a listener would loop on itself.
             if (target != null && layoutParams.preferredDisplayModeId != target.id) {
@@ -792,7 +865,10 @@ class MainActivity : ComponentActivity() {
         }
         val refreshCeiling = iad1tya.echo.music.utils.RefreshRatePlanning.ceilingHz(powerSave, thermalStatus)
         LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling, displayTick) {
-            applyPreferredRefreshRate(enableHighRefreshRate, refreshCeiling)
+            // Row 899: the same request, now also following interaction vs rest (reapplyRefreshRate reads the policy).
+            refreshEnabled = enableHighRefreshRate
+            refreshSystemCeiling = refreshCeiling
+            reapplyRefreshRate()
         }
 
         // ── "Interfaz nueva": the SHELL and the APP THEME both follow the flag ────────────────────
