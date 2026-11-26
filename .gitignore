@@ -277,3 +277,6 @@ Aura-Hi-Res-v2-NOSUB*.zip
 
 # Python bytecode from local script tests
 __pycache__/
+
+# rclone executables built by scripts/build-rclone-android.sh (row 886): built from source, never committed
+tools/rclone-android/out/
