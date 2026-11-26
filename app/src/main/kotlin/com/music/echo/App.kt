@@ -2087,9 +2087,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             classes.fromTier(iad1tya.echo.music.utils.DeviceCapabilities.tier(this)),
             classes.parseChoice(p[iad1tya.echo.music.constants.PerformanceClassChoiceKey]),
         )
-        val glassCapable = iad1tya.echo.music.ui.component.isGlassSupported() &&
-            !iad1tya.echo.music.utils.DeviceForm.isTvOrCar(this)
-        classes.write(p, classes.untouchedOnly(classes.seedValues(classes.seedFor(cls, glassCapable)), classes.presentIn(p)))
+        // Glass is never seeded here: the two high-tier glass seeds above already decided it with their own test, and an
+        // absent glass key (Performance mode was on when they ran) must not turn into glass ON later (HighTierGlassDefaultTest).
+        classes.write(p, classes.untouchedOnly(classes.seedValues(classes.seedFor(cls, glassCapable = false)), classes.presentIn(p)))
         p[iad1tya.echo.music.constants.PerformanceClassSeededKey] = cls.name
     }
 

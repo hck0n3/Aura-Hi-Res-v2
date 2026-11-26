@@ -118,6 +118,10 @@ class PerformanceClassTest {
         val seed = app.substringAfter("private fun applyPerformanceClassSeedV1(").substringBefore("private fun applySingleUiV1(")
         assertTrue(seed.contains("if (p[iad1tya.echo.music.constants.PerformanceClassSeededKey] != null) return"))
         assertTrue("never overwrites", seed.contains("classes.untouchedOnly(") && seed.contains("classes.presentIn(p)"))
+        assertTrue(
+            "the automatic seed leaves glass to the two high-tier glass seeds (no third «gama alta» test)",
+            seed.contains("classes.seedFor(cls, glassCapable = false)") && !seed.contains("isGlassSupported") && !seed.contains("isGlassEligible"),
+        )
         assertTrue(seed.contains("p[iad1tya.echo.music.constants.PerformanceClassSeededKey] = cls.name"))
         val keys = src("constants/PreferenceKeys.kt")
         assertTrue(keys.contains("stringPreferencesKey(\"performance_class_seeded_v1\")"))
