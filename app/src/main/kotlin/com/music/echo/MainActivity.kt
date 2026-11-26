@@ -94,7 +94,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -888,7 +887,6 @@ class MainActivity : ComponentActivity() {
                 (context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true,
             )
         }
-        var displayTick by remember { mutableIntStateOf(0) }
         DisposableEffect(Unit) {
             iad1tya.echo.music.utils.ThermalManager.acquire(context)
             val receiver = object : BroadcastReceiver() {
@@ -906,7 +904,9 @@ class MainActivity : ComponentActivity() {
             val listener = object : android.hardware.display.DisplayManager.DisplayListener {
                 override fun onDisplayAdded(displayId: Int) {}
                 override fun onDisplayRemoved(displayId: Int) {}
-                override fun onDisplayChanged(displayId: Int) { displayTick++ }
+                // Row 899: re-asserted right here on the main thread, not through a state the root composable reads:
+                // the rest/active switches change the display mode themselves, and each one would recompose the root.
+                override fun onDisplayChanged(displayId: Int) { reapplyRefreshRate() }
             }
             dm?.registerDisplayListener(listener, null)
             onDispose {
@@ -916,7 +916,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         val refreshCeiling = iad1tya.echo.music.utils.RefreshRatePlanning.ceilingHz(powerSave, thermalStatus)
-        LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling, displayTick) {
+        LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling) {
             // Row 899: the same request, now also following interaction vs rest (reapplyRefreshRate reads the policy).
             refreshEnabled = enableHighRefreshRate
             refreshSystemCeiling = refreshCeiling

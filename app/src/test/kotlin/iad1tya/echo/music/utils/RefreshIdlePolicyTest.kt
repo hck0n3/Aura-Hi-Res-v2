@@ -149,7 +149,11 @@ class RefreshIdlePolicyTest {
         assertFalse("no polling", touch.contains("while (") || touch.contains("delay("))
         // The existing request path stays: the device's own ceiling, re-asserted on the same keys, never the same mode twice.
         assertTrue(main.contains("RefreshRatePlanning.ceilingHz(powerSave, thermalStatus)"))
-        assertTrue(main.contains("LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling, displayTick)"))
+        assertTrue(main.contains("LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling) {"))
+        // A display change (including the ones the rest/active switches cause) re-asserts directly, never via a
+        // state the root composable reads.
+        assertTrue(main.contains("override fun onDisplayChanged(displayId: Int) { reapplyRefreshRate() }"))
+        assertFalse(main.contains("displayTick"))
         assertTrue(main.contains("layoutParams.preferredDisplayModeId != target.id"))
         assertTrue("the switch off keeps its own 60 Hz bucket", main.contains("floorHz = if (enableHighRefreshRate) floorHz else 0f,"))
         // A rest switch that would blank the panel asks for the interacting request instead (battery saver and heat kept).
