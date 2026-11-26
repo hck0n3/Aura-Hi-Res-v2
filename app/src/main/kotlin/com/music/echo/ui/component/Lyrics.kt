@@ -200,6 +200,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.seconds
+import iad1tya.echo.music.utils.isCloudMediaId
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
 
@@ -2416,12 +2417,14 @@ fun Lyrics(
                                 val shareIntent = Intent().apply {
                                     action = Intent.ACTION_SEND
                                     type = "text/plain"
+                                    // Row 893: a cloud song has no catalogue link, and its id carries the account and path.
                                     val songLink =
-                                        if (ShareLinks.useSongLink()) ShareLinks.songLink(mediaMetadata?.id) else ShareLinks.song(mediaMetadata?.id)
+                                        if (mediaMetadata?.id?.isCloudMediaId() == true) null
+                                        else if (ShareLinks.useSongLink()) ShareLinks.songLink(mediaMetadata?.id) else ShareLinks.song(mediaMetadata?.id)
                                     
                                     putExtra(
                                         Intent.EXTRA_TEXT,
-                                        "\"$lyricsText\"\n\n$songTitle - $artists\n$songLink"
+                                        "\"$lyricsText\"\n\n$songTitle - $artists" + (songLink?.let { "\n$it" } ?: "")
                                     )
                                 }
                                 context.startActivity(
