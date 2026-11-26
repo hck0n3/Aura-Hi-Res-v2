@@ -592,7 +592,7 @@ constructor(
             // reaches onSetMediaItems).
             if (this@MediaLibrarySessionCallback::service.isInitialized) service.onControllerSelectedItem()
             val defaultResult = MediaItemsWithStartPosition(emptyList(), startIndex, startPositionMs)
-            val path = mediaItems.firstOrNull()?.mediaId?.split("/")
+            val path = mediaItems.firstOrNull()?.mediaId?.let(AutoBrowsePath::segments)
                 ?: return@future defaultResult
 
             // Tell the service which persistent-shuffle bucket this EXTERNAL queue belongs to, before the
@@ -912,7 +912,7 @@ constructor(
     )
 
     private suspend fun getMediaItem(mediaId: String): MediaItem? {
-        val path = mediaId.split("/")
+        val path = AutoBrowsePath.segments(mediaId)
         val type = path.firstOrNull() ?: return null
 
         return when (type) {
