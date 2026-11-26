@@ -313,7 +313,8 @@ class CloudLibraryIndexer @Inject constructor(
             }
             writeTracks.forEach { track ->
                 val modified = track.modTimeMs?.let { LocalDateTime.ofInstant(Instant.ofEpochMilli(it), ZoneId.systemDefault()) }
-                val old = existing[track.id]?.song ?: getSongByIdBlocking(track.id)?.song
+                // A row that just received a moved song's data is read again: the copy loaded before the move is stale.
+                val old = (if (track.id in verdict.moves.values) null else existing[track.id]?.song) ?: getSongByIdBlocking(track.id)?.song
                 if (old != null) {
                     update(
                         old.copy(
