@@ -3920,6 +3920,10 @@ para el volumen.
 | **Salir de la app con vídeo reproduciéndose** | Entra en Picture-in-Picture con 3 controles remotos | `MainActivity.kt:450-471`, `:492-513` | solo en modo vídeo reproduciendo |
 | **Háptica global al pulsar y al arrastrar** | Vibración sutil al tocar en toda la app; el tic al arrastrar (cada 100 ms) solo con «Vibrar al desplazarte» ON, que desde la fila 806 viene APAGADO | `MainActivity.kt` (`pointerInput(globalHaptics, scrollHaptics)`) | ajuste «Háptica» ON (por defecto); el arrastre además necesita `ScrollHapticsKey` ON |
 | **Anillo de foco del mando (TV/coche)** | Halo + anillo + escala 1,06 en el elemento enfocado | `ui/utils/TvUi.kt:142-256` | solo TV/coche o vista dividida forzada |
+| **Anillo de foco en todas las pantallas Aura (fila 897)** | Las primitivas (`AuraIconButton`, `AuraRow`, `AuraMenuRow`, `AuraSwitch`, `AuraChip`, `AuraPlayButton`) y las tarjetas `AuraCoverCard`/`AuraPosterCard` dibujan el mismo anillo dentro de un `AuraTvFocusScope` (Novedades, Biblioteca, Buscar y resultados, Migrar, índice de Ajustes, menú del reproductor, toda hoja o diálogo flotante, Pedir música, Escuchar juntos); nunca dos anillos en el mismo control | `ui/utils/TvFocusExtras.kt` (`auraTvRing`, `AuraTvFocusScope`), `ui/newui/AuraPrimitives.kt`, `ui/newui/NewUiHosts.kt` | solo TV/coche o vista dividida forzada; en el móvil no cambia nada |
+| **Hojas y diálogos flotantes con mando: toman el foco y no lo dejan salir** | Al abrirse, el foco pasa al primer control; la cruceta no sale al contenido de debajo del velo; Atrás cierra | `ui/utils/TvFocusExtras.kt` (`tvModalFocusGroup`), `ui/newui/AuraInWindowDialog.kt`, `ui/component/BottomSheetMenu.kt`, `ui/component/BottomSheetPage.kt` | solo TV/coche o vista dividida forzada |
+| **→ del mando en una fila con ⋯ (o ✕) al final** | Pasa el foco al botón del final; ← vuelve a la fila (en RTL, al revés) | `ui/utils/TvFocusExtras.kt` (`TvRowTrailingFocus`), `AuraRow` (`AuraPrimitives.kt`), `AuraGlassRow`/`AuraGlassVectorRow` (`AuraGlassSlab.kt`), filas de Pedir música | solo dentro de un ámbito de TV y en TV/coche |
+| **Foco inicial del mando en Migrar** | Al entrar, el foco cae en la primera opción de la lista | `ui/newui/AuraMigrationScreen.kt` (`tvInitialFocus`) | solo TV/coche; 20 intentos de 50 ms como máximo, solo al entrar |
 
 ## 21.6 Gestos de Biblioteca, Artista, Álbum y Listas
 
@@ -3945,6 +3949,7 @@ para el volumen.
 | Deslizar/arrastrar para cerrar la hoja | Agregar música, hoja de escaneo local | AddMusicSheet.kt:100-105 (`skipPartiallyExpanded = true`) · LocalSongScreen.kt:674-675, :147 | siempre |
 | Recorte de imagen (UCrop: pellizcar/rotar) | Lista local > editar portada | LocalPlaylistScreen.kt:1088-1108 | tras elegir imagen |
 | Toque en el texto de la descripción → expandir/contraer o abrir enlace | Artista, Álbum, las 4 listas | ExpandableText.kt:85-94 | solo si desborda 3 líneas |
+| Foco D-pad (TV/coche) — interfaz Aura (fila 897) | todas: Inicio, Novedades, Biblioteca (centro, Canciones, Álbumes, Artistas, Listas, accesos, fijados), Buscar (explorar, tendencias, resultados, panel de detalle, búsqueda sin conexión), Ajustes (índice), Migrar ×4, álbum, artista, listas, auto-listas, estadísticas, letra, cola, reproductor, menú del reproductor, búsqueda rápida, hojas de descarga/compartir/dispositivos, Pedir música, Escuchar juntos | `tvFocusRestorer()` en cada lista/rejilla/carrusel y anillo (`tvFocusable` / `auraTvRing`) en cada control; guardián `TvRemoteFocusGuardTest` | solo en TV/coche o vista dividida forzada |
 | Foco D-pad (TV/coche) | prácticamente todas | `tvFocusRestorer()` / `tvFocusable()` en LibraryMixScreen.kt:303/622, LibrarySongsScreen.kt:310/401, LibraryArtistsScreen.kt:226/283, LibraryAlbumsScreen.kt:204/262, LibraryPlaylistsScreen.kt:304/435, FavoriteAlbumsScreen.kt:85, LocalSongScreen.kt:382, ReleaseRadarScreen.kt:113, AddMusicSheet.kt:328, AlbumScreen.kt:528/586/667, LocalPlaylistScreen.kt:1414/1469/1576, SortHeader.kt:72/99/129 | solo en TV/coche |
 
 NO existen en ningún fichero asignado: doble toque; pull-to-refresh en Novedades/Local/Álbumes favoritos/Lista online/En caché/Mi Top; arrastre de reordenación fuera de la Lista local; multiselección en Biblioteca (Canciones/Artistas/Álbumes/Listas), Local, Novedades, Álbumes favoritos ni Artista.
@@ -4387,8 +4392,9 @@ Este inventario prefiere decir «no lo sé» a inventarse una respuesta. Estas s
   que puede ser nulo. No verificado si algún álbum lo devuelve vacío.
 - **Formas plurales en español** (`%d de canciones`) están definidas, pero no se ha comprobado que Android
   elija la forma correcta en todos los valores.
-- **Reordenación TV/mando**: `ListenTogetherScreen` y el chat **no contienen ninguna marca de foco de TV**,
-  lo que sugiere que no están adaptados, pero no se ha confirmado leyendo la capa de navegación de TV.
+- **Reordenación TV/mando**: ~~`ListenTogetherScreen` y el chat **no contienen ninguna marca de foco de TV**~~ —
+  **resuelto (fila 897)**: la pantalla lleva `tvFocusRestorer` en su lista y anillo en cada botón, campo de borrar,
+  miembro y acción del diálogo de usuario. El chat ya no existe (el protocolo de salas no tiene mensajes de chat).
 
 ## 24.3 Dudas concretas en Ajustes
 
