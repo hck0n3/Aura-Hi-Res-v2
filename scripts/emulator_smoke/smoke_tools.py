@@ -5,6 +5,7 @@ Everything here runs on the GitHub runner, never on the device, and only reads f
   instrument     decides whether one `am instrument -w` run passed (0 tests run is a FAILURE, not a pass)
   logcat         finds crashes and ANRs of the app under test in a logcat dump
   db             reads the app's Room database copied off the emulator (update-survival check)
+  recoveries     lists what the smoke APK had to do to keep going on a slow emulator (AuraDevice.recovery)
 """
 
 import argparse
@@ -71,6 +72,19 @@ def crash_lines(logcat_text, package):
     return hits
 
 
+_RECOVERY = re.compile(r"\bAuraSmoke\s*:\s*RECOVERY (.*)$")
+
+
+def recovery_lines(logcat_text):
+    """The `RECOVERY …` messages AuraDevice logged (system dialog answered, app relaunched, tab re-tapped, back)."""
+    found = []
+    for line in logcat_text.splitlines():
+        match = _RECOVERY.search(line)
+        if match:
+            found.append(match.group(1).strip())
+    return found
+
+
 def room_version(database_kt_text):
     """The `version = N` of the @Database annotation (Room writes it to PRAGMA user_version)."""
     match = re.search(r"^\s*version\s*=\s*(\d+)\s*,", database_kt_text, re.MULTILINE)
@@ -116,6 +130,8 @@ def main(argv=None):
     db.add_argument("db_dir")
     db.add_argument("playlist_name")
     db.add_argument("--expect-version-from", help="MusicDatabase.kt whose @Database version the copy must have")
+    rec = sub.add_parser("recoveries")
+    rec.add_argument("logcat_file")
     args = parser.parse_args(argv)
 
     if args.cmd == "tone":
@@ -144,6 +160,17 @@ def main(argv=None):
         report = db_report(args.db_dir, args.playlist_name, expected)
         print(json.dumps(report))
         return 0 if report.get("ok") else 1
+    if args.cmd == "recoveries":
+        # Informational only: a missing file (no logcat dumped) is zero recoveries, never a failure.
+        text = ""
+        if os.path.isfile(args.logcat_file):
+            with open(args.logcat_file, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        found = recovery_lines(text)
+        print("%d" % len(found))
+        for line in found:
+            print(line)
+        return 0
     return 2
 
 

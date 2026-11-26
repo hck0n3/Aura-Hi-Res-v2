@@ -11,6 +11,9 @@
 #   STREAM_VIDEO_ID  YouTube video id for the streaming scenario (11 chars)
 #   TONE_WAV         the tone written by smoke_tools.py tone
 #   OUT_DIR          where every log, screenshot and result goes (uploaded as an artifact)
+#   SMOKE_SLOW       1-5, default 2: every UI wait of the smoke APK is multiplied by it (AuraDevice.scaled). The
+#                    shared runner's emulator failed betas 11 and 13 on 10-15 s waits with no app crash (row 885).
+#                    The playback checks (state, position advancing) are NOT scaled.
 #
 # Exit status: 1 when any REQUIRED scenario failed or the app crashed / hit an ANR during the new build's phases.
 # The streaming scenario only ever warns: YouTube may refuse datacenter IPs.
@@ -29,11 +32,16 @@ TEST_CLASS_PREFIX="iad1tya.echo.music.smoketest"
 RUN_UPDATE=${RUN_UPDATE:-true}
 RUN_STREAMING=${RUN_STREAMING:-true}
 STREAM_VIDEO_ID=${STREAM_VIDEO_ID:-_KZEkEb_dvA}
+SMOKE_SLOW=${SMOKE_SLOW:-2}
 FAILED=0
 
 # adb shell joins its arguments into a remote shell command line: only a plain video id may get there.
 if ! [[ "$STREAM_VIDEO_ID" =~ ^[A-Za-z0-9_-]{11}$ ]]; then
   echo "::error::STREAM_VIDEO_ID is not an 11-character YouTube id"
+  exit 1
+fi
+if ! [[ "$SMOKE_SLOW" =~ ^[1-5]$ ]]; then
+  echo "::error::SMOKE_SLOW must be a single digit from 1 to 5"
   exit 1
 fi
 
@@ -91,11 +99,18 @@ run_test() { # name Class#method required|optional
     -e class "$TEST_CLASS_PREFIX.$test" \
     -e auraTargetPackage "$PKG" \
     -e auraStreamVideoId "$STREAM_VIDEO_ID" \
+    -e auraSlowFactor "$SMOKE_SLOW" \
     "$TEST_PKG/$RUNNER" > "$out" 2>&1
   cat "$out"
   verdict=$(python3 "$HERE/smoke_tools.py" instrument "$out")
   rc=$?
   adb exec-out screencap -p > "$OUT/screen-$name.png" 2>/dev/null || true
+  if [ $rc -ne 0 ]; then
+    # Also when the test died outside AuraDevice.fail (its own FAIL-* capture): what was on screen and in front.
+    adb shell dumpsys window windows > "$OUT/window-$name.txt" 2>&1 || true
+    adb shell uiautomator dump /data/local/tmp/aura-smoke-ui.xml > /dev/null 2>&1 \
+      && adb pull /data/local/tmp/aura-smoke-ui.xml "$OUT/ui-$name.xml" > /dev/null 2>&1 || true
+  fi
   echo "::endgroup::"
   if [ $rc -eq 0 ]; then
     record "$name" PASS "$verdict"
@@ -241,6 +256,10 @@ fi
 # ── Evidence ─────────────────────────────────────────────────────────────────────────────────────
 adb pull "/sdcard/Android/data/$TEST_PKG/files" "$OUT/captures" > /dev/null 2>&1 || true
 cat "$OUT"/logcat-*.txt 2>/dev/null | grep "AuraSmoke" > "$OUT/smoke-steps.txt" || true
+# What the smoke had to do to keep going (system dialog answered, app relaunched, tab re-tapped, back pressed): listed,
+# never a pass or a fail by itself, so a slow emulator that needed help is visible in the summary.
+python3 "$HERE/smoke_tools.py" recoveries "$OUT/smoke-steps.txt" > "$OUT/recoveries.txt" 2>&1 || true
+record "smoke recoveries" INFO "$(head -n 1 "$OUT/recoveries.txt") (recoveries.txt)"
 
 {
   echo "## Emulator smoke"

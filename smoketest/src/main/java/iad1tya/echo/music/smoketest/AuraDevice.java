@@ -60,13 +60,30 @@ final class AuraDevice {
      */
     static final String APP_SEED_LANGUAGE = "es-419";
 
+    /** How often one scenario may bring the app back to the front before that itself is the failure (row 885). */
+    static final int MAX_RELAUNCHES = 3;
+    /** Taps on one bottom-bar cell before "never became selected" (the first one included). */
+    static final int MAX_TAB_TAPS = 3;
+    /** System backs settleOnHome may press to close something left on top of the bar (a sheet, the keyboard). */
+    static final int MAX_SETTLE_BACKS = 3;
+
+    static final Pattern ANR_TEXT = Pattern.compile("(?is).*(isn.t responding|no responde).*");
+    static final Pattern ANR_WAIT = Pattern.compile("(?i)wait|esperar");
+
     final Instrumentation instrumentation;
     final UiDevice device;
     final Context context;
     final String target;
+    /**
+     * Every UI wait is multiplied by this (instrumentation argument `auraSlowFactor`, run_smoke.sh SMOKE_SLOW; 1..5,
+     * 1 when absent). Only waits for the SCREEN scale: the playback checks (SessionProbe, LocalTone) keep their times.
+     */
+    final int slow;
 
     /** Set by {@link #settleOnHome} when it had to walk a step of the new welcome (registry rows 871/872). */
     boolean newWelcomeSeen;
+
+    private int relaunches;
 
     AuraDevice() {
         instrumentation = InstrumentationRegistry.getInstrumentation();
@@ -74,9 +91,25 @@ final class AuraDevice {
         context = instrumentation.getContext();
         String arg = InstrumentationRegistry.getArguments().getString("auraTargetPackage");
         target = arg == null || arg.isEmpty() ? DEFAULT_TARGET : arg;
+        slow = slowFactor(InstrumentationRegistry.getArguments().getString("auraSlowFactor"));
         // The app animates continuously (visualizer, shimmer while Home loads): waiting for a fully idle UI
         // would stall every lookup for the default 10 s.
         Configurator.getInstance().setWaitForIdleTimeout(1_000);
+        if (slow > 1) log("UI waits scaled x" + slow);
+    }
+
+    static int slowFactor(String arg) {
+        if (arg == null) return 1;
+        try {
+            return Math.max(1, Math.min(5, Integer.parseInt(arg.trim())));
+        } catch (NumberFormatException e) {
+            return 1;
+        }
+    }
+
+    /** A UI wait for this emulator: `ms` times {@link #slow}. */
+    long scaled(long ms) {
+        return ms * slow;
     }
 
     // ── Shell, process and crash checks ───────────────────────────────────────────────────────────────
@@ -115,19 +148,67 @@ final class AuraDevice {
                 fail(where + ": Aura is showing its crash screen (" + line.trim() + ")");
             }
         }
-        UiObject2 anr = device.findObject(By.text(Pattern.compile("(?is).*(isn.t responding|no responde).*")));
-        if (anr != null) {
-            String text = safeText(anr);
-            if (text.contains(appLabel())) {
-                fail(where + ": ANR dialog for the app: " + text);
-            }
-            // Another process (System UI on a slow emulator): let it be, it is not the app under test.
-            UiObject2 wait = device.findObject(By.text(Pattern.compile("(?i)wait|esperar")));
-            if (wait != null) wait.click();
-        }
+        dismissSystemDialogs(where);
         if (pid().isEmpty()) {
             fail(where + ": the app process is not running (crashed or killed)");
         }
+    }
+
+    /**
+     * A "… isn't responding" dialog: the app's own is a failure; another process's (System UI or the system itself on a
+     * slow first boot) is answered «Wait», because it covers the app and swallows the next tap. True when it answered.
+     */
+    boolean dismissSystemDialogs(String where) {
+        UiObject2 anr = device.findObject(By.text(ANR_TEXT));
+        if (anr == null) return false;
+        String text = safeText(anr);
+        if (text.contains(appLabel())) {
+            fail(where + ": ANR dialog for the app: " + text);
+        }
+        UiObject2 wait = device.findObject(By.text(ANR_WAIT));
+        if (wait == null) return false;
+        recovery(where + ": answering 'wait' on a system dialog: " + text);
+        try {
+            wait.click();
+        } catch (StaleObjectException e) {
+            return false;
+        }
+        SystemClock.sleep(500);
+        return true;
+    }
+
+    /**
+     * Before a wait or a tap: the app must be what is on screen. A crash, the app's own ANR or a dead process still fail
+     * ({@link #assertHealthy}); another process's ANR dialog is answered; and when something else is in front (the
+     * launcher, a slow boot's leftovers) the app is brought back warm, at most {@link #MAX_RELAUNCHES} times per scenario.
+     */
+    void ensureForeground(String where) {
+        assertHealthy(where);
+        String pkg = currentPackage();
+        if (pkg == null || target.equals(pkg) || pkg.endsWith(".permissioncontroller")) return;
+        if (++relaunches > MAX_RELAUNCHES) {
+            fail(where + ": the app left the foreground more than " + MAX_RELAUNCHES + " times (now: " + pkg + ")");
+        }
+        recovery(where + ": '" + pkg + "' is in front of the app; relaunching it warm ("
+                + relaunches + "/" + MAX_RELAUNCHES + ")");
+        launchWarm();
+        long deadline = SystemClock.uptimeMillis() + scaled(10_000);
+        while (SystemClock.uptimeMillis() < deadline && !target.equals(currentPackage())) {
+            SystemClock.sleep(500);
+        }
+    }
+
+    String currentPackage() {
+        try {
+            return device.getCurrentPackageName();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Something the smoke had to do to keep going; run_smoke.sh counts these lines in the summary. */
+    void recovery(String message) {
+        Log.w(TAG, "RECOVERY " + message);
     }
 
     // ── Labels from the app's own resources ───────────────────────────────────────────────────────────
@@ -272,10 +353,15 @@ final class AuraDevice {
         Pattern steps = Pattern.compile("\\s*(" + acceptTerms.regex()
                 + "|Omitir|Siguiente: tu cuenta de Google|Siguiente: YouTube Music|Comenzar|" + later.regex()
                 + "|" + welcomeContinue.regex() + "|" + welcomeLater.regex() + "|" + welcomeStart.regex() + ")\\s*");
-        long deadline = SystemClock.uptimeMillis() + timeoutMs;
+        long limit = scaled(timeoutMs);
+        long quiet = scaled(7_000);
+        long stuckAfter = scaled(20_000);
+        long deadline = SystemClock.uptimeMillis() + limit;
         long quietSince = SystemClock.uptimeMillis();
+        long progressAt = SystemClock.uptimeMillis();
+        int backs = 0;
         while (SystemClock.uptimeMillis() < deadline) {
-            assertHealthy("first run");
+            ensureForeground("first run");
             UiObject2 step = device.findObject(By.text(steps));
             if (step != null) {
                 log("first run: tapping '" + safeText(step) + "'");
@@ -288,19 +374,35 @@ final class AuraDevice {
                     log("first run: the step went stale before the tap");
                 }
                 quietSince = SystemClock.uptimeMillis();
+                progressAt = quietSince;
                 SystemClock.sleep(1_000);
                 continue;
             }
             boolean onHome = navCell(homeLabel()) != null && navCell(libraryLabel()) != null;
             if (!onHome) {
                 quietSince = SystemClock.uptimeMillis();
-            } else if (SystemClock.uptimeMillis() - quietSince >= 7_000) {
-                log("Home reached");
-                return;
+                // Nothing to tap and no bar for a long while: something an earlier, failed scenario left open (the
+                // scan sheet survives a warm relaunch) or the keyboard covers it. A user would press back; a back
+                // that leaves the app is undone by ensureForeground on the next pass. Bounded, and logged.
+                if (backs < MAX_SETTLE_BACKS && quietSince - progressAt >= stuckAfter) {
+                    backs++;
+                    recovery("first run: no step and no bottom bar for " + stuckAfter + " ms; pressing back ("
+                            + backs + "/" + MAX_SETTLE_BACKS + ")");
+                    device.pressBack();
+                    progressAt = SystemClock.uptimeMillis();
+                    SystemClock.sleep(1_000);
+                    continue;
+                }
+            } else {
+                progressAt = SystemClock.uptimeMillis();
+                if (progressAt - quietSince >= quiet) {
+                    log("Home reached");
+                    return;
+                }
             }
             SystemClock.sleep(500);
         }
-        fail("Home was not reached within " + timeoutMs + " ms");
+        fail("Home was not reached within " + limit + " ms");
     }
 
     // ── Bottom bar ───────────────────────────────────────────────────────────────────────────────────
@@ -320,37 +422,42 @@ final class AuraDevice {
      * on its Text child, so the selected node is the one that HAS the label below it (second emulator run).
      */
     void openTab(UiLabel label) {
+        ensureForeground("tab '" + label + "'");
         UiObject2 cell = waitFor(() -> navCell(label), 15_000, "bottom bar cell '" + label + "'");
         try {
             cell.click();
         } catch (StaleObjectException e) {
             waitFor(() -> navCell(label), 15_000, "bottom bar cell '" + label + "'").click();
         }
-        long start = SystemClock.uptimeMillis();
-        long deadline = start + 10_000;
-        boolean retapped = false;
+        long window = scaled(10_000);
+        long deadline = SystemClock.uptimeMillis() + window;
+        long nextTap = SystemClock.uptimeMillis() + window / MAX_TAB_TAPS;
+        int taps = 1;
         while (SystemClock.uptimeMillis() < deadline) {
             UiObject2 now = device.findObject(By.selected(true).hasDescendant(By.text(exactly(label))));
             if (now != null) {
                 log("tab '" + label + "' selected");
                 return;
             }
-            // A slow emulator can drop the first tap (run 45504112186): tap the cell once more halfway through.
-            if (!retapped && SystemClock.uptimeMillis() - start > 5_000) {
-                retapped = true;
+            // A slow emulator can drop a tap (run 45504112186), or a system "isn't responding" dialog swallows it
+            // (beta13 run 45712994500, attempt 2): clear the screen and tap the cell again, a bounded number of times.
+            if (taps < MAX_TAB_TAPS && SystemClock.uptimeMillis() >= nextTap) {
+                ensureForeground("tab '" + label + "'");
                 UiObject2 again = navCell(label);
                 if (again != null) {
                     try {
                         again.click();
-                        log("tab '" + label + "' tapped again");
+                        taps++;
+                        recovery("tab '" + label + "' tapped again (" + taps + "/" + MAX_TAB_TAPS + ")");
                     } catch (StaleObjectException e) {
                         // Recomposed: the next poll looks again.
                     }
                 }
+                nextTap = SystemClock.uptimeMillis() + window / MAX_TAB_TAPS;
             }
             SystemClock.sleep(300);
         }
-        fail("tab '" + label + "' never became selected");
+        fail("tab '" + label + "' never became selected (" + taps + " taps in " + window + " ms)");
     }
 
     // ── Local music ──────────────────────────────────────────────────────────────────────────────────
@@ -415,7 +522,8 @@ final class AuraDevice {
      */
     UiObject2 scanUntilToneListed() {
         UiLabel emptyScan = appString("local_songs_empty_scan_action", "Scan device");
-        long deadline = SystemClock.uptimeMillis() + 20_000;
+        ensureForeground("Local screen");
+        long deadline = SystemClock.uptimeMillis() + scaled(20_000);
         UiObject2 emptyButton = null;
         while (SystemClock.uptimeMillis() < deadline) {
             UiObject2 row = device.findObject(By.text(TONE_ROW));
@@ -433,7 +541,22 @@ final class AuraDevice {
 
         UiLabel sheetTitle = appString("local_songs_scan_title", "");
         if (!sheetTitle.isEmpty()) {
-            waitFor(() -> device.findObject(By.text(exactly(sheetTitle))), 10_000, "scan sheet '" + sheetTitle + "'");
+            Lookup sheet = () -> device.findObject(By.text(exactly(sheetTitle)));
+            String what = "scan sheet '" + sheetTitle + "'";
+            // The first tap can be dropped on a slow emulator (beta13 run 45712994500, attempt 2). Tap the empty-state
+            // button once more only while the sheet is not there: with the sheet open, a tap would land on its scrim.
+            if (poll(sheet, scaled(5_000), what) == null) {
+                UiObject2 again = device.findObject(By.text(exactly(emptyScan)));
+                if (again != null && device.findObject(By.text(exactly(sheetTitle))) == null) {
+                    try {
+                        again.click();
+                        recovery("the scan sheet did not open; tapping '" + emptyScan + "' again");
+                    } catch (StaleObjectException e) {
+                        // Recomposed: the wait below decides.
+                    }
+                }
+            }
+            waitFor(sheet, 10_000, what);
         } else {
             SystemClock.sleep(2_000);
         }
@@ -463,7 +586,7 @@ final class AuraDevice {
         }
         assertHealthy("local scan");
         device.pressBack(); // closes the scan sheet
-        UiObject2 row = device.wait(Until.findObject(By.text(TONE_ROW)), 20_000);
+        UiObject2 row = device.wait(Until.findObject(By.text(TONE_ROW)), scaled(20_000));
         if (row == null) {
             // The back also left Local (sheet already gone): open it again and look once more.
             UiLabel local = appString("filter_local", "Local");
@@ -481,14 +604,30 @@ final class AuraDevice {
         UiObject2 find();
     }
 
+    /** Waits {@link #scaled}(timeoutMs) for the lookup and fails with a capture when it never matches. */
     UiObject2 waitFor(Lookup lookup, long timeoutMs, String what) {
+        long limit = scaled(timeoutMs);
+        UiObject2 found = poll(lookup, limit, what);
+        if (found == null) fail("timed out after " + limit + " ms waiting for " + what);
+        return found;
+    }
+
+    /**
+     * Polls for up to `timeoutMs` (already scaled) and returns null on timeout. While the lookup misses, every 3 s it
+     * makes sure the app is in front and no system dialog covers it ({@link #ensureForeground}).
+     */
+    UiObject2 poll(Lookup lookup, long timeoutMs, String what) {
         long deadline = SystemClock.uptimeMillis() + timeoutMs;
+        long nextCheck = 0;
         while (SystemClock.uptimeMillis() < deadline) {
             UiObject2 found = lookup.find();
             if (found != null) return found;
+            if (SystemClock.uptimeMillis() >= nextCheck) {
+                ensureForeground("waiting for " + what);
+                nextCheck = SystemClock.uptimeMillis() + 3_000;
+            }
             SystemClock.sleep(400);
         }
-        fail("timed out after " + timeoutMs + " ms waiting for " + what);
         return null;
     }
 
@@ -510,10 +649,28 @@ final class AuraDevice {
         }
     }
 
+    /**
+     * Every failure leaves a screenshot + window hierarchy named after it (pulled into the uploaded artifact) and says
+     * in its message what was in front, so the next CI log is diagnosable even without the artifact.
+     */
     void fail(String message) {
-        capture("FAIL-" + SystemClock.uptimeMillis());
-        Log.e(TAG, message);
-        throw new AssertionError(message);
+        String slug = message.length() > 60 ? message.substring(0, 60) : message;
+        capture("FAIL-" + SystemClock.uptimeMillis() + "-" + slug);
+        String detail = message + " [" + foregroundState() + "]";
+        Log.e(TAG, detail);
+        throw new AssertionError(detail);
+    }
+
+    /** The package on top and the focused window (component or system dialog names, nothing the user typed). */
+    String foregroundState() {
+        String focus = "";
+        for (String line : shell("dumpsys window windows").split("\n")) {
+            if (line.contains("mCurrentFocus=")) {
+                focus = " " + line.trim();
+                break;
+            }
+        }
+        return "foreground=" + currentPackage() + focus;
     }
 
     static String safeText(UiObject2 o) {
