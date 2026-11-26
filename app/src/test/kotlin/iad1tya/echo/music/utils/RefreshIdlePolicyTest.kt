@@ -136,6 +136,15 @@ class RefreshIdlePolicyTest {
         assertTrue("below API 31 the platform cannot say: previous behaviour", RefreshIdlePolicy.seamless(120f, 60f, null))
     }
 
+    @Test
+    fun `below API 31, where a seamless switch cannot be proven, it never rests`() {
+        assertFalse(RefreshIdlePolicy.restAllowed(30))
+        assertFalse(RefreshIdlePolicy.restAllowed(23))
+        assertTrue(RefreshIdlePolicy.restAllowed(31))
+        assertTrue(RefreshIdlePolicy.restAllowed(36))
+        assertTrue(src("MainActivity.kt").contains("val active = refreshIdle.active || !iad1tya.echo.music.utils.RefreshIdlePolicy.restAllowed(Build.VERSION.SDK_INT)"))
+    }
+
     // ── The wiring ──
 
     @Test

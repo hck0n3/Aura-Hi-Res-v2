@@ -646,7 +646,7 @@ class MainActivity : ComponentActivity() {
 
     private fun reapplyRefreshRate() {
         val enabled = refreshEnabled ?: return
-        val active = refreshIdle.active
+        val active = refreshIdle.active || !iad1tya.echo.music.utils.RefreshIdlePolicy.restAllowed(Build.VERSION.SDK_INT)
         applyPreferredRefreshRate(
             enabled,
             iad1tya.echo.music.utils.RefreshIdlePolicy.ceilingHz(active, refreshSystemCeiling),

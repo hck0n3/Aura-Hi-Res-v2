@@ -73,6 +73,13 @@ class RefreshIdlePolicy {
         /** The rate asked for at rest. */
         const val REST_HZ = 60f
 
+        /**
+         * Rest only where the switch can be proven seamless ([seamless] needs `getAlternativeRefreshRates()`, API 31).
+         * Below that a 60 Hz rest mode may sit in another config group and blink on every switch, so the window keeps
+         * the request it always had.
+         */
+        fun restAllowed(sdkInt: Int): Boolean = sdkInt >= 31
+
         /** The ceiling to ask for: the device's own (heat, battery saver) while active, at most [REST_HZ] at rest. */
         fun ceilingHz(active: Boolean, systemCeilingHz: Float): Float =
             if (active) systemCeilingHz else minOf(systemCeilingHz, REST_HZ)
