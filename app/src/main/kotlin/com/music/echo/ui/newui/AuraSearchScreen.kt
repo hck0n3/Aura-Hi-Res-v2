@@ -106,6 +106,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import iad1tya.echo.music.ui.utils.auraTvRing
 
 /**
  * # Buscar — "Interfaz nueva"
@@ -494,6 +495,8 @@ internal fun AuraSearchInputBar(
                 keyboardActions = KeyboardActions(onSearch = { ActionLog.tap(ActionId.SEARCH_SUBMIT); onSubmit() }),
                 modifier = Modifier
                     .fillMaxWidth()
+                    // Row 897: the field shows the remote's ring like every other control of the bar.
+                    .auraTvRing(AuraShapes.Highlight)
                     .focusRequester(focusRequester)
                     // Focusing the field IS opening the panel — no second clickable on top of the
                     // text field, which would swallow the tap that gives it focus in the first place.

@@ -41,6 +41,7 @@ import iad1tya.echo.music.utils.LibraryPinKind
 import java.time.ZoneId
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.auraTvRing
 
 /**
  * Biblioteca ▸ «Fijados» — the pieces of the redesigned hub (owner 2026-10-20): the lower part of Biblioteca shows ONLY what
@@ -242,6 +243,7 @@ private fun AuraLibraryShortcutTile(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = modifier
+            .auraTvRing(RoundedCornerShape(26.dp))
             .clip(RoundedCornerShape(26.dp))
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(26.dp))
@@ -313,6 +315,7 @@ internal fun AuraPinsHeader(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
+                    .auraTvRing(AuraShapes.Pill, scaleFocused = 1.06f)
                     .clip(AuraShapes.Pill)
                     .then(
                         if (editing) {

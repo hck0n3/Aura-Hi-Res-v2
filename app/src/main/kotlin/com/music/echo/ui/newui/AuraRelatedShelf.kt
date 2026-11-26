@@ -23,6 +23,9 @@ import iad1tya.echo.music.playback.queues.YouTubeQueue
 import java.util.Locale
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
+import iad1tya.echo.music.ui.utils.tvFocusable
+import iad1tya.echo.music.ui.utils.rememberAuraTvFocus
 
 /**
  * «También te puede gustar» at the foot of a playlist the user FOLLOWS (not one they created). Owner 2026-10-18: *«las
@@ -49,16 +52,19 @@ internal fun AuraRelatedShelf(
             bottom = AuraSpacing.SectionGap,
         ),
     )
+    // Row 897 (TV remote): one gate read for the whole shelf; left/right walks it and comes back to the card it left.
+    val isTvOrCar = rememberAuraTvFocus()
     LazyRow(
         contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().tvFocusRestorer(),
     ) {
         // POSITION as the key: the list comes from the server and entries can share an id (beta 0.6.148-beta1 crashed on it).
         itemsIndexed(items, key = { position, _ -> "aura_related_$position" }) { _, item ->
             AuraTypedYtCoverCard(
                 item = item,
                 cardScale = 1f,
+                modifier = Modifier.tvFocusable(isTvOrCar, AuraShapes.Highlight, scaleFocused = 1f),
                 onClick = {
                     ActionLog.tap(ActionId.RELATED_ITEM)
                     when (item) {

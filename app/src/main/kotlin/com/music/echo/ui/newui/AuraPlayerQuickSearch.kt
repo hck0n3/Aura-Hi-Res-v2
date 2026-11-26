@@ -81,6 +81,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
 
 /**
  * Player quick-search: same sources as Buscar (biblioteca ↔ YouTube Music), full YTM summary results.
@@ -599,7 +600,7 @@ private fun QuickSearchBrowsePane(
                 )
             }
             else -> {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.fillMaxSize().tvFocusRestorer()) {
                     sections.forEach { (sectionTitle, items) ->
                         val filtered = items.filterNot {
                             hideVideoSongs && it is SongItem && it.isVideoSong
@@ -674,7 +675,7 @@ private fun PlayerOnlineSuggestionPanel(
         }
     }
 
-    LazyColumn(state = lazyListState, modifier = modifier) {
+    LazyColumn(state = lazyListState, modifier = modifier.tvFocusRestorer()) {
         if (viewState.history.isNotEmpty()) {
             item(key = "pq_history_header", contentType = "pq_history_header") {
                 AuraSearchHistoryHeader(onClearAll = onClearHistory)
@@ -791,7 +792,7 @@ private fun PlayerOnlineSummaryResults(
 ) {
     val lazyListState = rememberLazyListState()
 
-    LazyColumn(state = lazyListState, modifier = modifier) {
+    LazyColumn(state = lazyListState, modifier = modifier.tvFocusRestorer()) {
         if (loading && summaryPage == null) {
             item(key = "pq_loading", contentType = "pq_loading") {
                 Column(

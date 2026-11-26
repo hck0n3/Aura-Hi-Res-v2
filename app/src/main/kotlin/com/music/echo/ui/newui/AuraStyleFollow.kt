@@ -25,6 +25,8 @@ import iad1tya.echo.music.reco.MusicStyle
 import iad1tya.echo.music.reco.StyleContinuity
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.tvFocusable
+import iad1tya.echo.music.ui.utils.rememberAuraTvFocus
 
 /**
  * Fila 356, punto 4 — the queue says which style the smart queue follows ("Siguiendo: Cumbia · cristiana")
@@ -62,6 +64,8 @@ internal fun AuraStyleFollowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier
                 .minimumInteractiveComponentSize()
+                // Row 897: the TV remote's ring (the queue that shows this chip has no ring scope of its own).
+                .tvFocusable(rememberAuraTvFocus(), AuraShapes.Pill)
                 .clip(AuraShapes.Pill)
                 .background(AuraPalette.SurfaceFill)
                 .auraClickableInternal(onClick = { ActionLog.tap(ActionId.STYLE_OPEN); expanded = true }, contentDescription = description)

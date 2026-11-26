@@ -73,6 +73,8 @@ import iad1tya.echo.music.viewmodels.MoodAndGenresViewModel
 import kotlin.math.max
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
 
 /**
  * # The three content tabs of the new Buscar
@@ -104,6 +106,7 @@ private fun AuraPillAction(
     Box(
         modifier = modifier
             .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
+            .auraTvRing(AuraShapes.Pill)
             .clip(AuraShapes.Pill)
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
@@ -210,7 +213,8 @@ fun AuraExploreTab(
     LazyColumn(
         state = listState,
         contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
-        modifier = Modifier.fillMaxSize(),
+        // Row 897: the remote comes back to the row it left.
+        modifier = Modifier.fillMaxSize().tvFocusRestorer(),
     ) {
         // KEYS BY POSITION, NOT BY CONTENT. The previous key was
         // "aura_explore_row_<section title>_<first entry's browseId>", and it CRASHED the app the moment
@@ -286,6 +290,7 @@ private fun AuraGenreTile(
     Box(
         modifier = modifier
             .sizeIn(minHeight = minHeight)
+            .auraTvRing(AuraShapes.Card)
             .clip(AuraShapes.Card)
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
@@ -378,7 +383,7 @@ fun AuraTrendingTab(
         LazyColumn(
             state = listState,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().tvFocusRestorer(),
         ) {
             if (isLoading && !isManualLoading && everythingEmpty) {
                 item(key = "aura_trending_loading", contentType = "aura_trending_loading") { AuraLoadingLine() }
@@ -536,7 +541,9 @@ private fun AuraTrackShelf(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = AuraSpacing.SectionGap)
-                .passVerticalToParent(listState),
+                .passVerticalToParent(listState)
+                // Row 897: left/right walks the carousel and comes back to the card it left.
+                .tvFocusRestorer(),
         ) {
             items(tracks, key = { "${it.rank}_${it.title}_${it.artist}" }) { track ->
                 AuraCoverCard(
@@ -582,7 +589,9 @@ private fun AuraAlbumShelf(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = AuraSpacing.SectionGap)
-                .passVerticalToParent(listState),
+                .passVerticalToParent(listState)
+                // Row 897: left/right walks the carousel and comes back to the card it left.
+                .tvFocusRestorer(),
         ) {
             items(albums, key = { "${it.rank}_${it.title}" }) { album ->
                 AuraCoverCard(
@@ -626,7 +635,9 @@ private fun AuraArtistShelf(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = AuraSpacing.SectionGap)
-                .passVerticalToParent(listState),
+                .passVerticalToParent(listState)
+                // Row 897: left/right walks the carousel and comes back to the card it left.
+                .tvFocusRestorer(),
         ) {
             items(artists, key = { "${it.rank}_${it.name}" }) { artist ->
                 AuraCoverCard(
@@ -724,7 +735,7 @@ fun AuraNewAlbumsTab(
                         LocalPlayerAwareWindowInsets.current.asPaddingValues()
                             .calculateBottomPadding(),
                 ),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().tvFocusRestorer(),
             ) {
                 items(
                     items = albums.distinctBy { it.id },

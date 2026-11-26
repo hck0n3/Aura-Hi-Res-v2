@@ -28,6 +28,7 @@ import iad1tya.echo.music.ui.screens.playlist.TopPlaylistScreen
 import iad1tya.echo.music.ui.screens.search.OnlineSearchResult
 import iad1tya.echo.music.ui.screens.search.SearchScreen
 import iad1tya.echo.music.ui.screens.settings.SettingsScreen
+import iad1tya.echo.music.ui.utils.AuraTvFocusScope
 
 /**
  * # The gated surfaces of the "Interfaz nueva" beta
@@ -120,6 +121,8 @@ fun PlayerMenuHost(
             )
         },
         new = {
+            // Row 897: the menu's own rows draw the TV remote's focus ring (nothing on touch).
+            AuraTvFocusScope {
             AuraPlayerMenu(
                 mediaMetadata = mediaMetadata,
                 navController = navController,
@@ -128,6 +131,7 @@ fun PlayerMenuHost(
                 onDismiss = onDismiss,
                 followDoor = followDoor,
             )
+            }
         },
     )
 }
@@ -215,7 +219,7 @@ fun HomeScreenHost(
 fun NovedadesScreenHost(navController: NavController) {
     NewUiGate(
         classic = { AuraNovedadesScreen(navController) },
-        new = { AuraNovedadesScreen(navController) },
+        new = { AuraTvFocusScope { AuraNovedadesScreen(navController) } },
     )
 }
 
@@ -225,7 +229,7 @@ fun NovedadesScreenHost(navController: NavController) {
 fun LibraryScreenHost(navController: NavController) {
     NewUiGate(
         classic = { LibraryScreen(navController) },
-        new = { AuraLibraryScreen(navController) },
+        new = { AuraTvFocusScope { AuraLibraryScreen(navController) } },
     )
 }
 
@@ -263,7 +267,7 @@ fun SearchScreenHost(
 ) {
     NewUiGate(
         classic = { SearchScreen(navController = navController, pureBlack = pureBlack) },
-        new = { AuraSearchScreen(navController = navController, pureBlack = pureBlack) },
+        new = { AuraTvFocusScope { AuraSearchScreen(navController = navController, pureBlack = pureBlack) } },
     )
 }
 
@@ -279,7 +283,7 @@ fun SearchResultHost(
 ) {
     NewUiGate(
         classic = { OnlineSearchResult(navController) },
-        new = { AuraSearchResultScreen(navController = navController, pureBlack = pureBlack) },
+        new = { AuraTvFocusScope { AuraSearchResultScreen(navController = navController, pureBlack = pureBlack) } },
     )
 }
 
@@ -304,7 +308,7 @@ fun StatsScreenHost(navController: NavController) {
 fun MigrationScreenHost(navController: NavController) {
     NewUiGate(
         classic = { MigrationScreen(navController) },
-        new = { AuraMigrationScreen(navController) },
+        new = { AuraTvFocusScope { AuraMigrationScreen(navController) } },
     )
 }
 
@@ -312,7 +316,7 @@ fun MigrationScreenHost(navController: NavController) {
 fun MigrationTidalScreenHost(navController: NavController) {
     NewUiGate(
         classic = { MigrationTidalScreen(navController) },
-        new = { AuraMigrationTidalScreen(navController) },
+        new = { AuraTvFocusScope { AuraMigrationTidalScreen(navController) } },
     )
 }
 
@@ -320,7 +324,7 @@ fun MigrationTidalScreenHost(navController: NavController) {
 fun MigrationAppleScreenHost(navController: NavController) {
     NewUiGate(
         classic = { MigrationAppleScreen(navController) },
-        new = { AuraMigrationAppleScreen(navController) },
+        new = { AuraTvFocusScope { AuraMigrationAppleScreen(navController) } },
     )
 }
 
@@ -332,7 +336,7 @@ fun MigrationAppleScreenHost(navController: NavController) {
 fun MigrationAmazonScreenHost(navController: NavController) {
     NewUiGate(
         classic = { AuraMigrationAmazonScreen(navController) },
-        new = { AuraMigrationAmazonScreen(navController) },
+        new = { AuraTvFocusScope { AuraMigrationAmazonScreen(navController) } },
     )
 }
 

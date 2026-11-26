@@ -150,6 +150,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
 
 /**
  * The five tabs of the new Biblioteca.
@@ -208,6 +210,7 @@ private fun <T : Enum<T>> AuraSortControl(
                     // the 48 dp Android requires. minimumInteractiveComponentSize expands the touch
                     // bounds without stretching the background, so the look is unchanged.
                     .minimumInteractiveComponentSize()
+                    .auraTvRing(AuraShapes.Pill, scaleFocused = 1.06f)
                     .clip(AuraShapes.Pill)
                     .background(AuraPalette.SurfaceFill)
                     // Row 567: the same hairline as the other Biblioteca buttons (the sort pill was the one without it).
@@ -583,7 +586,8 @@ fun AuraLibraryHub(
             LazyColumn(
                 state = listState,
                 contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
-                modifier = Modifier.fillMaxSize(),
+                // Row 897: the remote comes back to the row it left instead of the first one.
+                modifier = Modifier.fillMaxSize().tvFocusRestorer(),
             ) {
                 // While reordering the shortcuts step aside: the list being dragged gets the screen (they are back on «Listo»).
                 if (!editing) {
@@ -1020,7 +1024,8 @@ fun AuraLibrarySongsTab(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .then(if (isGrid) Modifier.padding(horizontal = AuraSpacing.Gutter) else Modifier),
+                    .then(if (isGrid) Modifier.padding(horizontal = AuraSpacing.Gutter) else Modifier)
+                    .tvFocusRestorer(),
             ) {
             item(key = "aura_songs_subfilters", contentType = "aura_songs_subfilters", span = { GridItemSpan(maxLineSpan) }) {
                 AuraSubFilterRow(
@@ -1219,6 +1224,7 @@ fun AuraLibrarySongsTab(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 20.dp, bottom = 20.dp)
+                    .auraTvRing(CircleShape, scaleFocused = 1.06f)
                     .clip(CircleShape)
                     .then(
                         if (shuffleTabHazeState != null) {
@@ -1309,7 +1315,8 @@ fun AuraLibraryAlbumsTab(
         horizontalArrangement = Arrangement.spacedBy(11.dp),
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = AuraSpacing.Gutter),
+            .padding(horizontal = AuraSpacing.Gutter)
+            .tvFocusRestorer(),
     ) {
         item(key = "aura_albums_subfilters", contentType = "aura_albums_subfilters", span = { GridItemSpan(maxLineSpan) }) {
             AuraSubFilterRow(
@@ -1461,7 +1468,8 @@ fun AuraLibraryArtistsTab(
         modifier = Modifier
             .weight(1f)
             .fillMaxSize()
-            .padding(horizontal = AuraSpacing.Gutter),
+            .padding(horizontal = AuraSpacing.Gutter)
+            .tvFocusRestorer(),
     ) {
         item(key = "aura_artists_sort", contentType = "aura_artists_sort", span = { GridItemSpan(maxLineSpan) }) {
             AuraSortControl(
@@ -1624,7 +1632,8 @@ fun AuraLibraryPlaylistsTab(
         modifier = Modifier
             .weight(1f)
             .fillMaxSize()
-            .padding(horizontal = AuraSpacing.Gutter),
+            .padding(horizontal = AuraSpacing.Gutter)
+            .tvFocusRestorer(),
     ) {
         item(key = "aura_playlists_sort", contentType = "aura_playlists_sort", span = { GridItemSpan(maxLineSpan) }) {
             AuraSortControl(

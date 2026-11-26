@@ -69,6 +69,8 @@ import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.rememberEnumPreference
 import iad1tya.echo.music.utils.rememberOfflineState
 import iad1tya.echo.music.utils.rememberPreference
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
 
 /**
  * # Biblioteca — "Interfaz nueva"
@@ -198,7 +200,9 @@ fun AuraLibraryScreen(navController: NavController) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 10.dp),
+                    .padding(top = 10.dp)
+                    // Row 897: the remote re-enters the chip it left (left/right walks the strip).
+                    .tvFocusRestorer(),
             ) {
                 items(auraLibraryChips(), key = { it.first.name }) { (chip, labelRes) ->
                     AuraChip(
@@ -593,6 +597,7 @@ private fun AuraFab(
     // vuelve a intentar salvo que él lo pida: queda con la placa + haze de siempre.
     val shellHazeState = LocalShellHazeState.current
     val base = modifier
+        .auraTvRing(AuraShapes.Pill, scaleFocused = 1.06f)
         .height(52.dp)
         .clip(AuraShapes.Pill)
         .then(

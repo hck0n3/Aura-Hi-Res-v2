@@ -72,6 +72,13 @@ import iad1tya.echo.music.viewmodels.AlternateOption
 import iad1tya.echo.music.viewmodels.LastMusicRequest
 import iad1tya.echo.music.viewmodels.MusicRequestUiState
 import iad1tya.echo.music.viewmodels.MusicRequestViewModel
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.AuraTvFocusScope
+import iad1tya.echo.music.ui.utils.TvRowTrailingSlot
+import iad1tya.echo.music.ui.utils.rememberTvRowTrailingFocus
+import iad1tya.echo.music.ui.utils.tvRowTarget
+import iad1tya.echo.music.ui.utils.tvRowTrailingKeys
+import androidx.compose.ui.platform.LocalLayoutDirection
 
 /**
  * "Pedir música" en INICIO, con la forma que tiene en YouTube Music.
@@ -249,7 +256,10 @@ private fun AuraMusicRequestSheet(
             )
         },
     ) {
-        AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onCancel = onCancel, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
+        // Row 897: the sheet's controls draw the TV remote's ring (the in-window path above gets it from its host).
+        AuraTvFocusScope {
+            AuraMusicRequestSheetBody(state = state, last = last, onSave = onSave, onRemoveSong = onRemoveSong, onDismissLast = onDismissLast, onCancel = onCancel, onNeedAlternate = onNeedAlternate, onSaveAlternate = onSaveAlternate, contextForAlternate = contextForAlternate, onRequest = onRequest)
+        }
     }
 }
 
@@ -384,6 +394,7 @@ private fun AuraMusicRequestSheetBody(
                 ),
                 modifier = Modifier
                     .weight(1f)
+                    .auraTvRing(AuraShapes.Card)
                     .focusRequester(focus),
             )
             AuraIconButton(
@@ -400,6 +411,7 @@ private fun AuraMusicRequestSheetBody(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(44.dp)
+                    .auraTvRing(RoundedCornerShape(50), scaleFocused = 1.06f)
                     .clip(RoundedCornerShape(50))
                     .background(if (canSend) AuraPalette.Teal else AuraPalette.SurfaceFill)
                     .auraClickableInternal(
@@ -478,6 +490,7 @@ private fun AuraMusicRequestSheetBody(
                         style = AuraType.MiniArtist,
                         color = AuraPalette.Teal,
                         modifier = Modifier
+                            .auraTvRing(AuraShapes.Pill)
                             .clip(AuraShapes.Pill)
                             .auraClickableInternal(
                                 onClick = { ActionLog.tap(ActionId.REQ_HISTORY_CLEAR); MusicRequestHistory.clear() },
@@ -505,6 +518,7 @@ private fun AuraMusicRequestSheetBody(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
                                         .size(32.dp)
+                                        .auraTvRing(RoundedCornerShape(50), scaleFocused = 1.06f)
                                         .clip(RoundedCornerShape(50))
                                         .auraClickableInternal(
                                             onClick = { ActionLog.tap(ActionId.REQ_HISTORY_REMOVE); MusicRequestHistory.remove(text) },
@@ -756,11 +770,17 @@ private fun AuraRequestSongRow(
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    // Row 897: TV remote — ring on the row, and the ✕ in [trailing] reached by key (it sits inside the row's focus target).
+    val tvTrailing = if (trailing != null) rememberTvRowTrailingFocus() else null
+    val layoutDirection = LocalLayoutDirection.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .auraTvRing(RoundedCornerShape(10.dp))
+            .tvRowTrailingKeys(tvTrailing, layoutDirection)
+            .tvRowTarget(tvTrailing)
             .clip(RoundedCornerShape(10.dp))
             .auraClickableInternal(onClick = onClick, contentDescription = song.title)
             .padding(vertical = 4.dp),
@@ -789,7 +809,7 @@ private fun AuraRequestSongRow(
                 overflow = AuraDefaultOverflow,
             )
         }
-        trailing?.invoke()
+        if (trailing != null) TvRowTrailingSlot(tvTrailing, 10.dp, trailing)
     }
 }
 
@@ -827,6 +847,7 @@ private fun AuraMusicRequestOptionOne(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(32.dp)
+                        .auraTvRing(RoundedCornerShape(50), scaleFocused = 1.06f)
                         .clip(RoundedCornerShape(50))
                         .auraClickableInternal(
                             onClick = { ActionLog.tap(ActionId.REQ_DISMISS); onDismiss() },
@@ -887,6 +908,7 @@ private fun AuraMusicRequestOptionOne(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
                                     .size(32.dp)
+                                    .auraTvRing(RoundedCornerShape(50), scaleFocused = 1.06f)
                                     .clip(RoundedCornerShape(50))
                                     .auraClickableInternal(
                                         onClick = { ActionLog.tap(ActionId.REQ_SONG_REMOVE); onRemoveSong(song.id) },
@@ -918,6 +940,7 @@ private fun AuraMusicRequestOptionOne(
                 style = AuraType.MiniArtist,
                 color = AuraPalette.Teal,
                 modifier = Modifier
+                    .auraTvRing(AuraShapes.Pill)
                     .clip(AuraShapes.Pill)
                     .auraClickableInternal(onClick = { ActionLog.tap(ActionId.REQ_EDIT); expanded = !expanded })
                     .padding(horizontal = 4.dp, vertical = 6.dp),

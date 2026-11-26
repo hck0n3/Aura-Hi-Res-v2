@@ -37,6 +37,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.widthIn
+import iad1tya.echo.music.ui.utils.AuraTvFocusScope
+import iad1tya.echo.music.ui.utils.tvModalFocusGroup
 
 /**
  * The in-window floating-dialog host (owner directive 2026-09-01: "ese mismo estilo que sale
@@ -258,7 +260,10 @@ private fun AuraInWindowDialogPanel(
                             if (wide) Modifier.auraWindowBorder(shape)
                             else Modifier.border(1.dp, AuraPalette.SurfaceLine, shape),
                         )
-                        .then(if (center) Modifier else Modifier.navigationBarsPadding()),
+                        .then(if (center) Modifier else Modifier.navigationBarsPadding())
+                        // Row 897 (TV remote): the panel takes the focus when it opens and keeps the D-pad inside
+                        // it (Back closes it). Nothing on a touch device.
+                        .then(if (visible) Modifier.tvModalFocusGroup() else Modifier),
                 ) {
                     if (!center && wide) {
                         // A card has no drag handle: it closes with the scrim, back or its own buttons.
@@ -271,7 +276,7 @@ private fun AuraInWindowDialogPanel(
                             onDismiss = { focusManager.clearFocus(); currentOnDismiss() },
                         )
                     }
-                    content()
+                    AuraTvFocusScope { this@Column.content() }
                 }
             }
           }

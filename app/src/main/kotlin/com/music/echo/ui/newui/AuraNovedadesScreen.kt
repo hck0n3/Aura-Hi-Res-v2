@@ -107,6 +107,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
 
 /**
  * Novedades — the «New» tab of the new interface.
@@ -354,7 +356,8 @@ fun AuraNovedadesScreen(
             LazyColumn(
                 state = listState,
                 contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
-                modifier = Modifier.fillMaxSize(),
+                // Row 897: the remote comes back to the shelf it left.
+                modifier = Modifier.fillMaxSize().tvFocusRestorer(),
             ) {
                 item(key = "aura_novedades_header", contentType = "aura_novedades_header") {
                     AuraScreenHeader(
@@ -407,7 +410,7 @@ fun AuraNovedadesScreen(
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 6.dp),
+                            modifier = Modifier.padding(top = 6.dp).tvFocusRestorer(),
                         ) {
                             items(visibleFilters.size, key = { visibleFilters[it].name }) { i ->
                                 val f = visibleFilters[i]
@@ -710,6 +713,7 @@ private fun NovedadesShelfHeader(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 modifier = Modifier
                     .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
+                    .auraTvRing(AuraShapes.Pill)
                     .clip(AuraShapes.Pill)
                     .auraClickableInternal(onClick = onClick, contentDescription = "$label · $title")
                     .padding(start = 12.dp, end = 8.dp),
@@ -959,7 +963,9 @@ private fun NovedadesHero(
                 seed = album.id,
                 shape = AuraShapes.Artwork,
                 decodeTo = if (lean) 512 else 720,
-                modifier = Modifier.auraClickableInternal(onClick = { ActionLog.tap(ActionId.NOV_UPCOMING_COVER); onOpen() }, contentDescription = album.title),
+                modifier = Modifier
+                    .auraTvRing(AuraShapes.Artwork)
+                    .auraClickableInternal(onClick = { ActionLog.tap(ActionId.NOV_UPCOMING_COVER); onOpen() }, contentDescription = album.title),
             )
         }
         val info: @Composable (Modifier) -> Unit = { modifier ->
@@ -1036,6 +1042,7 @@ private fun NovedadesHeroInfo(
                 overflow = AuraDefaultOverflow,
                 modifier = if (onArtist != null) {
                     Modifier
+                        .auraTvRing(AuraShapes.Pill)
                         .clip(AuraShapes.Pill)
                         .auraClickableInternal(onClick = onArtist, contentDescription = artistLine)
                 } else {
@@ -1102,19 +1109,20 @@ private fun NovedadesHeroInfo(
                 label = stringResource(if (isActive && isPlaying) R.string.pause else R.string.play),
                 onClick = { ActionLog.tap(ActionId.NOV_PLAY); onPlay() },
                 accent = true,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).auraTvRing(AuraShapes.Pill),
             )
             AuraDetailActionButton(
                 icon = AuraIcons.Album,
                 label = stringResource(R.string.open),
                 onClick = { ActionLog.tap(ActionId.NOV_DETAIL_OPEN); onOpen() },
                 accent = false,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).auraTvRing(AuraShapes.Pill),
             )
             AuraDetailCircleButton(
                 icon = AuraIcons.More,
                 contentDescription = stringResource(R.string.more_options),
                 onClick = { ActionLog.tap(ActionId.NOV_DETAIL_MENU); onMenu() },
+                modifier = Modifier.auraTvRing(CircleShape, scaleFocused = 1.06f),
             )
         }
     }
@@ -1180,6 +1188,7 @@ private fun NovedadesWideCarousel(
                     modifier = Modifier
                         .fillMaxSize()
                         .onVisibilityChanged(minFractionVisible = SEEN_MIN_FRACTION_VISIBLE) { if (it) onShown(album.id) }
+                        .auraTvRing(AuraShapes.Card)
                         .maskClip(AuraShapes.Card)
                         .maskBorder(BorderStroke(1.dp, AuraPalette.SurfaceLine), AuraShapes.Card)
                         .background(placeholder)

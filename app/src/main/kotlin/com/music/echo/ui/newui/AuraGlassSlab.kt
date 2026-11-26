@@ -38,6 +38,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.TvRowTrailingSlot
+import iad1tya.echo.music.ui.utils.rememberTvRowTrailingFocus
+import iad1tya.echo.music.ui.utils.tvRowTarget
+import iad1tya.echo.music.ui.utils.tvRowTrailingKeys
+import androidx.compose.ui.platform.LocalLayoutDirection
 
 /**
  * Fila 498 — LAS LOSAS DE CRISTAL DEL MENÚ ⋯, para el resto de ventanas.
@@ -95,10 +101,17 @@ internal fun AuraGlassRow(
     enabled: Boolean = true,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    // Row 897: the remote reaches a control in [trailing] by key (it sits inside the row's own focus target).
+    val tvTrailing = if (trailing != null) rememberTvRowTrailingFocus() else null
+    val layoutDirection = LocalLayoutDirection.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
+            // Row 897: the TV remote's ring (inside an AuraTvFocusScope: every sheet and dialog that shows these rows).
+            .auraTvRing(AuraShapes.Highlight)
+            .tvRowTrailingKeys(tvTrailing, layoutDirection)
+            .tvRowTarget(tvTrailing)
             .auraClickableInternal(onClick = onClick, enabled = enabled, contentDescription = title)
             .heightIn(min = AuraGlassRowMinHeight)
             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -122,7 +135,7 @@ internal fun AuraGlassRow(
         )
         if (trailing != null) {
             Spacer(Modifier.width(8.dp))
-            trailing()
+            TvRowTrailingSlot(tvTrailing, 8.dp, trailing)
         }
     }
 }
@@ -137,10 +150,15 @@ internal fun AuraGlassVectorRow(
     iconTint: Color = AuraPalette.OnGround.copy(alpha = 0.75f),
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val tvTrailing = if (trailing != null) rememberTvRowTrailingFocus() else null
+    val layoutDirection = LocalLayoutDirection.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
+            .auraTvRing(AuraShapes.Highlight)
+            .tvRowTrailingKeys(tvTrailing, layoutDirection)
+            .tvRowTarget(tvTrailing)
             .auraClickableInternal(onClick = onClick, contentDescription = title)
             .heightIn(min = AuraGlassRowMinHeight)
             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -162,7 +180,7 @@ internal fun AuraGlassVectorRow(
         )
         if (trailing != null) {
             Spacer(Modifier.width(8.dp))
-            trailing()
+            TvRowTrailingSlot(tvTrailing, 8.dp, trailing)
         }
     }
 }
@@ -196,6 +214,7 @@ internal fun AuraGlassSegmented(
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 44.dp)
+                    .auraTvRing(cellShape)
                     .clip(cellShape)
                     .background(if (on) AuraPalette.Teal.copy(alpha = 0.22f) else Color.Transparent)
                     .then(if (on) Modifier.border(1.dp, AuraPalette.Teal.copy(alpha = 0.45f), cellShape) else Modifier)
