@@ -414,6 +414,13 @@ fun NavGraphBuilder.navigationBuilder(
         }
     }
 
+    // Registry row 890: «Nube (OneDrive y Dropbox)», from Ajustes ▸ Cuentas y sincronización.
+    composable("settings/cloud") {
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.CloudAccountsScreen(navController, scrollBehavior)
+        }
+    }
+
     composable("settings/lastfm") {
         AuraSettingsPaneFrame(navController, it) {
             iad1tya.echo.music.ui.screens.settings.LastFMSettingsScreen(navController)

@@ -630,6 +630,11 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // Registry row 813: «Revisar suscripciones», a row of Ajustes ▸ Cuentas (shown only while signed in).
             Triple(stringResource(R.string.sub_cleanup_title), "Cuentas", "settings/accounts"),
             Triple(stringResource(R.string.sub_cleanup_desc), "Cuentas", "settings/accounts"),
+            // Registry row 890: the rows of «Nube (OneDrive y Dropbox)». Its title is the Ajustes index row itself
+            // (Cuentas y sincronización), so it is not echoed here (INDEX-ECHO RULE).
+            Triple(stringResource(R.string.cloud_connect_onedrive), stringResource(R.string.cloud_title), "settings/cloud"),
+            Triple(stringResource(R.string.cloud_connect_dropbox), stringResource(R.string.cloud_title), "settings/cloud"),
+            Triple(stringResource(R.string.cloud_intro), stringResource(R.string.cloud_title), "settings/cloud"),
     )
 
     // Flag OFF: the exact list above, same content, same order. Nothing below runs.
