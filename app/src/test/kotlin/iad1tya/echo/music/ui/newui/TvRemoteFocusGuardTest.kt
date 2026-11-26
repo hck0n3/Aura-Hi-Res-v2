@@ -160,12 +160,14 @@ class TvRemoteFocusGuardTest {
         val modal = main("ui/utils/TvFocusExtras.kt").substringAfter("fun Modifier.tvModalFocusGroup(").substringBefore("\n}\n")
         assertTrue(modal.contains("onExit = { if (isDirectionalFocusMove(requestedFocusDirection)) cancelFocusChange() }"))
         assertTrue(modal.contains("if (!rememberAuraTvFocus()) return this"))
-        assertTrue(modal.contains("LaunchedEffect(key) { requestFocusWithRetry(initialFocus ?: requester) }"))
+        assertTrue(modal.contains("LaunchedEffect(key) { requestPanelFocus(initialFocus, requester) }"))
+        // An initial target with nothing focusable yet (an empty list) falls back to the panel: focus never stays under the veil.
+        assertTrue(main("ui/utils/TvFocusExtras.kt").contains("if (initialFocus == null || !requestFocusWithRetry(initialFocus)) requestFocusWithRetry(panel)"))
         // A dialog closing over a menu that stays open hands the focus back to the menu (only at close, bounded).
         assertTrue(modal.contains("DisposableEffect(requester) {"))
         assertTrue(modal.contains("tvModalPanels.opened(regainFocus)"))
         assertTrue(modal.contains("onDispose { tvModalPanels.closed(regainFocus)?.invoke() }"))
-        assertTrue(modal.contains("scope.launch { requestFocusWithRetry(currentInitialFocus ?: requester) }"))
+        assertTrue(modal.contains("scope.launch { requestPanelFocus(currentInitialFocus, requester) }"))
         assertTrue(dialog.contains("override fun handleOnBackPressed() {"))
     }
 

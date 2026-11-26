@@ -105,11 +105,17 @@ fun Modifier.tvInitialFocus(key: Any? = Unit): Modifier {
     return this.focusRequester(requester)
 }
 
-private suspend fun requestFocusWithRetry(requester: FocusRequester) {
+private suspend fun requestFocusWithRetry(requester: FocusRequester): Boolean {
     repeat(TV_INITIAL_FOCUS_ATTEMPTS) {
-        if (runCatching { requester.requestFocus(FocusDirection.Enter) }.getOrDefault(false)) return
+        if (runCatching { requester.requestFocus(FocusDirection.Enter) }.getOrDefault(false)) return true
         delay(TV_INITIAL_FOCUS_RETRY_MS)
     }
+    return false
+}
+
+/** [initialFocus] first; when it holds nothing focusable (an empty list), the panel itself, so focus never stays under the veil. */
+private suspend fun requestPanelFocus(initialFocus: FocusRequester?, panel: FocusRequester) {
+    if (initialFocus == null || !requestFocusWithRetry(initialFocus)) requestFocusWithRetry(panel)
 }
 
 /**
@@ -155,11 +161,11 @@ fun Modifier.tvModalFocusGroup(key: Any? = Unit, initialFocus: FocusRequester? =
     val currentInitialFocus by rememberUpdatedState(initialFocus)
     // Keyed by what the panel shows: a sheet that swaps its page in place (a menu opening its sub-menu) disposes the
     // focused row, so the focus is handed to the new page instead of being left on nothing.
-    LaunchedEffect(key) { requestFocusWithRetry(initialFocus ?: requester) }
+    LaunchedEffect(key) { requestPanelFocus(initialFocus, requester) }
     // Only when a panel closes, never while one is open (bounded retry, nothing per frame).
     val scope = rememberCoroutineScope()
     DisposableEffect(requester) {
-        val regainFocus: () -> Unit = { scope.launch { requestFocusWithRetry(currentInitialFocus ?: requester) } }
+        val regainFocus: () -> Unit = { scope.launch { requestPanelFocus(currentInitialFocus, requester) } }
         tvModalPanels.opened(regainFocus)
         onDispose { tvModalPanels.closed(regainFocus)?.invoke() }
     }
