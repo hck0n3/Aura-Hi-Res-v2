@@ -117,6 +117,9 @@ class RefreshIdlePolicyTest {
         assertTrue(main.contains("LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling, displayTick)"))
         assertTrue(main.contains("layoutParams.preferredDisplayModeId != target.id"))
         assertTrue("the switch off keeps its own 60 Hz bucket", main.contains("floorHz = if (enableHighRefreshRate) floorHz else 0f,"))
+        // A rest switch that would blank the panel asks for the interacting request instead (battery saver and heat kept).
+        assertTrue(main.contains("target = iad1tya.echo.music.utils.RefreshRatePlanning.pick(modes, display.mode.plan(), activeCeilingHz)"))
+        assertTrue(main.contains("activeCeilingHz = refreshSystemCeiling,"))
         val policy = src("utils/RefreshIdlePolicy.kt")
         assertFalse(policy.contains("while (") || policy.contains("delay(") || policy.contains("Handler"))
     }

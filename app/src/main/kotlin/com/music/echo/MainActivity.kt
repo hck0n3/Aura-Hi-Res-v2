@@ -651,6 +651,7 @@ class MainActivity : ComponentActivity() {
             enabled,
             iad1tya.echo.music.utils.RefreshIdlePolicy.ceilingHz(active, refreshSystemCeiling),
             iad1tya.echo.music.utils.RefreshIdlePolicy.floorHz(active),
+            activeCeilingHz = refreshSystemCeiling,
         )
     }
 
@@ -768,6 +769,7 @@ class MainActivity : ComponentActivity() {
         enableHighRefreshRate: Boolean,
         ceilingHz: Float = iad1tya.echo.music.utils.RefreshRatePlanning.NO_CEILING,
         floorHz: Float = 0f,
+        activeCeilingHz: Float = ceilingHz,
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val layoutParams = window.attributes
@@ -775,23 +777,24 @@ class MainActivity : ComponentActivity() {
             fun Display.Mode.plan() = iad1tya.echo.music.utils.RefreshMode(modeId, physicalWidth, physicalHeight, refreshRate)
             // With the setting off the request is the 60 Hz bucket; with it on, the panel's best mode that the
             // device's CURRENT state (battery saver, heat) allows — see [RefreshRatePlanning].
-            val target = iad1tya.echo.music.utils.RefreshRatePlanning.pick(
-                modes = display.supportedModes.map { it.plan() },
+            val modes = display.supportedModes.map { it.plan() }
+            var target = iad1tya.echo.music.utils.RefreshRatePlanning.pick(
+                modes = modes,
                 current = display.mode.plan(),
                 ceilingHz = if (enableHighRefreshRate) ceilingHz else 60f,
                 // Row 899: the rest floor only applies with the switch on (off keeps its own 60 Hz bucket exactly).
                 floorHz = if (enableHighRefreshRate) floorHz else 0f,
             )
-            // Row 899: going to rest must never blank the panel; a switch the current mode cannot make seamlessly
-            // (API 31+ tells) keeps the request it already has.
-            if (floorHz > 0f && target != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            // Row 899: going to rest must never blank the panel. A rest switch the current mode cannot make seamlessly
+            // (API 31+ tells) asks for what interacting asks for instead — which still honours battery saver and heat.
+            if (enableHighRefreshRate && floorHz > 0f && target != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
                 !iad1tya.echo.music.utils.RefreshIdlePolicy.seamless(
                     display.mode.refreshRate,
                     target.hz,
                     display.mode.alternativeRefreshRates.toList(),
                 )
             ) {
-                return
+                target = iad1tya.echo.music.utils.RefreshRatePlanning.pick(modes, display.mode.plan(), activeCeilingHz)
             }
             // Re-asserting the same mode is pointless and, since a window-attribute change can itself raise
             // onDisplayChanged, is exactly how a listener would loop on itself.
