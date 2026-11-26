@@ -157,6 +157,17 @@ class TvRemoteFocusGuardTest {
     }
 
     @Test
+    fun `the settings index restorer sits in front of its scroll, so it acts on the scroll's group`() {
+        val screen = main("ui/newui/AuraSettingsScreen.kt")
+        val index = screen.substringAfter("val indexColumn: @Composable (Modifier) -> Unit = { columnModifier ->").substringBefore(") {\n")
+        val restorer = index.indexOf(".tvFocusRestorer()")
+        val scroll = index.indexOf(".verticalScroll(scrollState)")
+        assertTrue("restorer and scroll both present", restorer >= 0 && scroll >= 0)
+        // After the scroll it would configure each leaf row instead of the group around them: a placebo.
+        assertTrue("tvFocusRestorer must come before verticalScroll", restorer < scroll)
+    }
+
+    @Test
     fun `initial focus is bounded and only at entry`() {
         val extras = main("ui/utils/TvFocusExtras.kt")
         assertTrue(extras.contains("internal const val TV_INITIAL_FOCUS_ATTEMPTS = 20"))

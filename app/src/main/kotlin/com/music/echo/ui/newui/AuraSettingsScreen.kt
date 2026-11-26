@@ -475,9 +475,10 @@ internal fun AuraSettingsIndexHost(
                         else WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
                     )
                 )
-                .verticalScroll(scrollState)
-                // Row 897: coming back from the page on the right, the remote lands on the row it left.
+                // Row 897: coming back from the page on the right, the remote lands on the row it left. BEFORE the
+                // scroll: a focus restorer only configures the next focus target down the chain (the scroll's group).
                 .tvFocusRestorer()
+                .verticalScroll(scrollState)
         ) {
             Spacer(
                 Modifier.windowInsetsPadding(
