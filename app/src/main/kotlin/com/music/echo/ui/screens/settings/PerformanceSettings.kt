@@ -101,7 +101,12 @@ fun PerformanceSettings(
     val classChoice by rememberEnumPreference(PerformanceClassChoiceKey, PerformanceClassChoice.AUTO)
     var showClassDialog by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val glassCapable = remember { isGlassSupported() && !DeviceForm.isTvOrCar(context) }
+    // isGlassEligible without its Performance-mode term (the pick decides that): glass only draws on a raw MID/HIGH tier.
+    val glassCapable = remember {
+        isGlassSupported() &&
+            DeviceCapabilities.tier(context).let { it == iad1tya.echo.music.utils.DeviceTier.MID || it == iad1tya.echo.music.utils.DeviceTier.HIGH } &&
+            !DeviceForm.isTvOrCar(context)
+    }
     val classInUse = PerformanceClasses.effective(detectedClass, classChoice)
     if (showClassDialog) {
         val autoLabel = stringResource(R.string.perf_class_auto_value, detectedClassLabel)

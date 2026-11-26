@@ -137,6 +137,8 @@ class PerformanceClassTest {
         assertTrue(page.contains("title = { Text(stringResource(R.string.perf_class_choice_title)) }"))
         assertTrue(page.contains("ActionLog.tap(ActionId.SETPERF_CLASS)"))
         assertTrue(page.contains("PerformanceClassChoice.entries.toList()"))
+        // Premium never stores a glass switch the tier cannot draw (isGlassEligible: raw tier MID or HIGH).
+        assertTrue(page.contains("DeviceCapabilities.tier(context).let { it == iad1tya.echo.music.utils.DeviceTier.MID || it == iad1tya.echo.music.utils.DeviceTier.HIGH }"))
         // The rows that were there stay.
         for (row in listOf("Modo alto rendimiento", "Vista dividida estilo Spotify", "Panel del reproductor a la izquierda", "Mostrar el panel del reproductor")) {
             assertTrue("$row se perdió", page.contains(row))

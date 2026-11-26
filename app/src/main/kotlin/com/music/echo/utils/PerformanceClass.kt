@@ -53,9 +53,9 @@ object PerformanceClasses {
         PerformanceClassChoice.entries.firstOrNull { it.name == stored } ?: PerformanceClassChoice.AUTO
 
     /**
-     * @param glassCapable the hardware can draw Liquid Glass at all (API 31+, not a TV or a car screen). The tier and
-     *   the Performance mode are not part of it: the class is what decides those here, and `isGlassEligible` still
-     *   gates the drawing at runtime.
+     * @param glassCapable the hardware can draw Liquid Glass at all: `isGlassEligible` without its Performance-mode
+     *   term (API 31+, raw tier MID or HIGH, not a TV or a car screen). The Performance mode is not part of it: the
+     *   class decides that here, and `isGlassEligible` still gates the drawing at runtime.
      */
     fun seedFor(cls: PerformanceClass, glassCapable: Boolean): PerformanceClassSeed = when (cls) {
         PerformanceClass.ENTRY -> PerformanceClassSeed(highPerformanceMode = true, canvas = false, liquidGlass = false)
