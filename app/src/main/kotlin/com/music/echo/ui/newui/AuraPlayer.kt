@@ -3458,17 +3458,9 @@ private fun AuraCoverGround(url: String, recipe: AuraGroundRecipe, alpha: Float)
     if (recipe.spin) {
         // 90 s per turn. `rotationZ` on a graphicsLayer transforms an ALREADY RENDERED layer: the blur
         // is not recomputed, the image is not re-decoded, and nothing recomposes.
-        val transition = rememberInfiniteTransition(label = "auraGroundSpin")
-        val angle by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(90_000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-            label = "auraGroundSpinAngle",
-        )
-        AuraCoverGroundImage(request, filter, alpha, recipe) { angle }
+        // Row 899: the turn stops where it is while the music is paused (or motion is reduced) and goes on from there.
+        val turn by rememberAuraLoopPhase(running = rememberMusicLoopRuns(), periodMs = 90_000)
+        AuraCoverGroundImage(request, filter, alpha, recipe) { turn * 360f }
     } else {
         AuraCoverGroundImage(request, filter, alpha, recipe) { 0f }
     }
@@ -3539,16 +3531,8 @@ private fun Modifier.auraArtworkWash(colors: AuraBloomColors, alpha: Float): Mod
 private fun AuraLobeGround(colors: AuraBloomColors, alpha: Float, drift: Boolean) {
     val raster = remember { AuraLobeRaster() }
     if (drift) {
-        val transition = rememberInfiniteTransition(label = "auraGroundDrift")
-        val phase by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(28_000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-            label = "auraGroundDriftPhase",
-        )
+        // Row 899: the drift stops where it is while the music is paused (or motion is reduced) and goes on from there.
+        val phase by rememberAuraLoopPhase(running = rememberMusicLoopRuns(), periodMs = 28_000)
         Box(Modifier.fillMaxSize().auraLobes(raster, colors, alpha) { phase })
     } else {
         Box(Modifier.fillMaxSize().auraLobes(raster, colors, alpha) { 0f })

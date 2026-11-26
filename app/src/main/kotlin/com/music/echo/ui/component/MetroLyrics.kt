@@ -53,6 +53,7 @@ import iad1tya.echo.music.constants.LyricsRomanizeAsMainKey
 import iad1tya.echo.music.lyrics.LyricsEntry
 import iad1tya.echo.music.ui.screens.settings.LyricsPosition
 import iad1tya.echo.music.utils.rememberPreference
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.PI
 import kotlin.math.cos
@@ -373,6 +374,9 @@ private fun WordLevelCanvasLyrics(
             var lastUpdateTime = System.currentTimeMillis()
             
             while (isActive) {
+                // Row 899: paused, the sweep stands still; it waits ~8 Hz between samples instead of asking for every
+                // display frame (a seek while paused still moves it).
+                if (!playerConnection.player.isPlaying) delay(120)
                 withFrameMillis {
                     val now = System.currentTimeMillis()
                     val playerPos = playerConnection.player.currentPosition
