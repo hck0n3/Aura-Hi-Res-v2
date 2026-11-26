@@ -37,6 +37,12 @@ internal data class LocalScanCacheHeader(
     val shape: String,
     /** MediaStore's opaque version (Android 10+): it changes when MediaStore rebuilds its database and reuses ids. */
     val mediaStoreVersion: String?,
+    /**
+     * Row 881 (review repair): the app-language names an untagged file is built with («Artista desconocido», its
+     * artist id, «Desconocido»). Another language drops the remembered builds once, like a rules bump.
+     */
+    val unknownArtist: String? = null,
+    val unknownTitle: String? = null,
 )
 
 /**

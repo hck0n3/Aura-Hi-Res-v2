@@ -557,6 +557,8 @@ constructor(
         } else {
             null
         },
+        unknownArtist = context.getString(R.string.unknown_artist),
+        unknownTitle = context.getString(R.string.unknown),
     )
 
     private fun currentAutoScanStamp(scanConfig: LocalSongScanConfig): String? {
@@ -566,7 +568,9 @@ constructor(
             runCatching { "${MediaStore.getVersion(context, volume)}:${MediaStore.getGeneration(context, volume)}" }.getOrNull()
                 ?: return null
         }
-        return localAutoScanStamp(states, scanConfig, scanConfig.includedTreeUris)
+        // Row 881 (review repair): the language too, so a language change rebuilds the «unknown» names without waiting.
+        val names = "names=${context.getString(R.string.unknown_artist)}|${context.getString(R.string.unknown)}"
+        return localAutoScanStamp(states, scanConfig, scanConfig.includedTreeUris + names)
     }
 
     /** Is this row exactly what the remembered build of an unchanged file would write? */

@@ -40,6 +40,18 @@ class LocalScanIncrementalTest {
         assertFalse(localScanCacheUsable(header.copy(rules = header.rules - 1), header, fullRescan = false, versionRequired = true))
         assertFalse(localScanCacheUsable(header.copy(shape = "old"), header, fullRescan = false, versionRequired = true))
         assertFalse(localScanCacheUsable(header.copy(mediaStoreVersion = "v0"), header, fullRescan = false, versionRequired = true))
+        val spanish = header.copy(unknownArtist = "Artista desconocido", unknownTitle = "Desconocido")
+        assertTrue(localScanCacheUsable(spanish, spanish.copy(), fullRescan = false, versionRequired = true))
+        assertFalse("another app language rebuilds the «unknown» names",
+            localScanCacheUsable(spanish, spanish.copy(unknownArtist = "Unknown artist"), fullRescan = false, versionRequired = true))
+        assertFalse(localScanCacheUsable(spanish, spanish.copy(unknownTitle = "Unknown"), fullRescan = false, versionRequired = true))
+        assertFalse("a memory written before the names were recorded is dropped once", localScanCacheUsable(header, spanish, false, versionRequired = true))
+        val scanner = text("app/src/main/kotlin/com/music/echo/localmedia/LocalSongScanner.kt")
+        val built = scanner.substringAfter("private fun currentScanCacheHeader() = LocalScanCacheHeader(").substringBefore("\n    )\n")
+        assertTrue(built.contains("unknownArtist = context.getString(R.string.unknown_artist),"))
+        assertTrue(built.contains("unknownTitle = context.getString(R.string.unknown),"))
+        assertTrue("and the automatic scan runs after a language change",
+            scanner.contains("return localAutoScanStamp(states, scanConfig, scanConfig.includedTreeUris + names)"))
         val unknown = header.copy(mediaStoreVersion = null)
         assertFalse("Android 10+: an unreadable MediaStore version reuses nothing", localScanCacheUsable(unknown, unknown, false, versionRequired = true))
         assertTrue("Android 9 has no MediaStore version", localScanCacheUsable(unknown, unknown, false, versionRequired = false))
