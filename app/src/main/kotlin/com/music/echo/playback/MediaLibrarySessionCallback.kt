@@ -41,6 +41,7 @@ import iad1tya.echo.music.db.entities.PlaylistEntity
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.extensions.toggleRepeatMode
+import iad1tya.echo.music.localmedia.SupportedLocalAudio
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.utils.PlaybackLogLevel
 import iad1tya.echo.music.utils.PlaybackLogManager
@@ -53,6 +54,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.guava.future
@@ -374,6 +376,7 @@ constructor(
                         listOf(
                             likedSongsMediaItem(likedSongCount),
                             downloadedSongsMediaItem(downloadedSongCount),
+                            localSongsMediaItem(localAudioSongs().size),
                         ) +
                             database.playlistsByCreateDateAsc().first().map { playlist ->
                                 playlist.toBrowsableMediaItem()
@@ -421,6 +424,8 @@ constructor(
                                                     .map { it.first }
                                             }
                                     }
+
+                                    AutoBrowsePath.LOCAL_PLAYLIST_ID -> flowOf(localAudioSongs())
 
                                     else ->
                                         database.playlistSongs(playlistId).map { list ->
@@ -592,7 +597,7 @@ constructor(
             // reaches onSetMediaItems).
             if (this@MediaLibrarySessionCallback::service.isInitialized) service.onControllerSelectedItem()
             val defaultResult = MediaItemsWithStartPosition(emptyList(), startIndex, startPositionMs)
-            val path = mediaItems.firstOrNull()?.mediaId?.split("/")
+            val path = mediaItems.firstOrNull()?.mediaId?.let(AutoBrowsePath::segments)
                 ?: return@future defaultResult
 
             // Tell the service which persistent-shuffle bucket this EXTERNAL queue belongs to, before the
@@ -612,6 +617,7 @@ constructor(
                     when (id) {
                         PlaylistEntity.LIKED_PLAYLIST_ID -> "AP:liked"
                         PlaylistEntity.DOWNLOADED_PLAYLIST_ID -> "AP:downloaded"
+                        AutoBrowsePath.LOCAL_PLAYLIST_ID -> AutoBrowsePath.LOCAL_CONTEXT_ID
                         else -> "PL:$id"
                     }
                 }
@@ -678,6 +684,7 @@ constructor(
                                         .map { it.first }
                                 }
                         }
+                        AutoBrowsePath.LOCAL_PLAYLIST_ID -> flowOf(localAudioSongs())
                         else -> database.playlistSongs(playlistId).map { list ->
                             list.map { it.song }
                         }
@@ -912,7 +919,7 @@ constructor(
     )
 
     private suspend fun getMediaItem(mediaId: String): MediaItem? {
-        val path = mediaId.split("/")
+        val path = AutoBrowsePath.segments(mediaId)
         val type = path.firstOrNull() ?: return null
 
         return when (type) {
@@ -1014,6 +1021,7 @@ constructor(
         when (playlistId) {
             PlaylistEntity.LIKED_PLAYLIST_ID -> likedSongsMediaItem(database.likedSongsCount().first())
             PlaylistEntity.DOWNLOADED_PLAYLIST_ID -> downloadedSongsMediaItem(downloadUtil.downloads.value.size)
+            AutoBrowsePath.LOCAL_PLAYLIST_ID -> localSongsMediaItem(localAudioSongs().size)
             else -> database.playlist(playlistId).first()?.toBrowsableMediaItem()
         }
 
@@ -1070,6 +1078,26 @@ constructor(
         MediaMetadata.MEDIA_TYPE_PLAYLIST,
         singleItemStyle = MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_CATEGORY_LIST_ITEM,
     )
+
+    /** Row 883: the phone's audio files, under the same «Local» name as the Biblioteca tab. */
+    private fun localSongsMediaItem(songCount: Int) = browsableMediaItem(
+        "${MusicService.PLAYLIST}/${AutoBrowsePath.LOCAL_PLAYLIST_ID}",
+        context.getString(R.string.filter_local),
+        context.resources.getQuantityString(
+            R.plurals.n_song,
+            songCount,
+            songCount
+        ),
+        drawableUri(R.drawable.music_note),
+        MediaMetadata.MEDIA_TYPE_PLAYLIST,
+        singleItemStyle = MediaConstants.EXTRAS_VALUE_CONTENT_STYLE_CATEGORY_LIST_ITEM,
+    )
+
+    /** Exactly what Biblioteca ▸ Local lists: audio only (row 583) in a format it plays (`LocalSongScreen`). */
+    private suspend fun localAudioSongs(): List<Song> =
+        database.localSongs().first().filter { song ->
+            !song.song.isVideo && SupportedLocalAudio.isSupportedMimeType(song.format?.mimeType)
+        }
 
     private fun iad1tya.echo.music.db.entities.Playlist.toBrowsableMediaItem() = browsableMediaItem(
         "${MusicService.PLAYLIST}/$id",

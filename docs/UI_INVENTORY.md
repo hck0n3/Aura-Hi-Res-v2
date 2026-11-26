@@ -986,6 +986,7 @@ Alcanzable desde el Reproductor, desde Cola > pestaña LETRA y desde el Modo Amb
 | Letras no encontradas | Letras > cuerpo | `ui/component/Lyrics.kt:1000` | informativo | ocasional | si no hay letra |
 | Letras no encontradas + **«Buscar letra»** (P22A, fila 732) — abre el menú de la letra directamente en su diálogo «Buscar letra»; cancelar ese diálogo cierra también el menú | Letras > cuerpo (Reproductor, pantalla de Letra, Cola > Letra, Modo Ambiente) | `ui/player/InlineLyricsView.kt` (rama `LYRICS_NOT_FOUND`) → `ui/menu/LyricsMenu.kt` (`startWithSearch`) | acción primaria | ocasional | si no hay letra y hay canción sonando |
 | **«Lyrics from <proveedor>»** *(hardcoded, en inglés)* | Letras > primera fila | `ui/component/Lyrics.kt:1061` | informativo | constante | si hay proveedor y no estás en selección |
+| Letra de un archivo **`.lrc`** junto a la canción del móvil (fila 884) — proveedor **«LRC»**; se usa antes que cualquier proveedor en línea y sin conexión, y encabeza la lista de «Buscar» del menú | Letras > cuerpo (y la lista de resultados del menú ⋯) | `lyrics/LyricsHelper.kt` (`localSidecarLyrics`), `lyrics/LocalLrcReader.kt`, `ui/player/InlineLyricsView.kt` (sustituye un «Letras no encontradas» guardado) | informativo | ocasional | solo canciones del móvil con un `<mismo nombre>.lrc`/`.LRC` legible en su carpeta. **En Android 11 o posterior, lo esperable es que solo se lea dentro de una carpeta concedida con el selector del sistema** (una carpeta añadida en Biblioteca ▸ Local ▸ escaneo ▸ carpetas desde la beta14, fila 881, o la carpeta de exportación MP3); el permiso de música no suele dejar ver archivos `.lrc` [NO VERIFICADO en el dispositivo] |
 | **«¿Traducir la letra?»** *(hardcoded)* | Letras > diálogo | `ui/component/Lyrics.kt:650-651` | informativo | rara | solo si `AskTranslateLyricsOnOpen` (por defecto OFF), la letra parece inglés, el idioma destino no es inglés y no se ha respondido antes esta sesión |
 | **Traducir** *(hardcoded)* | Letras > diálogo | `ui/component/Lyrics.kt:657` | acción primaria | rara | igual |
 | **No** *(hardcoded)* | Letras > diálogo | `ui/component/Lyrics.kt:663` | navegación | rara | igual |
@@ -4415,8 +4416,12 @@ al paquete de la app vieja (`iad1tya.echo.music`) y no abría esta.
 
 `playback/MusicService.kt:245` (`MediaLibraryService`) + `res/xml/automotive_app_desc.xml`.
 El árbol de exploración tiene 4 categorías (canciones, artistas, álbumes, listas). En «listas» se
-anteponen **Canciones que me gustan** y **Canciones descargadas**, y cada carpeta antepone un ítem
-**Aleatorio** (`playback/MediaLibrarySessionCallback.kt:722-755`).
+anteponen **Canciones que me gustan**, **Canciones descargadas** y, desde la fila 883, **Local** (los
+archivos de audio del móvil, lo mismo que Biblioteca ▸ Local; id `playlist/LP_LOCAL`, aleatorio con la
+misma memoria que esa pestaña), y cada carpeta antepone un ítem **Aleatorio**
+(`playback/MediaLibrarySessionCallback.kt:722-755`). La raíz sigue con 4 categorías: Android Auto
+enseña como mucho cuatro pestañas [NO VERIFICADO en el coche]. La búsqueda por voz o texto del coche ya
+incluía las canciones del móvil.
 
 ## 25.6 Otras entradas del manifiesto
 

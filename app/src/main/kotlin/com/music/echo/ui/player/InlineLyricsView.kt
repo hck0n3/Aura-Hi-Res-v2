@@ -30,6 +30,7 @@ import iad1tya.echo.music.LocalDatabase
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
 import iad1tya.echo.music.db.entities.LyricsEntity
+import iad1tya.echo.music.lyrics.LocalLrcSidecar
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.ui.component.LocalBottomSheetPageState
 import iad1tya.echo.music.ui.component.LocalMenuState
@@ -41,6 +42,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.utils.isLocalMediaId
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -83,6 +85,29 @@ fun InlineLyricsView(
                     }
                 } catch (e: Exception) {
                     timber.log.Timber.e(e, "Lyrics fetch/save failed")
+                }
+            }
+        } else if (meta != null && currentLyrics != null && LocalLrcSidecar.mayReplaceStored(
+                isLocalSong = meta.id.isLocalMediaId(),
+                storedLyrics = currentLyrics.lyrics,
+                userEdited = currentLyrics.userEdited,
+                notFoundMarker = LyricsEntity.LYRICS_NOT_FOUND,
+            )
+        ) {
+            // Row 884: a phone song stored as «no lyrics» (often played offline) picks up the .lrc found next to it
+            // later. Only that row is replaced, and only by a sidecar that exists: nothing on screen is lost.
+            withContext(Dispatchers.IO) {
+                try {
+                    val lyricsHelper = EntryPointAccessors.fromApplication(
+                        context.applicationContext,
+                        iad1tya.echo.music.di.LyricsHelperEntryPoint::class.java
+                    ).lyricsHelper()
+                    val sidecar = lyricsHelper.localSidecarLyrics(meta.id) ?: return@withContext
+                    database.query {
+                        upsert(LyricsEntity(meta.id, sidecar.lyrics, sidecar.provider))
+                    }
+                } catch (e: Exception) {
+                    timber.log.Timber.e(e, "Local lyrics file read/save failed")
                 }
             }
         }

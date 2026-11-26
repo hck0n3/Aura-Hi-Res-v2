@@ -13,6 +13,7 @@ import iad1tya.echo.music.extensions.toEnum
 import iad1tya.echo.music.models.MediaMetadata
 import iad1tya.echo.music.utils.NetworkConnectivityObserver
 import iad1tya.echo.music.utils.dataStore
+import iad1tya.echo.music.utils.isLocalMediaId
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -56,6 +57,16 @@ constructor(
 
     private val cache = LruCache<String, List<LyricsResult>>(MAX_CACHE_SIZE)
     private var currentLyricsJob: Job? = null
+    private val localLrcReader = LocalLrcReader(context)
+
+    /**
+     * Row 884: the `.lrc` next to a song on this phone, or null (not a phone song, no sidecar, unreadable). Read
+     * from disk, no network, so it also works offline.
+     */
+    suspend fun localSidecarLyrics(mediaId: String): LyricsWithProvider? {
+        if (!mediaId.isLocalMediaId()) return null
+        return localLrcReader.read(mediaId)?.let { LyricsWithProvider(it, LocalLrcSidecar.PROVIDER) }
+    }
 
     suspend fun getLyrics(mediaMetadata: MediaMetadata): LyricsWithProvider {
         // Re-opening the same song within a session is instant, and the 2–3 fetchers that can
@@ -64,6 +75,12 @@ constructor(
         // is coherent with how the result is read back below.
         cache.get(mediaMetadata.id)?.firstOrNull()?.let { cached ->
             return LyricsWithProvider(cached.lyrics, cached.providerName)
+        }
+
+        // Row 884: a song on this phone uses its own .lrc first, before any online provider and without network.
+        localSidecarLyrics(mediaMetadata.id)?.let { sidecar ->
+            cache.put(mediaMetadata.id, listOf(LyricsResult(sidecar.provider, sidecar.lyrics)))
+            return sidecar
         }
 
         val isNetworkAvailable = try {
@@ -300,6 +317,10 @@ constructor(
             return
         }
 
+        // Row 884: the phone song's own .lrc heads the list of choices, offline too.
+        val sidecar = localSidecarLyrics(mediaId)?.let { LyricsResult(it.provider, it.lyrics) }
+        sidecar?.let(callback)
+
         
         
         val isNetworkAvailable = try {
@@ -314,7 +335,7 @@ constructor(
             return
         }
 
-        val allResult = mutableListOf<LyricsResult>()
+        val allResult = listOfNotNull(sidecar).toMutableList()
         val providers = resolveLyricsProviders()
         currentLyricsJob = CoroutineScope(SupervisorJob()).launch {
             providers.forEach { provider ->
