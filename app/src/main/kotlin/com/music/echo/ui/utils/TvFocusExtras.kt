@@ -118,15 +118,16 @@ fun isDirectionalFocusMove(direction: FocusDirection): Boolean =
  * out of it onto the screen underneath the scrim): on a remote device the panel becomes a focus group that
  * (1) takes the focus into its first control when it opens and (2) keeps D-pad moves inside it. Back still closes it
  * (the panel's own back callback), and programmatic focus changes (clear on dismiss, a text field) are never
- * refused — so it is modal, not a trap.
+ * refused — so it is modal, not a trap. [initialFocus]: a control inside the panel to land on instead of its first
+ * one — for a panel whose first control is a text field, which would raise the keyboard over the panel at once.
  */
 @Composable
-fun Modifier.tvModalFocusGroup(key: Any? = Unit): Modifier {
+fun Modifier.tvModalFocusGroup(key: Any? = Unit, initialFocus: FocusRequester? = null): Modifier {
     if (!rememberAuraTvFocus()) return this
     val requester = remember { FocusRequester() }
     // Keyed by what the panel shows: a sheet that swaps its page in place (a menu opening its sub-menu) disposes the
     // focused row, so the focus is handed to the new page instead of being left on nothing.
-    LaunchedEffect(key) { requestFocusWithRetry(requester) }
+    LaunchedEffect(key) { requestFocusWithRetry(initialFocus ?: requester) }
     return this
         .focusRequester(requester)
         .focusProperties {

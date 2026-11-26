@@ -140,7 +140,11 @@ class TvRemoteFocusGuardTest {
     @Test
     fun `floating windows take the focus, keep the D-pad inside and ring their content`() {
         val dialog = main("ui/newui/AuraInWindowDialog.kt")
-        assertTrue(dialog.contains(".then(if (visible) Modifier.tvModalFocusGroup() else Modifier)"))
+        assertTrue(dialog.contains(".then(if (visible) Modifier.tvModalFocusGroup(initialFocus = tvInitialFocus) else Modifier)"))
+        // A panel that opens on a text field would raise the keyboard over itself: «Añadir música» lands on its list.
+        val addMusic = main("ui/screens/playlist/AddMusicSheet.kt")
+        assertTrue(addMusic.contains("tvInitialFocus = tvListFocus,"))
+        assertTrue(addMusic.contains(".then(if (listFocus != null) Modifier.focusRequester(listFocus) else Modifier),"))
         assertTrue(dialog.contains("AuraTvFocusScope { this@Column.content() }"))
         for (path in listOf("ui/component/BottomSheetMenu.kt", "ui/component/BottomSheetPage.kt")) {
             val src = main(path)
@@ -153,6 +157,7 @@ class TvRemoteFocusGuardTest {
         val modal = main("ui/utils/TvFocusExtras.kt").substringAfter("fun Modifier.tvModalFocusGroup(").substringBefore("\n}\n")
         assertTrue(modal.contains("onExit = { if (isDirectionalFocusMove(requestedFocusDirection)) cancelFocusChange() }"))
         assertTrue(modal.contains("if (!rememberAuraTvFocus()) return this"))
+        assertTrue(modal.contains("LaunchedEffect(key) { requestFocusWithRetry(initialFocus ?: requester) }"))
         assertTrue(dialog.contains("override fun handleOnBackPressed() {"))
     }
 
