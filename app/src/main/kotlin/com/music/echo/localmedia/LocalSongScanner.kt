@@ -278,6 +278,7 @@ constructor(
                     existingSongs[track.id]?.let { old -> old.artists.map { it.id } to track.artists.map(LocalArtistRecord::id) }
                 },
                 snapshot.artists.mapTo(HashSet(), LocalArtistRecord::id),
+                alreadyThere = existingArtists.keys,
             )
             val oldArtists = loadArtists(artistHeirs.values.toList())
             val inheritedArtists = artistHeirs.mapValues { (_, oldId) -> oldArtists[oldId] }
@@ -286,6 +287,7 @@ constructor(
                     existingSongs[track.id]?.song?.albumId?.let { old -> listOf(old) to listOfNotNull(track.albumId) }
                 },
                 snapshot.albums.mapTo(HashSet(), LocalAlbumRecord::id),
+                alreadyThere = existingAlbums.keys,
             )
             val oldAlbums = loadAlbums(albumHeirs.values.toList())
             val inheritedAlbums = albumHeirs.mapValues { (_, oldId) -> oldAlbums[oldId] }

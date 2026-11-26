@@ -81,14 +81,20 @@ internal fun localAlbumArtistIds(albumArtistIdsPerSong: List<List<String>>, trac
 /**
  * Row 879, data safety: a song whose artists or album got another id (a new artist split, an album now grouped by its
  * album artist) must not take the follow or the bookmark of the old one with it when the old one is pruned. For each old
- * id that no scanned song uses any more, the FIRST new id of the first song that had it inherits from it; a new id
- * inherits from one old id at most. Returns new id -> old id.
+ * id that no scanned song uses any more, the first id of the first song that had it which is not [alreadyThere] (in the
+ * library before this scan) inherits from it: an artist or album that already existed keeps only its own marks, so one
+ * that was merely dropped from a tag never passes its follow to it. A new id inherits from one old id at most. Returns
+ * new id -> old id.
  */
-internal fun inheritedLocalIds(previousAndCurrent: List<Pair<List<String>, List<String>>>, stillUsed: Set<String>): Map<String, String> {
+internal fun inheritedLocalIds(
+    previousAndCurrent: List<Pair<List<String>, List<String>>>,
+    stillUsed: Set<String>,
+    alreadyThere: Set<String> = emptySet(),
+): Map<String, String> {
     val inherited = LinkedHashMap<String, String>()
     val given = HashSet<String>()
     previousAndCurrent.forEach { (previous, current) ->
-        val heir = current.firstOrNull() ?: return@forEach
+        val heir = current.firstOrNull { it !in alreadyThere } ?: return@forEach
         previous.forEach { old ->
             if (old !in stillUsed && old !in given && heir !in inherited) {
                 inherited[heir] = old

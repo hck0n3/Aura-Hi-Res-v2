@@ -120,6 +120,35 @@ class LocalAlbumTagsTest {
         assertEquals("a new id inherits from one old id at most", mapOf("X" to "old1"), inheritedLocalIds(listOf(listOf("old1", "old2") to listOf("X")), setOf("X")))
     }
 
+    @Test
+    fun `an artist or album that already existed never takes the marks of one that was dropped`() {
+        assertTrue(
+            "«A feat. B» retagged «A»: A was already there, so B's follow does not move to A",
+            inheritedLocalIds(listOf(listOf("A", "B") to listOf("A")), stillUsed = setOf("A"), alreadyThere = setOf("A")).isEmpty(),
+        )
+        assertTrue(
+            "the only song of album P retagged into album Q that exists: Q keeps only its own like",
+            inheritedLocalIds(listOf(listOf("P") to listOf("Q")), stillUsed = setOf("Q"), alreadyThere = setOf("Q")).isEmpty(),
+        )
+        assertEquals(
+            "the first NEW id of the song inherits, not an artist that was already there",
+            mapOf("Simon & Garfunkel" to "Simon"),
+            inheritedLocalIds(
+                listOf(listOf("A", "Simon", "Garfunkel") to listOf("A", "Simon & Garfunkel")),
+                stillUsed = setOf("A", "Simon & Garfunkel"),
+                alreadyThere = setOf("A"),
+            ),
+        )
+        assertEquals(
+            "an album now grouped by its album artist is new and inherits",
+            mapOf("new" to "old"),
+            inheritedLocalIds(listOf(listOf("old") to listOf("new")), stillUsed = setOf("new"), alreadyThere = emptySet()),
+        )
+        val scanner = text("app/src/main/kotlin/com/music/echo/localmedia/LocalSongScanner.kt")
+        assertTrue(scanner.contains("alreadyThere = existingArtists.keys,"))
+        assertTrue(scanner.contains("alreadyThere = existingAlbums.keys,"))
+    }
+
     private val root: File =
         generateSequence(File("").absoluteFile) { it.parentFile }.firstOrNull { File(it, "settings.gradle.kts").isFile }
             ?: error("could not locate the repository root from ${File("").absolutePath}")
