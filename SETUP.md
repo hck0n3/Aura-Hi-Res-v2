@@ -132,6 +132,20 @@ Open the project in Android Studio or build from the command line.
 
 *(On Windows, use `.\gradlew.bat` instead of `./gradlew`)*
 
+**Private cloud (OneDrive/Dropbox) — optional locally, always in CI.** The app carries a trimmed rclone executable
+(`lib/<abi>/librclone.so`) built from source, never committed. Without it the app builds normally and the private
+cloud says it is not available on that device. To include it, on Linux x86_64 with Go ≥ 1.21, Python 3 and the
+NDK version of `app/build.gradle.kts` installed, run before Gradle:
+
+```bash
+scripts/build-rclone-android.sh            # every ABI, ~2 min the first time; x86_64 alone: add "x86_64"
+```
+
+It downloads the pinned Go toolchain and rclone release, checks the release's commit, and writes
+`tools/rclone-android/out/`. If rclone or Go is bumped, regenerate the licence notices it ships
+(`app/src/main/assets/licenses/rclone-android-NOTICES.txt`; the command is next to the `notices-check` call in
+the script), or the build stops.
+
 ### 6. Configure AI Translation (Optional)
 
 Aura Hi-Res Player supports AI-powered lyrics translation. You can configure this in **Settings -> AI Settings**.

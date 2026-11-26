@@ -55,6 +55,10 @@ jobs:
       - name: Player watch tests
         run: cd scripts && python3 -m unittest test_player_watch test_player_extract test_player_publish test_simpmusic_watch -v
 
+      # Ejecutable rclone de la nube privada (filas 886-887): las comprobaciones del ELF y de los pines, sin compilarlo.
+      - name: rclone packaging tests
+        run: cd scripts/rclone_android && python3 -m unittest test_rclone_android -v
+
       # Worker de salas (fila 547): Escuchar juntos propio, sobre workerd real.
       - name: Worker rooms tests
         run: cd docs/worker/rooms && npm install --no-audit --no-fund --silent && npm test

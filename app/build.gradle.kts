@@ -493,12 +493,20 @@ android {
         generateLocaleConfig = true
     }
 
+    // Private cloud (plan phase 5.1, row 886): the trimmed rclone executable as lib/<abi>/librclone.so, built from
+    // source by scripts/build-rclone-android.sh and never committed. Android 10+ only execs from nativeLibraryDir,
+    // hence a "library" (extracted thanks to useLegacyPackaging below). Not built → not packaged, the build still
+    // succeeds and the private cloud reports itself unavailable on that device.
+    sourceSets.getByName("main").jniLibs.directories.add(rootProject.file("tools/rclone-android/out/jniLibs").path)
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
             keepDebugSymbols += listOf(
                 "**/libandroidx.graphics.path.so",
-                "**/libdatastore_shared_counter.so"
+                "**/libdatastore_shared_counter.so",
+                // Already stripped by the Go linker; shipped byte-for-byte as built and verified (row 886).
+                "**/librclone.so"
             )
         }
         resources {

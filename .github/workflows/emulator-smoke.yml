@@ -105,6 +105,29 @@ jobs:
       - name: Host tool tests
         run: cd scripts/emulator_smoke && python3 -m unittest test_smoke_tools -v
 
+      # Private cloud (rows 886-887): the trimmed rclone executable, x86_64 only like the app build below. Its own
+      # cache key: an x86_64-only cache must never satisfy the every-ABI builds.
+      - name: rclone inputs fingerprint
+        id: rclone
+        run: echo "stamp=$(scripts/build-rclone-android.sh --stamp)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache rclone executable
+        id: rclone-cache
+        uses: actions/cache@v6
+        with:
+          path: tools/rclone-android/out
+          key: rclone-android-x86_64-${{ steps.rclone.outputs.stamp }}
+
+      - name: Set up Go for rclone
+        if: steps.rclone-cache.outputs.cache-hit != 'true'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/rclone-android/go.mod
+          cache: false
+
+      - name: Build rclone executable (librclone.so, x86_64)
+        run: scripts/build-rclone-android.sh x86_64
+
       - name: Build the new app (x86_64 FOSS debug, no subscription gate)
         # x86_64 only: the emulator is x86_64 and one ABI is a quarter of the native build of the universal APK.
         # Same dependency locks as every other build (validated, not rewritten).
@@ -123,6 +146,7 @@ jobs:
           APP=$(find app/build/outputs/apk/x86_64Foss/debug -name '*.apk' | head -n 1)
           SMOKE=$(find smoketest/build/outputs/apk -name '*.apk' | head -n 1)
           test -f "$APP" && test -f "$SMOKE"
+          python3 scripts/rclone_android/rclone_android.py apk "$APP" x86_64
           echo "app=$GITHUB_WORKSPACE/$APP" >> "$GITHUB_OUTPUT"
           echo "smoke=$GITHUB_WORKSPACE/$SMOKE" >> "$GITHUB_OUTPUT"
           ls -l "$APP" "$SMOKE"

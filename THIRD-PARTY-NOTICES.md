@@ -145,3 +145,43 @@ for reading ReplayGain tags of local files (`LocalSongScanner.kt`). Replaces `co
 Source: <https://github.com/belerweb/pinyin4j>, licence declared in its POM: BSD
 (<http://opensource.org/licenses/bsd-license.html>), GPL-3.0 compatible. Used only to romanize Chinese lyrics
 (`LyricsUtils.romanizeChinese`). Replaces `com.github.promeG:tinypinyin:2.0.3` (registry row 866).
+
+---
+
+## rclone — MIT (built from source in CI, not vendored)
+
+| Path in the APK | Contents |
+| --- | --- |
+| `lib/<abi>/librclone.so` (arm64-v8a, armeabi-v7a, x86, x86_64) | rclone v1.76.0 (commit `e982ff36668f5130d94b4f70409babb3d964df42`), trimmed to the OneDrive, Dropbox and local backends and the `rcd` and `serve http` commands (`tools/rclone-android/main.go`) |
+| `assets/licenses/rclone-android-NOTICES.txt` | The full licence text (and Apache `NOTICE`) of rclone, of the Go standard library and of every Go module linked into it |
+
+Source: <https://github.com/rclone/rclone> (MIT), built by `scripts/build-rclone-android.sh` at the pinned tag and
+commit with Go go1.27.4 and the app's NDK; the binaries are never committed. It is a separate executable that Aura
+starts on demand for the private cloud (plan phase 5.1, registry rows 886-887). Every licence in it is GPL-3.0
+compatible: MIT, BSD-2-Clause, BSD-3-Clause, Apache-2.0, CC0-1.0. Notable components: the Dropbox SDK for Go
+(`dropbox-sdk-go-unofficial`, MIT, Copyright (c) 2009-2016 Dropbox Inc.), `golang.org/x/oauth2`, `x/net` and
+`x/crypto` (BSD-3-Clause, The Go Authors), `spf13/cobra` and the Prometheus client libraries (Apache-2.0),
+`go-chi/chi` (MIT). The build fails if a linked module is missing from the notices file, so the list cannot fall
+behind a version bump.
+
+```
+Copyright (C) 2012 by Nick Craig-Wood http://www.craig-wood.com/nick/
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
