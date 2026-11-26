@@ -543,7 +543,7 @@ constructor(
 
     /** Row 881: only someone who already uses local music gets automatic scans (they scanned once, or have local songs). */
     suspend fun usesLocalLibrary(): Boolean =
-        hasAudioReadPermission() && withContext(Dispatchers.IO) { scanCacheFile.isFile || database.localSongIds().isNotEmpty() }
+        hasAudioReadPermission() && withContext(Dispatchers.IO) { scanCacheFile.isFile || database.localSongIds().any { !it.isCloudSongId() } }
 
     // Row 881: what the last successful scan built from each file. noBackupFilesDir: MediaStore ids belong to this phone.
     private val scanCacheFile: File get() = File(context.noBackupFilesDir, "local_scan_tracks.json")

@@ -234,6 +234,9 @@ class CloudLibraryIndexTest {
         assertFalse(disconnect.contains("Song") || disconnect.contains("CloudLibraryStore"))
         // A phone scan never takes a cloud song for a missing phone file.
         assertTrue(main("localmedia/LocalSongScanner.kt").contains("val existingLocalIds = localSongIds().filterNot { it.isCloudSongId() }"))
+        // Row 881: indexed cloud songs never opt someone into automatic phone scans.
+        assertTrue(main("localmedia/LocalSongScanner.kt").contains("scanCacheFile.isFile || database.localSongIds().any { !it.isCloudSongId() }"))
+        assertFalse(main("localmedia/LocalSongScanner.kt").contains("database.localSongIds().isNotEmpty()"))
         // The index lives next to the encrypted config, outside every backup.
         assertTrue(main("cloud/CloudLibraryStore.kt").contains("File(RcloneConfigFiles.dir(context).apply { mkdirs() }, FILE)"))
     }
