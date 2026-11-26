@@ -37,6 +37,26 @@ class CloudDaemonLifecycleTest {
     }
 
     @Test
+    fun `a caller cancelled while the daemon starts leaks neither the process nor a use`() {
+        // Leaving «Nube» during the 1-2 s start used to leave `rcd` running untracked (delay threw after spawn), or
+        // counted a use that withContext then dropped, so activeUses never reached 0 and the daemon never idled out.
+        val use = daemon.substringAfter("suspend fun <T> use(").substringBefore("\n    private suspend fun release(")
+        assertTrue(use.contains("val lease = Lease()"))
+        assertTrue(use.contains("return block(acquire(context.applicationContext, lease))"))
+        assertTrue("released iff counted", use.contains("if (lease.held) withContext(NonCancellable) { release() }"))
+        assertTrue("counted and marked together under the lock", use.contains("activeUses++\n            lease.held = true\n            live.client"))
+        val start = daemon.substringAfter("private suspend fun start(context: Context): Running {").substringBefore("\n    private suspend fun waitHealthy(")
+        val spawn = start.indexOf("val process = builder.start()")
+        val guarded = start.indexOf("try {", spawn)
+        assertTrue("everything after the spawn is guarded", spawn >= 0 && guarded > spawn && guarded < start.indexOf("readFirstLine(process.inputStream)"))
+        assertTrue(start.contains("started = true\n                    return Running(process, pid, client, output)"))
+        assertTrue(
+            "killed on any exit but success, cancellation included",
+            start.contains("} finally {") && start.contains("if (!started) {\n                    process.destroyForcibly()\n                    pidFile(context).delete()"),
+        )
+    }
+
+    @Test
     fun `the command line binds loopback and carries no credential`() {
         val cmd = RcloneProcessPolicy.command("/data/app/x/lib/arm64/librclone.so", 40123, "/data/c/rclone.conf", "/data/cache/rclone")
         assertEquals(listOf("/system/bin/sh", "-c", "echo \$\$; exec \"\$0\" \"\$@\""), cmd.take(3))

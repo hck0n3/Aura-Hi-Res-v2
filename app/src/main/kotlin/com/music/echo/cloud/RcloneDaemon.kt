@@ -84,6 +84,11 @@ object RcloneDaemon {
 
     private class Running(val process: Process, val pid: Int?, val client: RcClient, val output: BoundedOutput)
 
+    /** Set under the lock once [acquire] has counted this use: a caller cancelled after that still releases it. */
+    private class Lease {
+        @Volatile var held = false
+    }
+
     private val mutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var running: Running? = null
@@ -93,20 +98,21 @@ object RcloneDaemon {
 
     /** Runs [block] with a live daemon, starting it if needed; the daemon stays up while any block runs. */
     suspend fun <T> use(context: Context, block: suspend (RcClient) -> T): T {
-        val client = acquire(context.applicationContext)
+        val lease = Lease()
         try {
-            return block(client)
+            return block(acquire(context.applicationContext, lease))
         } finally {
-            withContext(NonCancellable) { release() }
+            if (lease.held) withContext(NonCancellable) { release() }
         }
     }
 
-    private suspend fun acquire(context: Context): RcClient = withContext(Dispatchers.IO) {
+    private suspend fun acquire(context: Context, lease: Lease): RcClient = withContext(Dispatchers.IO) {
         mutex.withLock {
             idleJob?.cancel()
             idleJob = null
             val live = running?.takeIf { it.process.isAlive } ?: start(context).also { running = it }
             activeUses++
+            lease.held = true
             live.client
         }
     }
@@ -145,19 +151,27 @@ object RcloneDaemon {
             env[RcloneProcessPolicy.ENV_PASS] = pass
             env[RcloneProcessPolicy.ENV_CONFIG_PASS] = prepared.password
             val process = builder.start()
-            runCatching { process.outputStream.close() }
-            val pid = RcloneProcessPolicy.parsePid(readFirstLine(process.inputStream))
-            val output = BoundedOutput(OUTPUT_LIMIT)
-            Thread { output.drain(process.inputStream) }.apply { isDaemon = true; start() }
-            pid?.let { runCatching { pidFile(context).writeText(it.toString()) } }
-            val client = RcClient(port, user, pass)
-            if (waitHealthy(client, process)) {
-                watchExit(context, process, pid)
-                Timber.tag(TAG).i("cloud: rclone daemon started")
-                return Running(process, pid, client, output)
+            var started = false
+            try {
+                runCatching { process.outputStream.close() }
+                val pid = RcloneProcessPolicy.parsePid(readFirstLine(process.inputStream))
+                val output = BoundedOutput(OUTPUT_LIMIT)
+                Thread { output.drain(process.inputStream) }.apply { isDaemon = true; start() }
+                pid?.let { runCatching { pidFile(context).writeText(it.toString()) } }
+                val client = RcClient(port, user, pass)
+                if (waitHealthy(client, process)) {
+                    watchExit(context, process, pid)
+                    Timber.tag(TAG).i("cloud: rclone daemon started")
+                    started = true
+                    return Running(process, pid, client, output)
+                }
+            } finally {
+                // Unhealthy, or the caller was cancelled mid-start (delay throws): never leave an untracked daemon.
+                if (!started) {
+                    process.destroyForcibly()
+                    pidFile(context).delete()
+                }
             }
-            process.destroyForcibly()
-            pidFile(context).delete()
         }
         throw IOException("rclone daemon did not start")
     }
