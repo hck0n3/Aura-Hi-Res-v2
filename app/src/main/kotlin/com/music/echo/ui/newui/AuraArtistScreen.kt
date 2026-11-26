@@ -88,6 +88,9 @@ import iad1tya.echo.music.constants.ShowArtistDescriptionKey
 import iad1tya.echo.music.constants.ShowArtistSubscriberCountKey
 import iad1tya.echo.music.constants.ShowArtistVideoKey
 import iad1tya.echo.music.constants.ShowMonthlyListenersKey
+import iad1tya.echo.music.cloud.BestSourcePolicy
+import iad1tya.echo.music.cloud.CloudAudioFiles
+import iad1tya.echo.music.cloud.isCloudSongId
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.toMediaMetadata
@@ -184,6 +187,8 @@ fun AuraArtistScreen(
     val artistPage = viewModel.artistPage
     val libraryArtist by viewModel.libraryArtist.collectAsState()
     val allLibrarySongs by viewModel.allLibrarySongs.collectAsState()
+    // Row 894: a song the artist has on the phone AND in the cloud plays its best copy (BestSourcePolicy); every copy stays listed.
+    val bestTwinOf = remember(allLibrarySongs) { BestSourcePolicy.bestTwins(allLibrarySongs.map(::bestSourceCandidate)) }
     // Owner 2026-11-23: the online page's «Tu biblioteca» = liked songs + songs in his own playlists only.
     val artistPageLibrarySongs by viewModel.artistPageLibrarySongs.collectAsState()
     val libraryAlbums by viewModel.libraryAlbums.collectAsState()
@@ -536,11 +541,13 @@ fun AuraArtistScreen(
                                     playedCount = allLibrarySongs.count { it.id in playedForStart },
                                     totalCount = allLibrarySongs.size,
                                 ) { resetMemory ->
+                                    // Row 894: one copy per song, the best one.
+                                    val playable = allLibrarySongs.filter { it.id !in bestTwinOf }
                                     val shuffledSongs = if (resetMemory) {
-                                        allLibrarySongs.shuffled()
+                                        playable.shuffled()
                                     } else {
                                         val (unheard, heard) =
-                                            allLibrarySongs.partition { it.id !in playedForStart }
+                                            playable.partition { it.id !in playedForStart }
                                         unheard.shuffled() + heard.shuffled()
                                     }
                                     if (shuffledSongs.isNotEmpty()) {
@@ -620,10 +627,20 @@ fun AuraArtistScreen(
                     } else {
                         allLibrarySongs
                     }
-                    if (filteredLibrarySongs.isNotEmpty()) {
-                        item(key = "aura_artist_local_songs_label", contentType = "aura_artist_local_songs_label") {
+                    // Row 894: «En tu móvil» and «En tu nube» apart when the artist has songs in both; one «Canciones» otherwise.
+                    // The queue is the whole list with one copy per song, the best (BestSourcePolicy).
+                    val (cloudSongs, phoneSongs) = filteredLibrarySongs.partition { it.id.isCloudSongId() }
+                    val songSections = if (cloudSongs.isNotEmpty() && phoneSongs.isNotEmpty()) {
+                        listOf(Triple("_phone", R.string.artist_source_phone, phoneSongs), Triple("_cloud", R.string.artist_source_cloud, cloudSongs))
+                    } else {
+                        listOf(Triple("", R.string.songs, filteredLibrarySongs))
+                    }
+                    val filteredIds = filteredLibrarySongs.mapTo(HashSet()) { it.id }
+                    val playQueue = filteredLibrarySongs.filter { bestTwinOf[it.id]?.let(filteredIds::contains) != true }
+                    if (filteredLibrarySongs.isNotEmpty()) songSections.forEach { (keySuffix, titleRes, sectionSongs) ->
+                        item(key = "aura_artist_local_songs_label$keySuffix", contentType = "aura_artist_local_songs_label") {
                             AuraSectionHeader(
-                                title = stringResource(R.string.songs),
+                                title = stringResource(titleRes),
                                 onClick = {
                                     ActionLog.tap(ActionId.ART_SONGS)
                                     navController.navigate("artist/${viewModel.artistId}/songs")
@@ -631,14 +648,16 @@ fun AuraArtistScreen(
                                 modifier = Modifier.animateItem(),
                             )
                         }
-                        item(key = "aura_artist_local_songs_pages", contentType = "aura_artist_local_songs_pages") {
+                        item(key = "aura_artist_local_songs_pages$keySuffix", contentType = "aura_artist_local_songs_pages") {
                             AuraSongPages(
-                                itemCount = filteredLibrarySongs.size,
+                                itemCount = sectionSongs.size,
                                 modifier = Modifier.animateItem(),
                             ) { index ->
+                                val song = sectionSongs[index]
                                 AuraArtistLibrarySongRow(
-                                    song = filteredLibrarySongs[index],
-                                    allSongs = filteredLibrarySongs,
+                                    song = song,
+                                    allSongs = playQueue,
+                                    playId = bestTwinOf[song.id]?.takeIf(filteredIds::contains) ?: song.id,
                                     artistName = libraryArtist?.artist?.name
                                         ?: context.getString(R.string.unknown_artist),
                                     mediaMetadataId = mediaMetadata?.id,
@@ -1252,6 +1271,8 @@ private fun AuraArtistLibrarySongRow(
     song: Song,
     allSongs: List<Song>,
     artistName: String,
+    // Row 894: the copy that plays when this row is tapped (its best twin on another source, or itself).
+    playId: String = song.id,
     mediaMetadataId: String?,
     isPlaying: Boolean,
     isTvOrCar: Boolean,
@@ -1275,14 +1296,14 @@ private fun AuraArtistLibrarySongRow(
         playedInShuffle = song.song.totalPlayTime > 0L,
         onClick = {
             ActionLog.tap(ActionId.ART_LIBRARY_SONG)
-            if (song.id == mediaMetadataId) {
+            if (song.id == mediaMetadataId || playId == mediaMetadataId) {
                 playerConnection.togglePlayPause()
             } else {
                 playerConnection.playQueue(
                     ListQueue(
                         title = artistName,
                         items = allSongs.map { it.toMediaItem() },
-                        startIndex = allSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0),
+                        startIndex = allSongs.indexOfFirst { it.id == playId }.coerceAtLeast(0),
                     ),
                 )
             }
@@ -1529,3 +1550,12 @@ private fun AuraArtistStatChip(
         )
     }
 }
+
+/** Row 894: what [BestSourcePolicy] compares of a library song (phone, cloud or online by its id). */
+private fun bestSourceCandidate(song: Song) = BestSourcePolicy.Candidate(
+    id = song.id,
+    title = song.song.title,
+    artists = song.artists.map { it.name },
+    durationSeconds = song.song.duration,
+    lossless = CloudAudioFiles.isLosslessMime(song.format?.mimeType),
+)
