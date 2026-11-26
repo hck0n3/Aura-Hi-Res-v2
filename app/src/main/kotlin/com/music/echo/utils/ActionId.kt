@@ -15,6 +15,8 @@ enum class ActionId(val code: String) {
     // ── Full player ──
     PLR_CONTINUE_HERE("UI.PLR.CONTINUE_HERE"),
     PLR_LYRICS_FULL("UI.PLR.LYRICS_FULL"),
+    // Registry row 896: «Pantalla» of the TV player (cover → lyrics → video).
+    PLR_SCREEN_CYCLE("UI.PLR.SCREEN_CYCLE"),
     PLR_LYRICS_MENU("UI.PLR.LYRICS_MENU"),
     PLR_TITLE("UI.PLR.TITLE"),
     PLR_TITLE_COPY("UI.PLR.TITLE_COPY"),

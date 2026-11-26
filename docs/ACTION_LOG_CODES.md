@@ -24,6 +24,7 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 |---|---|
 | `UI.PLR.CONTINUE_HERE` | «Sonando en … · Continuar aquí» (traer la música a este aparato) |
 | `UI.PLR.LYRICS_FULL` | Letra a pantalla completa (cabecera, con la letra abierta) |
+| `UI.PLR.SCREEN_CYCLE` | Botón «Pantalla» del reproductor en modo TV: portada → letra → vídeo (fila 896) |
 | `UI.PLR.LYRICS_MENU` | Menú de la letra (cabecera) |
 | `UI.PLR.TITLE` | Toque en el título (va al álbum) |
 | `UI.PLR.TITLE_COPY` | Pulsación larga en el título (copiar) |

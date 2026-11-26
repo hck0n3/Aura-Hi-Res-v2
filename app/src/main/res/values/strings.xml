@@ -923,4 +923,7 @@
     <string name="device_form_foldable">Foldable</string>
     <string name="device_form_tv">TV</string>
     <string name="device_form_car">Car</string>
+    <!-- Registry row 896 (plan, phase 6.2): «Pantalla» of the TV player. -->
+    <string name="player_screen_mode">Screen</string>
+    <string name="player_screen_cover">Cover</string>
 </resources>

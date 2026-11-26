@@ -857,4 +857,7 @@
     <string name="device_form_foldable">Plegable</string>
     <string name="device_form_tv">TV</string>
     <string name="device_form_car">Coche</string>
+    <!-- Fila 896 (plan, fase 6.2): «Pantalla» del reproductor en modo TV. -->
+    <string name="player_screen_mode">Pantalla</string>
+    <string name="player_screen_cover">Portada</string>
 </resources>
