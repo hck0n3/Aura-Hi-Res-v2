@@ -69,6 +69,8 @@ import iad1tya.echo.music.ui.newui.rememberAuraSheetMaxHeight
 import iad1tya.echo.music.ui.newui.auraWideWindowArea
 import iad1tya.echo.music.ui.newui.auraWindowBorder
 import iad1tya.echo.music.ui.newui.auraWindowShadow
+import iad1tya.echo.music.ui.utils.AuraTvFocusScope
+import iad1tya.echo.music.ui.utils.tvModalFocusGroup
 
 val LocalMenuState = compositionLocalOf { MenuState() }
 
@@ -249,9 +251,12 @@ fun BottomSheetMenu(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 20.dp)
-                                    .then(if (wide) Modifier.padding(bottom = 12.dp) else Modifier),
+                                    .then(if (wide) Modifier.padding(bottom = 12.dp) else Modifier)
+                                    // Row 897 (TV remote): in-window, so the D-pad must not walk out onto the screen
+                                    // under the scrim; the menu takes the focus when it opens. Nothing on touch.
+                                    .then(if (visible) Modifier.tvModalFocusGroup(state.content) else Modifier),
                             ) {
-                                state.content(this)
+                                AuraTvFocusScope { state.content(this) }
                             }
                         }
                     }
@@ -301,7 +306,7 @@ fun BottomSheetMenu(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
             ) {
-                state.content(this)
+                AuraTvFocusScope { state.content(this) }
             }
         }
     }

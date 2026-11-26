@@ -119,13 +119,15 @@ fun NavGraphBuilder.navigationBuilder(
     }
 
     composable(Screens.ListenTogether.route) {
-        ListenTogetherScreen(navController, showTopBar = false)
+        // Row 897: one TV-remote gate read for the whole screen (its panels read it for free).
+        iad1tya.echo.music.ui.utils.AuraTvFocusScope { ListenTogetherScreen(navController, showTopBar = false) }
     }
 
     composable(
         route = "listen_together_from_topbar",
     ) {
-        ListenTogetherScreen(navController, showTopBar = true)
+        // Row 897: one TV-remote gate read for the whole screen (its panels read it for free).
+        iad1tya.echo.music.ui.utils.AuraTvFocusScope { ListenTogetherScreen(navController, showTopBar = true) }
     }
 
     // "listen_together/chat" REMOVED with the SimpMusic port: the metroproto wire protocol has no

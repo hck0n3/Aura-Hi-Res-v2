@@ -22,6 +22,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import iad1tya.echo.music.R
+import iad1tya.echo.music.ui.utils.tvFocusable
+import iad1tya.echo.music.ui.utils.rememberAuraTvFocus
 
 /**
  * # Chrome for the redesigned screens that are NOT a bottom-bar tab
@@ -99,6 +101,8 @@ fun AuraDetailBackButton(
     Box(
         modifier = modifier
             .size(AuraSpacing.MinTouchTarget)
+            // Row 897: the TV remote's ring on every detail screen's back (album, artist lists, stats, migration).
+            .tvFocusable(rememberAuraTvFocus(), AuraShapes.Pill)
             .clip(AuraShapes.Pill)
             .clickable(
                 role = Role.Button,

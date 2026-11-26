@@ -116,6 +116,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
 
 /*
  * # The right half of a wide search: a master-detail panel that is USEFUL, not a pasted copy of the ⋯ menu
@@ -479,6 +481,7 @@ private fun PaneTileButton(tile: PaneTile, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
         modifier = modifier
             .heightIn(min = 64.dp)
+            .auraTvRing(AuraShapes.Card)
             .clip(AuraShapes.Card)
             .background(if (tile.primary) AuraPalette.Teal else AuraPalette.SurfaceFill)
             .then(if (tile.primary) Modifier else Modifier.border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card))
@@ -532,6 +535,7 @@ private fun PaneMoreGroup(rows: List<PaneMoreRow>) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = AuraSpacing.MinTouchTarget)
+                    .auraTvRing(AuraShapes.Highlight)
                     .auraClickableInternal(onClick = row.onClick, contentDescription = row.label)
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             ) {
@@ -569,6 +573,7 @@ private fun PaneChip(chip: PaneChipData) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .heightIn(min = 40.dp)
+            .auraTvRing(AuraShapes.Pill)
             .clip(AuraShapes.Pill)
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Pill)
@@ -609,7 +614,8 @@ private fun PaneScaffold(
     LazyColumn(
         state = listState,
         contentPadding = PaddingValues(bottom = 24.dp),
-        modifier = Modifier.fillMaxSize(),
+        // Row 897: the remote comes back to the row it left.
+        modifier = Modifier.fillMaxSize().tvFocusRestorer(),
     ) {
         item(key = "pane_header", contentType = "pane_header") { PaneHeader(entry, lines) }
         item(key = "pane_actions", contentType = "pane_actions") {
@@ -1174,6 +1180,7 @@ private fun PaneYtArtist(env: PaneEnv, pick: AuraSearchPick, item: ArtistItem, l
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.tvFocusRestorer(),
                         ) {
                             items(section.items, key = { it.id }) { shelfItem ->
                                 AuraTypedYtCoverCard(

@@ -85,6 +85,7 @@ import iad1tya.echo.music.constants.SwipeToSongKey
 import iad1tya.echo.music.db.entities.FormatEntity
 import iad1tya.echo.music.ui.component.PlayingIndicator
 import iad1tya.echo.music.ui.utils.resize
+import iad1tya.echo.music.ui.utils.auraTvRing
 import iad1tya.echo.music.ui.utils.tvFocusRestorer
 import iad1tya.echo.music.utils.makeTimeString
 import iad1tya.echo.music.utils.rememberPreference
@@ -747,6 +748,8 @@ fun AuraCoverCard(
 ) {
     Column(
         modifier = modifier
+            // Row 897: TV ring inside an AuraTvFocusScope only; a ring the caller passed is not doubled.
+            .let { if (onClick != null || onLongClick != null) it.auraTvRing(AuraShapes.Highlight) else it }
             .width(width)
             .clip(AuraShapes.Highlight)
             .then(
@@ -912,6 +915,7 @@ fun AuraPosterCard(
     // Posters always fill-bleed — never Fit letterboxes (owner: "portadas que no cubren todo").
     Box(
         modifier = modifier
+            .let { if (onClick != null || onLongClick != null) it.auraTvRing(shape) else it }
             .fillMaxWidth()
             .aspectRatio(ratio)
             .clip(shape)

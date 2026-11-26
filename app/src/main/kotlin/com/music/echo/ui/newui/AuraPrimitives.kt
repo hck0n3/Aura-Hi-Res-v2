@@ -59,6 +59,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import iad1tya.echo.music.R
+import iad1tya.echo.music.ui.utils.TvRowTrailingSlot
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.rememberTvRowTrailingFocus
+import iad1tya.echo.music.ui.utils.tvRowTarget
+import iad1tya.echo.music.ui.utils.tvRowTrailingKeys
 
 /**
  * Shared row / list / control primitives for the "Interfaz nueva".
@@ -191,6 +196,8 @@ fun AuraIconButton(
 ) {
     Box(
         modifier = modifier
+            // Row 897: the TV ring, only inside an AuraTvFocusScope on a remote device (never doubled).
+            .auraTvRing(CircleShape, scaleFocused = 1.06f)
             .sizeIn(
                 minWidth = AuraSpacing.MinTouchTarget,
                 minHeight = AuraSpacing.MinTouchTarget,
@@ -249,6 +256,7 @@ fun AuraPlayButton(
 ) {
     Box(
         modifier = modifier
+            .auraTvRing(CircleShape, scaleFocused = 1.06f)
             .size(diameter)
             .clip(CircleShape)
             .background(fill)
@@ -396,13 +404,22 @@ fun AuraRow(
         label = "auraRowSubtitle",
     )
 
+    val rowClickable = onClick != null || onLongClick != null
+    // Row 897 (TV remote): the ⋯ in [trailing] sits inside the row's focus target, out of reach of a D-pad search —
+    // this hands the focus over by key. Null (nothing added) outside an AuraTvFocusScope or off a remote device.
+    val tvTrailing = if (rowClickable && trailing != null) rememberTvRowTrailingFocus() else null
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(AuraSpacing.RowInner),
         modifier = modifier
+            // On the caller's chain (not a fresh Modifier), so a ring the caller already passed is seen and not doubled.
+            .let { if (rowClickable) it.auraTvRing(AuraShapes.Highlight) else it }
             .fillMaxWidth()
+            .tvRowTrailingKeys(tvTrailing, layoutDirection)
+            .tvRowTarget(tvTrailing)
             .then(
-                if (onClick != null || onLongClick != null) {
+                if (rowClickable) {
                     Modifier.combinedClickable(
                         onClick = { onClick?.invoke() },
                         onLongClick = onLongClick,
@@ -453,7 +470,7 @@ fun AuraRow(
                 }
             }
         }
-        trailing?.invoke()
+        if (trailing != null) TvRowTrailingSlot(tvTrailing, AuraSpacing.RowInner, trailing)
     }
 }
 
@@ -476,6 +493,7 @@ fun AuraMenuRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(15.dp),
         modifier = modifier
+            .auraTvRing(AuraShapes.Highlight)
             .fillMaxWidth()
             .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
             .auraClickable(onClick = onClick, enabled = enabled, role = Role.Button, contentDescription = label)
@@ -540,6 +558,7 @@ fun AuraSwitch(
 
     Box(
         modifier = modifier
+            .auraTvRing(AuraShapes.Pill, scaleFocused = 1.06f)
             .sizeIn(minWidth = AuraSpacing.MinTouchTarget, minHeight = AuraSpacing.MinTouchTarget)
             .auraClickable(
                 onClick = { onCheckedChange(!checked) },
@@ -606,6 +625,8 @@ fun AuraChip(
         modifier = modifier
             .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
             .padding(vertical = 6.dp)
+            // After the touch padding: the ring hugs the drawn pill, not the 48 dp touch box.
+            .auraTvRing(AuraShapes.Pill, scaleFocused = 1.06f)
             .clip(AuraShapes.Pill)
             .drawBehind { drawRect(fillColor) }
             .then(

@@ -43,6 +43,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -86,14 +88,19 @@ fun AddMusicSheet(
     val skin0 = rememberAuraPanelSkin()
     val premium0 = skin0.enabled && skin0.darkGround
     if (premium0 && overlayHazeState != null) {
+        // TV remote (row 897): the panel's first control is the search field, and focusing it raises the keyboard over
+        // the songs the sheet was opened for. The remote lands on the list instead.
+        val tvListFocus = remember { FocusRequester() }
         iad1tya.echo.music.ui.newui.AuraInWindowDialog(
             visible = true,
             onDismiss = onDismiss,
             center = false,
+            tvInitialFocus = tvListFocus,
         ) {
             AddMusicSheetBody(
                 viewModel = viewModel,
                 onDismiss = onDismiss,
+                listFocus = tvListFocus,
             )
         }
         return
@@ -120,6 +127,7 @@ fun AddMusicSheet(
 private fun AddMusicSheetBody(
     viewModel: LocalPlaylistViewModel,
     onDismiss: () -> Unit,
+    listFocus: FocusRequester? = null,
 ) {
     val previewController = rememberSongPreviewController()
     val skin = rememberAuraPanelSkin()
@@ -196,7 +204,9 @@ private fun AddMusicSheetBody(
                 val pageWidthFactor = if (maxWidth * 0.475f >= 320.dp) 0.475f else 0.9f
                 val pageWidth = maxWidth * pageWidthFactor
                 LazyColumn(
-                    modifier = Modifier.fillMaxHeight(),
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .then(if (listFocus != null) Modifier.focusRequester(listFocus) else Modifier),
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     if (query.isNotBlank()) {

@@ -83,6 +83,9 @@ import iad1tya.echo.music.ui.utils.SettingsSearchJump
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
+import iad1tya.echo.music.ui.utils.AuraTvFocusScope
 
 /**
  * # Ajustes — "Interfaz nueva"
@@ -472,6 +475,9 @@ internal fun AuraSettingsIndexHost(
                         else WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom
                     )
                 )
+                // Row 897: coming back from the page on the right, the remote lands on the row it left. BEFORE the
+                // scroll: a focus restorer only configures the next focus target down the chain (the scroll's group).
+                .tvFocusRestorer()
                 .verticalScroll(scrollState)
         ) {
             Spacer(
@@ -625,7 +631,8 @@ internal fun AuraSettingsIndexHost(
                 .fillMaxSize()
                 .auraScreenBackground(bloom, intensity = 0.32f) // render: `.bl { opacity:.32 }` on Ajustes
         ) {
-            indexColumn(Modifier.fillMaxSize())
+            // Row 897: the index's rows draw the TV remote's ring (here and in the two-pane frame of every page).
+            AuraTvFocusScope { indexColumn(Modifier.fillMaxSize()) }
         }
         return
     }
@@ -643,11 +650,13 @@ internal fun AuraSettingsIndexHost(
                 // Under «Suscripción Pro» (below): still composed, out of TalkBack's reach.
                 .then(if (showSubscribe) Modifier.clearAndSetSemantics {} else Modifier)
         ) {
-            indexColumn(
-                Modifier
-                    .width(indexWidth)
-                    .fillMaxHeight()
-            )
+            AuraTvFocusScope {
+                indexColumn(
+                    Modifier
+                        .width(indexWidth)
+                        .fillMaxHeight()
+                )
+            }
             Box(
                 Modifier
                     .width(1.dp)
@@ -830,6 +839,7 @@ private fun AuraSettingsIndexRow(
             .fillMaxWidth()
             .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
             .auraSettingsSelected(selected)
+            .auraTvRing(AuraShapes.Highlight)
             .clickable(onClickLabel = title, role = Role.Button, onClick = onClick)
             .padding(horizontal = AuraSpacing.Gutter, vertical = 11.dp),
     ) {
@@ -881,6 +891,7 @@ private fun AuraSettingsSubRow(
             .fillMaxWidth()
             .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
             .auraSettingsSelected(selected)
+            .auraTvRing(AuraShapes.Highlight)
             .clickable(onClickLabel = title, role = Role.Button, onClick = onClick)
             .padding(
                 start = AuraSpacing.Gutter + 24.dp + 15.dp,
@@ -968,7 +979,7 @@ private fun AuraSettingsSearchField(
                 textStyle = AuraType.MenuLabel.copy(color = AuraPalette.OnGround),
                 cursorBrush = SolidColor(AuraPalette.Teal),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().auraTvRing(AuraShapes.Highlight),
             )
         }
         if (query.isNotEmpty()) {
@@ -1050,6 +1061,7 @@ private fun AuraBackButton(
     Box(
         modifier = modifier
             .size(AuraSpacing.MinTouchTarget)
+            .auraTvRing(AuraShapes.Pill, scaleFocused = 1.06f)
             .clip(AuraShapes.Pill)
             .clickable(
                 role = Role.Button,

@@ -96,6 +96,9 @@ import iad1tya.echo.music.ui.newui.AuraType
 import iad1tya.echo.music.ui.newui.rememberAuraPanelSkin
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.rememberAuraTvFocus
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
+import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.rememberPreference
 import kotlinx.coroutines.launch
 
@@ -214,13 +217,16 @@ fun ListenTogetherScreen(
     // ONE flag read for the whole screen; every panel below takes it as a parameter.
     val skin = rememberAuraPanelSkin()
     val auraDark = skin.enabled && skin.darkGround
+    // Row 897: one TV-remote gate read for this panel (free inside the screen's AuraTvFocusScope).
+    val isTvOrCar = rememberAuraTvFocus()
 
     LazyColumn(
         state = lazyListState,
         modifier = Modifier
             .fillMaxSize()
             .background(if (auraDark) AuraPalette.Ground else MaterialTheme.colorScheme.background)
-            .imePadding(),
+            .imePadding()
+            .tvFocusRestorer(),
         contentPadding = PaddingValues(
             start = 16.dp,
             end = 16.dp,
@@ -302,7 +308,9 @@ fun ListenTogetherScreen(
                 item {
                     Button(
                         onClick = { ActionLog.tap(ActionId.LT_LEAVE); listenTogetherManager.leaveRoom() },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .tvFocusable(isTvOrCar, if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp), scaleFocused = 1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error
                         ),
@@ -453,17 +461,26 @@ fun ListenTogetherScreen(
             actions = {
                 when (val state = connectionState) {
                     is ConnectionState.Connected -> {
-                        TextButton(onClick = { ActionLog.tap(ActionId.LT_DISCONNECT); listenTogetherManager.disconnect() }) {
+                        TextButton(
+                            onClick = { ActionLog.tap(ActionId.LT_DISCONNECT); listenTogetherManager.disconnect() },
+                            modifier = Modifier.tvFocusable(isTvOrCar),
+                        ) {
                             Text(stringResource(R.string.disconnect))
                         }
                     }
                     is ConnectionState.Failed -> {
-                        TextButton(onClick = { ActionLog.tap(ActionId.LT_CONNECT); listenTogetherManager.connect() }) {
+                        TextButton(
+                            onClick = { ActionLog.tap(ActionId.LT_CONNECT); listenTogetherManager.connect() },
+                            modifier = Modifier.tvFocusable(isTvOrCar),
+                        ) {
                             Text(stringResource(R.string.connect))
                         }
                     }
                     is ConnectionState.Disconnected -> {
-                        TextButton(onClick = { ActionLog.tap(ActionId.LT_CONNECT); listenTogetherManager.connect() }) {
+                        TextButton(
+                            onClick = { ActionLog.tap(ActionId.LT_CONNECT); listenTogetherManager.connect() },
+                            modifier = Modifier.tvFocusable(isTvOrCar),
+                        ) {
                             Text(stringResource(R.string.connect))
                         }
                     }
@@ -567,6 +584,8 @@ private fun RoomStatusCard(
     skin: AuraPanelSkin,
     context: Context
 ) {
+    // Row 897: one TV-remote gate read for this panel (free inside the screen's AuraTvFocusScope).
+    val isTvOrCar = rememberAuraTvFocus()
     AuraPanel(
         skin = skin,
         modifier = Modifier.fillMaxWidth(),
@@ -622,6 +641,7 @@ private fun RoomStatusCard(
                 ) {
                     FilledTonalButton(
                         shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp),
+                        modifier = Modifier.tvFocusable(isTvOrCar, if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp)),
                         onClick = {
                             ActionLog.tap(ActionId.LT_COPY_LINK)
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -641,6 +661,7 @@ private fun RoomStatusCard(
 
                     FilledTonalButton(
                         shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp),
+                        modifier = Modifier.tvFocusable(isTvOrCar, if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(12.dp)),
                         onClick = {
                             ActionLog.tap(ActionId.LT_COPY_CODE)
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -684,6 +705,8 @@ private fun ConnectedUsersSection(
     currentUserId: String,
     onUserClick: (String) -> Unit
 ) {
+    // Row 897: one TV-remote gate read for this panel (free inside the screen's AuraTvFocusScope).
+    val isTvOrCar = rememberAuraTvFocus()
     AuraPanel(
         skin = skin,
         modifier = Modifier.fillMaxWidth(),
@@ -727,7 +750,15 @@ private fun ConnectedUsersSection(
                                 if (skin.enabled) Modifier.sizeIn(minHeight = AuraSpacing.MinTouchTarget)
                                 else Modifier
                             )
-                            .then(if (clickable) Modifier.clickable { onUserClick(member.userId) } else Modifier)
+                            .then(
+                                if (clickable) {
+                                    Modifier
+                                        .tvFocusable(isTvOrCar, RoundedCornerShape(12.dp), scaleFocused = 1f)
+                                        .clickable { onUserClick(member.userId) }
+                                } else {
+                                    Modifier
+                                },
+                            )
                             .padding(horizontal = 4.dp, vertical = 8.dp)
                     ) {
                         AvatarBadge(
@@ -837,6 +868,8 @@ private fun WaitingForApprovalCard(
     skin: AuraPanelSkin,
     onCancel: () -> Unit
 ) {
+    // Row 897: one TV-remote gate read for this panel (free inside the screen's AuraTvFocusScope).
+    val isTvOrCar = rememberAuraTvFocus()
     AuraPanel(
         skin = skin,
         modifier = Modifier.fillMaxWidth(),
@@ -873,7 +906,7 @@ private fun WaitingForApprovalCard(
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(4.dp))
-            TextButton(onClick = onCancel) {
+            TextButton(onClick = onCancel, modifier = Modifier.tvFocusable(isTvOrCar)) {
                 Text(stringResource(R.string.cancel_join))
             }
         }
@@ -887,6 +920,8 @@ private fun PendingJoinRequestsSection(
     onApprove: (String) -> Unit,
     onReject: (String) -> Unit
 ) {
+    // Row 897: one TV-remote gate read for this panel (free inside the screen's AuraTvFocusScope).
+    val isTvOrCar = rememberAuraTvFocus()
     AuraPanel(
         skin = skin,
         modifier = Modifier.fillMaxWidth(),
@@ -929,7 +964,7 @@ private fun PendingJoinRequestsSection(
                             color = if (skin.enabled) skin.inkMuted else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    MaterialIconButton(onClick = { onApprove(request.userId) }) {
+                    MaterialIconButton(onClick = { onApprove(request.userId) }, modifier = Modifier.tvFocusable(isTvOrCar, CircleShape)) {
                         Icon(
                             painter = painterResource(R.drawable.check),
                             contentDescription = stringResource(R.string.approve),
@@ -937,7 +972,7 @@ private fun PendingJoinRequestsSection(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                    MaterialIconButton(onClick = { onReject(request.userId) }) {
+                    MaterialIconButton(onClick = { onReject(request.userId) }, modifier = Modifier.tvFocusable(isTvOrCar, CircleShape)) {
                         Icon(
                             painter = painterResource(R.drawable.close),
                             contentDescription = stringResource(R.string.reject),
@@ -958,6 +993,8 @@ private fun PendingSuggestionsSection(
     onApprove: (String) -> Unit,
     onReject: (String) -> Unit
 ) {
+    // Row 897: one TV-remote gate read for this panel (free inside the screen's AuraTvFocusScope).
+    val isTvOrCar = rememberAuraTvFocus()
     AuraPanel(
         skin = skin,
         modifier = Modifier.fillMaxWidth(),
@@ -1009,7 +1046,7 @@ private fun PendingSuggestionsSection(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    MaterialIconButton(onClick = { onApprove(suggestion.suggestionId) }) {
+                    MaterialIconButton(onClick = { onApprove(suggestion.suggestionId) }, modifier = Modifier.tvFocusable(isTvOrCar, CircleShape)) {
                         Icon(
                             painter = painterResource(R.drawable.check),
                             contentDescription = stringResource(R.string.approve),
@@ -1017,7 +1054,7 @@ private fun PendingSuggestionsSection(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                    MaterialIconButton(onClick = { onReject(suggestion.suggestionId) }) {
+                    MaterialIconButton(onClick = { onReject(suggestion.suggestionId) }, modifier = Modifier.tvFocusable(isTvOrCar, CircleShape)) {
                         Icon(
                             painter = painterResource(R.drawable.close),
                             contentDescription = stringResource(R.string.reject),
@@ -1048,6 +1085,8 @@ private fun JoinCreateRoomSection(
     onJoinRoom: () -> Unit,
     onFieldFocused: () -> Unit = {}
 ) {
+    // Row 897: one TV-remote gate read for this panel (free inside the screen's AuraTvFocusScope).
+    val isTvOrCar = rememberAuraTvFocus()
     var selectedTab by rememberSaveable { mutableStateOf(0) }
 
     // The SimpMusic input rules, applied at the edge so the protocol never has to reject:
@@ -1088,7 +1127,9 @@ private fun JoinCreateRoomSection(
             ) {
                 Button(
                     onClick = { ActionLog.tap(ActionId.LT_TAB_CREATE); selectedTab = 0 },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .tvFocusable(isTvOrCar, if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp), scaleFocused = 1f),
                     shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (selectedTab == 0) {
@@ -1113,7 +1154,9 @@ private fun JoinCreateRoomSection(
                 }
                 Button(
                     onClick = { ActionLog.tap(ActionId.LT_TAB_JOIN); selectedTab = 1 },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .tvFocusable(isTvOrCar, if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp), scaleFocused = 1f),
                     shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (selectedTab == 1) {
@@ -1153,7 +1196,7 @@ private fun JoinCreateRoomSection(
                 },
                 trailingIcon = {
                     if (usernameInput.isNotBlank()) {
-                        MaterialIconButton(onClick = { ActionLog.tap(ActionId.LT_NAME_CLEAR); onUsernameChange("") }) {
+                        MaterialIconButton(onClick = { ActionLog.tap(ActionId.LT_NAME_CLEAR); onUsernameChange("") }, modifier = Modifier.tvFocusable(isTvOrCar, CircleShape)) {
                             Icon(painterResource(R.drawable.close), null)
                         }
                     }
@@ -1191,7 +1234,7 @@ private fun JoinCreateRoomSection(
                     },
                     trailingIcon = {
                         if (roomCodeInput.isNotBlank()) {
-                            MaterialIconButton(onClick = { ActionLog.tap(ActionId.LT_CODE_CLEAR); onRoomCodeChange("") }) {
+                            MaterialIconButton(onClick = { ActionLog.tap(ActionId.LT_CODE_CLEAR); onRoomCodeChange("") }, modifier = Modifier.tvFocusable(isTvOrCar, CircleShape)) {
                                 Icon(painterResource(R.drawable.close), null)
                             }
                         }
@@ -1256,7 +1299,9 @@ private fun JoinCreateRoomSection(
             if (selectedTab == 0) {
                 Button(
                     onClick = onCreateRoom,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .tvFocusable(isTvOrCar, if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp), scaleFocused = 1f),
                     enabled = canAct,
                     shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -1276,7 +1321,9 @@ private fun JoinCreateRoomSection(
             } else {
                 Button(
                     onClick = onJoinRoom,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .tvFocusable(isTvOrCar, if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp), scaleFocused = 1f),
                     enabled = canAct && hasRoomCode,
                     shape = if (skin.enabled) AuraShapes.Pill else RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -1334,6 +1381,8 @@ private fun UserActionDialog(
     onTransferOwnership: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    // Row 897: one TV-remote gate read for this panel (free inside the screen's AuraTvFocusScope).
+    val isTvOrCar = rememberAuraTvFocus()
     DefaultDialog(
         onDismiss = onDismiss,
         icon = {
@@ -1368,6 +1417,7 @@ private fun UserActionDialog(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .tvFocusable(isTvOrCar, RoundedCornerShape(12.dp), scaleFocused = 1f)
                     .clickable(onClick = onKick),
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.errorContainer
@@ -1406,6 +1456,7 @@ private fun UserActionDialog(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .tvFocusable(isTvOrCar, RoundedCornerShape(12.dp), scaleFocused = 1f)
                     .clickable(onClick = onBlockAndKick),
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant
@@ -1439,6 +1490,7 @@ private fun UserActionDialog(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .tvFocusable(isTvOrCar, RoundedCornerShape(12.dp), scaleFocused = 1f)
                     .clickable(onClick = onTransferOwnership),
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.primaryContainer

@@ -153,7 +153,8 @@ fun AuraModalBottomSheet(
         AuraFrostWindowIfPremium()
         // A sheet WINDOW: dialogs opened from here must stay windows, the glass host draws under it.
         CompositionLocalProvider(iad1tya.echo.music.ui.newui.LocalInsideDialogWindow provides true) {
-            content()
+            // Row 897: the Aura controls inside the sheet draw the TV remote's focus ring (nothing on touch).
+            iad1tya.echo.music.ui.utils.AuraTvFocusScope { content() }
         }
     }
 }

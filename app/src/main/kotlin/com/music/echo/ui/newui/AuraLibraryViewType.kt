@@ -20,6 +20,7 @@ import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.LibraryViewType
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.auraTvRing
 
 /**
  * Row 349 (owner 2026-10-08, C2 decision 2: «recupera el interruptor»): the list/grid switch of the
@@ -33,6 +34,7 @@ internal fun AuraViewTypeToggle(viewType: LibraryViewType, onChange: (LibraryVie
     Box(
         modifier = Modifier
             .minimumInteractiveComponentSize()
+            .auraTvRing(CircleShape, scaleFocused = 1.06f)
             .clip(CircleShape)
             .auraClickableInternal(
                 onClick = { ActionLog.tap(ActionId.LIBVIEW_TOGGLE); onChange(next) },

@@ -71,6 +71,9 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.tvFocusable
+import iad1tya.echo.music.ui.utils.rememberAuraTvFocus
+import androidx.compose.foundation.shape.CircleShape
 
 /**
  * # Descargado / auto-listas — "Interfaz nueva"
@@ -427,6 +430,8 @@ private fun AuraDownloadStorageCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = AuraSpacing.Gutter, vertical = 6.dp)
+            // Row 897: the TV remote's ring (the collection list around it rings its own rows).
+            .tvFocusable(rememberAuraTvFocus(), AuraShapes.Card, scaleFocused = 1f)
             .clip(AuraShapes.Card)
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
@@ -501,6 +506,8 @@ private fun AuraActiveDownloadRow(
         else -> stringResource(R.string.downloading)
     }
 
+    // Row 897: retry / cancel are the row's only controls; one gate read per row for their TV ring.
+    val isTvOrCar = rememberAuraTvFocus()
     Column(modifier = modifier.fillMaxWidth()) {
         AuraRow(
             title = title,
@@ -533,6 +540,7 @@ private fun AuraActiveDownloadRow(
                             onClick = { ActionLog.tap(ActionId.AUTOPL_RETRY); onRetry() },
                             size = 18.dp,
                             tint = AuraPalette.Teal,
+                            modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                         )
                     }
                     AuraIconButton(
@@ -542,7 +550,7 @@ private fun AuraActiveDownloadRow(
                         onClick = { ActionLog.tap(ActionId.AUTOPL_CANCEL_DOWNLOAD); onCancel() },
                         size = 18.dp,
                         tint = AuraPalette.OnGroundDisabled,
-                        modifier = Modifier.graphicsLayer { rotationZ = 45f },
+                        modifier = Modifier.tvFocusable(isTvOrCar, CircleShape).graphicsLayer { rotationZ = 45f },
                     )
                 }
             },

@@ -94,6 +94,8 @@ import kotlinx.coroutines.withContext
 import java.net.URLEncoder
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
 
 private const val SECTION_PLAYBACK = "playback"
 private const val SECTION_LIBRARY = "library"
@@ -248,6 +250,7 @@ fun AuraPlayerMenu(
                     modifier = Modifier
                         .fillParentMaxWidth()
                         .height(ListItemHeight)
+                        .auraTvRing(AuraShapes.Highlight)
                         .clickable {
                             ActionLog.tap(ActionId.PMENU_ARTIST_PICK)
                             coroutineScope.launch {
@@ -298,7 +301,9 @@ fun AuraPlayerMenu(
         modifier = Modifier
             .fillMaxWidth()
             .auraBleedHorizontal(20.dp)
-            .background(if (floatingChrome) Color.Transparent else AuraPalette.GroundRaised),
+            .background(if (floatingChrome) Color.Transparent else AuraPalette.GroundRaised)
+            // Row 897: the remote comes back to the row it left.
+            .tvFocusRestorer(),
         contentPadding = PaddingValues(
             bottom = 16.dp + WindowInsets.systemBars.asPaddingValues().calculateBottomPadding(),
         ),

@@ -96,6 +96,7 @@ import java.net.URLEncoder
 import kotlinx.coroutines.launch
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
 
 /**
  * # Resultados de búsqueda — "Interfaz nueva"
@@ -407,7 +408,7 @@ fun AuraSearchResultScreen(
                                 bottom = 24.dp + LocalPlayerAwareWindowInsets.current.asPaddingValues()
                                     .calculateBottomPadding(),
                             ),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().tvFocusRestorer(),
                         ) {
                             gridItems(filteredItems, key = { "aura_filtered_${it.id}" }) { item ->
                                 AuraSearchGridCard(
@@ -466,7 +467,8 @@ fun AuraSearchResultScreen(
                         contentPadding = LocalPlayerAwareWindowInsets.current
                             .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
                             .asPaddingValues(),
-                        modifier = Modifier.fillMaxSize(),
+                        // Row 897: the remote comes back to the result it left.
+                        modifier = Modifier.fillMaxSize().tvFocusRestorer(),
                     ) {
                         if (searchFilter == null) {
                             // Same order as the classic screen: artists, then songs (YouTube already ranks
@@ -624,7 +626,7 @@ fun AuraSearchResultScreen(
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = AuraSpacing.Gutter),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().tvFocusRestorer(),
                 ) {
                     items(
                         items = auraResultFilters(),

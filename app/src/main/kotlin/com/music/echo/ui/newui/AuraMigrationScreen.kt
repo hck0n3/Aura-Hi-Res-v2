@@ -87,6 +87,9 @@ import iad1tya.echo.music.utils.rememberPreference
 import java.util.Locale
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
+import iad1tya.echo.music.ui.utils.tvInitialFocus
 
 /**
  * # Migrar lista — "Interfaz nueva"
@@ -230,7 +233,8 @@ fun AuraMigrationScreen(
                 )
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    // Row 897: the remote lands on the first choice when the screen opens and comes back to the one it left.
+                    modifier = Modifier.fillMaxSize().tvInitialFocus().tvFocusRestorer(),
                     contentPadding = PaddingValues(
                         start = AuraSpacing.Gutter,
                         end = AuraSpacing.Gutter,
@@ -517,6 +521,7 @@ private fun AuraCollectionRow(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .auraTvRing(AuraShapes.Card)
             .clip(AuraShapes.Card)
             .background(if (isLibrary) AuraPalette.NowPlayingFill else AuraPalette.SurfaceFill)
             .border(
@@ -820,7 +825,8 @@ private fun AuraAmbiguousReview(
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .tvFocusRestorer(),
             contentPadding = PaddingValues(
                 start = AuraSpacing.Gutter,
                 end = AuraSpacing.Gutter,
@@ -925,6 +931,7 @@ private fun AuraCandidateRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .auraTvRing(AuraShapes.Highlight)
             .clip(AuraShapes.Highlight)
             .background(if (selected) AuraPalette.NowPlayingFill else Color.Transparent)
             .border(
@@ -1657,6 +1664,7 @@ private fun AuraSourceRow(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = modifier
             .fillMaxWidth()
+            .auraTvRing(AuraShapes.Card)
             .clip(AuraShapes.Card)
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
@@ -1824,6 +1832,7 @@ private fun AuraActionButton(
     Box(
         modifier = modifier
             .sizeIn(minHeight = 52.dp)
+            .auraTvRing(AuraShapes.Card)
             .clip(AuraShapes.Card)
             .background(
                 if (enabled) AuraPalette.Teal else AuraPalette.Teal.copy(alpha = 0.28f),
@@ -1865,6 +1874,7 @@ private fun AuraQuietButton(
     Box(
         modifier = modifier
             .sizeIn(minHeight = 52.dp)
+            .auraTvRing(AuraShapes.Card)
             .clip(AuraShapes.Card)
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)
@@ -1897,6 +1907,7 @@ private fun AuraLinkButton(
     Box(
         modifier = modifier
             .sizeIn(minHeight = AuraSpacing.MinTouchTarget)
+            .auraTvRing(AuraShapes.Pill)
             .clip(AuraShapes.Pill)
             .auraClickableInternal(
                 onClick = onClick,
@@ -1936,6 +1947,8 @@ private fun AuraInputField(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                // The ring lights while the field inside holds the remote's focus.
+                .auraTvRing(AuraShapes.Card)
                 .clip(AuraShapes.Card)
                 .background(AuraPalette.SurfaceFill)
                 .border(1.dp, AuraPalette.SurfaceLine, AuraShapes.Card)

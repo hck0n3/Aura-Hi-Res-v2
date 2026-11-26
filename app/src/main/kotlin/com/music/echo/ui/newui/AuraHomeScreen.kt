@@ -455,7 +455,10 @@ fun AuraHomeScreen(
     if (offlineMode) {
         // Offline mode ON: the downloaded-only home replaces the whole body, exactly as in the classic
         // Home. It is its own inventory section (10.1) and is reused verbatim.
-        DownloadedOnlyView(navController = navController, automatic = offlineState.automatic)
+        // Row 897: its song rows and covers draw the TV remote's ring (the scope does nothing on touch).
+        iad1tya.echo.music.ui.utils.AuraTvFocusScope {
+            DownloadedOnlyView(navController = navController, automatic = offlineState.automatic)
+        }
         return
     }
 

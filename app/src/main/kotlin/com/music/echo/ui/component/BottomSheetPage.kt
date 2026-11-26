@@ -60,6 +60,8 @@ import iad1tya.echo.music.ui.newui.auraWindowShadow
 import iad1tya.echo.music.ui.newui.rememberAuraSheetMaxHeight
 import iad1tya.echo.music.ui.newui.AuraSheetHandle
 import iad1tya.echo.music.ui.newui.auraSheetDragOffset
+import iad1tya.echo.music.ui.utils.AuraTvFocusScope
+import iad1tya.echo.music.ui.utils.tvModalFocusGroup
 
 val LocalBottomSheetPageState = compositionLocalOf { BottomSheetPageState() }
 
@@ -254,9 +256,12 @@ fun BottomSheetPage(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp)
-                                    .padding(bottom = 16.dp),
+                                    .padding(bottom = 16.dp)
+                                    // Row 897 (TV remote): in-window, so the D-pad must not walk out onto the screen
+                                    // under the scrim; the page takes the focus when it opens. Nothing on touch.
+                                    .then(if (visible) Modifier.tvModalFocusGroup(state.content) else Modifier),
                             ) {
-                                state.content(this)
+                                AuraTvFocusScope { state.content(this) }
                             }
                         }
                     }
@@ -307,7 +312,7 @@ fun BottomSheetPage(
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp),
             ) {
-                state.content(this)
+                AuraTvFocusScope { state.content(this) }
             }
         }
     }
@@ -401,9 +406,10 @@ private fun AuraSpotlightHost(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 12.dp)
-                                    .padding(top = 12.dp, bottom = 8.dp),
+                                    .padding(top = 12.dp, bottom = 8.dp)
+                                    .then(if (visible) Modifier.tvModalFocusGroup(state.content) else Modifier),
                             ) {
-                                state.content(this)
+                                AuraTvFocusScope { state.content(this) }
                             }
                         }
                     }

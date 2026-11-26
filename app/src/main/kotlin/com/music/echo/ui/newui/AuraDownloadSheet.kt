@@ -61,6 +61,8 @@ import iad1tya.echo.music.ui.utils.rememberMp3ExportFolderAccess
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import iad1tya.echo.music.ui.utils.auraTvRing
+import iad1tya.echo.music.ui.utils.tvFocusRestorer
 
 /**
  * One song the unified download sheet can act on, whatever it came from (a library row, a YouTube list item or
@@ -362,7 +364,7 @@ fun AuraDownloadSheet(
                         total = pool.size,
                         onToggle = { picked = if (picked.size == pool.size) emptySet() else pool.map { it.id }.toSet() },
                     )
-                    LazyColumn(modifier = Modifier.heightIn(max = 340.dp)) {
+                    LazyColumn(modifier = Modifier.heightIn(max = 340.dp).tvFocusRestorer()) {
                         items(pool, key = { it.id }) { item ->
                             PickRow(
                                 label = item.title,
@@ -525,6 +527,8 @@ internal fun DownloadSheetRow(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier
             .fillMaxWidth()
+            // Row 897: the TV remote's ring (the sheet is an AuraTvFocusScope).
+            .auraTvRing(RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(16.dp))
@@ -566,6 +570,7 @@ private fun SelectAllBar(allSelected: Boolean, selected: Int, total: Int, onTogg
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .auraTvRing(RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(AuraPalette.SurfaceFill)
             .border(1.dp, AuraPalette.SurfaceLine, RoundedCornerShape(14.dp))
@@ -599,6 +604,7 @@ private fun PickRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .auraTvRing(RoundedCornerShape(10.dp))
             .clip(RoundedCornerShape(10.dp))
             .auraClickableInternal(onClick = { ActionLog.tap(ActionId.DLSHEET_SELECT_ALL); onToggle() }, contentDescription = label)
             .padding(vertical = 2.dp),

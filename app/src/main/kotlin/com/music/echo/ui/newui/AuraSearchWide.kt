@@ -82,6 +82,7 @@ import iad1tya.echo.music.ui.menu.YouTubePlaylistMenu
 import iad1tya.echo.music.ui.menu.YouTubeSongMenu
 import iad1tya.echo.music.utils.makeTimeString
 import kotlinx.coroutines.flow.flowOf
+import iad1tya.echo.music.ui.utils.auraTvRing
 
 /*
  * # Search in a WIDE window (an unfolded foldable, a tablet) — one set of pieces for every search surface
@@ -358,6 +359,8 @@ internal fun AuraSearchWideRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         modifier = modifier
+            // Row 897: the remote's ring (inside an AuraTvFocusScope only).
+            .auraTvRing(AuraShapes.Highlight)
             .fillMaxWidth()
             .clip(AuraShapes.Highlight)
             .background(if (selected) AuraPalette.Teal.copy(alpha = 0.14f) else Color.Transparent)
