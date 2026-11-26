@@ -28,10 +28,13 @@ object JankReport {
     private var screen = JankTally.OTHER
 
     private var stats: JankStats? = null
+    private var attachedTo: java.lang.ref.WeakReference<Window>? = null
 
-    /** Call once from the activity's onCreate, after setContent. No-op in release. */
+    /** Call from the activity's onCreate, after setContent (a recreated activity brings a new window). No-op in release. */
     fun attach(window: Window) {
-        if (!BuildConfig.DEBUG || stats != null) return
+        if (!BuildConfig.DEBUG || attachedTo?.get() === window) return
+        stats?.isTrackingEnabled = false
+        attachedTo = java.lang.ref.WeakReference(window)
         stats = runCatching {
             JankStats.createAndTrack(
                 window,

@@ -45,7 +45,7 @@ class JankReportTest {
     @Test
     fun `it only starts in debug builds, logs below INFO, and the activity drives it by events`() {
         val report = src("utils/JankReport.kt")
-        assertTrue(report.contains("if (!BuildConfig.DEBUG || stats != null) return"))
+        assertTrue(report.contains("if (!BuildConfig.DEBUG || attachedTo?.get() === window) return"))
         assertTrue("DEBUG level: AppLogger persists INFO+ only", report.contains("Timber.tag(\"Jank\").d(it)"))
         assertFalse(Regex("""Timber(\.tag\([^)]*\))?\.[iwe]\(""").containsMatchIn(report))
         assertFalse("no timer", report.contains("while (") || report.contains("delay(") || report.contains("postDelayed"))
