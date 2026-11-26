@@ -27,6 +27,18 @@ class LocalLrcSidecarTest {
     }
 
     @Test
+    fun `utf16 files with BOM decode and undecodable text is no sidecar`() {
+        val text = "[00:01.00]Canción"
+        val le = byteArrayOf(0xFF.toByte(), 0xFE.toByte()) + text.toByteArray(Charsets.UTF_16LE)
+        val be = byteArrayOf(0xFE.toByte(), 0xFF.toByte()) + text.toByteArray(Charsets.UTF_16BE)
+        assertEquals(text, LocalLrcSidecar.decode(le))
+        assertEquals(text, LocalLrcSidecar.decode(be))
+        assertEquals(text, LocalLrcSidecar.normalize(LocalLrcSidecar.decode(le)))
+        val noBom = LocalLrcSidecar.decode(text.toByteArray(Charsets.UTF_16LE))
+        assertNull("UTF-16 without BOM reads as NULs: the online providers must still run", LocalLrcSidecar.normalize(noBom))
+    }
+
+    @Test
     fun `timestamps become the form the parser reads and ID tags go`() {
         val raw = "\uFEFF[ar:Someone]\r\n[ti:Song]\r\n[offset:+100]\r\n[0:05]Hola\r\n[00:07.5]Mundo\r\n[01:02:30]Fin\r\n"
         assertEquals("[00:05.00]Hola\n[00:07.50]Mundo\n[01:02.30]Fin", LocalLrcSidecar.normalize(raw))

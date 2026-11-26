@@ -28,8 +28,17 @@ object LocalLrcSidecar {
 
     private val LegacyCharset = runCatching { charset("windows-1252") }.getOrDefault(Charsets.ISO_8859_1)
 
-    /** UTF-8 (with or without BOM); a file that is not valid UTF-8 is read as Windows-1252, the usual legacy encoding. */
+    /**
+     * UTF-16 with its BOM (Notepad's «Unicode»), UTF-8 (with or without BOM); a file that is neither is read as
+     * Windows-1252, the usual legacy encoding.
+     */
     fun decode(bytes: ByteArray): String {
+        val utf16 = when {
+            bytes.size >= 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xFE.toByte() -> StandardCharsets.UTF_16LE
+            bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte() -> StandardCharsets.UTF_16BE
+            else -> null
+        }
+        if (utf16 != null) return String(bytes, 2, bytes.size - 2, utf16)
         val utf8 = try {
             StandardCharsets.UTF_8.newDecoder()
                 .onMalformedInput(CodingErrorAction.REPORT)
@@ -53,9 +62,11 @@ object LocalLrcSidecar {
      * Timestamps are rewritten to the `[mm:ss.xx]` form the parser reads (`LyricsUtils.TIME_REGEX`: `[1:05]`,
      * `[01:05]` and `[01:05:30]` become `[01:05.00]`/`[01:05.30]`), ID tags are dropped so synced lyrics start with
      * a timestamp, and line ends are normalised. Lyrics without any timestamp are kept as plain text, unless they
-     * open with `[`, which the lyrics screen would take for synced lyrics and show empty.
+     * open with `[`, which the lyrics screen would take for synced lyrics and show empty. Text with NUL characters
+     * (an encoding [decode] could not read, such as UTF-16 without BOM) is not lyrics: the online providers still run.
      */
     fun normalize(raw: String): String? {
+        if ('\u0000' in raw) return null
         val lines = raw.removePrefix("\uFEFF")
             .replace("\r\n", "\n")
             .replace('\r', '\n')
