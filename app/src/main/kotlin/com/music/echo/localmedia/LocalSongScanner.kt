@@ -31,6 +31,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import iad1tya.echo.music.R
+import iad1tya.echo.music.cloud.isCloudSongId
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.AlbumArtistMap
 import iad1tya.echo.music.db.entities.AlbumEntity
@@ -235,7 +236,8 @@ constructor(
         val volumePresent = volumePresence()
         var keptOnAbsentVolume = emptyList<String>()
         database.withTransaction {
-            val existingLocalIds = localSongIds()
+            // Row 891: cloud songs share isLocal = 1 but are not phone files: a phone scan never counts them as missing.
+            val existingLocalIds = localSongIds().filterNot { it.isCloudSongId() }
             val scannedIds = snapshot.tracks.map(LocalTrackRecord::id)
             val scannedIdSet = scannedIds.toSet()
             val removedIds = existingLocalIds.filterNot(scannedIdSet::contains)

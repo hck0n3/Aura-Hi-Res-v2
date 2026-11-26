@@ -635,6 +635,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.cloud_connect_onedrive), stringResource(R.string.cloud_title), "settings/cloud"),
             Triple(stringResource(R.string.cloud_connect_dropbox), stringResource(R.string.cloud_title), "settings/cloud"),
             Triple(stringResource(R.string.cloud_intro), stringResource(R.string.cloud_title), "settings/cloud"),
+            // Registry row 891: the music rows of the same page (shown once an account is connected).
+            Triple(stringResource(R.string.cloud_choose_folders), stringResource(R.string.cloud_title), "settings/cloud"),
+            Triple(stringResource(R.string.cloud_index_now), stringResource(R.string.cloud_title), "settings/cloud"),
     )
 
     // Flag OFF: the exact list above, same content, same order. Nothing below runs.

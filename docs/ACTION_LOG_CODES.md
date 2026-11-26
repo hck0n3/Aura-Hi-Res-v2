@@ -2235,6 +2235,14 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.CLOUD.LOGIN_CANCEL` | «Cancelar» el inicio de sesión |
 | `UI.CLOUD.LOGIN_RETRY` | «Reintentar» tras un inicio de sesión que no salió |
 | `UI.CLOUD.RETRY` | «Reintentar» al no poder leer las cuentas |
+| `UI.CLOUD.FOLDERS_ONEDRIVE` | «Elegir carpetas de música» de OneDrive (fila 891) |
+| `UI.CLOUD.FOLDERS_DROPBOX` | «Elegir carpetas de música» de Dropbox (fila 891) |
+| `UI.CLOUD.FOLDERS_OPEN` | Tocar el nombre de una carpeta en «Elegir carpetas de música» (entra en ella) |
+| `UI.CLOUD.FOLDERS_UP` | «Subir» en «Elegir carpetas de música» |
+| `UI.CLOUD.FOLDERS_TOGGLE` | Marcar o desmarcar una carpeta (o «Esta carpeta» / «Toda la nube») |
+| `UI.CLOUD.FOLDERS_SAVE` | «Guardar» en «Elegir carpetas de música» (guarda y busca la música) |
+| `UI.CLOUD.FOLDERS_CANCEL` | «Cancelar» o cerrar «Elegir carpetas de música» |
+| `UI.CLOUD.INDEX_NOW` | «Actualizar música de la nube» |
 
 ### Lo que sigue sin código, a propósito (fila 824)
 

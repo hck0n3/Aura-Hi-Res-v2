@@ -222,10 +222,10 @@ object RcloneDaemon {
 
     private fun pidFile(context: Context) = File(RcloneConfigFiles.dir(context).apply { mkdirs() }, PID_FILE)
 
-    private fun freeLoopbackPort(): Int =
+    internal fun freeLoopbackPort(): Int =
         ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { it.localPort }
 
-    private fun randomToken(bytes: Int): String {
+    internal fun randomToken(bytes: Int): String {
         val b = ByteArray(bytes).also(SecureRandom()::nextBytes)
         return Base64.getUrlEncoder().withoutPadding().encodeToString(b)
     }

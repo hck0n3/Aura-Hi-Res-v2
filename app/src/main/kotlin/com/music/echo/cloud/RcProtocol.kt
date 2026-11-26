@@ -13,9 +13,10 @@ import org.json.JSONObject
 
 /**
  * The ONLY rc methods Aura may call (registry row 888). Aura is read-only toward the cloud: nothing under `operations/`
- * but `list`, no `sync/`, no copy/move/delete/mkdir/upload, no `serve/`, no `rc/` or `options/` (which could switch
- * the daemon's own settings), no `core/command`. The config methods touch only the local, encrypted rclone.conf. Wave 2 adds
- * what streaming needs here, and nowhere else: [RcClient] refuses anything not listed before a byte leaves the app.
+ * but `list`, no `sync/`, no copy/move/delete/mkdir/upload, no `rc/` or `options/` (which could switch the daemon's own
+ * settings), no `core/command`. The config methods touch only the local, encrypted rclone.conf. Wave 2 (rows 891-892) adds
+ * `serve/start` for streaming, built only by [RcRequests.serveStart] (read-only, loopback, random
+ * credentials). [RcClient] refuses anything not listed before a byte leaves the app.
  */
 object RcAllowList {
     val METHODS: Set<String> = setOf(
@@ -30,6 +31,9 @@ object RcAllowList {
         "operations/list",
         "job/status",
         "job/stop",
+        // Row 891/892: an HTTP server of ONE remote on 127.0.0.1, always started read-only (RcRequests.serveStart); it
+        // ends with the daemon (row 888), so no serve/stop is needed.
+        "serve/start",
     )
 
     fun isAllowed(method: String): Boolean = method in METHODS
@@ -61,6 +65,26 @@ object RcRequests {
             .put("fs", "$remote:")
             .put("remote", path)
             .put("opt", JSONObject().put("noModTime", false).put("noMimeType", false)),
+    )
+
+    /**
+     * Row 891/892: serves [remote] over HTTP on 127.0.0.1:[port] behind the random [user]/[pass] pair, read-only (rclone
+     * answers 405 to any write), without the VFS cache (media3's cache keeps the bytes), without directory pages or zip
+     * downloads: only a file whose path is known can be fetched, with Range requests. Params read in cmd/serve/rc.go and
+     * cmd/serve/http/http.go of v1.76.0 (flat names, as `rclone rc serve/start` takes them).
+     */
+    fun serveStart(remote: String, port: Int, user: String, pass: String) = RcCall(
+        "serve/start",
+        JSONObject()
+            .put("type", "http")
+            .put("fs", "$remote:")
+            .put("addr", "127.0.0.1:$port")
+            .put("user", user)
+            .put("pass", pass)
+            .put("read_only", true)
+            .put("vfs_cache_mode", "off")
+            .put("disable_zip", true)
+            .put("disable_dir_list", true),
     )
 
     /**

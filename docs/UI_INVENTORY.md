@@ -3197,7 +3197,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SubscriptionCle
 
 ## 18.16c Ajustes ▸ Cuentas y sincronización ▸ Nube (OneDrive y Dropbox) — `settings/cloud` (NUEVA, fila 890)
 
-Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/CloudAccountsScreen.kt` (ViewModel `viewmodels/CloudAccountsViewModel.kt`, lógica `cloud/CloudRepository.kt` y `cloud/CloudLogin.kt`). Fila del índice: Ajustes ▸ **Cuentas y sincronización** ▸ «Nube (OneDrive y Dropbox)» — desc. «Escucha la música de tu OneDrive o tu Dropbox» (`ui/newui/AuraSettingsScreen.kt`, tras Scrobbling). Al abrirla comprueba las cuentas (arranca el proceso de la nube solo mientras hace falta, fila 888). Solo lectura: nada de esta pantalla escribe en la nube. Salir de la página cancela un inicio de sesión a medias. Ola 1: todavía no hay música de la nube en la Biblioteca (ola 2).
+Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/CloudAccountsScreen.kt` (ViewModel `viewmodels/CloudAccountsViewModel.kt`, lógica `cloud/CloudRepository.kt` y `cloud/CloudLogin.kt`). Fila del índice: Ajustes ▸ **Cuentas y sincronización** ▸ «Nube (OneDrive y Dropbox)» — desc. «Escucha la música de tu OneDrive o tu Dropbox» (`ui/newui/AuraSettingsScreen.kt`, tras Scrobbling). Al abrirla comprueba las cuentas (arranca el proceso de la nube solo mientras hace falta, fila 888). Solo lectura: nada de esta pantalla escribe en la nube. Salir de la página cancela un inicio de sesión a medias. Ola 2 (filas 891-894): por cada cuenta, «Elegir carpetas de música» y «Actualizar música de la nube»; la música de esas carpetas entra en la Biblioteca (artistas, álbumes, búsqueda), NO en Biblioteca ▸ Local, que sigue siendo lo del móvil (fila 855).
 
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
@@ -3217,6 +3217,9 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/CloudAccountsSc
 | «OneDrive conectado.» / «Dropbox conectado.» | Nube | CloudAccountsScreen.kt:264 | informativo | rara | al terminar bien |
 | Aviso en rojo (sin conexión · cancelado · tardó demasiado · no se dio permiso · hay que volver a conectar · algo falló) + **Reintentar** | Nube | CloudAccountsScreen.kt:265-270 | acción primaria | rara | si el inicio de sesión no salió («no disponible en este aparato» sin Reintentar) |
 | Diálogo «¿Desconectar OneDrive?» / «¿Desconectar Dropbox?» — «Aura olvida el acceso a esta cuenta. Tus archivos no se tocan…» + **Desconectar** / **Cancelar** | Diálogo: Nube | CloudAccountsScreen.kt:163-181 | destructiva / acción secundaria | rara | tras tocar «Desconectar» |
+| Fila **«Elegir carpetas de música»** (una por cuenta) — desc. «OneDrive · Ninguna carpeta elegida» / «OneDrive · Carpetas elegidas: N» (igual con Dropbox) (fila 891) | Nube | CloudAccountsScreen.kt:166-183, :276-287 | acción primaria | rara | con la cuenta conectada o «No se pudo comprobar ahora»; deshabilitada mientras se busca la música |
+| Fila **«Actualizar música de la nube»** — desc. «Busca canciones nuevas en las carpetas elegidas» · «Buscando tu música en la nube…» con indicador · «N canciones en tu nube» (+ «Algunas carpetas no se pudieron leer; se conserva lo que había.») · «Algo falló. Inténtalo de nuevo.» (fila 891) | Nube | CloudAccountsScreen.kt:176-183, :290-314 | acción primaria | rara | con al menos una carpeta elegida; deshabilitada mientras busca |
+| Diálogo **«Elegir carpetas de música»**: dónde estás («OneDrive / Música/Rock»), **Subir**, casilla **«Toda la nube»** (arriba del todo) o **«Esta carpeta»**, lista de carpetas (casilla para marcarla, tocar el nombre entra en ella; solo carpetas, como mucho 300 con el aviso «Se muestran las primeras 300 carpetas»), «No hay carpetas aquí», indicador mientras lista, «Algo falló. Inténtalo de nuevo.» si no se pudo listar + **Guardar** (guarda y busca la música) / **Cancelar** (fila 891) | Diálogo: Nube | CloudAccountsScreen.kt:189-198, :320-378 | acción primaria / secundaria | rara | tras tocar «Elegir carpetas de música» |
 
 ---
 
@@ -4769,3 +4772,12 @@ Mismos textos, mismos botones, mismos toques y mismas rutas. En la pantalla exte
 | Qué | Cambio | Fila |
 |---|---|---|
 | Ajustes ▸ **Cuentas y sincronización** ▸ **«Nube (OneDrive y Dropbox)»** — desc. «Escucha la música de tu OneDrive o tu Dropbox» (`ui/newui/AuraSettingsScreen.kt`) | **Fila nueva** tras Scrobbling → `settings/cloud` (sección 18.16c); en pantalla ancha se abre en el panel derecho (`AURA_SETTINGS_PANE_ROUTES`). La búsqueda de Ajustes encuentra la fila del índice, «Conectar OneDrive», «Conectar Dropbox» y el texto de la página | 890 |
+
+## Anexo 2026-11-26 (fila 891): Fase 5.2, carpetas de música de la nube y su índice (no se quitó ni se ocultó nada)
+
+| Qué | Cambio | Fila |
+|---|---|---|
+| Nube ▸ **«Elegir carpetas de música»** (una fila por cuenta conectada) y su diálogo (Subir, «Toda la nube» / «Esta carpeta», carpetas con casilla, Guardar / Cancelar) | **Nuevo** (sección 18.16c). La búsqueda de Ajustes lo encuentra | 891 |
+| Nube ▸ **«Actualizar música de la nube»** | **Nuevo** (sección 18.16c), con lo que encontró la última vez. La búsqueda de Ajustes lo encuentra | 891 |
+| Biblioteca ▸ **Local** y la carpeta «Local» de Android Auto | **Sin cambio visible:** siguen listando solo los archivos del móvil; las canciones de la nube (que se guardan como música propia) se apartan a propósito para que el número del escaneo siga cuadrando (fila 855) | 891 |
+

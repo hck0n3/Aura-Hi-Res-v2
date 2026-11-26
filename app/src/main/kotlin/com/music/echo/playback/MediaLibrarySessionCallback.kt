@@ -1096,7 +1096,8 @@ constructor(
     /** Exactly what Biblioteca ▸ Local lists: audio only (row 583) in a format it plays (`LocalSongScreen`). */
     private suspend fun localAudioSongs(): List<Song> =
         database.localSongs().first().filter { song ->
-            !song.song.isVideo && SupportedLocalAudio.isSupportedMimeType(song.format?.mimeType)
+            !song.song.isVideo && SupportedLocalAudio.isSupportedMimeType(song.format?.mimeType) &&
+                !iad1tya.echo.music.cloud.CloudSongIds.isCloud(song.id) // row 891: Local is the phone's files
         }
 
     private fun iad1tya.echo.music.db.entities.Playlist.toBrowsableMediaItem() = browsableMediaItem(
