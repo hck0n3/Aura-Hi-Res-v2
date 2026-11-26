@@ -70,6 +70,32 @@ class MovedLocalSongsTest {
     }
 
     @Test
+    fun `an ambiguous song stays ambiguous on the next scan, after its candidates got rows of their own`() {
+        val missing = listOf(song("A"))
+        val seen = listOf(song("copy1"), song("copy2"))
+        val scan1 = matchMovedLocalSongs(missing, seen) { true }
+        assertEquals(setOf("A"), scan1.ambiguous)
+        // Scan 2 (manual, nothing confirmed): copy1 and copy2 were imported by scan 1 and cannot take A's data any more.
+        val scan2 = matchMovedLocalSongs(missing, seen) { false }
+        assertTrue(scan2.moves.isEmpty())
+        assertEquals("still kept until «Quitar»", setOf("A"), scan2.ambiguous)
+        assertEquals(setOf("copy1", "copy2"), movedSongCandidateIds(missing, seen))
+    }
+
+    @Test
+    fun `a file that already has a row never takes data, but a single new one still does`() {
+        val withRow = setOf("duplicate")
+        val result = matchMovedLocalSongs(listOf(song("old")), listOf(song("duplicate"), song("new"))) { it !in withRow }
+        assertEquals(mapOf("old" to "new"), result.moves)
+        val onlyExisting = matchMovedLocalSongs(listOf(song("old")), listOf(song("duplicate"))) { it !in withRow }
+        assertTrue(onlyExisting.moves.isEmpty())
+        assertEquals(setOf("old"), onlyExisting.ambiguous)
+        val twoClaims = matchMovedLocalSongs(listOf(song("old1"), song("old2")), listOf(song("new"), song("duplicate"))) { it !in withRow }
+        assertTrue(twoClaims.moves.isEmpty())
+        assertEquals(setOf("old1", "old2"), twoClaims.ambiguous)
+    }
+
+    @Test
     fun `an unknown size or an empty title never matches`() {
         assertTrue(matchMovedLocalSongs(listOf(song("old", size = 0L)), listOf(song("new", size = 0L))).moves.isEmpty())
         assertTrue(matchMovedLocalSongs(listOf(song("old", title = " ")), listOf(song("new", title = " "))).moves.isEmpty())
@@ -94,7 +120,7 @@ class MovedLocalSongsTest {
     fun `the scan moves the user data inside its transaction before it deletes the old rows`() {
         val scanner = text("app/src/main/kotlin/com/music/echo/localmedia/LocalSongScanner.kt")
         val transaction = scanner.substringAfter("database.withTransaction {").substringBefore("pruneLocalAlbums()")
-        val move = transaction.indexOf("val moved = moveRenamedLocalSongs(missingOnMountedVolumes,")
+        val move = transaction.indexOf("val moved = moveRenamedLocalSongs(missingOnMountedVolumes, snapshot.tracks)")
         assertTrue("moves are matched only among songs the volume guard lets go", move > transaction.indexOf("splitMissingByVolume("))
         assertTrue("moves run before the delete", move in 0 until transaction.indexOf("removable.chunked(SqlBatchSize).forEach(::deleteSongsByIds)"))
         val kept = transaction.substringAfter("val keptUnconfirmed = when {").substringBefore("val removable =")
@@ -105,7 +131,8 @@ class MovedLocalSongsTest {
         assertTrue("a moved song is not counted as removed", scanner.contains("removedSongs = removable.size - moved.moves.size,"))
 
         val helper = scanner.substringAfter("private suspend fun moveRenamedLocalSongs(").substringBefore("private suspend fun loadSongs(")
-        assertTrue("a file with a row of its own never takes another song's data", helper.contains(".filterNot { it.id in takenIds }"))
+        assertTrue("a file with a row of its own never takes another song's data", helper.contains("val verdict = matchMovedLocalSongs(missing, seen) { id -> id !in takenIds }"))
+        assertTrue("only the matching files' rows are read", helper.contains("val takenIds = loadSongs(candidateIds.toList()).keys"))
         val insert = helper.indexOf("database.insert(oldSongs.getValue(oldId).song.copy(id = newId))")
         for (call in listOf("moveLocalSongPlaylistEntries", "moveLocalSongEvents", "moveLocalSongPlayCounts", "moveLocalSongLyrics")) {
             assertTrue("$call runs after the new row exists", helper.indexOf("database.$call(oldId, newId)") > insert)

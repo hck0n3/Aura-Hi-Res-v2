@@ -19,7 +19,7 @@ internal data class LocalSongIdentity(
 
 /**
  * [moves]: old id -> new id, each pair the ONLY candidate of the other. [ambiguous]: old ids with candidates but no single
- * one (two copies of the same file, two identical rips): never merged with anything.
+ * one (two copies of the same file, two identical rips), or whose only match cannot take its data: never merged.
  */
 internal data class LocalSongMoves(
     val moves: Map<String, String>,
@@ -36,25 +36,44 @@ private fun LocalSongIdentity.tagKey(): Triple<Boolean, Long, Pair<String, Strin
     return Triple(isVideo, sizeBytes, normalizedTitle to albumName?.trim()?.lowercase(Locale.ROOT).orEmpty())
 }
 
-/** Pure. A pair is only a move when the match is one-to-one in both directions; everything else stays apart. */
-internal fun matchMovedLocalSongs(
+private fun candidatesOfMissing(
     missing: List<LocalSongIdentity>,
     appeared: List<LocalSongIdentity>,
-): LocalSongMoves {
+): Map<String, List<LocalSongIdentity>> {
     val appearedByKey = appeared.mapNotNull { song -> song.tagKey()?.let { it to song } }
         .groupBy({ it.first }, { it.second })
-    val candidatesOfMissing = missing.associate { old ->
+    return missing.associate { old ->
         old.id to old.tagKey()?.let { key ->
             appearedByKey[key].orEmpty().filter { abs(it.durationSeconds - old.durationSeconds) <= DurationToleranceSeconds }
         }.orEmpty()
     }
-    val claimsOnAppeared = candidatesOfMissing.values.flatten().groupingBy(LocalSongIdentity::id).eachCount()
+}
+
+/** The files of [appeared] that match some missing song: the only ones whose rows the scan needs to look at. */
+internal fun movedSongCandidateIds(missing: List<LocalSongIdentity>, appeared: List<LocalSongIdentity>): Set<String> =
+    candidatesOfMissing(missing, appeared).values.flatten().mapTo(LinkedHashSet(), LocalSongIdentity::id)
+
+/**
+ * Pure. [appeared] is every file the scan sees, new or already in the library; only those [canReceive] can take a missing
+ * song's data. A pair is only a move when the match among those is one-to-one in both directions. Every other missing
+ * song with a match ANYWHERE in [appeared] is [LocalSongMoves.ambiguous]: so it stays ambiguous (kept until the user
+ * confirms «Quitar») on the next scans too, after its candidates got rows of their own (row 882, review repair).
+ */
+internal fun matchMovedLocalSongs(
+    missing: List<LocalSongIdentity>,
+    appeared: List<LocalSongIdentity>,
+    canReceive: (String) -> Boolean = { true },
+): LocalSongMoves {
+    val candidates = candidatesOfMissing(missing, appeared)
+    val receivers = candidates.mapValues { (_, matches) -> matches.filter { canReceive(it.id) } }
+    val claimsOnAppeared = receivers.values.flatten().groupingBy(LocalSongIdentity::id).eachCount()
     val moves = LinkedHashMap<String, String>()
     val ambiguous = LinkedHashSet<String>()
-    candidatesOfMissing.forEach { (oldId, candidates) ->
+    candidates.forEach { (oldId, matches) ->
+        val receiving = receivers.getValue(oldId)
         when {
-            candidates.isEmpty() -> Unit
-            candidates.size == 1 && claimsOnAppeared[candidates.single().id] == 1 -> moves[oldId] = candidates.single().id
+            matches.isEmpty() -> Unit
+            receiving.size == 1 && claimsOnAppeared[receiving.single().id] == 1 -> moves[oldId] = receiving.single().id
             else -> ambiguous += oldId
         }
     }

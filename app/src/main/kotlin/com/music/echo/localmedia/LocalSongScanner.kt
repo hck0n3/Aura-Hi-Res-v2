@@ -284,8 +284,7 @@ constructor(
             // Row 882: a missing song matched one-to-one with a file seen for the first time was moved or renamed; its
             // new row takes its likes, playlist entries, history and play counts before the old row is deleted. A song
             // with several possible matches is never merged and, unless the user confirmed the removal, kept.
-            val existingLocalIdSet = existingLocalIds.toSet()
-            val moved = moveRenamedLocalSongs(missingOnMountedVolumes, snapshot.tracks.filterNot { it.id in existingLocalIdSet })
+            val moved = moveRenamedLocalSongs(missingOnMountedVolumes, snapshot.tracks)
             val keptUnconfirmed = when {
                 removeMissing -> emptyList()
                 // Row 881: a scan nobody asked for (app start, a MediaStore change) never deletes a song; only the old
@@ -713,37 +712,39 @@ constructor(
     /**
      * Row 882, inside the scan transaction: the new row is a copy of the old one (likes, play time, lyrics settings), then
      * the playlist entries, the history, the play counts and the lyrics are pointed at it. The old row is deleted after.
-     * A file that already has a row of its own never takes another song's data.
+     * A file that already has a row of its own never takes another song's data. Every file the scan sees is matched
+     * (review repair): a missing song whose match already has a row stays ambiguous, so it is kept on the next scans too.
      */
     private suspend fun moveRenamedLocalSongs(
         missingIds: List<String>,
-        appearedTracks: List<LocalTrackRecord>,
+        seenTracks: List<LocalTrackRecord>,
     ): LocalSongMoves {
-        if (missingIds.isEmpty() || appearedTracks.isEmpty()) return LocalSongMoves(emptyMap(), emptySet())
+        if (missingIds.isEmpty() || seenTracks.isEmpty()) return LocalSongMoves(emptyMap(), emptySet())
         val oldSongs = loadSongs(missingIds)
-        val takenIds = loadSongs(appearedTracks.map(LocalTrackRecord::id)).keys
-        val verdict = matchMovedLocalSongs(
-            missing = oldSongs.values.map { old ->
-                LocalSongIdentity(
-                    id = old.song.id,
-                    isVideo = old.song.isVideo,
-                    sizeBytes = old.format?.contentLength ?: 0L,
-                    durationSeconds = old.song.duration,
-                    title = old.song.title,
-                    albumName = old.song.albumName,
-                )
-            },
-            appeared = appearedTracks.filterNot { it.id in takenIds }.map { track ->
-                LocalSongIdentity(
-                    id = track.id,
-                    isVideo = track.isVideo,
-                    sizeBytes = track.sizeBytes,
-                    durationSeconds = track.durationSeconds,
-                    title = track.title,
-                    albumName = track.albumName,
-                )
-            },
-        )
+        val missing = oldSongs.values.map { old ->
+            LocalSongIdentity(
+                id = old.song.id,
+                isVideo = old.song.isVideo,
+                sizeBytes = old.format?.contentLength ?: 0L,
+                durationSeconds = old.song.duration,
+                title = old.song.title,
+                albumName = old.song.albumName,
+            )
+        }
+        val seen = seenTracks.map { track ->
+            LocalSongIdentity(
+                id = track.id,
+                isVideo = track.isVideo,
+                sizeBytes = track.sizeBytes,
+                durationSeconds = track.durationSeconds,
+                title = track.title,
+                albumName = track.albumName,
+            )
+        }
+        val candidateIds = movedSongCandidateIds(missing, seen)
+        if (candidateIds.isEmpty()) return LocalSongMoves(emptyMap(), emptySet())
+        val takenIds = loadSongs(candidateIds.toList()).keys
+        val verdict = matchMovedLocalSongs(missing, seen) { id -> id !in takenIds }
         verdict.moves.forEach { (oldId, newId) ->
             database.insert(oldSongs.getValue(oldId).song.copy(id = newId))
             database.moveLocalSongPlaylistEntries(oldId, newId)
