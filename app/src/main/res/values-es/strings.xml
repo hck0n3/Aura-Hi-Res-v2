@@ -848,4 +848,16 @@
     <string name="cloud_play_missing">Esta canción ya no está en tu nube</string>
     <string name="artist_source_phone">En tu móvil</string>
     <string name="artist_source_cloud">En tu nube</string>
+    <!-- Fila 895 (plan, fase 6.1): «Tipo de aparato». -->
+    <string name="device_form_title">Tipo de aparato</string>
+    <string name="device_form_auto">Automático</string>
+    <string name="device_form_auto_now">Automático (ahora: %1$s)</string>
+    <string name="device_form_phone">Móvil</string>
+    <string name="device_form_tablet">Tablet</string>
+    <string name="device_form_foldable">Plegable</string>
+    <string name="device_form_tv">TV</string>
+    <string name="device_form_car">Coche</string>
+    <!-- Fila 896 (plan, fase 6.2): «Pantalla» del reproductor en modo TV. -->
+    <string name="player_screen_mode">Pantalla</string>
+    <string name="player_screen_cover">Portada</string>
 </resources>

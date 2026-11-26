@@ -60,7 +60,9 @@ fun rememberIsTvOrCar(): Boolean {
     val forceSplit by iad1tya.echo.music.utils.rememberPreference(
         iad1tya.echo.music.constants.ForceSplitViewKey, false,
     )
-    return deviceTvCar || noTouchscreen || forceSplit
+    // Registry row 895: «Tipo de aparato» = TV also turns them on; no other choice turns them off (DeviceFormResolution).
+    val choice = LocalDeviceForm.current?.choice ?: iad1tya.echo.music.utils.DeviceFormChoice.AUTO
+    return iad1tya.echo.music.utils.DeviceFormResolution.remoteAffordances(choice, deviceTvCar || noTouchscreen) || forceSplit
 }
 
 /**
@@ -144,7 +146,10 @@ fun rememberIsWideShell(): Boolean {
     )
     val window = iad1tya.echo.music.ui.newui.auraWindowInfo()
     val wide = isWideLayoutWindow(window.widthDp, window.heightDp)
-    return forceSplit || wide
+    // Registry row 895: «Tipo de aparato». Unprovided or «Automático» outside a TV = the window rule above, unchanged.
+    val form = LocalDeviceForm.current
+    val shell = if (form == null) wide else iad1tya.echo.music.utils.DeviceFormResolution.wideShell(form.choice, form.form, wide)
+    return forceSplit || shell
 }
 
 /**

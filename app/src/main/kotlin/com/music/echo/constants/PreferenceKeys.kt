@@ -1415,3 +1415,6 @@ val RoomDurationRepairDoneKey = booleanPreferencesKey("room_duration_repair_done
 
 // Registry row 841: account lists (AccountReadLists) whose last read did not reach the end; the sync screen says «lista incompleta».
 val YtmAccountReadsIncompleteKey = stringSetPreferencesKey("ytm_account_reads_incomplete")
+
+// Registry row 895 (plan, phase 6.1): «Tipo de aparato» (DeviceFormChoice by name). Absent = AUTO, today's detection.
+val DeviceFormChoiceKey = stringPreferencesKey("device_form_choice")

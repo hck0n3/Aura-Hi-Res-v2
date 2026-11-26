@@ -24,6 +24,7 @@ los nuevos se añaden. Fuente: `app/src/main/kotlin/com/music/echo/utils/ActionI
 |---|---|
 | `UI.PLR.CONTINUE_HERE` | «Sonando en … · Continuar aquí» (traer la música a este aparato) |
 | `UI.PLR.LYRICS_FULL` | Letra a pantalla completa (cabecera, con la letra abierta) |
+| `UI.PLR.SCREEN_CYCLE` | Botón «Pantalla» del reproductor en modo TV: portada → letra → vídeo (fila 896) |
 | `UI.PLR.LYRICS_MENU` | Menú de la letra (cabecera) |
 | `UI.PLR.TITLE` | Toque en el título (va al álbum) |
 | `UI.PLR.TITLE_COPY` | Pulsación larga en el título (copiar) |
@@ -1613,6 +1614,7 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.SETAPP.LYRICS_TEXT_SIZE` | «Tamaño del texto de la letra» |
 | `UI.SETAPP.LYRICS_LINE_SPACING` | «Interlineado de la letra» |
 | `UI.SETAPP.DEFAULT_OPEN_TAB` | «Pestaña abierta predeterminada» |
+| `UI.SETAPP.DEVICE_FORM` | «Tipo de aparato» (abre la elección; lo elegido sale como UI.SET.CHOICE, fila 895) |
 | `UI.SETAPP.DEFAULT_LIB_CHIPS` | «Cambiar chip de biblioteca predeterminado» |
 | `UI.SETAPP.GRID_CELL_SIZE` | «Tamaño de la celda de la cuadrícula» |
 | `UI.SETAPP.DISPLAY_DENSITY` | «Densidad de pantalla» |
@@ -2177,6 +2179,7 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.NAV.LIBRARY` | Pestaña «Biblioteca» de la barra de navegación |
 | `UI.NAV.SEARCH` | Pestaña «Buscar» de la barra de navegación |
 | `UI.NAV.TOGETHER` | Pestaña «Juntos» de la barra de navegación (si está en la barra) |
+| `UI.NAV.RAIL_SETTINGS` | «Ajustes» del riel lateral del modo TV (fila 895; las demás pestañas del riel usan los códigos de arriba) |
 
 ### Escuchar juntos (más)
 

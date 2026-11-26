@@ -133,6 +133,7 @@ Definidos en `ui/screens/Screens.kt:17-47`. La etiqueta solo se dibuja en el ít
 |---|---|---|---|---|
 | **Escuchar juntos en la barra superior** | Mueve «Juntos» de la barra inferior a un icono del top bar (barra de 3 ítems) | `ListenTogetherInTopBarKey` (ON por defecto) | `ui/screens/settings/AppearanceSettings.kt:1818-1819` | `MainActivity.kt:792-799`, icono `:1273-1284` |
 | **Pestaña abierta predeterminada** (Inicio / Buscar / Biblioteca) | Cambia el destino de arranque | `DefaultOpenTabKey` (HOME) | `ui/screens/settings/AppearanceSettings.kt:1747-1754` | `MainActivity.kt:801-803`, `:1557-1562` |
+| **Tipo de aparato** (Automático / Móvil / Tablet / Plegable / TV) — NUEVO 2026-11-26, fila 895 | Elige la forma de la interfaz. «Automático» (por defecto) es la detección de siempre; con «TV» (o una Android TV real en Automático) sale el riel lateral con etiquetas y «Ajustes», sin barra de abajo, y el reproductor a pantalla completa; «Móvil» quita la interfaz ancha, «Tablet» la pone, «Plegable» la deja al pliegue. Ninguna elección apaga el anillo del mando en una TV real. Una caja de TV que no se anuncia como TV (Android normal, sin táctil) sigue en «Automático» con la interfaz de tablet/móvil y el anillo del mando: el riel lo da elegir «TV» a mano | `DeviceFormChoiceKey` (AUTO) | `ui/screens/settings/AppearanceSettings.kt` (grupo «Varios», tras «Pestaña abierta predeterminada») | `ui/utils/DeviceFormUi.kt` (`ProvideDeviceForm`, en `MainActivity` `setContent`) → `TvUi.kt` (`rememberIsTvOrCar`, `rememberIsWideShell`), `MainActivity.kt` (`tvShell`, `showRail`, `auraWideBottom`) |
 | **Vista dividida estilo Spotify** | Fuerza rail lateral + panel a cualquier ancho | `ForceSplitViewKey` | `ui/screens/settings/PerformanceSettings.kt:147` | `ui/utils/TvUi.kt:60-63`, `:98-101` |
 | **Mostrar el panel del reproductor** | Muestra/oculta `NowPlayingSidePanel` | `ShowNowPlayingPanelKey` (ON) | `ui/screens/settings/PerformanceSettings.kt:200` | `MainActivity.kt:879`, `:900-903` |
 | **Panel del reproductor a la izquierda** | Mueve el panel al lado izquierdo | `SidePanelOnLeftKey` (OFF) | `ui/screens/settings/PerformanceSettings.kt:174` | `MainActivity.kt:878`, `:1540`, `:1648` |
@@ -261,6 +262,7 @@ pantalla y resetea la barra superior (`MainActivity.kt:1358-1362`, `:1503-1507`)
 | Inicio / Buscar / Juntos / Biblioteca *(solo icono, sin etiqueta)* | Rail lateral | `ui/component/AppNavigation.kt:105-121` | navegación | constante | pantalla ancha o apaisada, fuera de `update` |
 | **Mantener pulsado en «Buscar» → Reconocimiento** | Rail lateral | `ui/component/AppNavigation.kt:80-103` · handler `MainActivity.kt:1520-1527` | acción secundaria | rara | **solo en el rail — la barra inferior NO tiene este gesto** |
 | Anillo de foco D-pad | Rail lateral | `ui/utils/TvUi.kt:142-154` | informativo | — | solo TV/coche |
+| **Riel del modo TV** *(NUEVO 2026-11-26, fila 895)*: Inicio · Novedades · Biblioteca · Buscar (· Juntos si no está arriba) con **icono grande y etiqueta**, y **Ajustes** al final | Rail lateral izquierdo (el MISMO `AppNavigationRail`, `tvStyle = true`) | `ui/component/AppNavigation.kt` · `MainActivity.kt` (`tvShell`, `tvRail`, `onRailSettingsClick`) | navegación | constante | solo con «Tipo de aparato» = TV o una Android TV real en Automático; se oculta en la bienvenida, `update`, Modo Ambiente y los inicios de sesión (las pantallas de ventana completa). Recibe la MISMA lista `navigationItems` que la barra del móvil y la cápsula; la pulsación larga en «Buscar» sigue abriendo Reconocer; recuerda el último destino al volver con el mando (`tvFocusRestorer`). En el modo TV no hay barra de abajo ni cápsula, ni reproductor dividido: el minirreproductor sigue abajo, a la derecha del riel, y el reproductor se abre a pantalla completa |
 
 ## 1.8 Hoja de cuenta (`SettingDialoge`, se abre desde el avatar)
 
@@ -636,6 +638,7 @@ La barra tiene **cuatro implementaciones distintas** según el ajuste de estilo.
 | **[RETIRADO D-002]** Portada grande (máx. 420 dp) | Reproductor ancho > panel derecho | `app/.../ui/player/Player.kt:3218` | informativo | constante | solo pantalla ancha |
 | **[RETIRADO D-002]** Controles completos (mismo bloque `controlsContent`) | Reproductor ancho > panel derecho | `app/.../ui/player/Player.kt:3228` / `:3277` | — | constante | landscape real o pantalla ancha sin vídeo |
 | **[RETIRADO D-002]** Letras a pantalla partida | Reproductor apaisado > panel izquierdo | `app/.../ui/player/Player.kt:3250` | informativo | ocasional | `showInlineLyrics` en landscape/ancho |
+| **«Pantalla · Portada / Letra / Vídeo»** *(NUEVO 2026-11-26, fila 896)* — cambia lo que se ve: portada → letra → vídeo → portada | Reproductor Aura en modo TV > fila de datos técnicos, delante del chip «Vídeo»/«Canción» | `ui/newui/AuraPlayer.kt` (`showScreenCycle`) · `ui/newui/AuraScreenMode.kt` | conmutador | ocasional | **solo en el modo TV** (fila 895). Usa los mismos estados de siempre (letra abierta, modo vídeo): la letra y el vídeo siguen abriéndose por sus botones de siempre y nada se quita. «Vídeo» solo entra en el ciclo si la canción tiene vídeo (las mismas condiciones del chip «Vídeo»: vídeo compatible o vídeo de pódcast); sin vídeo, letra → portada. No se ofrece en vídeo cuando el audio de canción está rechazado (como el chip «Canción»). Con el vídeo a pantalla completa, el botón «Volver a audio» de esos controles es el paso vídeo → portada. El reproductor en modo TV es siempre a pantalla completa (nunca dividido), el foco inicial cae en reproducir/pausar y los controles del vídeo no se ocultan solos |
 
 ## 2.11 Reproductor > botón Cast (superpuesto)
 
@@ -2623,6 +2626,7 @@ Las cuatro pantallas donde viven los ajustes de letras se enlazan entre sí; **n
 | Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
 |---|---|---|---|---|---|
 | Pestaña abierta predeterminada | Ajustes > Apariencia | AppearanceSettings.kt:1745 | navegación (diálogo enum: Inicio/Buscar/Biblioteca…) | rara | siempre |
+| Tipo de aparato — desc. «Automático (ahora: Tablet)» o la forma elegida *(NUEVO 2026-11-26, fila 895)* | Ajustes > Apariencia | AppearanceSettings.kt (`deviceFormChoiceText`) | navegación (diálogo enum: Automático/Móvil/Tablet/Plegable/TV) | rara | siempre; también en la búsqueda de Ajustes |
 | Cambiar chip de biblioteca predeterminado | Ajustes > Apariencia | AppearanceSettings.kt:1759 | navegación (diálogo enum: Álbumes/Artistas/Listas/Canciones/Local) | rara | siempre |
 | Deslizar la canción a la derecha para reproducirla a continuación o a la izquierda para añadirla a la cola | Ajustes > Apariencia | AppearanceSettings.kt:1776 | conmutador | rara | siempre |
 | Deslizar la canción para quitarla de la lista de reproducción | Ajustes > Apariencia | AppearanceSettings.kt:1796 | conmutador | rara | siempre |
@@ -3813,6 +3817,7 @@ desde dónde se abra (`isQueueTrigger`).
 | **Compilación con `-Pnosub=true`** | La puerta de licencia entera se salta (`license/LicenseGate.kt:21-24`) |
 | **Pantalla ancha / tablet / plegable abierto** | Aparecen el rail lateral, el panel «Sonando ahora» y el reproductor dividido con la cola en el panel izquierdo |
 | **TV o coche** | Anillos de foco por todas partes, foco inicial en reproducir/pausar, los controles de vídeo **no se auto-ocultan**, y la pulsación larga en «Buscar» del rail abre Reconocer |
+| **Modo TV** (Ajustes ▸ Apariencia ▸ «Tipo de aparato» = TV, o Android TV real en Automático; fila 895) | Riel lateral con etiquetas y «Ajustes» en vez de la barra/cápsula, reproductor a pantalla completa (nunca dividido) y, además, todo lo de «TV o coche» de la fila anterior aunque el aparato tenga pantalla táctil |
 | **Picture-in-Picture** | Vista limpia con solo título y artista, y 3 controles remotos |
 | **Android 12+ y gama media/alta** | Es el único caso en que el efecto Liquid Glass es elegible |
 | **Android 13+** | Petición de permiso de notificaciones al arrancar |

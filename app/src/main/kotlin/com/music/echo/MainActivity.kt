@@ -671,6 +671,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             // The window (size, compact height, posture, hinge) is measured ONCE here for the whole app: AuraWindowInfo.kt.
             iad1tya.echo.music.ui.newui.ProvideAuraWindowInfo {
+            // Registry row 895: «Tipo de aparato», resolved once for that window (ui/utils/DeviceFormUi.kt).
+            iad1tya.echo.music.ui.utils.ProvideDeviceForm {
             // Terms & Conditions gate OUTSIDE the license gate: until the user accepts the current
             // TermsInfo.TERMS_VERSION, the acceptance screen renders INSTEAD of everything else
             // (license flow included, untouched behind it). Re-appears only when the version bumps.
@@ -687,6 +689,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+            }
             }
             }
         }
@@ -1097,8 +1100,17 @@ class MainActivity : ComponentActivity() {
                 // Owner 2026-10-15 (with Spotify screenshots): with the NEW UI a wide window gets NO side rail — it gets
                 // the floating bottom bar (nav capsule + mini player on one row) and a split player. The rail stays
                 // for the classic shell only. See AuraWideChrome.kt.
-                val showRail = !newUiShell && (isLandscape || isWideLayout) && !inSearchScreen && currentRoute != "ambient_mode"
-                val auraWideBottom = newUiShell && isWideLayout
+                //
+                // Registry row 895 (plan, phase 6.2): the TV form («Tipo de aparato», detected or chosen) is the one exception
+                // — Spotify TV's side rail with labels and Ajustes, no bottom bar, and a full-screen player (no split). The
+                // rail hides only on the screens that own the whole window, the same list the capsule uses.
+                // Composable read FIRST: never behind a short-circuit, so the call count is stable (see the NOTE below).
+                val tvShell = iad1tya.echo.music.ui.utils.rememberIsTvShell() && newUiShell
+                val tvRail = tvShell && !inOnboarding && currentRoute != "update" && currentRoute != "ambient_mode" &&
+                    currentRoute != "login" && currentRoute != "spotify_login"
+                val showRail = !newUiShell && (isLandscape || isWideLayout) && !inSearchScreen && currentRoute != "ambient_mode" ||
+                    tvRail
+                val auraWideBottom = newUiShell && isWideLayout && !tvShell
                 // In a wide window the capsule is on every route (Spotify's is), except the screens that own the
                 // whole window. Phones keep `shouldShowNavigationBar`.
                 val navBarShown = if (auraWideBottom) {
@@ -1136,7 +1148,8 @@ class MainActivity : ComponentActivity() {
                 // slot table. [rememberIsWideLayout] already folds in ForceSplitViewKey, so this is equivalent.
                 // The `contentHasRoom` (>= 560dp) guard is preserved untouched: a wide window still refuses to
                 // split when the content pane would end up cramped.
-                val showSideNowPlaying = showRail &&
+                // Not in the TV shell: the classic panel left with the classic shell (row 377); its mini player stays.
+                val showSideNowPlaying = showRail && !tvShell &&
                     showNowPlayingPanel &&
                     contentHasRoom &&
                     isWideLayout
@@ -2617,11 +2630,17 @@ class MainActivity : ComponentActivity() {
                                                 }
                                         } else Modifier
                                     ) {
-                                        BottomSheetPlayerHost(
-                                            state = playerBottomSheetState,
-                                            navController = navController,
-                                            pureBlack = pureBlack
-                                        )
+                                        // Row 895: in the TV shell the mini pill starts right of the rail (Material's
+                                        // 80 dp rail), so it never covers the rail's last destination. 0 = as before.
+                                        androidx.compose.runtime.CompositionLocalProvider(
+                                            LocalAuraMiniStartInset provides if (tvShell) 80.dp else 0.dp,
+                                        ) {
+                                            BottomSheetPlayerHost(
+                                                state = playerBottomSheetState,
+                                                navController = navController,
+                                                pureBlack = pureBlack
+                                            )
+                                        }
                                     }
                                 }
 
@@ -2650,7 +2669,7 @@ class MainActivity : ComponentActivity() {
                             .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection)
                     ) {
                         Row(Modifier.fillMaxSize()) {
-                            val onRailItemClick: (Screens, Boolean) -> Unit = remember(navController, coroutineScope, topAppBarScrollBehavior, playerBottomSheetState) {
+                            val onRailItemClick: (Screens, Boolean) -> Unit = remember(navController, coroutineScope, topAppBarScrollBehavior, playerBottomSheetState, newUiShell) {
                                 { screen: Screens, isSelected: Boolean ->
                                     if (playerBottomSheetState.isExpanded) {
                                         playerBottomSheetState.collapseSoft()
@@ -2661,9 +2680,29 @@ class MainActivity : ComponentActivity() {
                                         coroutineScope.launch {
                                             topAppBarScrollBehavior.state.resetHeightOffset()
                                         }
+                                    } else if (newUiShell && screen.route == Screens.Home.route) {
+                                        // Row 895, TV rail: the Aura bar's own contract (Inicio always reaches Inicio).
+                                        navController.goHomeAlways()
+                                    } else if (newUiShell) {
+                                        navController.navigateToTab(screen.route)
                                     } else {
                                         // The same options as before, named once — see [navigateAsTab].
                                         navController.navigateAsTab(screen.route)
+                                    }
+                                }
+                            }
+                            // Row 895: Ajustes as a rail destination of the TV shell (Spotify TV keeps it in the rail).
+                            // A tab root: back to the `settings` already on the stack (from a page such as settings/appearance)
+                            // instead of pushing a second one; pushed only when it is not there.
+                            val onRailSettingsClick: () -> Unit = remember(navController, playerBottomSheetState) {
+                                {
+                                    if (playerBottomSheetState.isExpanded) {
+                                        playerBottomSheetState.collapseSoft()
+                                    }
+                                    if (navController.currentDestination?.route != "settings" &&
+                                        !navController.popBackStack("settings", inclusive = false)
+                                    ) {
+                                        navController.navigate("settings") { launchSingleTop = true }
                                     }
                                 }
                             }
@@ -2681,7 +2720,9 @@ class MainActivity : ComponentActivity() {
                                     currentRoute = currentRoute,
                                     onItemClick = onRailItemClick,
                                     pureBlack = pureBlack,
-                                    onSearchLongClick = onRailSearchLongClick
+                                    onSearchLongClick = onRailSearchLongClick,
+                                    tvStyle = tvShell,
+                                    onSettingsClick = if (tvShell) onRailSettingsClick else null,
                                 )
                             }
                             // LEFT-side variant of the persistent now-playing panel (some Android-auto users

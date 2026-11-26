@@ -516,6 +516,8 @@ private fun AuraPlayerShape(
     // It is ALSO the D-pad gate: [tvFocusable] is a no-op (returns the receiver unchanged) while false,
     // so every ring below costs a phone exactly nothing.
     val isTvOrCar = rememberIsTvOrCar()
+    // Registry row 896: the TV shell's «Pantalla» (portada → letra → vídeo). Read unconditionally, like the line above.
+    val tvShell = iad1tya.echo.music.ui.utils.rememberIsTvShell()
 
     // ── QUÉ FORMA ─────────────────────────────────────────────────────────────────────────────────
     // Read unconditionally and branch only at the ARRANGEMENT, never around a `remember` or an effect —
@@ -1927,12 +1929,49 @@ private fun AuraPlayerShape(
                     val hasVideo = (meta.hasCompatibleVideo &&
                         SongModePlanning.offerSongOption(videoMode, meta.isVideoSong, meta.id in songBlockedIds)) ||
                         !meta.podcastVideoUrl.isNullOrEmpty()
-                    if (techInfo.chips.isNotEmpty() || isCrossfading || hasVideo) {
+                    // Registry row 896: «Pantalla», TV shell only. The SAME two states the player already has (the lyrics
+                    // pane and video mode), so every view stays reachable the usual ways too; vídeo only for a song with one.
+                    val screenMode = auraScreenModeOf(videoMode, showInlineLyrics)
+                    val screenVideoOffered = auraScreenOffersVideo(meta.hasCompatibleVideo, meta.podcastVideoUrl)
+                    val showScreenCycle = tvShell && auraScreenCycleOffered(
+                        screenMode,
+                        canLeaveVideo = SongModePlanning.offerSongOption(videoMode, meta.isVideoSong, meta.id in songBlockedIds),
+                    )
+                    if (techInfo.chips.isNotEmpty() || isCrossfading || hasVideo || showScreenCycle) {
                         Spacer(Modifier.height(if (dense) 6.dp else 10.dp))
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            if (showScreenCycle) {
+                                val screenLabel = when (screenMode) {
+                                    AuraScreenMode.COVER -> stringResource(R.string.player_screen_cover)
+                                    AuraScreenMode.LYRICS -> stringResource(R.string.lyrics)
+                                    AuraScreenMode.VIDEO -> stringResource(R.string.video)
+                                }
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .tvFocusable(isTvOrCar, RoundedCornerShape(8.dp))
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(AuraPalette.OnGround.copy(alpha = 0.12f))
+                                        .clickable {
+                                            ActionLog.tap(ActionId.PLR_SCREEN_CYCLE)
+                                            val next = nextAuraScreenMode(screenMode, screenVideoOffered)
+                                            showInlineLyrics = next == AuraScreenMode.LYRICS
+                                            if ((next == AuraScreenMode.VIDEO) != videoMode) playerConnection.toggleVideoMode()
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.player_screen_mode).uppercase() + " · " + screenLabel.uppercase(),
+                                        style = AuraType.Timecode.copy(fontWeight = FontWeight.SemiBold),
+                                        color = AuraPalette.OnGroundFaint,
+                                        maxLines = 1,
+                                        overflow = AuraDefaultOverflow,
+                                    )
+                                }
+                            }
                             if (hasVideo) {
                                 // "MusicVideoToggleChip" replacement
                                 Box(

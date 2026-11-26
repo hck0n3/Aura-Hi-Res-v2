@@ -209,7 +209,6 @@ class ActionLogGuardTest {
         "ui/screens/search/suggestions/TabNewsSuggestion.kt" to classicChild,
         "ui/component/AutoPlaylistButton.kt" to classicChild,
         "ui/component/ExpandableText.kt" to classicChild,
-        "ui/component/AppNavigation.kt" to "the navigation rail is drawn only when !newUiShell (MainActivity showRail)",
         "ui/component/FloatingNavigationToolbar.kt" to "the classic bottom bar: the else branch of newUiShell in MainActivity",
         "ui/component/SortHeader.kt" to noCaller,
         "ui/component/RandomizeGridItem.kt" to noCaller,

@@ -914,4 +914,16 @@
     <string name="cloud_play_missing">This song is no longer in your cloud</string>
     <string name="artist_source_phone">On your phone</string>
     <string name="artist_source_cloud">In your cloud</string>
+    <!-- Registry row 895 (plan, phase 6.1): «Tipo de aparato». -->
+    <string name="device_form_title">Device type</string>
+    <string name="device_form_auto">Automatic</string>
+    <string name="device_form_auto_now">Automatic (now: %1$s)</string>
+    <string name="device_form_phone">Phone</string>
+    <string name="device_form_tablet">Tablet</string>
+    <string name="device_form_foldable">Foldable</string>
+    <string name="device_form_tv">TV</string>
+    <string name="device_form_car">Car</string>
+    <!-- Registry row 896 (plan, phase 6.2): «Pantalla» of the TV player. -->
+    <string name="player_screen_mode">Screen</string>
+    <string name="player_screen_cover">Cover</string>
 </resources>

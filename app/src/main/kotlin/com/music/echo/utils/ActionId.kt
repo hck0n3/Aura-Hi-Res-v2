@@ -15,6 +15,8 @@ enum class ActionId(val code: String) {
     // ── Full player ──
     PLR_CONTINUE_HERE("UI.PLR.CONTINUE_HERE"),
     PLR_LYRICS_FULL("UI.PLR.LYRICS_FULL"),
+    // Registry row 896: «Pantalla» of the TV player (cover → lyrics → video).
+    PLR_SCREEN_CYCLE("UI.PLR.SCREEN_CYCLE"),
     PLR_LYRICS_MENU("UI.PLR.LYRICS_MENU"),
     PLR_TITLE("UI.PLR.TITLE"),
     PLR_TITLE_COPY("UI.PLR.TITLE_COPY"),
@@ -1247,6 +1249,8 @@ enum class ActionId(val code: String) {
     SETAPP_LYRICS_TEXT_SIZE("UI.SETAPP.LYRICS_TEXT_SIZE"),
     SETAPP_LYRICS_LINE_SPACING("UI.SETAPP.LYRICS_LINE_SPACING"),
     SETAPP_DEFAULT_OPEN_TAB("UI.SETAPP.DEFAULT_OPEN_TAB"),
+    // Registry row 895: «Tipo de aparato» (the choice itself is logged as UI.SET.CHOICE).
+    SETAPP_DEVICE_FORM("UI.SETAPP.DEVICE_FORM"),
     SETAPP_DEFAULT_LIB_CHIPS("UI.SETAPP.DEFAULT_LIB_CHIPS"),
     SETAPP_GRID_CELL_SIZE("UI.SETAPP.GRID_CELL_SIZE"),
     SETAPP_DISPLAY_DENSITY("UI.SETAPP.DISPLAY_DENSITY"),
@@ -1685,6 +1689,8 @@ enum class ActionId(val code: String) {
     NAV_LIBRARY("UI.NAV.LIBRARY"),
     NAV_SEARCH("UI.NAV.SEARCH"),
     NAV_TOGETHER("UI.NAV.TOGETHER"),
+    // Registry row 895: Ajustes in the TV shell's side rail.
+    NAV_RAIL_SETTINGS("UI.NAV.RAIL_SETTINGS"),
 
     // ── Listen Together (more) ──
     LT_BACK("UI.LT.BACK"),
