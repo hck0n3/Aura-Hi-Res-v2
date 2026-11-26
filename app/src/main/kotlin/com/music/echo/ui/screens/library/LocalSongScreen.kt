@@ -112,6 +112,9 @@ import iad1tya.echo.music.constants.ListThumbnailSize
 import iad1tya.echo.music.constants.LocalSongsIncludedFoldersKey
 import iad1tya.echo.music.constants.LocalSongsIncludedTreeUrisKey
 import iad1tya.echo.music.constants.LocalSongsMinDurationSecondsKey
+import iad1tya.echo.music.constants.LocalArtistNameExceptionsKey
+import iad1tya.echo.music.constants.LocalArtistSeparatorsKey
+import iad1tya.echo.music.localmedia.LocalArtistSplitRules
 import iad1tya.echo.music.constants.LocalSongsSortDescendingKey
 import iad1tya.echo.music.constants.LocalSongsSortTypeKey
 import iad1tya.echo.music.constants.ShowCachedPlaylistKey
@@ -188,6 +191,7 @@ fun LocalSongScreen(
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val songs by viewModel.songs.collectAsState()
+    val albumPositions by viewModel.albumPositions.collectAsState()
     val scanState by viewModel.scanState.collectAsState()
     val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, true)
     val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
@@ -212,12 +216,16 @@ fun LocalSongScreen(
         LocalSongsIncludedTreeUrisKey,
         emptySet<String>(),
     )
+    // Row 880: the artist separators chosen in Ajustes ▸ Contenido ▸ Música local.
+    val (artistSeparatorKeys) = rememberPreference(LocalArtistSeparatorsKey, LocalArtistSplitRules.DefaultSeparatorKeys)
+    val (artistNameExceptions) = rememberPreference(LocalArtistNameExceptionsKey, emptySet<String>())
     val sortType = remember(sortTypeName) { LocalSongSortType.valueOf(sortTypeName) }
-    val scanConfig = remember(minimumDurationSeconds, includedFolders, includedTreeUris) {
+    val scanConfig = remember(minimumDurationSeconds, includedFolders, includedTreeUris, artistSeparatorKeys, artistNameExceptions) {
         LocalSongScanConfig(
             minimumDurationSeconds = minimumDurationSeconds,
             includedFolders = includedFolders,
             includedTreeUris = includedTreeUris,
+            artistSplit = LocalArtistSplitRules.fromPreferences(artistSeparatorKeys, artistNameExceptions),
         )
     }
 
@@ -265,7 +273,7 @@ fun LocalSongScreen(
     }
     val bottomContentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues().calculateBottomPadding() + 20.dp
 
-    val visibleSongs by remember(songs, query, sortType, sortDescending, collator) {
+    val visibleSongs by remember(songs, query, sortType, sortDescending, collator, albumPositions) {
         derivedStateOf {
             val normalizedQuery = query.trim()
             val supportedSongs = songs.filter { song ->
@@ -293,21 +301,24 @@ fun LocalSongScreen(
                     },
                 )
 
-                // Secondary key added: grouping by album alone left songs within the SAME album in
-                // whatever arbitrary order they happened to be in beforehand (no track-number field
-                // exists on SongEntity to sort by, so title is the closest available stand-in — still
-                // deterministic and readable, unlike the previous "whatever order" within a group).
-                LocalSongSortType.ALBUM -> filteredSongs.sortedWith(
-                    compareBy<Song, String>(collator) { song -> song.song.albumName.orEmpty() }
-                        .thenBy(collator) { song -> song.song.title },
-                )
+                // Row 879: albums by name (descending flips the albums only), and inside each album its own
+                // order — disc, then track — written by the scan; title only for songs the scan did not place.
+                LocalSongSortType.ALBUM -> {
+                    val byAlbum = compareBy<Song, String>(collator) { song -> song.song.albumName.orEmpty() }
+                        .thenBy { song -> song.song.albumId.orEmpty() }
+                    filteredSongs.sortedWith(
+                        (if (sortDescending) byAlbum.reversed() else byAlbum)
+                            .thenBy { song -> albumPositions[song.song.id] ?: Int.MAX_VALUE }
+                            .thenBy(collator) { song -> song.song.title },
+                    )
+                }
 
                 LocalSongSortType.DURATION -> filteredSongs.sortedBy { song -> song.song.duration }
 
                 LocalSongSortType.PLAY_TIME -> filteredSongs.sortedBy { song -> song.song.totalPlayTime }
             }
 
-            if (sortDescending) sortedSongs.asReversed() else sortedSongs
+            if (sortDescending && sortType != LocalSongSortType.ALBUM) sortedSongs.asReversed() else sortedSongs
         }
     }
 

@@ -306,6 +306,11 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.show_artist_video_desc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.show_artist_background_video), "Contenido", "settings/content"),
             Triple(stringResource(R.string.show_artist_background_video_desc), "Contenido", "settings/content"),
+            // Registry row 880: Ajustes ▸ Contenido ▸ Música local.
+            Triple(stringResource(R.string.local_artist_separators), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.local_artist_separators_desc), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.local_artist_exceptions), "Contenido", "settings/content"),
+            Triple(stringResource(R.string.local_artist_exceptions_desc), "Contenido", "settings/content"),
             Triple(stringResource(R.string.proxy), "Contenido", "settings/content"),
             Triple(stringResource(R.string.enable_proxy), "Contenido", "settings/content"),
             Triple(stringResource(R.string.lyrics), "Contenido", "settings/content"),

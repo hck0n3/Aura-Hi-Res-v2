@@ -66,6 +66,8 @@ data class LocalSongScanConfig(
     val includedFolders: Set<String> = emptySet(),
     /** Row 881: the SAF trees picked for [includedFolders] (persisted read permission), walked for what MediaStore misses. */
     val includedTreeUris: Set<String> = emptySet(),
+    /** Row 880: what splits an artist tag into several artists (Ajustes ▸ Contenido ▸ Música local). */
+    val artistSplit: LocalArtistSplitRules = LocalArtistSplitRules.Default,
 ) {
     val sanitizedMinimumDurationSeconds: Int
         get() = minimumDurationSeconds.coerceAtLeast(0)
@@ -100,42 +102,11 @@ data class LocalSongScanConfig(
     }
 }
 
-internal fun splitArtistNames(rawArtist: String): List<String> {
-    return rawArtist
-        .split(';')
-        .flatMap { it.split(FeaturingSeparator) }
-        .flatMap { it.split(CollabSeparator) }
-        .flatMap(::splitCommaList)
-        .map(::trimDanglingBracket)
-        .filter(String::isNotBlank)
-        .ifEmpty { listOf(rawArtist) }
-}
-
 /** The same artist name always maps to the same id, whatever its position in the tag or the number of artists. */
 internal fun localArtistId(artistName: String): String {
     val normalized = artistName.trim().lowercase(Locale.ROOT)
     val hash = UUID.nameUUIDFromBytes(normalized.toByteArray(StandardCharsets.UTF_8)).toString().replace("-", "")
     return "LOCAL_ARTIST_$hash"
-}
-
-private val FeaturingSeparator = Regex("""(?:\s+|\s*[(\[]\s*)(?:feat\.?|ft\.|featuring)\s+""", RegexOption.IGNORE_CASE)
-private val CollabSeparator = Regex("""\s+x\s+""")
-private val BandJoiner = Regex("""&|\band\b""", RegexOption.IGNORE_CASE)
-
-private fun splitCommaList(part: String): List<String> {
-    val pieces = part.split(", ").map(String::trim)
-    if (pieces.size < 2 || BandJoiner.containsMatchIn(part)) return listOf(part)
-    if (pieces.any { it.startsWith("the ", ignoreCase = true) }) return listOf(part)
-    return pieces
-}
-
-private fun trimDanglingBracket(part: String): String {
-    val trimmed = part.trim()
-    return when {
-        trimmed.endsWith(")") && !trimmed.contains("(") -> trimmed.dropLast(1).trim()
-        trimmed.endsWith("]") && !trimmed.contains("[") -> trimmed.dropLast(1).trim()
-        else -> trimmed
-    }
 }
 
 data class LocalSongScanSummary(
@@ -300,6 +271,26 @@ constructor(
             val existingSongs = loadSongs(scannedIds)
             val existingArtists = loadArtists(snapshot.artists.map(LocalArtistRecord::id))
             val existingAlbums = loadAlbums(snapshot.albums.map(LocalAlbumRecord::id))
+            // Row 879: an artist or album that got another id (new split, grouped by album artist) hands its follow and
+            // bookmark to the new one before it is pruned; the songs keep their own ids, likes, lists and history.
+            val artistHeirs = inheritedLocalIds(
+                snapshot.tracks.mapNotNull { track ->
+                    existingSongs[track.id]?.let { old -> old.artists.map { it.id } to track.artists.map(LocalArtistRecord::id) }
+                },
+                snapshot.artists.mapTo(HashSet(), LocalArtistRecord::id),
+                alreadyThere = existingArtists.keys,
+            )
+            val oldArtists = loadArtists(artistHeirs.values.toList())
+            val inheritedArtists = artistHeirs.mapValues { (_, oldId) -> oldArtists[oldId] }
+            val albumHeirs = inheritedLocalIds(
+                snapshot.tracks.mapNotNull { track ->
+                    existingSongs[track.id]?.song?.albumId?.let { old -> listOf(old) to listOfNotNull(track.albumId) }
+                },
+                snapshot.albums.mapTo(HashSet(), LocalAlbumRecord::id),
+                alreadyThere = existingAlbums.keys,
+            )
+            val oldAlbums = loadAlbums(albumHeirs.values.toList())
+            val inheritedAlbums = albumHeirs.mapValues { (_, oldId) -> oldAlbums[oldId] }
 
             // Row 881: a file reused unchanged whose row still says what it said is not written again; when that is every
             // file and nothing went, the library is already what the scan would write.
@@ -322,8 +313,15 @@ constructor(
 
             snapshot.artists.forEach { artist ->
                 val existingArtist = existingArtists[artist.id]
+                val inherited = inheritedArtists[artist.id]
                 if (existingArtist != null && existingArtist.isLocal) {
-                    update(existingArtist.copy(name = artist.name))
+                    update(
+                        existingArtist.copy(
+                            name = artist.name,
+                            bookmarkedAt = existingArtist.bookmarkedAt ?: inherited?.bookmarkedAt,
+                            followedByUserAt = existingArtist.followedByUserAt ?: inherited?.followedByUserAt,
+                        ),
+                    )
                 } else insert(
                     ArtistEntity(
                         id = artist.id,
@@ -331,14 +329,16 @@ constructor(
                         thumbnailUrl = existingArtist?.thumbnailUrl,
                         channelId = null,
                         lastUpdateTime = existingArtist?.lastUpdateTime ?: LocalDateTime.now(),
-                        bookmarkedAt = existingArtist?.bookmarkedAt,
+                        bookmarkedAt = existingArtist?.bookmarkedAt ?: inherited?.bookmarkedAt,
                         isLocal = true,
+                        followedByUserAt = existingArtist?.followedByUserAt ?: inherited?.followedByUserAt,
                     ),
                 )
             }
 
             snapshot.albums.forEach { album ->
                 val existingAlbum = existingAlbums[album.id]
+                val inherited = inheritedAlbums[album.id]
                 if (existingAlbum != null && existingAlbum.isLocal) {
                     update(
                         existingAlbum.copy(
@@ -347,6 +347,9 @@ constructor(
                             thumbnailUrl = album.thumbnailUrl ?: existingAlbum.thumbnailUrl,
                             songCount = album.songCount,
                             duration = album.duration,
+                            bookmarkedAt = existingAlbum.bookmarkedAt ?: inherited?.bookmarkedAt,
+                            likedDate = existingAlbum.likedDate ?: inherited?.likedDate,
+                            inLibrary = existingAlbum.inLibrary ?: inherited?.inLibrary,
                         ),
                     )
                 } else insert(
@@ -361,9 +364,9 @@ constructor(
                         duration = album.duration,
                         explicit = false,
                         lastUpdateTime = LocalDateTime.now(),
-                        bookmarkedAt = existingAlbum?.bookmarkedAt,
-                        likedDate = existingAlbum?.likedDate,
-                        inLibrary = existingAlbum?.inLibrary,
+                        bookmarkedAt = existingAlbum?.bookmarkedAt ?: inherited?.bookmarkedAt,
+                        likedDate = existingAlbum?.likedDate ?: inherited?.likedDate,
+                        inLibrary = existingAlbum?.inLibrary ?: inherited?.inLibrary,
                         isLocal = true,
                     ),
                 )
@@ -453,10 +456,19 @@ constructor(
                         SongAlbumMap(
                             songId = track.id,
                             albumId = albumId,
-                            index = 0,
+                            // Row 879: disc then track; the album screen and the album's «Reproducir» sort by it.
+                            index = snapshot.albumIndexes[track.id] ?: 0,
                         ),
                     )
                 }
+            }
+            // Row 879: a song added to or rewritten in an album can move the others' positions; theirs are rewritten too.
+            val rewrittenAlbums = snapshot.tracks.filterNot { it.id in untouchedIds }.mapNotNullTo(HashSet()) { it.albumId }
+            snapshot.tracks.forEach { track ->
+                val albumId = track.albumId ?: return@forEach
+                if (track.id !in untouchedIds || albumId !in rewrittenAlbums) return@forEach
+                deleteSongAlbumMaps(track.id)
+                insert(SongAlbumMap(songId = track.id, albumId = albumId, index = snapshot.albumIndexes[track.id] ?: 0))
             }
 
             pruneLocalAlbums()
@@ -827,13 +839,21 @@ constructor(
             add(MediaStore.Audio.Media.DATE_MODIFIED)
             add(MediaStore.Audio.Media.SIZE)
             add(MediaStore.Audio.Media.MIME_TYPE)
+            // Row 879: disc and track (encoded together in TRACK on every version) for the album order.
+            add(MediaStore.Audio.Media.TRACK)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 add(MediaStore.MediaColumns.RELATIVE_PATH)
                 add(MediaStore.MediaColumns.VOLUME_NAME)
             } else {
                 add(MediaStore.MediaColumns.DATA)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) add(MediaStore.MediaColumns.GENERATION_MODIFIED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                add(MediaStore.MediaColumns.GENERATION_MODIFIED)
+                // Row 879: public MediaStore columns from Android 11 on; before, the file's own tags when it is opened.
+                add(MediaStore.MediaColumns.ALBUM_ARTIST)
+                add(MediaStore.MediaColumns.DISC_NUMBER)
+                add(MediaStore.MediaColumns.CD_TRACK_NUMBER)
+            }
         }.toTypedArray()
         val durationFloor = if (sanitizedMinimumDurationMs > 0L) {
             "${MediaStore.Audio.Media.DURATION} >= $sanitizedMinimumDurationMs"
@@ -864,8 +884,8 @@ constructor(
         fun reuseIfUnchanged(id: String, fingerprint: LocalFileFingerprint): Boolean {
             fingerprints[id] = fingerprint
             val cached = remembered[id]?.takeIf { isUnchangedFile(it.fingerprint, fingerprint) } ?: return false
-            tracks += cached.record
-            reusedIds += id
+            // Row 879: artists, album artists and album rebuilt from the remembered tags; reused only if nothing moved.
+            tracks += cached.record.finished(unknownArtist, scanConfig.artistSplit).also { record -> if (record == cached.record) reusedIds += id }
             return true
         }
         (context.contentResolver.query(
@@ -890,6 +910,10 @@ constructor(
             val dataPathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
             val volumeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
             val generationIndex = cursor.getColumnIndex(MediaStore.MediaColumns.GENERATION_MODIFIED)
+            val trackIndex = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK)
+            val albumArtistIndex = cursor.getColumnIndex(MediaStore.MediaColumns.ALBUM_ARTIST)
+            val discNumberIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DISC_NUMBER)
+            val cdTrackNumberIndex = cursor.getColumnIndex(MediaStore.MediaColumns.CD_TRACK_NUMBER)
 
             while (cursor.moveToNext()) {
                 val mediaId = cursor.getLong(idIndex)
@@ -937,13 +961,6 @@ constructor(
                 val effectiveDurationMs = if (rawDuration > 0L) rawDuration else (id3?.durationMs ?: 0L)
 
                 val artistValue = normalizeArtistName(effectiveArtist, unknownArtist)
-                val splitArtists = splitArtistNames(artistValue).ifEmpty { listOf(unknownArtist) }
-                val artists = splitArtists.map { name ->
-                    LocalArtistRecord(
-                        id = localArtistId(name),
-                        name = name,
-                    )
-                }
                 val mediaStoreAlbumId = cursor.getLongOrNull(albumIdIndex)
                 val albumName = normalizeAlbumName(effectiveAlbum)
                 val title = normalizeTitle(
@@ -951,17 +968,16 @@ constructor(
                     displayName = displayName,
                     fallback = unknownTitle,
                 )
+                val position = localTrackPosition(
+                    cdTrackNumber = cursor.getStringOrNull(cdTrackNumberIndex) ?: id3?.cdTrackNumber,
+                    discNumber = cursor.getStringOrNull(discNumberIndex) ?: id3?.discNumber,
+                    encodedTrack = cursor.getIntOrNull(trackIndex),
+                )
                 tracks += LocalTrackRecord(
                     id = contentUri.toString(),
                     title = title,
-                    artists = artists,
-                    albumId = albumName?.let {
-                        buildAlbumId(
-                            mediaStoreAlbumId = mediaStoreAlbumId,
-                            albumName = it,
-                            primaryArtistId = artists.firstOrNull()?.id,
-                        )
-                    },
+                    artists = emptyList(),
+                    albumId = null,
                     albumName = albumName,
                     durationSeconds = (effectiveDurationMs / 1000L)
                         .coerceAtMost(Int.MAX_VALUE.toLong())
@@ -976,7 +992,12 @@ constructor(
                     volume = cursor.getStringOrNull(volumeIndex) ?: storageRootOf(dataPath),
                     modifiedEpochSeconds = cursor.getLong(dateModifiedIndex).coerceAtLeast(0L),
                     dataPath = dataPath,
-                )
+                    artistTag = artistValue,
+                    albumArtistTag = normalizeAlbumName(cursor.getStringOrNull(albumArtistIndex) ?: id3?.albumArtist),
+                    mediaStoreAlbumId = mediaStoreAlbumId,
+                    discNumber = position.disc,
+                    trackNumber = position.track,
+                ).finished(unknownArtist, scanConfig.artistSplit)
             }
         }
 
@@ -1039,13 +1060,6 @@ constructor(
                 val rawDuration = cursor.getLong(durationIndex).coerceAtLeast(0L)
 
                 val artistValue = normalizeArtistName(rawArtist, unknownArtist)
-                val splitArtists = splitArtistNames(artistValue).ifEmpty { listOf(unknownArtist) }
-                val artists = splitArtists.map { name ->
-                    LocalArtistRecord(
-                        id = localArtistId(name),
-                        name = name,
-                    )
-                }
                 val albumName = normalizeAlbumName(rawAlbum)
                 val title = normalizeTitle(
                     title = rawTitle,
@@ -1055,14 +1069,8 @@ constructor(
                 tracks += LocalTrackRecord(
                     id = contentUri.toString(),
                     title = title,
-                    artists = artists,
-                    albumId = albumName?.let {
-                        buildAlbumId(
-                            mediaStoreAlbumId = null,
-                            albumName = it,
-                            primaryArtistId = artists.firstOrNull()?.id,
-                        )
-                    },
+                    artists = emptyList(),
+                    albumId = null,
                     albumName = albumName,
                     durationSeconds = (rawDuration / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
                     year = null,
@@ -1074,7 +1082,8 @@ constructor(
                     thumbnailUrl = null,
                     isVideo = true,
                     volume = cursor.getStringOrNull(volumeIndex) ?: storageRootOf(cursor.getStringOrNull(dataPathIndex)),
-                )
+                    artistTag = artistValue,
+                ).finished(unknownArtist, scanConfig.artistSplit)
             }
         }
 
@@ -1095,13 +1104,17 @@ constructor(
                     thumbnailUrl = albumTracks.mapNotNull(LocalTrackRecord::thumbnailUrl).firstOrNull(),
                     songCount = albumTracks.size,
                     duration = albumTracks.sumOf(LocalTrackRecord::durationSeconds),
-                    artistIds = albumTracks.flatMap { track -> track.artists.map(LocalArtistRecord::id) }.distinct(),
+                    // Row 879: the album artist when the tags say (a compilation shows its album artist), else every track artist.
+                    artistIds = localAlbumArtistIds(
+                        albumArtistIdsPerSong = albumTracks.map { track -> track.albumArtists.map(LocalArtistRecord::id) },
+                        trackArtistIdsPerSong = albumTracks.map { track -> track.artists.map(LocalArtistRecord::id) },
+                    ),
                 )
             }
 
         return LocalScanSnapshot(
             tracks = tracks,
-            artists = tracks.flatMap(LocalTrackRecord::artists).distinctBy(LocalArtistRecord::id),
+            artists = tracks.flatMap { it.artists + it.albumArtists }.distinctBy(LocalArtistRecord::id),
             albums = albums,
             skippedUnsupported = skippedUnsupported,
             skippedShort = picked.skippedShort + countShortAudio(
@@ -1113,6 +1126,9 @@ constructor(
             reusedIds = reusedIds,
             unreadFolderPrefixes = picked.unreadPrefixes,
             skippedFiles = picked.skipped,
+            albumIndexes = localAlbumIndexes(
+                tracks.map { LocalAlbumOrderEntry(it.id, it.albumId, it.discNumber, it.trackNumber, it.title) },
+            ),
         )
     }
 
@@ -1164,9 +1180,8 @@ constructor(
                 continue
             }
             if (cached != null) {
-                tracks += cached.record
+                tracks += cached.record.finished(unknownArtist, scanConfig.artistSplit).also { record -> if (record == cached.record) reusedIds += id }
                 fingerprints[id] = fingerprint
-                reusedIds += id
                 continue
             }
             if (SystemClock.elapsedRealtime() > deadline) {
@@ -1180,17 +1195,13 @@ constructor(
                 skipped += SkippedLocalFile(id = id, fingerprint = fingerprint, durationMs = durationMs.coerceAtLeast(0L))
                 continue
             }
-            val artists = splitArtistNames(normalizeArtistName(tags?.artist, unknownArtist))
-                .ifEmpty { listOf(unknownArtist) }
-                .map { name -> LocalArtistRecord(id = localArtistId(name), name = name) }
             val albumName = normalizeAlbumName(tags?.album)
+            val position = localTrackPosition(cdTrackNumber = tags?.cdTrackNumber, discNumber = tags?.discNumber, encodedTrack = null)
             tracks += LocalTrackRecord(
                 id = id,
                 title = normalizeTitle(title = tags?.title, displayName = file.displayName, fallback = unknownTitle),
-                artists = artists,
-                albumId = albumName?.let {
-                    buildAlbumId(mediaStoreAlbumId = null, albumName = it, primaryArtistId = artists.firstOrNull()?.id)
-                },
+                artists = emptyList(),
+                albumId = null,
                 albumName = albumName,
                 durationSeconds = (durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
                 year = tags?.year,
@@ -1200,7 +1211,11 @@ constructor(
                 mimeType = file.mimeType?.takeIf(SupportedLocalAudio::isSupportedMimeType) ?: "audio/*",
                 thumbnailUrl = iad1tya.echo.music.utils.coil.LocalAudioArtFetcher.uriFor(id),
                 modifiedEpochSeconds = file.lastModifiedMs / 1000L,
-            )
+                artistTag = normalizeArtistName(tags?.artist, unknownArtist),
+                albumArtistTag = normalizeAlbumName(tags?.albumArtist),
+                discNumber = position.disc,
+                trackNumber = position.track,
+            ).finished(unknownArtist, scanConfig.artistSplit)
             fingerprints[id] = fingerprint
         }
         return PickedFolderTracks(tracks, fingerprints, reusedIds, unread, skippedShort, skipped)
@@ -1290,6 +1305,31 @@ constructor(
         }
     }
 
+    /**
+     * Row 879: artists, album artists and album id built from the tags the record holds, the same way for a file read now
+     * and for one remembered from the last scan. An album without a MediaStore id is grouped by its album artist.
+     */
+    private fun LocalTrackRecord.finished(unknownArtist: String, rules: LocalArtistSplitRules): LocalTrackRecord {
+        val trackArtists = splitArtistNames(artistTag.ifBlank { unknownArtist }, rules).ifEmpty { listOf(unknownArtist) }
+            .map { name -> LocalArtistRecord(id = localArtistId(name), name = name) }
+        val tagAlbumArtists = albumArtistTag?.let { splitArtistNames(it, rules) }.orEmpty()
+            .map { name -> LocalArtistRecord(id = localArtistId(name), name = name) }
+        return copy(
+            artists = trackArtists,
+            albumArtists = tagAlbumArtists,
+            albumId = albumName?.let {
+                buildAlbumId(
+                    mediaStoreAlbumId = mediaStoreAlbumId,
+                    albumName = it,
+                    primaryArtistId = localAlbumGroupArtistId(
+                        albumArtistIds = tagAlbumArtists.map(LocalArtistRecord::id),
+                        trackArtistIds = trackArtists.map(LocalArtistRecord::id),
+                    ),
+                )
+            },
+        )
+    }
+
     private fun stableHash(source: String): String {
         return UUID.nameUUIDFromBytes(source.toByteArray(StandardCharsets.UTF_8))
             .toString()
@@ -1365,6 +1405,9 @@ constructor(
         val album: String? = null,
         val year: Int? = null,
         val durationMs: Long? = null,
+        val albumArtist: String? = null,
+        val cdTrackNumber: String? = null,
+        val discNumber: String? = null,
     )
 
     private fun extractId3Metadata(contentUri: Uri, dataPath: String?): ExtractedId3Metadata? {
@@ -1412,6 +1455,10 @@ constructor(
                 album = album,
                 year = year,
                 durationMs = durationMs,
+                // Row 879: read from the file already open, never a second open.
+                albumArtist = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST),
+                cdTrackNumber = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER),
+                discNumber = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER),
             )
         } catch (_: Exception) {
             null
@@ -1435,6 +1482,8 @@ constructor(
         val unreadFolderPrefixes: Set<String> = emptySet(),
         /** Row 881: picked-folder files left out as too short or unreadable, remembered so they are not reopened. */
         val skippedFiles: List<SkippedLocalFile> = emptyList(),
+        /** Row 879: each song's position inside its album (disc, then track). */
+        val albumIndexes: Map<String, Int> = emptyMap(),
     )
 
     private class PickedFolderTracks(
@@ -1481,6 +1530,15 @@ constructor(
         val modifiedEpochSeconds: Long = 0L,
         /** Absolute path before Android 10 (DATA column); null otherwise. */
         val dataPath: String? = null,
+        /** Row 879: the artist tag as read (or «unknown artist»), split into [artists] by [finished]. */
+        val artistTag: String = "",
+        /** Row 879: the ALBUM ARTIST tag, null when the file has none; split into [albumArtists] by [finished]. */
+        val albumArtistTag: String? = null,
+        val albumArtists: List<LocalArtistRecord> = emptyList(),
+        /** Row 879: MediaStore's own album id, which [albumId] keeps when there is one. */
+        val mediaStoreAlbumId: Long? = null,
+        val discNumber: Int? = null,
+        val trackNumber: Int? = null,
     )
 
     @Serializable

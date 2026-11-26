@@ -192,7 +192,8 @@ interface DatabaseDao {
     fun likedSongIds(): Flow<List<String>>
 
     @Transaction
-    @Query("SELECT song.* FROM song JOIN song_album_map ON song.id = song_album_map.songId WHERE song_album_map.albumId = :albumId")
+    // Row 879: in the album's own order (disc then track for local files), like the album screen.
+    @Query("SELECT song.* FROM song JOIN song_album_map ON song.id = song_album_map.songId WHERE song_album_map.albumId = :albumId ORDER BY song_album_map.`index`")
     fun albumSongs(albumId: String): Flow<List<Song>>
 
     @Transaction
@@ -2666,8 +2667,13 @@ interface DatabaseDao {
     @Query("DELETE FROM album WHERE isLocal = 1 AND id NOT IN (SELECT DISTINCT albumId FROM song WHERE isLocal = 1 AND albumId IS NOT NULL)")
     fun pruneLocalAlbums()
 
-    @Query("DELETE FROM artist WHERE isLocal = 1 AND id NOT IN (SELECT DISTINCT song_artist_map.artistId FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE song.isLocal = 1)")
+    // Row 879: an album artist with no song of its own (a compilation's «Various Artists») stays while its album does.
+    @Query("DELETE FROM artist WHERE isLocal = 1 AND id NOT IN (SELECT DISTINCT song_artist_map.artistId FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE song.isLocal = 1) AND id NOT IN (SELECT DISTINCT album_artist_map.artistId FROM album_artist_map JOIN album ON album_artist_map.albumId = album.id WHERE album.isLocal = 1)")
     fun pruneLocalArtists()
+
+    /** Row 879: each local song's position in its album (disc then track), for Biblioteca ▸ Local sorted by album. */
+    @Query("SELECT song_album_map.* FROM song_album_map JOIN song ON song.id = song_album_map.songId WHERE song.isLocal = 1")
+    fun localSongAlbumMaps(): Flow<List<SongAlbumMap>>
 
     @Query("SELECT * FROM artist WHERE id IN (:ids)")
     suspend fun getArtistEntitiesByIds(ids: List<String>): List<ArtistEntity>

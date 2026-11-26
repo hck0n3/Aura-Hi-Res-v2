@@ -22,10 +22,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
@@ -86,6 +88,11 @@ import iad1tya.echo.music.constants.EnablePaxsenixKey
 import iad1tya.echo.music.constants.UnisonLyricsEnabledKey
 import iad1tya.echo.music.constants.HideVideoSongsKey
 import iad1tya.echo.music.constants.HideYoutubeShortsKey
+import iad1tya.echo.music.constants.LocalArtistNameExceptionsKey
+import iad1tya.echo.music.constants.LocalArtistSeparatorsKey
+import iad1tya.echo.music.localmedia.BuiltInArtistNameExceptions
+import iad1tya.echo.music.localmedia.LocalArtistSeparator
+import iad1tya.echo.music.localmedia.LocalArtistSplitRules
 import iad1tya.echo.music.constants.LanguageCodeToName
 import iad1tya.echo.music.constants.LyricsProviderOrderKey
 import iad1tya.echo.music.constants.ProxyEnabledKey
@@ -156,6 +163,13 @@ fun ContentSettings(
     val (showArtistVideo, onShowArtistVideoChange) = rememberPreference(key = ShowArtistVideoKey, defaultValue = true)
     val (showArtistBackgroundVideo, onShowArtistBackgroundVideoChange) = rememberPreference(key = ShowArtistBackgroundVideoKey, defaultValue = true)
     val (proxyEnabled, onProxyEnabledChange) = rememberPreference(key = ProxyEnabledKey, defaultValue = false)
+    // Row 880: what splits a local file's artist tag into several artists, and the names never split.
+    val (artistSeparatorKeys, onArtistSeparatorKeysChange) =
+        rememberPreference(key = LocalArtistSeparatorsKey, defaultValue = LocalArtistSplitRules.DefaultSeparatorKeys)
+    val (artistNameExceptions, onArtistNameExceptionsChange) =
+        rememberPreference(key = LocalArtistNameExceptionsKey, defaultValue = emptySet<String>())
+    var showArtistSeparatorsDialog by rememberSaveable { mutableStateOf(false) }
+    var showArtistExceptionsDialog by rememberSaveable { mutableStateOf(false) }
     val (proxyType, onProxyTypeChange) = rememberEnumPreference(key = ProxyTypeKey, defaultValue = Proxy.Type.HTTP)
     val (proxyUrl, onProxyUrlChange) = rememberPreference(key = ProxyUrlKey, defaultValue = "host:port")
     val (proxyUsername, onProxyUsernameChange) = rememberPreference(key = ProxyUsernameKey, defaultValue = "username")
@@ -272,6 +286,98 @@ fun ContentSettings(
 
     var showProxyConfigurationDialog by rememberSaveable {
         mutableStateOf(false)
+    }
+
+    if (showArtistSeparatorsDialog) {
+        var chosen by remember { mutableStateOf(artistSeparatorKeys) }
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
+            onDismissRequest = { showArtistSeparatorsDialog = false },
+            title = { Text(stringResource(R.string.local_artist_separators)) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    LocalArtistSeparator.entries.forEach { separator ->
+                        val checked = separator.key in chosen
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { chosen = if (checked) chosen - separator.key else chosen + separator.key },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = null)
+                            Text("«${separator.label}»")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(stringResource(R.string.local_artist_separators_note), style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    ActionLog.tap(ActionId.SETCONT_ARTIST_SEPARATORS_SAVE)
+                    onArtistSeparatorKeysChange(chosen)
+                    showArtistSeparatorsDialog = false
+                }) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    ActionLog.tap(ActionId.SETCONT_ARTIST_SEPARATORS_CANCEL)
+                    showArtistSeparatorsDialog = false
+                }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (showArtistExceptionsDialog) {
+        var exceptionsText by rememberSaveable { mutableStateOf(artistNameExceptions.joinToString("\n")) }
+        iad1tya.echo.music.ui.component.AuraAlertDialog(
+            onDismissRequest = { showArtistExceptionsDialog = false },
+            title = { Text(stringResource(R.string.local_artist_exceptions)) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    OutlinedTextField(
+                        value = exceptionsText,
+                        onValueChange = { exceptionsText = it },
+                        label = { Text(stringResource(R.string.local_artist_exceptions_hint)) },
+                        minLines = 4,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        stringResource(R.string.local_artist_exceptions_builtin, BuiltInArtistNameExceptions.joinToString(" · ")),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    ActionLog.tap(ActionId.SETCONT_ARTIST_EXCEPTIONS_SAVE)
+                    onArtistNameExceptionsChange(LocalArtistSplitRules.exceptionsFromText(exceptionsText))
+                    showArtistExceptionsDialog = false
+                }) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    ActionLog.tap(ActionId.SETCONT_ARTIST_EXCEPTIONS_CANCEL)
+                    showArtistExceptionsDialog = false
+                }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 
     if (showProxyConfigurationDialog) {
@@ -919,6 +1025,27 @@ fun ContentSettings(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(27.dp))
+
+        // Row 880: how the artist tags of the phone's own files are read (Biblioteca ▸ Local, its artists and albums).
+        Material3SettingsGroup(
+            title = stringResource(R.string.local_music_settings),
+            items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.artist),
+                    title = { Text(stringResource(R.string.local_artist_separators)) },
+                    description = { Text(stringResource(R.string.local_artist_separators_desc)) },
+                    onClick = { ActionLog.tap(ActionId.SETCONT_ARTIST_SEPARATORS); showArtistSeparatorsDialog = true },
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.person),
+                    title = { Text(stringResource(R.string.local_artist_exceptions)) },
+                    description = { Text(stringResource(R.string.local_artist_exceptions_desc)) },
+                    onClick = { ActionLog.tap(ActionId.SETCONT_ARTIST_EXCEPTIONS); showArtistExceptionsDialog = true },
+                ),
+            ),
+        )
 
         Spacer(modifier = Modifier.height(27.dp))
 
