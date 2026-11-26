@@ -187,6 +187,16 @@ class TvRemoteFocusGuardTest {
         assertTrue(row.contains("if (trailing != null) TvRowTrailingSlot(tvTrailing, AuraSpacing.RowInner, trailing)"))
         val slot = main("ui/utils/TvFocusExtras.kt").substringAfter("fun TvRowTrailingSlot(").substringBefore("\n}\n")
         assertTrue("without a remote the slot emits the content exactly as before", slot.contains("if (focus == null) {\n        content()\n        return\n    }"))
+        // Two controls in the slot (✕ then ↖ in Buscar): toward the start walks to the previous one first, and only the
+        // slot's first control returns to the row. The slot is a group that refuses to let that search out.
+        val extras = main("ui/utils/TvFocusExtras.kt")
+        val keys = extras.substringAfter("fun Modifier.tvRowTrailingKeys(").substringBefore("\n}\n")
+        assertTrue(keys.contains("focus.moveWithinSlot(startMove) ||\n                    runCatching { focus.row.requestFocus(FocusDirection.Enter) }.getOrDefault(false)"))
+        val within = extras.substringAfter("private fun TvRowTrailingFocus.moveWithinSlot(").substringBefore("\n}\n")
+        assertTrue(within.contains("return moved && !exitRefused"))
+        assertTrue("the flag never stays on", within.contains("} finally {\n        searchingInSlot = false\n    }"))
+        assertTrue(slot.contains("if (focus.searchingInSlot) {\n                        focus.exitRefused = true\n                        cancelFocusChange()"))
+        assertTrue(slot.indexOf(".focusProperties {") < slot.indexOf(".focusGroup(),"))
     }
 
     @Test

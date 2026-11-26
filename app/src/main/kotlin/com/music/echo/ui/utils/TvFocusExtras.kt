@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -21,6 +22,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.delay
@@ -137,20 +139,43 @@ fun Modifier.tvModalFocusGroup(key: Any? = Unit): Modifier {
  * The trailing button of a clickable row (the ⋯ of a song row) sits INSIDE the row's own focus target, so a D-pad
  * search from the row never finds it (row 826: «sus botones internos (tres puntos) no se alcanzan con la cruceta»).
  * This pair hands focus over by key instead: toward the trailing edge from the row goes into the trailing slot,
- * back toward the start from the slot returns to the row. Every other key is left to the normal focus search, and
- * a slot with nothing focusable in it refuses the hand-over, so the key moves on as before.
+ * back toward the start from the slot first walks to the previous control INSIDE the slot (✕ then ↖ in Buscar) and
+ * only returns to the row from the slot's first control. Every other key is left to the normal focus search, and a
+ * slot with nothing focusable in it refuses the hand-over, so the key moves on as before.
  */
-class TvRowTrailingFocus internal constructor() {
+class TvRowTrailingFocus internal constructor(internal val focusManager: FocusManager) {
     internal val row = FocusRequester()
     internal val trailing = FocusRequester()
     internal var rowFocused = false
     internal var trailingHasFocus = false
+    /** True only while [tvRowTrailingKeys] searches toward the start: the slot then refuses to let the focus out. */
+    internal var searchingInSlot = false
+    internal var exitRefused = false
 }
 
 /** Non-null only inside an [AuraTvFocusScope] on a remote device. */
 @Composable
-fun rememberTvRowTrailingFocus(): TvRowTrailingFocus? =
-    if (LocalAuraTvRing.current == true) remember { TvRowTrailingFocus() } else null
+fun rememberTvRowTrailingFocus(): TvRowTrailingFocus? {
+    if (LocalAuraTvRing.current != true) return null
+    val focusManager = LocalFocusManager.current
+    return remember(focusManager) { TvRowTrailingFocus(focusManager) }
+}
+
+/**
+ * Toward the start from a control in the slot: moves to the previous control of the SAME slot. False when there is
+ * none (the search found nothing, or found something outside the slot, which the slot refused) — the caller then
+ * hands the focus back to the row.
+ */
+private fun TvRowTrailingFocus.moveWithinSlot(direction: FocusDirection): Boolean {
+    searchingInSlot = true
+    exitRefused = false
+    val moved = try {
+        runCatching { focusManager.moveFocus(direction) }.getOrDefault(false)
+    } finally {
+        searchingInSlot = false
+    }
+    return moved && !exitRefused
+}
 
 /** Does the trailing slot sit to the RIGHT of the row's start in [direction]? (Right-to-left mirrors the row.) Pure, for test. */
 fun tvTrailingIsRight(direction: LayoutDirection): Boolean = direction != LayoutDirection.Rtl
@@ -163,13 +188,15 @@ fun Modifier.tvRowTrailingKeys(focus: TvRowTrailingFocus?, direction: LayoutDire
     focus ?: return this
     val towardTrailing = if (tvTrailingIsRight(direction)) Key.DirectionRight else Key.DirectionLeft
     val towardStart = if (tvTrailingIsRight(direction)) Key.DirectionLeft else Key.DirectionRight
+    val startMove = if (tvTrailingIsRight(direction)) FocusDirection.Left else FocusDirection.Right
     return this.onKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
         when {
             event.key == towardTrailing && focus.rowFocused ->
                 runCatching { focus.trailing.requestFocus(FocusDirection.Enter) }.getOrDefault(false)
             event.key == towardStart && focus.trailingHasFocus ->
-                runCatching { focus.row.requestFocus(FocusDirection.Enter) }.getOrDefault(false)
+                focus.moveWithinSlot(startMove) ||
+                    runCatching { focus.row.requestFocus(FocusDirection.Enter) }.getOrDefault(false)
             else -> false
         }
     }
@@ -198,6 +225,17 @@ fun TvRowTrailingSlot(focus: TvRowTrailingFocus?, spacing: Dp, content: @Composa
         horizontalArrangement = Arrangement.spacedBy(spacing),
         modifier = Modifier
             .focusRequester(focus.trailing)
-            .onFocusChanged { focus.trailingHasFocus = it.hasFocus },
+            .onFocusChanged { focus.trailingHasFocus = it.hasFocus }
+            // The slot is its own group, so a search toward the start tries its siblings first; while the key handler
+            // searches, a move OUT of the slot is refused and reported (the handler then returns to the row instead).
+            .focusProperties {
+                onExit = {
+                    if (focus.searchingInSlot) {
+                        focus.exitRefused = true
+                        cancelFocusChange()
+                    }
+                }
+            }
+            .focusGroup(),
     ) { content() }
 }
