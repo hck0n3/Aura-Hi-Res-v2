@@ -52,8 +52,9 @@ object BestSourcePolicy {
     }
 
     /**
-     * id -> the id that plays in its place, only for a copy that is NOT the best of its song (a best copy, or a song
-     * with a single copy, is absent). Ties keep the first one listed.
+     * id -> the id that plays in its place, only for a copy that is NOT the best of its song AND sits on another source
+     * than the best one (a best copy, a song with a single copy, and two copies on the same source — the explicit and the
+     * clean version online, two files on the phone — are absent: each plays itself). Ties keep the first one listed.
      */
     fun bestTwins(candidates: List<Candidate>): Map<String, String> {
         val byTitle = candidates.groupBy { NoRepeatKey.normalizeTitle(it.title) }
@@ -66,7 +67,7 @@ object BestSourcePolicy {
                 unassigned.removeAll(same.toSet())
                 if (same.size < 2) continue
                 val best = same.minWith(compareBy(::rank))
-                same.filter { it.id != best.id }.forEach { twins[it.id] = best.id }
+                same.filter { it.id != best.id && it.source != best.source }.forEach { twins[it.id] = best.id }
             }
         }
         return twins

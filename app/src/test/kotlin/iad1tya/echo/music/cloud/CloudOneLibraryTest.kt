@@ -55,6 +55,22 @@ class CloudOneLibraryTest {
     }
 
     @Test
+    fun `two copies on the same source are never twins - each plays itself`() {
+        val online2 = "abcdefghijk"
+        val phone2 = "content://media/external/audio/media/8"
+        val cloud2 = CloudSongIds.of("aura-onedrive", "Music/b.flac")
+        val none = emptyMap<String, String>()
+        assertEquals("explicit and clean online", none, BestSourcePolicy.bestTwins(listOf(c(online), c(online2))))
+        assertEquals("two files on the phone", none, BestSourcePolicy.bestTwins(listOf(c(phone2), c(phone, lossless = true))))
+        assertEquals("two files in the cloud", none, BestSourcePolicy.bestTwins(listOf(c(cloud), c(cloud2, lossless = true))))
+        // With another source present, only the copies on another source than the best one are mapped.
+        assertEquals(
+            mapOf(cloud to phone),
+            BestSourcePolicy.bestTwins(listOf(c(phone2), c(cloud), c(phone, lossless = true))),
+        )
+    }
+
+    @Test
     fun `the artist page lists both sources apart and plays one copy per song, the best`() {
         val screen = main("ui/newui/AuraArtistScreen.kt")
         assertTrue(screen.contains("val bestTwinOf = remember(allLibrarySongs) { BestSourcePolicy.bestTwins(allLibrarySongs.map(::bestSourceCandidate)) }"))
