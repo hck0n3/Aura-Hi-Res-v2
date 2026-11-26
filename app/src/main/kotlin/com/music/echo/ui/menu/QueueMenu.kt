@@ -88,6 +88,7 @@ import iad1tya.echo.music.utils.refetchSongAudio
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import iad1tya.echo.music.utils.isCloudMediaId
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
 
@@ -259,7 +260,7 @@ fun QueueMenu(
         
         item {
             NewActionGrid(
-                actions = listOf(
+                actions = listOfNotNull(
                     NewAction(
                         icon = {
                             Icon(
@@ -288,7 +289,8 @@ fun QueueMenu(
                         text = stringResource(R.string.add_to_playlist),
                         onClick = { ActionLog.tap(ActionId.QMENU_ADD_TO_PLAYLIST); showChoosePlaylistDialog = true }
                     ),
-                    NewAction(
+                    // Row 893: a cloud song has no link to share and no file on the phone: no «Compartir» for it.
+                    if (!mediaMetadata.id.isCloudMediaId()) NewAction(
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.share),
@@ -312,7 +314,7 @@ fun QueueMenu(
                                 ),
                             )
                         }
-                    )
+                    ) else null
                 ),
                 modifier = Modifier.padding(bottom = 12.dp)
             )

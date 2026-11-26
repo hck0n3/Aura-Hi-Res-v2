@@ -80,6 +80,7 @@ import iad1tya.echo.music.ui.component.NewActionGrid
 import iad1tya.echo.music.ui.component.VolumeSlider
 import iad1tya.echo.music.ui.utils.ExportFormat
 import iad1tya.echo.music.ui.utils.ExportFormatChooserDialog
+import iad1tya.echo.music.utils.isCloudMediaId
 import iad1tya.echo.music.utils.isLocalMediaId
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.shareLocalAudio
@@ -344,7 +345,8 @@ fun OldPlayerMenu(
                         text = stringResource(R.string.add_to_playlist),
                         onClick = { showChoosePlaylistDialog = true }
                     ),
-                    NewAction(
+                    // Row 893: a cloud song has no link to share and no file on the phone: no «Compartir» for it.
+                    if (!mediaMetadata.id.isCloudMediaId()) NewAction(
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.share),
@@ -367,7 +369,7 @@ fun OldPlayerMenu(
                             )
                             onDismiss()
                         }
-                    )
+                    ) else null
                 ),
                 columns = if (isListenTogetherGuest) 2 else 3,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
@@ -460,7 +462,7 @@ fun OldPlayerMenu(
                         }
                     }
 
-                    if (enableExportAsMp3) {
+                    if (enableExportAsMp3 && !mediaMetadata.id.isCloudMediaId()) {
                         when {
                             isLocalTrack -> add(
                                 Material3MenuItemData(
