@@ -671,6 +671,8 @@ val LocalSongsMinDurationSecondsKey = intPreferencesKey("local_songs_min_duratio
 val LocalSongsExcludedFoldersKey = stringSetPreferencesKey("local_songs_excluded_folders")
 /** When non-empty, the local scanner imports ONLY tracks under these folders (MediaStore relative paths). */
 val LocalSongsIncludedFoldersKey = stringSetPreferencesKey("local_songs_included_folders")
+/** Row 881: the SAF tree uris of those folders (read permission persisted), walked for the audio MediaStore does not index. */
+val LocalSongsIncludedTreeUrisKey = stringSetPreferencesKey("local_songs_included_tree_uris")
 val LocalSongsSortTypeKey = stringPreferencesKey("local_songs_sort_type")
 val LocalSongsSortDescendingKey = booleanPreferencesKey("local_songs_sort_descending")
 

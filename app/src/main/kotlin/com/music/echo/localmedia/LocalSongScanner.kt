@@ -22,9 +22,14 @@ import com.antonkarpenko.ffmpegkit.FFprobeKit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import iad1tya.echo.music.R
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.AlbumArtistMap
@@ -59,6 +64,8 @@ data class LocalSongScanConfig(
      * que yo elijo" — the old UI saved picks as excludes, which did the opposite.
      */
     val includedFolders: Set<String> = emptySet(),
+    /** Row 881: the SAF trees picked for [includedFolders] (persisted read permission), walked for what MediaStore misses. */
+    val includedTreeUris: Set<String> = emptySet(),
 ) {
     val sanitizedMinimumDurationSeconds: Int
         get() = minimumDurationSeconds.coerceAtLeast(0)
@@ -220,17 +227,29 @@ constructor(
     /**
      * [removeMissing] = the user confirmed «remove from Aura the local songs that are no longer on the phone»: the two
      * row-694 guards (empty scan, absent volume) step aside and every song the scan does not see is removed.
+     * Row 881: [fullRescan] reads every file again instead of reusing what an unchanged file gave last time.
+     * [automatic] (only [scanAutomatically]): nobody asked for this scan, so it never deletes a song it does not see.
      */
     suspend fun scanDevice(
         scanConfig: LocalSongScanConfig = LocalSongScanConfig(),
         removeMissing: Boolean = false,
-    ): LocalSongScanSummary = withContext(Dispatchers.IO) {
+        fullRescan: Boolean = false,
+        automatic: Boolean = false,
+    ): LocalSongScanSummary = scanMutex.withLock { withContext(Dispatchers.IO) {
         // Row 694: no permission, a null cursor or a failing query is a FAILED scan, never "zero tracks".
         if (!hasAudioReadPermission()) {
             throw LocalScanFailedException("audio read permission not granted", missingPermission = true)
         }
+        // Row 881: what the last successful scan built from each file, reused for the files MediaStore reports unchanged.
+        val autoStamp = currentAutoScanStamp(scanConfig)
+        val cacheHeader = currentScanCacheHeader()
+        val scanCache = readScanCache()
+        val cacheUsable =
+            localScanCacheUsable(scanCache?.header, cacheHeader, fullRescan, versionRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+        val remembered = if (cacheUsable) scanCache?.tracks.orEmpty().associateBy { it.record.id } else emptyMap()
+        val rememberedSkipped = if (cacheUsable) scanCache?.skippedFiles.orEmpty().associateBy(SkippedLocalFile::id) else emptyMap()
         val snapshot = try {
-            queryTracks(scanConfig)
+            queryTracks(scanConfig, remembered, currentCoroutineContext()[Job], rememberedSkipped)
         } catch (e: CancellationException) {
             throw e
         } catch (e: LocalScanFailedException) {
@@ -255,17 +274,51 @@ constructor(
             if (!removeMissing && refusesEmptyScan(snapshot.tracks.count { !it.isVideo }, libraryLocalAudio)) {
                 throw LocalScanFailedException("scan found no audio", keptSongs = removedIds.size)
             }
-            val (removable, kept) = if (removeMissing) {
+            val (missingOnMountedVolumes, keptOnVolume) = if (removeMissing) {
                 removedIds to emptyList<String>()
             } else {
                 splitMissingByVolume(removedIds, recordedVolumes, volumePresent)
+                    // Row 881: a picked folder that could not be walked completely keeps its songs, like an absent volume.
+                    .keepingUnreadFolders(snapshot.unreadFolderPrefixes)
             }
+            // Row 882: a missing song matched one-to-one with a file seen for the first time was moved or renamed; its
+            // new row takes its likes, playlist entries, history and play counts before the old row is deleted. A song
+            // with several possible matches is never merged and, unless the user confirmed the removal, kept.
+            val moved = moveRenamedLocalSongs(missingOnMountedVolumes, snapshot.tracks)
+            val keptUnconfirmed = when {
+                removeMissing -> emptyList()
+                // Row 881: a scan nobody asked for (app start, a MediaStore change) never deletes a song; only the old
+                // row of a moved song goes, after its data moved to the new one.
+                automatic -> missingOnMountedVolumes.filterNot(moved.moves::containsKey)
+                else -> missingOnMountedVolumes.filter(moved.ambiguous::contains)
+            }
+            val removable = missingOnMountedVolumes - keptUnconfirmed.toSet()
+            val kept = keptOnVolume + keptUnconfirmed
             keptOnAbsentVolume = kept
             removable.chunked(SqlBatchSize).forEach(::deleteSongsByIds)
 
             val existingSongs = loadSongs(scannedIds)
             val existingArtists = loadArtists(snapshot.artists.map(LocalArtistRecord::id))
             val existingAlbums = loadAlbums(snapshot.albums.map(LocalAlbumRecord::id))
+
+            // Row 881: a file reused unchanged whose row still says what it said is not written again; when that is every
+            // file and nothing went, the library is already what the scan would write.
+            val untouchedIds = snapshot.tracks.filter { track ->
+                track.id in snapshot.reusedIds && existingSongs[track.id].isUnchangedLocalRow(
+                    track,
+                    cachedReplayGainLoudness(replayGain, track.id, track.sizeBytes, track.modifiedEpochSeconds),
+                )
+            }.mapTo(HashSet(), LocalTrackRecord::id)
+            if (removable.isEmpty() && untouchedIds.size == snapshot.tracks.size) {
+                summary = localScanSummary(
+                    scannedIsVideo = snapshot.tracks.map(LocalTrackRecord::isVideo),
+                    removedSongs = 0,
+                    keptMissing = kept.size,
+                    skippedUnsupported = snapshot.skippedUnsupported,
+                    skippedShort = snapshot.skippedShort,
+                )
+                return@withTransaction
+            }
 
             snapshot.artists.forEach { artist ->
                 val existingArtist = existingArtists[artist.id]
@@ -330,6 +383,7 @@ constructor(
             }
 
             snapshot.tracks.forEach { track ->
+                if (track.id in untouchedIds) return@forEach
                 val existingSong = existingSongs[track.id]?.song
                 if (existingSong != null && existingSong.isLocal) {
                     update(
@@ -412,7 +466,7 @@ constructor(
 
             summary = localScanSummary(
                 scannedIsVideo = snapshot.tracks.map(LocalTrackRecord::isVideo),
-                removedSongs = removable.size,
+                removedSongs = removable.size - moved.moves.size,
                 keptMissing = kept.size,
                 skippedUnsupported = snapshot.skippedUnsupported,
                 skippedShort = snapshot.skippedShort,
@@ -427,6 +481,17 @@ constructor(
         )
         val replayGainIds = keptOnAbsentVolume.toSet() + snapshot.tracks.map(LocalTrackRecord::id)
         writeReplayGainCache(replayGain.filterKeys(replayGainIds::contains))
+        // Row 881: remembered only after a successful transaction; a failed or refused scan keeps the previous memory.
+        writeScanCache(
+            LocalScanCacheFile(
+                header = cacheHeader,
+                tracks = snapshot.tracks.mapNotNull { track ->
+                    snapshot.fingerprints[track.id]?.let { CachedLocalTrack(fingerprint = it, record = track) }
+                },
+                skippedFiles = snapshot.skippedFiles,
+            ),
+        )
+        writeAutoStamp(autoStamp)
 
         val videoTracks = snapshot.tracks.filter { it.isVideo }
         if (videoTracks.isNotEmpty()) {
@@ -448,6 +513,89 @@ constructor(
         }
 
         return@withContext summary
+    } }
+
+    /**
+     * Row 881: the scan run on app start and after a MediaStore change (`LocalLibraryAutoScan`), never on a timer. Null
+     * when it did not run: no permission, or on Android 11+ MediaStore reports nothing new since the last successful scan.
+     */
+    suspend fun scanAutomatically(scanConfig: LocalSongScanConfig): LocalSongScanSummary? {
+        if (!hasAudioReadPermission()) return null
+        // Row 881 (review repair): only the small stamp file is read here, never the whole remembered library.
+        val stored = withContext(Dispatchers.IO) { runCatching { autoStampFile.takeIf(File::isFile)?.readText() }.getOrNull() }
+        if (autoScanFindsNothingNew(stored, currentAutoScanStamp(scanConfig))) return null
+        return scanDevice(scanConfig, automatic = true)
+    }
+
+    /** Row 881: only someone who already uses local music gets automatic scans (they scanned once, or have local songs). */
+    suspend fun usesLocalLibrary(): Boolean =
+        hasAudioReadPermission() && withContext(Dispatchers.IO) { scanCacheFile.isFile || database.localSongIds().isNotEmpty() }
+
+    // Row 881: what the last successful scan built from each file. noBackupFilesDir: MediaStore ids belong to this phone.
+    private val scanCacheFile: File get() = File(context.noBackupFilesDir, "local_scan_tracks.json")
+
+    // Row 881: the MediaStore stamp of the last successful scan, apart so the automatic scan reads a few bytes only.
+    private val autoStampFile: File get() = File(context.noBackupFilesDir, "local_scan_stamp.txt")
+
+    private fun writeAutoStamp(stamp: String?) {
+        runCatching { if (stamp == null) autoStampFile.delete() else autoStampFile.writeText(stamp) }
+    }
+
+    private fun readScanCache(): LocalScanCacheFile? = runCatching {
+        if (scanCacheFile.isFile) ScanCacheJson.decodeFromString(LocalScanCacheFile.serializer(), scanCacheFile.readText()) else null
+    }.getOrNull()
+
+    private fun writeScanCache(cache: LocalScanCacheFile) {
+        runCatching {
+            val tmp = File(scanCacheFile.path + ".tmp")
+            tmp.writeText(ScanCacheJson.encodeToString(LocalScanCacheFile.serializer(), cache))
+            if (!tmp.renameTo(scanCacheFile)) {
+                scanCacheFile.writeText(tmp.readText())
+                tmp.delete()
+            }
+        }
+    }
+
+    private fun currentScanCacheHeader() = LocalScanCacheHeader(
+        rules = LocalScanRulesVersion,
+        shape = LocalTrackRecord.serializer().descriptor.shape(),
+        mediaStoreVersion = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            runCatching { MediaStore.getVersion(context) }.getOrNull()
+        } else {
+            null
+        },
+        unknownArtist = context.getString(R.string.unknown_artist),
+        unknownTitle = context.getString(R.string.unknown),
+    )
+
+    private fun currentAutoScanStamp(scanConfig: LocalSongScanConfig): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        val volumes = runCatching { MediaStore.getExternalVolumeNames(context) }.getOrNull() ?: return null
+        val states = volumes.associateWith { volume ->
+            runCatching { "${MediaStore.getVersion(context, volume)}:${MediaStore.getGeneration(context, volume)}" }.getOrNull()
+                ?: return null
+        }
+        // Row 881 (review repair): the language too, so a language change rebuilds the «unknown» names without waiting.
+        val names = "names=${context.getString(R.string.unknown_artist)}|${context.getString(R.string.unknown)}"
+        return localAutoScanStamp(states, scanConfig, scanConfig.includedTreeUris + names)
+    }
+
+    /** Is this row exactly what the remembered build of an unchanged file would write? */
+    private fun Song?.isUnchangedLocalRow(track: LocalTrackRecord, loudnessDb: Double?): Boolean {
+        if (this == null || !song.isLocal) return false
+        val stored = format ?: return false
+        return song.title == track.title &&
+            song.duration == track.durationSeconds &&
+            song.albumId == track.albumId &&
+            song.albumName == track.albumName &&
+            song.isVideo == track.isVideo &&
+            song.dateModified == track.dateModified &&
+            (track.year == null || song.year == track.year) &&
+            (track.thumbnailUrl == null || song.thumbnailUrl == track.thumbnailUrl) &&
+            stored.contentLength == track.sizeBytes &&
+            stored.mimeType == track.mimeType &&
+            stored.loudnessDb == loudnessDb &&
+            artists.map { it.id }.toSet() == track.artists.map(LocalArtistRecord::id).toSet()
     }
 
     /** The same permission LocalSongScreen asks for. Without it MediaStore answers with only this app's own files. */
@@ -561,6 +709,83 @@ constructor(
         }
     }
 
+    /**
+     * Row 882, inside the scan transaction: the new row is a copy of the old one (likes, play time, lyrics settings), then
+     * the playlist entries, the history, the play counts and the lyrics are pointed at it. The old row is deleted after.
+     * A file that already has a row of its own never takes another song's data. Every file the scan sees is matched
+     * (review repair): a missing song whose match already has a row stays ambiguous, so it is kept on the next scans too.
+     */
+    private suspend fun moveRenamedLocalSongs(
+        missingIds: List<String>,
+        seenTracks: List<LocalTrackRecord>,
+    ): LocalSongMoves {
+        if (missingIds.isEmpty() || seenTracks.isEmpty()) return LocalSongMoves(emptyMap(), emptySet())
+        val oldSongs = loadSongs(missingIds)
+        val missing = oldSongs.values.map { old ->
+            LocalSongIdentity(
+                id = old.song.id,
+                isVideo = old.song.isVideo,
+                sizeBytes = old.format?.contentLength ?: 0L,
+                durationSeconds = old.song.duration,
+                title = old.song.title,
+                albumName = old.song.albumName,
+            )
+        }
+        val seen = seenTracks.map { track ->
+            LocalSongIdentity(
+                id = track.id,
+                isVideo = track.isVideo,
+                sizeBytes = track.sizeBytes,
+                durationSeconds = track.durationSeconds,
+                title = track.title,
+                albumName = track.albumName,
+            )
+        }
+        val candidateIds = movedSongCandidateIds(missing, seen)
+        if (candidateIds.isEmpty()) return LocalSongMoves(emptyMap(), emptySet())
+        val takenRows = loadSongs(candidateIds.toList())
+        val takenIds = takenRows.keys
+        // Review repair: a local row nobody used yet (an automatic scan imported the copy before the original went) is
+        // the moved file too, and takes the old song's data like a brand-new file would.
+        val unusedIds = unusedLocalSongIds(takenRows.values)
+        val verdict = matchMovedLocalSongs(missing, seen) { id -> id !in takenIds || id in unusedIds }
+        verdict.moves.forEach { (oldId, newId) ->
+            val old = oldSongs.getValue(oldId).song
+            val unused = takenRows[newId]?.song
+            if (unused == null) {
+                database.insert(old.copy(id = newId))
+            } else {
+                database.update(
+                    unused.copy(
+                        liked = old.liked,
+                        likedDate = old.likedDate,
+                        totalPlayTime = old.totalPlayTime,
+                        date = old.date ?: unused.date,
+                        lyricsOffset = old.lyricsOffset,
+                        romanizeLyrics = old.romanizeLyrics,
+                    ),
+                )
+            }
+            database.moveLocalSongPlaylistEntries(oldId, newId)
+            database.moveLocalSongEvents(oldId, newId)
+            database.moveLocalSongPlayCounts(oldId, newId)
+            database.moveLocalSongLyrics(oldId, newId)
+        }
+        return verdict
+    }
+
+    /** Row 882 (review repair): the local rows with no like, no play time, no playlist entry, no history and no play count. */
+    private fun unusedLocalSongIds(rows: Collection<Song>): Set<String> {
+        val candidates = rows
+            .filter { it.song.isLocal && !it.song.liked && it.song.likedDate == null && it.song.totalPlayTime == 0L }
+            .map { it.song.id }
+        if (candidates.isEmpty()) return emptySet()
+        val used = candidates.chunked(SqlBatchSize).flatMapTo(HashSet()) { chunk ->
+            database.localSongIdsInPlaylists(chunk) + database.localSongIdsWithEvents(chunk) + database.localSongIdsWithPlayCounts(chunk)
+        }
+        return candidates.filterNotTo(HashSet(), used::contains)
+    }
+
         private suspend fun loadSongs(ids: List<String>): Map<String, Song> =
         ids.chunked(SqlBatchSize)
             .flatMap { chunk -> database.getSongsByIds(chunk) }
@@ -577,7 +802,12 @@ constructor(
             .associateBy { item -> item.id }
 
     @Suppress("DEPRECATION")
-    private fun queryTracks(scanConfig: LocalSongScanConfig): LocalScanSnapshot {
+    private fun queryTracks(
+        scanConfig: LocalSongScanConfig,
+        remembered: Map<String, CachedLocalTrack> = emptyMap(),
+        job: Job? = null,
+        rememberedSkipped: Map<String, SkippedLocalFile> = emptyMap(),
+    ): LocalScanSnapshot {
         val sanitizedMinimumDurationMs = scanConfig.sanitizedMinimumDurationSeconds.toLong() * 1000L
         val sanitizedExcludedFolders = scanConfig.sanitizedExcludedFolders
             .map { it.lowercase(Locale.ROOT) }
@@ -603,6 +833,7 @@ constructor(
             } else {
                 add(MediaStore.MediaColumns.DATA)
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) add(MediaStore.MediaColumns.GENERATION_MODIFIED)
         }.toTypedArray()
         val durationFloor = if (sanitizedMinimumDurationMs > 0L) {
             "${MediaStore.Audio.Media.DURATION} >= $sanitizedMinimumDurationMs"
@@ -627,6 +858,16 @@ constructor(
         val unknownTitle = context.getString(R.string.unknown)
         val tracks = mutableListOf<LocalTrackRecord>()
         var skippedUnsupported = 0
+        val fingerprints = HashMap<String, LocalFileFingerprint>()
+        val reusedIds = HashSet<String>()
+        // Row 881: a file MediaStore reports unchanged since the last scan is not opened again; its remembered build is reused.
+        fun reuseIfUnchanged(id: String, fingerprint: LocalFileFingerprint): Boolean {
+            fingerprints[id] = fingerprint
+            val cached = remembered[id]?.takeIf { isUnchangedFile(it.fingerprint, fingerprint) } ?: return false
+            tracks += cached.record
+            reusedIds += id
+            return true
+        }
         (context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             projection,
@@ -648,6 +889,7 @@ constructor(
             val relativePathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
             val dataPathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
             val volumeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
+            val generationIndex = cursor.getColumnIndex(MediaStore.MediaColumns.GENERATION_MODIFIED)
 
             while (cursor.moveToNext()) {
                 val mediaId = cursor.getLong(idIndex)
@@ -669,6 +911,7 @@ constructor(
                     skippedUnsupported++
                     continue
                 }
+                if (reuseIfUnchanged(contentUri.toString(), cursor.fingerprint(sizeIndex, dateModifiedIndex, generationIndex))) continue
 
                 val rawTitle = cursor.getString(titleIndex)
                 val rawArtist = cursor.getString(artistIndex)
@@ -753,6 +996,7 @@ constructor(
             } else {
                 add(MediaStore.MediaColumns.DATA)
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) add(MediaStore.MediaColumns.GENERATION_MODIFIED)
         }.toTypedArray()
 
         (context.contentResolver.query(
@@ -774,6 +1018,7 @@ constructor(
             val relativePathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
             val dataPathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
             val volumeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
+            val generationIndex = cursor.getColumnIndex(MediaStore.MediaColumns.GENERATION_MODIFIED)
 
             while (cursor.moveToNext()) {
                 val mediaId = cursor.getLong(idIndex)
@@ -784,6 +1029,7 @@ constructor(
                 )
                 if (!shouldIncludeFolder(normalizedFolderPath, sanitizedIncludedFolders)) continue
                 if (shouldExcludeFolder(normalizedFolderPath, sanitizedExcludedFolders)) continue
+                if (reuseIfUnchanged(contentUri.toString(), cursor.fingerprint(sizeIndex, dateModifiedIndex, generationIndex))) continue
 
                 val displayName = cursor.getString(displayNameIndex)
                 val mimeType = cursor.getString(mimeTypeIndex)?.takeIf(String::isNotBlank) ?: "video/*"
@@ -832,6 +1078,12 @@ constructor(
             }
         }
 
+        // Row 881: the audio in the picked folders that MediaStore does not index, found by walking them.
+        val picked = pickedFolderTracks(scanConfig, remembered, job, rememberedSkipped)
+        tracks += picked.tracks
+        fingerprints += picked.fingerprints
+        reusedIds += picked.reusedIds
+
         val albums = tracks
             .filter { !it.albumId.isNullOrBlank() && !it.albumName.isNullOrBlank() }
             .groupBy { it.albumId!! }
@@ -852,13 +1104,136 @@ constructor(
             artists = tracks.flatMap(LocalTrackRecord::artists).distinctBy(LocalArtistRecord::id),
             albums = albums,
             skippedUnsupported = skippedUnsupported,
-            skippedShort = countShortAudio(
+            skippedShort = picked.skippedShort + countShortAudio(
                 selection = selectionWith("(${MediaStore.Audio.Media.DURATION} IS NULL OR NOT ($durationFloor))"),
                 includedFolders = sanitizedIncludedFolders,
                 excludedFolders = sanitizedExcludedFolders,
             ),
+            fingerprints = fingerprints,
+            reusedIds = reusedIds,
+            unreadFolderPrefixes = picked.unreadPrefixes,
+            skippedFiles = picked.skipped,
         )
     }
+
+    /**
+     * Row 881: the audio of the picked folders ([LocalSongScanConfig.includedTreeUris]) that MediaStore does not list,
+     * walked by [PickedFolderWalker] and read like the MediaStore files (an unchanged one is reused, never reopened).
+     * Bounded by [PickedFolderBudgetMs] for the walk and the tag reads together; whatever does not fit marks its folder
+     * unread, so the songs already imported from it are kept and the next scan goes on from there.
+     */
+    private fun pickedFolderTracks(
+        scanConfig: LocalSongScanConfig,
+        remembered: Map<String, CachedLocalTrack>,
+        job: Job?,
+        rememberedSkipped: Map<String, SkippedLocalFile>,
+    ): PickedFolderTracks {
+        val trees = scanConfig.includedTreeUris.filter(String::isNotBlank)
+        if (trees.isEmpty()) return PickedFolderTracks()
+        val walker = PickedFolderWalker(context)
+        // Without MediaStore's list a walked file could be a duplicate of a MediaStore song: walk nothing, keep everything.
+        val indexed = mediaStoreIndexedKeys()
+            ?: return PickedFolderTracks(unreadPrefixes = trees.mapNotNullTo(HashSet(), walker::folderPrefix))
+        val deadline = SystemClock.elapsedRealtime() + PickedFolderBudgetMs
+        val walk = walker.walk(trees, indexed, job, deadline)
+        val unread = HashSet(walk.unreadPrefixes)
+        val tracks = ArrayList<LocalTrackRecord>()
+        val fingerprints = HashMap<String, LocalFileFingerprint>()
+        val reusedIds = HashSet<String>()
+        val skipped = ArrayList<SkippedLocalFile>()
+        var skippedShort = 0
+        val minimumDurationMs = scanConfig.sanitizedMinimumDurationSeconds * 1000L
+        val unknownArtist = context.getString(R.string.unknown_artist)
+        val unknownTitle = context.getString(R.string.unknown)
+        for (file in walk.files) {
+            job?.ensureActive()
+            val id = file.documentUri
+            val fingerprint = LocalFileFingerprint(sizeBytes = file.sizeBytes, modifiedEpochSeconds = file.lastModifiedMs / 1000L)
+            // Row 881 (review repair): an unchanged file left out last time as too short is not opened again.
+            val skippedBefore = rememberedSkipped[id]
+            if (skippedBefore != null && skipsAgainUnopened(skippedBefore, fingerprint, minimumDurationMs)) {
+                skippedShort++
+                skipped += skippedBefore
+                continue
+            }
+            val cached = remembered[id]?.takeIf { isUnchangedFile(it.fingerprint, fingerprint) }
+            // Row 881 (review repair): a remembered build obeys today's minimum too (a raised slider drops it, as the
+            // SQL floor drops a MediaStore file). Whole seconds against whole seconds: the same verdict as a fresh read.
+            if (cached != null && cached.record.durationSeconds * 1000L < minimumDurationMs) {
+                skippedShort++
+                continue
+            }
+            if (cached != null) {
+                tracks += cached.record
+                fingerprints[id] = fingerprint
+                reusedIds += id
+                continue
+            }
+            if (SystemClock.elapsedRealtime() > deadline) {
+                unread += file.folderPrefix
+                continue
+            }
+            val tags = extractId3Metadata(Uri.parse(id), null)
+            val durationMs = tags?.durationMs ?: 0L
+            if (durationMs <= 0L || durationMs < minimumDurationMs) {
+                skippedShort++
+                skipped += SkippedLocalFile(id = id, fingerprint = fingerprint, durationMs = durationMs.coerceAtLeast(0L))
+                continue
+            }
+            val artists = splitArtistNames(normalizeArtistName(tags?.artist, unknownArtist))
+                .ifEmpty { listOf(unknownArtist) }
+                .map { name -> LocalArtistRecord(id = localArtistId(name), name = name) }
+            val albumName = normalizeAlbumName(tags?.album)
+            tracks += LocalTrackRecord(
+                id = id,
+                title = normalizeTitle(title = tags?.title, displayName = file.displayName, fallback = unknownTitle),
+                artists = artists,
+                albumId = albumName?.let {
+                    buildAlbumId(mediaStoreAlbumId = null, albumName = it, primaryArtistId = artists.firstOrNull()?.id)
+                },
+                albumName = albumName,
+                durationSeconds = (durationMs / 1000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                year = tags?.year,
+                dateModified = file.lastModifiedMs.takeIf { it > 0L }
+                    ?.let { LocalDateTime.ofInstant(Instant.ofEpochMilli(it), ZoneId.systemDefault()) },
+                sizeBytes = file.sizeBytes.coerceAtLeast(0L),
+                mimeType = file.mimeType?.takeIf(SupportedLocalAudio::isSupportedMimeType) ?: "audio/*",
+                thumbnailUrl = iad1tya.echo.music.utils.coil.LocalAudioArtFetcher.uriFor(id),
+                modifiedEpochSeconds = file.lastModifiedMs / 1000L,
+            )
+            fingerprints[id] = fingerprint
+        }
+        return PickedFolderTracks(tracks, fingerprints, reusedIds, unread, skippedShort, skipped)
+    }
+
+    /** Row 881: every audio file MediaStore lists, as [mediaStoreDocumentKey]s. Null when it cannot be read. */
+    @Suppress("DEPRECATION")
+    private fun mediaStoreIndexedKeys(): Set<String>? = runCatching {
+        val projection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            arrayOf(MediaStore.MediaColumns.VOLUME_NAME, MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DISPLAY_NAME)
+        } else {
+            arrayOf(MediaStore.MediaColumns.DATA)
+        }
+        // A null cursor is "cannot say" (row 694), never "MediaStore lists nothing".
+        val rows = context.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, null, null, null)
+            ?: return@runCatching null
+        rows.use { cursor ->
+            val volumeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
+            val relativePathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+            val displayNameIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DISPLAY_NAME)
+            val dataPathIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+            val keys = HashSet<String>()
+            while (cursor.moveToNext()) {
+                mediaStoreDocumentKey(
+                    volumeName = cursor.getStringOrNull(volumeIndex),
+                    relativePath = cursor.getStringOrNull(relativePathIndex),
+                    displayName = cursor.getStringOrNull(displayNameIndex),
+                    absolutePath = cursor.getStringOrNull(dataPathIndex),
+                )?.let(keys::add)
+            }
+            keys
+        }
+    }.getOrNull()
 
     /**
      * Row 855: the audio files in the chosen folders that the duration clause leaves out of the scan, only counted (never
@@ -977,6 +1352,13 @@ constructor(
         return if (columnIndex >= 0 && !isNull(columnIndex)) getString(columnIndex) else null
     }
 
+    private fun android.database.Cursor.fingerprint(sizeIndex: Int, dateModifiedIndex: Int, generationIndex: Int) =
+        LocalFileFingerprint(
+            sizeBytes = getLong(sizeIndex).coerceAtLeast(0L),
+            modifiedEpochSeconds = getLong(dateModifiedIndex).coerceAtLeast(0L),
+            generation = getLongOrNull(generationIndex),
+        )
+
     private data class ExtractedId3Metadata(
         val title: String? = null,
         val artist: String? = null,
@@ -1045,8 +1427,40 @@ constructor(
         val albums: List<LocalAlbumRecord>,
         val skippedUnsupported: Int = 0,
         val skippedShort: Int = 0,
+        /** Row 881: what MediaStore reported for each scanned file, remembered with its build after the scan. */
+        val fingerprints: Map<String, LocalFileFingerprint> = emptyMap(),
+        /** Row 881: files MediaStore reports unchanged since the last scan, whose remembered build was reused. */
+        val reusedIds: Set<String> = emptySet(),
+        /** Row 881: picked folders not walked completely; the songs under them that were not seen are kept. */
+        val unreadFolderPrefixes: Set<String> = emptySet(),
+        /** Row 881: picked-folder files left out as too short or unreadable, remembered so they are not reopened. */
+        val skippedFiles: List<SkippedLocalFile> = emptyList(),
     )
 
+    private class PickedFolderTracks(
+        val tracks: List<LocalTrackRecord> = emptyList(),
+        val fingerprints: Map<String, LocalFileFingerprint> = emptyMap(),
+        val reusedIds: Set<String> = emptySet(),
+        val unreadPrefixes: Set<String> = emptySet(),
+        val skippedShort: Int = 0,
+        val skipped: List<SkippedLocalFile> = emptyList(),
+    )
+
+    /** Row 881: what the last successful scan built, file by file (`local_scan_tracks.json`). */
+    @Serializable
+    private data class LocalScanCacheFile(
+        val header: LocalScanCacheHeader,
+        val tracks: List<CachedLocalTrack> = emptyList(),
+        val skippedFiles: List<SkippedLocalFile> = emptyList(),
+    )
+
+    @Serializable
+    private data class CachedLocalTrack(
+        val fingerprint: LocalFileFingerprint,
+        val record: LocalTrackRecord,
+    )
+
+    @Serializable
     private data class LocalTrackRecord(
         val id: String,
         val title: String,
@@ -1055,6 +1469,7 @@ constructor(
         val albumName: String?,
         val durationSeconds: Int,
         val year: Int?,
+        @Serializable(with = IsoLocalDateTimeSerializer::class)
         val dateModified: LocalDateTime?,
         val sizeBytes: Long,
         val mimeType: String,
@@ -1068,6 +1483,7 @@ constructor(
         val dataPath: String? = null,
     )
 
+    @Serializable
     private data class LocalArtistRecord(
         val id: String,
         val name: String,
@@ -1086,7 +1502,12 @@ constructor(
     private companion object {
         val AlbumArtUri: Uri = Uri.parse("content://media/external/audio/albumart")
         const val SqlBatchSize = 900
+        val ScanCacheJson = Json { ignoreUnknownKeys = true }
+        /** Row 881: one scan at a time in the whole process (the screen, app start and MediaStore changes all scan). */
+        val scanMutex = Mutex()
         const val MaxReplayGainReadsPerScan = 200
         const val ReplayGainReadBudgetMs = 30_000L
+        /** Row 881, design limit (not measured): walking the picked folders and reading their new files, per scan. */
+        const val PickedFolderBudgetMs = 60_000L
     }
 }

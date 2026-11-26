@@ -120,6 +120,10 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
     @Inject
     lateinit var syncUtils: SyncUtils
 
+    // Row 881: dagger.Lazy so member injection does not build the scanner (and the database) on the main thread.
+    @Inject
+    lateinit var localLibraryAutoScan: dagger.Lazy<iad1tya.echo.music.localmedia.LocalLibraryAutoScan>
+
     override fun onCreate() {
         super.onCreate()
 
@@ -354,6 +358,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                 .catch { reportException(it) }
                 .collect { updateSongCacheSizeMirror(this@App, it) }
         }
+
+        // Row 881: the local library follows MediaStore changes (event-driven, debounced; only for local-music users).
+        applicationScope.launch(Dispatchers.IO) { runCatching { localLibraryAutoScan.get().ensureStarted() } }
     }
 
     /**

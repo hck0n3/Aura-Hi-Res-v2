@@ -1464,6 +1464,7 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.LOCAL.REMOVE_MISSING_CONFIRM` | «Quitar» (confirmación) |
 | `UI.LOCAL.REMOVE_MISSING_CANCEL` | «Cancelar» (quitar canciones que ya no están) |
 | `UI.LOCAL.FOLDER_REMOVE` | Quitar una carpeta del escaneo |
+| `UI.LOCAL.SCAN_FULL` | «Volver a leer todos los archivos» (escaneo completo, fila 881) |
 
 ### Radar de novedades
 

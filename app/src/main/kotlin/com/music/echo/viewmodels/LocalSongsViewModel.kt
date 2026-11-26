@@ -23,6 +23,7 @@ import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.filterExplicit
 import iad1tya.echo.music.extensions.toEnum
 import iad1tya.echo.music.R
+import iad1tya.echo.music.localmedia.LocalLibraryAutoScan
 import iad1tya.echo.music.localmedia.LocalScanFailedException
 import iad1tya.echo.music.localmedia.LocalSongScanConfig
 import iad1tya.echo.music.localmedia.LocalSongScanSummary
@@ -50,6 +51,7 @@ constructor(
     @ApplicationContext private val context: Context,
     database: MusicDatabase,
     private val localSongScanner: LocalSongScanner,
+    private val localLibraryAutoScan: LocalLibraryAutoScan,
 ) : ViewModel() {
     private val _scanState = MutableStateFlow(LocalSongsScanState())
     val scanState = _scanState.asStateFlow()
@@ -87,13 +89,22 @@ constructor(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** [removeMissing]: only after the user confirmed removing the local songs no longer on the phone (row 694). */
-    fun scanDevice(scanConfig: LocalSongScanConfig = LocalSongScanConfig(), removeMissing: Boolean = false) {
+    /**
+     * [removeMissing]: only after the user confirmed removing the local songs no longer on the phone (row 694).
+     * [fullRescan]: the user asked to read every file again (row 881); otherwise unchanged files are not reopened.
+     */
+    fun scanDevice(
+        scanConfig: LocalSongScanConfig = LocalSongScanConfig(),
+        removeMissing: Boolean = false,
+        fullRescan: Boolean = false,
+    ) {
         if (_scanState.value.isScanning) return
         viewModelScope.launch(Dispatchers.IO) {
             _scanState.value = _scanState.value.copy(isScanning = true, errorMessage = null)
-            runCatching { localSongScanner.scanDevice(scanConfig, removeMissing) }
+            runCatching { localSongScanner.scanDevice(scanConfig, removeMissing, fullRescan) }
                 .onSuccess { summary ->
+                    // Row 881: from the first successful scan on, the library follows MediaStore changes.
+                    localLibraryAutoScan.ensureStarted()
                     _scanState.value = LocalSongsScanState(
                         isScanning = false,
                         lastSummary = summary,
