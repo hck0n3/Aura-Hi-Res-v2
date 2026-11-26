@@ -28,8 +28,9 @@ import okhttp3.OkHttpClient
  *     read-only, then the listen cache keyed by the song id (so a replay or a seek back is served from disk), then
  *     [CloudLoopbackDataSource], which adds the Authorization header at open time (from [CloudStreams], never in the
  *     DataSpec media3 keeps) through a client that never uses a proxy (row 864).
- *  3. While a stream is open the daemon is held ([RcloneDaemon.retainForStream]); it is released on close, and the
- *     daemon's idle stop (row 888) then ends the serve with it.
+ *  3. While a resolved stream is open the daemon is held ([RcloneDaemon.retainForStream]) — from [CloudRoutingDataSource]'s
+ *     open, right after the resolve, so a song partly in the listen cache still has its serve when the cached part ends —
+ *     and released on close; the daemon's idle stop (row 888) then ends the serve with it.
  * A dead end says why and the song is skipped: «Vuelve a conectar tu nube» (the account was disconnected or its
  * permission expired), «Esta canción ya no está en tu nube» (not in the index any more).
  */
@@ -104,6 +105,8 @@ class CloudLoopbackDataSource(private val upstream: DataSource?) : DataSource {
             return other.open(dataSpec)
         }
         retained = RcloneDaemon.retainForStream()
+        // The daemon (and so this serve) is gone: never dial a dead port (a ConnectException reads as «no internet»).
+        if (!retained) throw IOException("cloud stream ended")
         current = loopback
         return loopback.open(dataSpec.withAdditionalHeaders(mapOf("Authorization" to authorization)))
     }
@@ -136,6 +139,7 @@ class CloudLoopbackDataSource(private val upstream: DataSource?) : DataSource {
 /** Above the caches: a cloud song (its key is its id) goes to [cloud], every other song to [default], untouched. */
 class CloudRoutingDataSource(private val default: DataSource, private val cloud: DataSource) : DataSource {
     private var current: DataSource? = null
+    private var retained = false
 
     override fun addTransferListener(transferListener: TransferListener) {
         default.addTransferListener(transferListener)
@@ -144,6 +148,9 @@ class CloudRoutingDataSource(private val default: DataSource, private val cloud:
 
     override fun open(dataSpec: DataSpec): Long {
         val target = if (dataSpec.key?.isCloudSongId() == true) cloud else default
+        // A song resolved to its serve holds the daemon for the whole stream, the cached part included (bytes on disk
+        // keep their own URI and hold nothing).
+        if (target === cloud && CloudStreams.authorizationFor(dataSpec.uri) != null) retained = RcloneDaemon.retainForStream()
         current = target
         return target.open(dataSpec)
     }
@@ -158,7 +165,14 @@ class CloudRoutingDataSource(private val default: DataSource, private val cloud:
     override fun close() {
         val source = current
         current = null
-        source?.close()
+        try {
+            source?.close()
+        } finally {
+            if (retained) {
+                retained = false
+                RcloneDaemon.releaseStream()
+            }
+        }
     }
 
     class Factory(private val default: DataSource.Factory, private val cloud: DataSource.Factory) : DataSource.Factory {

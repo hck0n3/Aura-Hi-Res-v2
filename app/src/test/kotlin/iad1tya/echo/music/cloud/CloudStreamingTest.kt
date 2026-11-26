@@ -67,6 +67,17 @@ class CloudStreamingTest {
         assertTrue("no other network for a cloud song", open.contains("val other = upstream ?: throw IOException(\"cloud stream not resolved\")"))
         val close = playback.substringAfter("override fun close() {\n        val source = current").substringBefore("class Factory(")
         assertTrue(close.contains("RcloneDaemon.releaseStream()"))
+        // A serve that is gone (daemon stopped) is never dialled: a ConnectException would read as «no internet».
+        assertTrue(open.contains("if (!retained) throw IOException(\"cloud stream ended\")"))
+        // The whole resolved stream holds the daemon, from the routing open, so the cached prefix of a song cannot outlast
+        // the idle stop before the loopback part opens.
+        val routing = playback.substringAfter("class CloudRoutingDataSource(").substringBefore("class Factory(")
+        assertTrue(
+            routing.contains(
+                "if (target === cloud && CloudStreams.authorizationFor(dataSpec.uri) != null) retained = RcloneDaemon.retainForStream()",
+            ),
+        )
+        assertTrue(routing.substringAfter("override fun close() {").contains("RcloneDaemon.releaseStream()"))
         // Holding never STARTS the daemon: only a resolve (inside a use) does.
         val daemon = main("cloud/RcloneDaemon.kt")
         val retain = daemon.substringAfter("fun retainForStream(): Boolean = runBlocking {").substringBefore("fun releaseStream()")
