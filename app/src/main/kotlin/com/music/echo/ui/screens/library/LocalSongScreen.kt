@@ -8,6 +8,7 @@
 package iad1tya.echo.music.ui.screens.library
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -109,6 +110,7 @@ import iad1tya.echo.music.constants.CONTENT_TYPE_HEADER
 import iad1tya.echo.music.constants.CONTENT_TYPE_SONG
 import iad1tya.echo.music.constants.ListThumbnailSize
 import iad1tya.echo.music.constants.LocalSongsIncludedFoldersKey
+import iad1tya.echo.music.constants.LocalSongsIncludedTreeUrisKey
 import iad1tya.echo.music.constants.LocalSongsMinDurationSecondsKey
 import iad1tya.echo.music.constants.LocalSongsSortDescendingKey
 import iad1tya.echo.music.constants.LocalSongsSortTypeKey
@@ -205,11 +207,17 @@ fun LocalSongScreen(
         LocalSongsIncludedFoldersKey,
         emptySet<String>(),
     )
+    // Row 881: the picked folders' SAF trees, walked by the scan for the audio MediaStore does not index.
+    val (includedTreeUris, onIncludedTreeUrisChange) = rememberPreference(
+        LocalSongsIncludedTreeUrisKey,
+        emptySet<String>(),
+    )
     val sortType = remember(sortTypeName) { LocalSongSortType.valueOf(sortTypeName) }
-    val scanConfig = remember(minimumDurationSeconds, includedFolders) {
+    val scanConfig = remember(minimumDurationSeconds, includedFolders, includedTreeUris) {
         LocalSongScanConfig(
             minimumDurationSeconds = minimumDurationSeconds,
             includedFolders = includedFolders,
+            includedTreeUris = includedTreeUris,
         )
     }
 
@@ -241,6 +249,10 @@ fun LocalSongScreen(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
         val normalizedFolder = uri?.toScanFolderEntry() ?: return@rememberLauncherForActivityResult
+        // Row 881: keep the right to read the picked folder, so later scans can walk it (also from the automatic scan).
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }.onSuccess { onIncludedTreeUrisChange(includedTreeUris + uri.toString()) }
         onIncludedFoldersChange(
             LocalSongScanConfig.deduplicateFolderEntries(includedFolders + normalizedFolder),
         )
@@ -308,7 +320,14 @@ fun LocalSongScreen(
             minimumDurationSeconds = minimumDurationSeconds,
             onMinimumDurationSecondsChange = onMinimumDurationSecondsChange,
             includedFolders = includedFolders,
-            onIncludedFoldersChange = onIncludedFoldersChange,
+            onIncludedFoldersChange = { folders ->
+                onIncludedFoldersChange(folders)
+                // Row 881: a folder taken off the list is not walked any more either.
+                val kept = folders.mapTo(HashSet()) { LocalSongScanConfig.normalizeFolderEntry(it).lowercase(Locale.ROOT) }
+                onIncludedTreeUrisChange(
+                    includedTreeUris.filterTo(HashSet()) { tree -> Uri.parse(tree).toScanFolderEntry()?.lowercase(Locale.ROOT) in kept },
+                )
+            },
             onAddIncludedFolder = { includedFolderPickerLauncher.launch(null) },
             sheetState = scanSheetState,
             onDismiss = { showScanSheet = false },

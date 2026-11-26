@@ -7,6 +7,7 @@ import android.os.Looper
 import android.provider.MediaStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import iad1tya.echo.music.constants.LocalSongsIncludedFoldersKey
+import iad1tya.echo.music.constants.LocalSongsIncludedTreeUrisKey
 import iad1tya.echo.music.constants.LocalSongsMinDurationSecondsKey
 import iad1tya.echo.music.di.ApplicationScope
 import iad1tya.echo.music.utils.dataStore
@@ -78,6 +79,7 @@ constructor(
             val config = LocalSongScanConfig(
                 minimumDurationSeconds = prefs[LocalSongsMinDurationSecondsKey] ?: 0,
                 includedFolders = prefs[LocalSongsIncludedFoldersKey].orEmpty(),
+                includedTreeUris = prefs[LocalSongsIncludedTreeUrisKey].orEmpty(),
             )
             val summary = scanner.scanAutomatically(config) ?: return
             // Counts only (AGENTS rule 4): never a title, an artist, a file name or a path.
