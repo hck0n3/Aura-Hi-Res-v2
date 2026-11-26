@@ -914,4 +914,14 @@
     <string name="cloud_play_missing">This song is no longer in your cloud</string>
     <string name="artist_source_phone">On your phone</string>
     <string name="artist_source_cloud">In your cloud</string>
+    <string name="perf_class_entry">Entry</string>
+    <string name="perf_class_balanced">Balanced</string>
+    <string name="perf_class_premium">Premium</string>
+    <string name="perf_class_detected">Detected class: %1$s</string>
+    <string name="perf_class_detected_form">Detected class: %1$s · %2$s</string>
+    <string name="perf_class_form_tv">Android TV</string>
+    <string name="perf_class_form_car">car screen</string>
+    <string name="perf_class_choice_title">Performance class</string>
+    <string name="perf_class_choice_desc">In use: %1$s. Picking a class applies its settings (High-performance mode, animated canvas and Liquid Glass); you can still change each one afterwards.</string>
+    <string name="perf_class_auto_value">Automatic (%1$s)</string>
 </resources>

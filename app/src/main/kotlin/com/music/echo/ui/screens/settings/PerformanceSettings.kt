@@ -38,10 +38,33 @@ import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceForm
-import iad1tya.echo.music.utils.DeviceTier
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.datastore.preferences.core.edit
+import iad1tya.echo.music.constants.PerformanceClassChoiceKey
+import iad1tya.echo.music.ui.component.EnumDialog
+import iad1tya.echo.music.ui.component.isGlassSupported
+import iad1tya.echo.music.utils.PerformanceClass
+import iad1tya.echo.music.utils.PerformanceClassChoice
+import iad1tya.echo.music.utils.PerformanceClasses
+import iad1tya.echo.music.utils.dataStore
+import iad1tya.echo.music.utils.rememberEnumPreference
+import kotlinx.coroutines.launch
+
+/** Row 898: the visible name of a performance class (Entrada / Equilibrada / Premium). */
+@Composable
+private fun performanceClassLabel(cls: PerformanceClass): String = stringResource(
+    when (cls) {
+        PerformanceClass.ENTRY -> R.string.perf_class_entry
+        PerformanceClass.BALANCED -> R.string.perf_class_balanced
+        PerformanceClass.PREMIUM -> R.string.perf_class_premium
+    },
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,21 +80,57 @@ fun PerformanceSettings(
     val (immersiveCanvasOnRotate, onImmersiveCanvasOnRotateChange) =
         rememberPreference(ImmersiveCanvasOnRotateKey, defaultValue = false)
 
-    // Read-only diagnostic: why the mode auto-enabled (LOW hardware / TV / car).
-    val detected = remember {
-        val tier = DeviceCapabilities.tier(context)
-        val form = when {
-            DeviceForm.isTelevision(context) -> "Android TV"
-            DeviceForm.isCar(context) -> "pantalla de auto"
+    // Read-only diagnostic: why the mode auto-enabled (LOW hardware / TV / car). Row 898: the hardware tier is shown as
+    // its performance class (Entrada / Equilibrada / Premium), translated.
+    val detectedClass = remember { PerformanceClasses.fromTier(DeviceCapabilities.tier(context)) }
+    val detectedForm = remember {
+        when {
+            DeviceForm.isTelevision(context) -> R.string.perf_class_form_tv
+            DeviceForm.isCar(context) -> R.string.perf_class_form_car
             else -> null
         }
-        val tierLabel = when (tier) {
-            DeviceTier.ULTRA -> "gama ultra-baja"
-            DeviceTier.LOW -> "gama baja"
-            DeviceTier.MID -> "gama media"
-            DeviceTier.HIGH -> "gama alta"
-        }
-        if (form != null) "Dispositivo detectado: $form ($tierLabel)" else "Dispositivo detectado: $tierLabel"
+    }
+    val detectedClassLabel = performanceClassLabel(detectedClass)
+    val detected = if (detectedForm != null) {
+        stringResource(R.string.perf_class_detected_form, detectedClassLabel, stringResource(detectedForm))
+    } else {
+        stringResource(R.string.perf_class_detected, detectedClassLabel)
+    }
+    // Row 898: the manual override. Picking an option is an explicit action and applies that class's switches at once
+    // (PerformanceClasses.seedFor); the one-time automatic seed never overwrites anything (App.applyPerformanceClassSeedV1).
+    val classChoice by rememberEnumPreference(PerformanceClassChoiceKey, PerformanceClassChoice.AUTO)
+    var showClassDialog by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val glassCapable = remember { isGlassSupported() && !DeviceForm.isTvOrCar(context) }
+    val classInUse = PerformanceClasses.effective(detectedClass, classChoice)
+    if (showClassDialog) {
+        val autoLabel = stringResource(R.string.perf_class_auto_value, detectedClassLabel)
+        EnumDialog(
+            onDismiss = { showClassDialog = false },
+            onSelect = { choice: PerformanceClassChoice ->
+                showClassDialog = false
+                val cls = PerformanceClasses.effective(detectedClass, choice)
+                scope.launch {
+                    runCatching {
+                        context.dataStore.edit { p ->
+                            p[PerformanceClassChoiceKey] = choice.name
+                            PerformanceClasses.write(p, PerformanceClasses.seedValues(PerformanceClasses.seedFor(cls, glassCapable)))
+                        }
+                    }
+                }
+            },
+            title = stringResource(R.string.perf_class_choice_title),
+            current = classChoice,
+            values = PerformanceClassChoice.entries.toList(),
+            valueText = { choice ->
+                when (choice) {
+                    PerformanceClassChoice.AUTO -> autoLabel
+                    PerformanceClassChoice.ENTRY -> performanceClassLabel(PerformanceClass.ENTRY)
+                    PerformanceClassChoice.BALANCED -> performanceClassLabel(PerformanceClass.BALANCED)
+                    PerformanceClassChoice.PREMIUM -> performanceClassLabel(PerformanceClass.PREMIUM)
+                }
+            },
+        )
     }
 
     Column(
@@ -137,6 +196,19 @@ fun PerformanceSettings(
                             Text("Se activa solo en el primer inicio en hardware de gama realmente baja, incluidos TV boxes y pantallas de auto modestos; los TVs potentes conservan la experiencia completa. Podés activarlo o desactivarlo manualmente cuando quieras.")
                         },
                         onClick = {}
+                    )
+                )
+                add(
+                    Material3SettingsItem(
+                        icon = painterResource(R.drawable.speed),
+                        title = { Text(stringResource(R.string.perf_class_choice_title)) },
+                        description = {
+                            Text(stringResource(R.string.perf_class_choice_desc, performanceClassLabel(classInUse)))
+                        },
+                        onClick = {
+                            ActionLog.tap(ActionId.SETPERF_CLASS)
+                            showClassDialog = true
+                        }
                     )
                 )
             }

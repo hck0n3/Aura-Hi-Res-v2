@@ -586,6 +586,7 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             settings[iad1tya.echo.music.constants.AddToPlaylistLastUpdatedDefaultV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.ThemeAccentRepairV1AppliedKey] != true ||
             settings[iad1tya.echo.music.constants.PlayerBgHomeLookV1AppliedKey] != true ||
+            settings[iad1tya.echo.music.constants.PerformanceClassSeededKey] == null ||
             // Row 350: a classic-UI user is moved to Aura (the only interface) on the next start.
             (iad1tya.echo.music.ui.newui.SINGLE_UI &&
                 settings[iad1tya.echo.music.constants.NewUiEnabledKey] != true)
@@ -624,6 +625,8 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
                     applySingleUiV1(p)
                     // AFTER every seed (a fresh install seeds APPLE_MUSIC above): the Inicio look.
                     applyPlayerBgHomeLookV1(p, settings)
+                    // Row 898: LAST and reading `p`, so the one-time tier seeds above count as already written.
+                    applyPerformanceClassSeedV1(p)
                 }
             }.onFailure { reportException(it) }
         }
@@ -2070,6 +2073,24 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         p[iad1tya.echo.music.constants.PlayerBackgroundStyleKey] =
             iad1tya.echo.music.constants.PlayerBackgroundStyle.DEFAULT.name
         p[iad1tya.echo.music.constants.PlayerBgHomeLookV1AppliedKey] = true
+    }
+
+    /**
+     * Row 898 (plan phase 7): once per install, the performance class (Entrada / Equilibrada / Premium, from the same
+     * tier the seeds above use) fills ONLY the switches that were never written; it never overwrites. The class it used
+     * is recorded under its own new key.
+     */
+    private fun applyPerformanceClassSeedV1(p: androidx.datastore.preferences.core.MutablePreferences) {
+        if (p[iad1tya.echo.music.constants.PerformanceClassSeededKey] != null) return
+        val classes = iad1tya.echo.music.utils.PerformanceClasses
+        val cls = classes.effective(
+            classes.fromTier(iad1tya.echo.music.utils.DeviceCapabilities.tier(this)),
+            classes.parseChoice(p[iad1tya.echo.music.constants.PerformanceClassChoiceKey]),
+        )
+        val glassCapable = iad1tya.echo.music.ui.component.isGlassSupported() &&
+            !iad1tya.echo.music.utils.DeviceForm.isTvOrCar(this)
+        classes.write(p, classes.untouchedOnly(classes.seedValues(classes.seedFor(cls, glassCapable)), classes.presentIn(p)))
+        p[iad1tya.echo.music.constants.PerformanceClassSeededKey] = cls.name
     }
 
     private fun applySingleUiV1(p: androidx.datastore.preferences.core.MutablePreferences) {

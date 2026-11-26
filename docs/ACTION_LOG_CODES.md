@@ -1754,6 +1754,7 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | Código | Acción |
 |---|---|
 | `UI.SETPERF.BACK` | Atrás (Rendimiento) |
+| `UI.SETPERF.CLASS` | Abrir «Clase de rendimiento» (Rendimiento) |
 
 ### Ajustes ▸ Reproductor y audio
 
