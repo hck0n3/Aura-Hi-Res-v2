@@ -1667,6 +1667,12 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.SETCONT.PLAYBACK_LOGS` | «Registros de reproducción» |
 | `UI.SETCONT.SERVICE_UPTIME` | «Estado del servicio» |
 | `UI.SETCONT.BACK` | Atrás (Contenido) |
+| `UI.SETCONT.ARTIST_SEPARATORS` | «Separar artistas» (Música local, fila 880) |
+| `UI.SETCONT.ARTIST_SEPARATORS_SAVE` | Guardar en el diálogo «Separar artistas» |
+| `UI.SETCONT.ARTIST_SEPARATORS_CANCEL` | Cancelar en el diálogo «Separar artistas» |
+| `UI.SETCONT.ARTIST_EXCEPTIONS` | «Nombres que no se separan» (Música local, fila 880) |
+| `UI.SETCONT.ARTIST_EXCEPTIONS_SAVE` | Guardar en el diálogo «Nombres que no se separan» |
+| `UI.SETCONT.ARTIST_EXCEPTIONS_CANCEL` | Cancelar en el diálogo «Nombres que no se separan» |
 
 ### Reporte de errores y sugerencias
 

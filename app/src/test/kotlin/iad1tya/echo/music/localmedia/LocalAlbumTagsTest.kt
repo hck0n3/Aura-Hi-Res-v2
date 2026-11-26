@@ -136,7 +136,7 @@ class LocalAlbumTagsTest {
         assertTrue("an unchanged song of a rewritten album gets its position again", scanner.contains("albumId !in rewrittenAlbums"))
         assertTrue(
             "a remembered build is rebuilt from its tags, and counts as reused only if nothing changed",
-            scanner.contains("tracks += cached.record.finished(unknownArtist).also { record -> if (record == cached.record) reusedIds += id }"),
+            scanner.contains("tracks += cached.record.finished(unknownArtist, scanConfig.artistSplit).also { record -> if (record == cached.record) reusedIds += id }"),
         )
         assertTrue(scanner.contains("artists = tracks.flatMap { it.artists + it.albumArtists }"))
         assertTrue(scanner.contains("bookmarkedAt = existingArtist?.bookmarkedAt ?: inherited?.bookmarkedAt,"))

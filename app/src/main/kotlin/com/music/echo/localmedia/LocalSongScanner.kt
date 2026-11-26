@@ -66,6 +66,8 @@ data class LocalSongScanConfig(
     val includedFolders: Set<String> = emptySet(),
     /** Row 881: the SAF trees picked for [includedFolders] (persisted read permission), walked for what MediaStore misses. */
     val includedTreeUris: Set<String> = emptySet(),
+    /** Row 880: what splits an artist tag into several artists (Ajustes ▸ Contenido ▸ Música local). */
+    val artistSplit: LocalArtistSplitRules = LocalArtistSplitRules.Default,
 ) {
     val sanitizedMinimumDurationSeconds: Int
         get() = minimumDurationSeconds.coerceAtLeast(0)
@@ -100,42 +102,11 @@ data class LocalSongScanConfig(
     }
 }
 
-internal fun splitArtistNames(rawArtist: String): List<String> {
-    return rawArtist
-        .split(';')
-        .flatMap { it.split(FeaturingSeparator) }
-        .flatMap { it.split(CollabSeparator) }
-        .flatMap(::splitCommaList)
-        .map(::trimDanglingBracket)
-        .filter(String::isNotBlank)
-        .ifEmpty { listOf(rawArtist) }
-}
-
 /** The same artist name always maps to the same id, whatever its position in the tag or the number of artists. */
 internal fun localArtistId(artistName: String): String {
     val normalized = artistName.trim().lowercase(Locale.ROOT)
     val hash = UUID.nameUUIDFromBytes(normalized.toByteArray(StandardCharsets.UTF_8)).toString().replace("-", "")
     return "LOCAL_ARTIST_$hash"
-}
-
-private val FeaturingSeparator = Regex("""(?:\s+|\s*[(\[]\s*)(?:feat\.?|ft\.|featuring)\s+""", RegexOption.IGNORE_CASE)
-private val CollabSeparator = Regex("""\s+x\s+""")
-private val BandJoiner = Regex("""&|\band\b""", RegexOption.IGNORE_CASE)
-
-private fun splitCommaList(part: String): List<String> {
-    val pieces = part.split(", ").map(String::trim)
-    if (pieces.size < 2 || BandJoiner.containsMatchIn(part)) return listOf(part)
-    if (pieces.any { it.startsWith("the ", ignoreCase = true) }) return listOf(part)
-    return pieces
-}
-
-private fun trimDanglingBracket(part: String): String {
-    val trimmed = part.trim()
-    return when {
-        trimmed.endsWith(")") && !trimmed.contains("(") -> trimmed.dropLast(1).trim()
-        trimmed.endsWith("]") && !trimmed.contains("[") -> trimmed.dropLast(1).trim()
-        else -> trimmed
-    }
 }
 
 data class LocalSongScanSummary(
@@ -912,7 +883,7 @@ constructor(
             fingerprints[id] = fingerprint
             val cached = remembered[id]?.takeIf { isUnchangedFile(it.fingerprint, fingerprint) } ?: return false
             // Row 879: artists, album artists and album rebuilt from the remembered tags; reused only if nothing moved.
-            tracks += cached.record.finished(unknownArtist).also { record -> if (record == cached.record) reusedIds += id }
+            tracks += cached.record.finished(unknownArtist, scanConfig.artistSplit).also { record -> if (record == cached.record) reusedIds += id }
             return true
         }
         (context.contentResolver.query(
@@ -1024,7 +995,7 @@ constructor(
                     mediaStoreAlbumId = mediaStoreAlbumId,
                     discNumber = position.disc,
                     trackNumber = position.track,
-                ).finished(unknownArtist)
+                ).finished(unknownArtist, scanConfig.artistSplit)
             }
         }
 
@@ -1110,7 +1081,7 @@ constructor(
                     isVideo = true,
                     volume = cursor.getStringOrNull(volumeIndex) ?: storageRootOf(cursor.getStringOrNull(dataPathIndex)),
                     artistTag = artistValue,
-                ).finished(unknownArtist)
+                ).finished(unknownArtist, scanConfig.artistSplit)
             }
         }
 
@@ -1207,7 +1178,7 @@ constructor(
                 continue
             }
             if (cached != null) {
-                tracks += cached.record.finished(unknownArtist).also { record -> if (record == cached.record) reusedIds += id }
+                tracks += cached.record.finished(unknownArtist, scanConfig.artistSplit).also { record -> if (record == cached.record) reusedIds += id }
                 fingerprints[id] = fingerprint
                 continue
             }
@@ -1242,7 +1213,7 @@ constructor(
                 albumArtistTag = normalizeAlbumName(tags?.albumArtist),
                 discNumber = position.disc,
                 trackNumber = position.track,
-            ).finished(unknownArtist)
+            ).finished(unknownArtist, scanConfig.artistSplit)
             fingerprints[id] = fingerprint
         }
         return PickedFolderTracks(tracks, fingerprints, reusedIds, unread, skippedShort, skipped)
@@ -1336,10 +1307,10 @@ constructor(
      * Row 879: artists, album artists and album id built from the tags the record holds, the same way for a file read now
      * and for one remembered from the last scan. An album without a MediaStore id is grouped by its album artist.
      */
-    private fun LocalTrackRecord.finished(unknownArtist: String): LocalTrackRecord {
-        val trackArtists = splitArtistNames(artistTag.ifBlank { unknownArtist }).ifEmpty { listOf(unknownArtist) }
+    private fun LocalTrackRecord.finished(unknownArtist: String, rules: LocalArtistSplitRules): LocalTrackRecord {
+        val trackArtists = splitArtistNames(artistTag.ifBlank { unknownArtist }, rules).ifEmpty { listOf(unknownArtist) }
             .map { name -> LocalArtistRecord(id = localArtistId(name), name = name) }
-        val tagAlbumArtists = albumArtistTag?.let(::splitArtistNames).orEmpty()
+        val tagAlbumArtists = albumArtistTag?.let { splitArtistNames(it, rules) }.orEmpty()
             .map { name -> LocalArtistRecord(id = localArtistId(name), name = name) }
         return copy(
             artists = trackArtists,

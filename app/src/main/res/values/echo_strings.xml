@@ -1586,4 +1586,12 @@
     <string name="proxy_local_network_notice">Android blocks your local network proxy until you grant permission: without it, nothing online loads.</string>
     <string name="local_songs_full_rescan">Re-read every file</string>
     <string name="local_songs_full_rescan_desc">A scan only reopens the files that changed since the last one. Use this if a song still shows old details.</string>
+    <string name="local_music_settings">Local music</string>
+    <string name="local_artist_separators">Split artists</string>
+    <string name="local_artist_separators_desc">What separates several artists in your files\' tags. Applies at the next scan of your local music.</string>
+    <string name="local_artist_separators_note">« &amp; » is off by default: many acts carry it in their name. Names under «Names never split» stay whole either way.</string>
+    <string name="local_artist_exceptions">Names never split</string>
+    <string name="local_artist_exceptions_desc">AC/DC, Simon &amp; Garfunkel… Add your own, one per line.</string>
+    <string name="local_artist_exceptions_hint">One name per line</string>
+    <string name="local_artist_exceptions_builtin">Already included: %1$s</string>
 </resources>

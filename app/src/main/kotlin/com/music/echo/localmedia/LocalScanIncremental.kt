@@ -96,6 +96,8 @@ internal fun localAutoScanStamp(
         "min=${scanConfig.sanitizedMinimumDurationSeconds}",
         "in=${folders(scanConfig.sanitizedIncludedFolders)}",
         "ex=${folders(scanConfig.sanitizedExcludedFolders)}",
+        // Row 880: other separators or names that are never split rebuild the local artists.
+        "split=${scanConfig.artistSplit.stampKey()}",
         "x=${extra.sorted().joinToString("|")}",
     ).joinToString("\n")
 }

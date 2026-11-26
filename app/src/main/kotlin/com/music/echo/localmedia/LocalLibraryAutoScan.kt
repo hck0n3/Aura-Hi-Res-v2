@@ -6,6 +6,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import iad1tya.echo.music.constants.LocalArtistNameExceptionsKey
+import iad1tya.echo.music.constants.LocalArtistSeparatorsKey
 import iad1tya.echo.music.constants.LocalSongsIncludedFoldersKey
 import iad1tya.echo.music.constants.LocalSongsIncludedTreeUrisKey
 import iad1tya.echo.music.constants.LocalSongsMinDurationSecondsKey
@@ -21,7 +23,10 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -71,6 +76,15 @@ constructor(
         scope.launch(Dispatchers.IO) {
             requests.debounce(DebounceMs).collect { scanOnce() }
         }
+        // Row 880: a change to the artist separators or to the names never split rebuilds the local artists; an event
+        // of the setting itself, not a poll (the remembered files are reused, none is reopened).
+        scope.launch(Dispatchers.IO) {
+            context.dataStore.data
+                .map { prefs -> prefs[LocalArtistSeparatorsKey] to prefs[LocalArtistNameExceptionsKey] }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { requests.tryEmit(Unit) }
+        }
     }
 
     private suspend fun scanOnce() {
@@ -80,6 +94,7 @@ constructor(
                 minimumDurationSeconds = prefs[LocalSongsMinDurationSecondsKey] ?: 0,
                 includedFolders = prefs[LocalSongsIncludedFoldersKey].orEmpty(),
                 includedTreeUris = prefs[LocalSongsIncludedTreeUrisKey].orEmpty(),
+                artistSplit = LocalArtistSplitRules.fromPreferences(prefs[LocalArtistSeparatorsKey], prefs[LocalArtistNameExceptionsKey]),
             )
             val summary = scanner.scanAutomatically(config) ?: return
             // Counts only (AGENTS rule 4): never a title, an artist, a file name or a path.

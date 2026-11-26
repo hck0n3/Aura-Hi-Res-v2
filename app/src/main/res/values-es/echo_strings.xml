@@ -1481,4 +1481,12 @@
     <string name="proxy_local_network_notice">Android bloquea tu proxy de la red local hasta que des el permiso: sin él, no carga nada en línea.</string>
     <string name="local_songs_full_rescan">Volver a leer todos los archivos</string>
     <string name="local_songs_full_rescan_desc">El escaneo solo vuelve a abrir los archivos que cambiaron desde el anterior. Úsalo si una canción sigue mostrando datos antiguos.</string>
+    <string name="local_music_settings">Música local</string>
+    <string name="local_artist_separators">Separar artistas</string>
+    <string name="local_artist_separators_desc">Qué separa varios artistas en las etiquetas de tus archivos. Se aplica en el próximo escaneo de tu música local.</string>
+    <string name="local_artist_separators_note">« &amp; » viene desactivado: muchos grupos lo llevan en el nombre. Los nombres de «Nombres que no se separan» quedan enteros en cualquier caso.</string>
+    <string name="local_artist_exceptions">Nombres que no se separan</string>
+    <string name="local_artist_exceptions_desc">AC/DC, Simon &amp; Garfunkel… Añade los tuyos, uno por línea.</string>
+    <string name="local_artist_exceptions_hint">Un nombre por línea</string>
+    <string name="local_artist_exceptions_builtin">Ya incluidos: %1$s</string>
 </resources>

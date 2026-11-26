@@ -112,6 +112,9 @@ import iad1tya.echo.music.constants.ListThumbnailSize
 import iad1tya.echo.music.constants.LocalSongsIncludedFoldersKey
 import iad1tya.echo.music.constants.LocalSongsIncludedTreeUrisKey
 import iad1tya.echo.music.constants.LocalSongsMinDurationSecondsKey
+import iad1tya.echo.music.constants.LocalArtistNameExceptionsKey
+import iad1tya.echo.music.constants.LocalArtistSeparatorsKey
+import iad1tya.echo.music.localmedia.LocalArtistSplitRules
 import iad1tya.echo.music.constants.LocalSongsSortDescendingKey
 import iad1tya.echo.music.constants.LocalSongsSortTypeKey
 import iad1tya.echo.music.constants.ShowCachedPlaylistKey
@@ -213,12 +216,16 @@ fun LocalSongScreen(
         LocalSongsIncludedTreeUrisKey,
         emptySet<String>(),
     )
+    // Row 880: the artist separators chosen in Ajustes ▸ Contenido ▸ Música local.
+    val (artistSeparatorKeys) = rememberPreference(LocalArtistSeparatorsKey, LocalArtistSplitRules.DefaultSeparatorKeys)
+    val (artistNameExceptions) = rememberPreference(LocalArtistNameExceptionsKey, emptySet<String>())
     val sortType = remember(sortTypeName) { LocalSongSortType.valueOf(sortTypeName) }
-    val scanConfig = remember(minimumDurationSeconds, includedFolders, includedTreeUris) {
+    val scanConfig = remember(minimumDurationSeconds, includedFolders, includedTreeUris, artistSeparatorKeys, artistNameExceptions) {
         LocalSongScanConfig(
             minimumDurationSeconds = minimumDurationSeconds,
             includedFolders = includedFolders,
             includedTreeUris = includedTreeUris,
+            artistSplit = LocalArtistSplitRules.fromPreferences(artistSeparatorKeys, artistNameExceptions),
         )
     }
 

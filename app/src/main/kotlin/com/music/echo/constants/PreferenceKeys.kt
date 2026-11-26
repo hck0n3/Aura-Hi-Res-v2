@@ -673,6 +673,10 @@ val LocalSongsExcludedFoldersKey = stringSetPreferencesKey("local_songs_excluded
 val LocalSongsIncludedFoldersKey = stringSetPreferencesKey("local_songs_included_folders")
 /** Row 881: the SAF tree uris of those folders (read permission persisted), walked for the audio MediaStore does not index. */
 val LocalSongsIncludedTreeUrisKey = stringSetPreferencesKey("local_songs_included_tree_uris")
+// Row 880: the artist separators switched on (LocalArtistSeparator.key; absent = the defaults) and the user's names that
+// are one act and never split. Read by every local scan.
+val LocalArtistSeparatorsKey = stringSetPreferencesKey("local_artist_separators")
+val LocalArtistNameExceptionsKey = stringSetPreferencesKey("local_artist_name_exceptions")
 val LocalSongsSortTypeKey = stringPreferencesKey("local_songs_sort_type")
 val LocalSongsSortDescendingKey = booleanPreferencesKey("local_songs_sort_descending")
 
