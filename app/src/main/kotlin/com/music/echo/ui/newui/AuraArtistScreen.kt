@@ -90,7 +90,6 @@ import iad1tya.echo.music.constants.ShowArtistVideoKey
 import iad1tya.echo.music.constants.ShowMonthlyListenersKey
 import iad1tya.echo.music.cloud.BestSourcePolicy
 import iad1tya.echo.music.cloud.CloudAudioFiles
-import iad1tya.echo.music.cloud.isCloudSongId
 import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.toMediaMetadata
@@ -627,11 +626,19 @@ fun AuraArtistScreen(
                     } else {
                         allLibrarySongs
                     }
-                    // Row 894: «En tu móvil» and «En tu nube» apart when the artist has songs in both; one «Canciones» otherwise.
+                    // Row 894: «En tu móvil» and «En tu nube» apart when the artist has songs in both (online songs of the
+                    // library keep «Canciones», never «En tu móvil»); one «Canciones» otherwise.
                     // The queue is the whole list with one copy per song, the best (BestSourcePolicy).
-                    val (cloudSongs, phoneSongs) = filteredLibrarySongs.partition { it.id.isCloudSongId() }
+                    val bySource = filteredLibrarySongs.groupBy { BestSourcePolicy.sourceOf(it.id) }
+                    val phoneSongs = bySource[BestSourcePolicy.Source.PHONE].orEmpty()
+                    val cloudSongs = bySource[BestSourcePolicy.Source.CLOUD].orEmpty()
+                    val onlineSongs = bySource[BestSourcePolicy.Source.ONLINE].orEmpty()
                     val songSections = if (cloudSongs.isNotEmpty() && phoneSongs.isNotEmpty()) {
-                        listOf(Triple("_phone", R.string.artist_source_phone, phoneSongs), Triple("_cloud", R.string.artist_source_cloud, cloudSongs))
+                        listOfNotNull(
+                            Triple("_phone", R.string.artist_source_phone, phoneSongs),
+                            Triple("_cloud", R.string.artist_source_cloud, cloudSongs),
+                            onlineSongs.takeIf { it.isNotEmpty() }?.let { Triple("_online", R.string.songs, it) },
+                        )
                     } else {
                         listOf(Triple("", R.string.songs, filteredLibrarySongs))
                     }

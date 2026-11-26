@@ -74,8 +74,13 @@ class CloudOneLibraryTest {
     fun `the artist page lists both sources apart and plays one copy per song, the best`() {
         val screen = main("ui/newui/AuraArtistScreen.kt")
         assertTrue(screen.contains("val bestTwinOf = remember(allLibrarySongs) { BestSourcePolicy.bestTwins(allLibrarySongs.map(::bestSourceCandidate)) }"))
-        assertTrue(screen.contains("val (cloudSongs, phoneSongs) = filteredLibrarySongs.partition { it.id.isCloudSongId() }"))
-        assertTrue(screen.contains("listOf(Triple(\"_phone\", R.string.artist_source_phone, phoneSongs), Triple(\"_cloud\", R.string.artist_source_cloud, cloudSongs))"))
+        // Split by source, never «not cloud = phone»: an online song of the library is never under «En tu móvil».
+        assertFalse(screen.contains("filteredLibrarySongs.partition { it.id.isCloudSongId() }"))
+        assertTrue(screen.contains("val bySource = filteredLibrarySongs.groupBy { BestSourcePolicy.sourceOf(it.id) }"))
+        assertTrue(screen.contains("val phoneSongs = bySource[BestSourcePolicy.Source.PHONE].orEmpty()"))
+        assertTrue(screen.contains("val songSections = if (cloudSongs.isNotEmpty() && phoneSongs.isNotEmpty()) {"))
+        assertTrue(screen.contains("Triple(\"_phone\", R.string.artist_source_phone, phoneSongs),\n                            Triple(\"_cloud\", R.string.artist_source_cloud, cloudSongs),"))
+        assertTrue("online songs keep «Canciones»", screen.contains("onlineSongs.takeIf { it.isNotEmpty() }?.let { Triple(\"_online\", R.string.songs, it) },"))
         assertTrue("one source: the «Canciones» of before", screen.contains("listOf(Triple(\"\", R.string.songs, filteredLibrarySongs))"))
         assertTrue("every copy stays listed", screen.contains("itemCount = sectionSongs.size,"))
         assertTrue(screen.contains("allSongs = playQueue,"))
