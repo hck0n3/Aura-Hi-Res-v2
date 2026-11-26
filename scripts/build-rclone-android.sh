@@ -27,6 +27,8 @@ MOD="$ROOT/tools/rclone-android"
 OUT="$MOD/out/jniLibs"
 STAMPS="$MOD/out/stamps"  # outside jniLibs: only the .so files there get packaged
 CHECK=(python3 "$ROOT/scripts/rclone_android/rclone_android.py")
+# Licence notices of everything linked into the binary, shipped in the APK (row 887).
+NOTICES=app/src/main/assets/licenses/rclone-android-NOTICES.txt
 
 die() { echo "build-rclone-android: $*" >&2; exit 1; }
 
@@ -39,7 +41,7 @@ grep -qx "toolchain $GO_TOOLCHAIN" "$MOD/go.mod" || die "tools/rclone-android/go
 NDK_VERSION="$("${CHECK[@]}" gradle "$ROOT/app/build.gradle.kts" ndkVersion)"
 MIN_API="$("${CHECK[@]}" gradle "$ROOT/app/build.gradle.kts" minSdk)"
 STAMP="$RCLONE_VERSION-$(cat "$MOD/go.mod" "$MOD/go.sum" "$MOD/main.go" "$ROOT/scripts/build-rclone-android.sh" \
-  "$ROOT/scripts/rclone_android/rclone_android.py" | sha256sum | cut -c1-32)-ndk$NDK_VERSION-api$MIN_API"
+  "$ROOT/scripts/rclone_android/rclone_android.py" "$ROOT/$NOTICES" | sha256sum | cut -c1-32)-ndk$NDK_VERSION-api$MIN_API"
 
 if [ "${1:-}" = "--stamp" ]; then echo "$STAMP"; exit 0; fi
 if [ "$#" -gt 0 ]; then ABIS=("$@"); else ABIS=(arm64-v8a armeabi-v7a x86_64 x86); fi
@@ -115,6 +117,10 @@ for abi in "${TODO[@]}"; do
       -ldflags="-s -w -X github.com/rclone/rclone/fs.Version=$RCLONE_VERSION -extldflags=-Wl,-z,max-page-size=16384" \
       -o "$STAMPS/$abi.tmp" .
   "${CHECK[@]}" binary "$abi" "$STAMPS/$abi.tmp"
+  # A module or Go release the shipped notices do not cover fails the build until they are regenerated:
+  #   go version -m <librclone.so> | scripts/rclone_android/rclone_android.py notices "$(go env GOMODCACHE)" \
+  #     "$(go env GOROOT)" > app/src/main/assets/licenses/rclone-android-NOTICES.txt
+  go version -m "$STAMPS/$abi.tmp" | "${CHECK[@]}" notices-check "$ROOT/$NOTICES"
   mv -f "$STAMPS/$abi.tmp" "$OUT/$abi/librclone.so"
   echo "$STAMP" > "$STAMPS/$abi"
 done

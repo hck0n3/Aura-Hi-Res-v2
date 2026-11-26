@@ -148,6 +148,28 @@ jobs:
             echo "Generated standard Android debug keystore."
           fi
 
+      # Private cloud (rows 886-887): the trimmed rclone executable for every ABI, same cache as the release build.
+      - name: rclone inputs fingerprint
+        id: rclone
+        run: echo "stamp=$(scripts/build-rclone-android.sh --stamp)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache rclone executables
+        id: rclone-cache
+        uses: actions/cache@v6
+        with:
+          path: tools/rclone-android/out
+          key: rclone-android-all-${{ steps.rclone.outputs.stamp }}
+
+      - name: Set up Go for rclone
+        if: steps.rclone-cache.outputs.cache-hit != 'true'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: tools/rclone-android/go.mod
+          cache: false
+
+      - name: Build rclone executables (librclone.so, every ABI)
+        run: scripts/build-rclone-android.sh
+
       - name: Build universal GMS debug APK
         # Universal (all ABIs) so the test APK installs on EVERY device — phones, Android TV, car head
         # units and older 32-bit / x86 boxes — for verifying High-Performance Mode across form factors.
@@ -162,6 +184,7 @@ jobs:
         run: |
           mkdir -p app/build/outputs/apk/test-artifacts
           APK=$(find app/build/outputs/apk/universalGms/debug -name "*.apk" | head -n 1)
+          python3 scripts/rclone_android/rclone_android.py apk "$APK" arm64-v8a armeabi-v7a x86_64 x86
           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
           cp "$APK" "app/build/outputs/apk/test-artifacts/Aura-Hi-Res-TEST-${SHORT_SHA}.apk"
           echo "Test APK: Aura-Hi-Res-TEST-${SHORT_SHA}.apk"

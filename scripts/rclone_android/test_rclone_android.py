@@ -195,6 +195,98 @@ class RepositoryWiringTest(unittest.TestCase):
                 self.assertEqual(ra.check_binary(f.read(), abi), [], abi)
 
 
+MIT_TEXT = "Copyright (c) 2020 Someone\n\nPermission is hereby granted, free of charge, to any person obtaining a copy"
+BSD3_TEXT = (
+    "Copyright 2009 The Go Authors.\n\nRedistribution and use in source and binary forms, with or without\n"
+    "modification, are permitted... Neither the name of Google LLC nor the names of its contributors"
+)
+APACHE_TEXT = "                                 Apache License\n                           Version 2.0, January 2004"
+BUILDINFO = (
+    "/somewhere/librclone.so: go1.27.4\n"
+    "\tpath\taura/rclone-android\n"
+    "\tmod\taura/rclone-android\t(devel)\t\n"
+    "\tdep\tgithub.com/Max-Sum/base32768\tv0.0.1\th1:abc=\n"
+    "\tdep\tgithub.com/rclone/rclone\tv1.76.0\th1:def=\n"
+    "\tbuild\tGOOS=android\n"
+)
+
+
+class NoticesTest(unittest.TestCase):
+    def fake_tree(self):
+        root = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, root)
+        goroot = os.path.join(root, "goroot")
+        os.makedirs(goroot)
+        with open(os.path.join(goroot, "LICENSE"), "w") as f:
+            f.write(BSD3_TEXT)
+        modcache = os.path.join(root, "mod")
+        # Upper-case letters are escaped as "!" + lower-case in the module cache.
+        base = os.path.join(modcache, "github.com", "!max-!sum", "base32768@v0.0.1")
+        os.makedirs(base)
+        with open(os.path.join(base, "LICENSE"), "w") as f:
+            f.write(MIT_TEXT)
+        rclone = os.path.join(modcache, "github.com", "rclone", "rclone@v1.76.0")
+        os.makedirs(rclone)
+        with open(os.path.join(rclone, "COPYING"), "w") as f:
+            f.write(MIT_TEXT)
+        with open(os.path.join(rclone, "NOTICE"), "w") as f:
+            f.write("rclone notice text")
+        return modcache, goroot
+
+    def test_buildinfo_is_parsed(self):
+        go, mods = ra.parse_buildinfo(BUILDINFO)
+        self.assertEqual(go, "go1.27.4")
+        self.assertEqual(mods, [("github.com/Max-Sum/base32768", "v0.0.1"), ("github.com/rclone/rclone", "v1.76.0")])
+        with self.assertRaises(ValueError):
+            ra.parse_buildinfo("")
+        with self.assertRaises(ValueError):
+            ra.parse_buildinfo(BUILDINFO + "\t=>\tgithub.com/evil/fork\tv9\th1:x=\n")
+
+    def test_licences_are_recognised(self):
+        self.assertEqual(ra.licence_names(MIT_TEXT), ["MIT"])
+        self.assertEqual(ra.licence_names(BSD3_TEXT), ["BSD-3-Clause"])
+        self.assertEqual(ra.licence_names(APACHE_TEXT), ["Apache-2.0"])
+        self.assertEqual(ra.licence_names("This work is released into the public domain with CC0 1.0."), ["CC0-1.0"])
+        self.assertEqual(ra.licence_names("All rights reserved. No permission."), [])
+
+    def test_notices_carry_every_text_rclone_first(self):
+        modcache, goroot = self.fake_tree()
+        text = ra.notices(BUILDINFO, modcache, goroot)
+        self.assertIn("  github.com/rclone/rclone v1.76.0 (MIT)", text)
+        self.assertLess(text.index("=== github.com/rclone/rclone v1.76.0 ==="),
+                        text.index("=== github.com/Max-Sum/base32768 v0.0.1 ==="))
+        self.assertIn("rclone notice text", text)
+        self.assertIn("=== Go standard library and runtime go1.27.4 ===", text)
+        self.assertEqual(ra.check_notices(BUILDINFO, text), [])
+
+    def test_a_module_without_a_recognised_licence_stops_the_generator(self):
+        modcache, goroot = self.fake_tree()
+        with open(os.path.join(modcache, "github.com", "!max-!sum", "base32768@v0.0.1", "LICENSE"), "w") as f:
+            f.write("proprietary")
+        with self.assertRaises(ValueError):
+            ra.notices(BUILDINFO, modcache, goroot)
+
+    def test_a_new_module_or_go_release_is_reported(self):
+        modcache, goroot = self.fake_tree()
+        text = ra.notices(BUILDINFO, modcache, goroot)
+        newer = BUILDINFO.replace("go1.27.4", "go1.27.5").replace("v0.0.1", "v0.0.2")
+        problems = ra.check_notices(newer, text)
+        self.assertEqual(len(problems), 2)
+        self.assertTrue(all(ra.NOTICES_PATH in p for p in problems))
+
+    def test_the_shipped_notices_cover_the_pinned_rclone_and_go(self):
+        with open(os.path.join(ROOT, "scripts", "build-rclone-android.sh"), encoding="utf-8") as f:
+            script = f.read()
+        version = script.split("RCLONE_VERSION=", 1)[1].split()[0]
+        toolchain = script.split("GO_TOOLCHAIN=", 1)[1].split()[0]
+        with open(os.path.join(ROOT, ra.NOTICES_PATH), encoding="utf-8") as f:
+            shipped = f.read()
+        self.assertIn(f"=== github.com/rclone/rclone {version} ===\n", shipped)
+        self.assertIn(f"=== Go standard library and runtime {toolchain} ===\n", shipped)
+        self.assertIn("Copyright (C) 2012 by Nick Craig-Wood", shipped)
+        self.assertIn(f"NOTICES={ra.NOTICES_PATH}\n", script)
+
+
 class CliTest(unittest.TestCase):
     def test_usage_on_bad_arguments(self):
         import contextlib
