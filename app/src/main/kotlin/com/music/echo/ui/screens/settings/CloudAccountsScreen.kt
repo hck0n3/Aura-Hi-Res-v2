@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
@@ -357,7 +358,7 @@ private fun CloudFolderDialog(
                                 modifier = Modifier.fillMaxWidth().clickable { onOpen(folder.path) },
                             ) {
                                 Checkbox(checked = folder.path in browser.chosen, onCheckedChange = { onToggle(folder.path) })
-                                Text(folder.name, modifier = Modifier.weight(1f), maxLines = 2)
+                                Text(folder.name, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 Icon(painterResource(R.drawable.arrow_forward), contentDescription = null)
                             }
                         }
