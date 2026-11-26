@@ -63,5 +63,20 @@ internal fun Pair<List<String>, List<String>>.keepingUnreadFolders(unreadPrefixe
     return readable to second + unread
 }
 
+/** A picked folder as the walk sees it: its tree uri, its documents provider and the document id of its root. */
+internal data class PickedTreeRoot(val uri: String, val authority: String?, val documentId: String)
+
+/**
+ * Row 881 (review repair): the picked folders to walk, each once. The same folder picked twice is walked once, and a
+ * walk never enters the root of ANOTHER picked folder ([otherPickedRoots]): «Music» and «Music/Rock» both picked
+ * walk «Music/Rock» only as itself, so each file is found once, with one id, whichever folders are picked.
+ */
+internal fun pickedTreesToWalk(trees: List<PickedTreeRoot>): List<PickedTreeRoot> =
+    trees.sortedBy(PickedTreeRoot::uri).distinctBy { it.authority to it.documentId }
+
+/** The roots a walk of [walked] must not enter: every other picked folder of the same provider. */
+internal fun otherPickedRoots(walked: PickedTreeRoot, trees: List<PickedTreeRoot>): Set<String> =
+    trees.filter { it.authority == walked.authority && it.documentId != walked.documentId }.mapTo(HashSet(), PickedTreeRoot::documentId)
+
 /** A display name the walk never imports: hidden files and the `.trashed-…` / `.pending-…` files of MediaStore. */
 internal fun isHiddenDocumentName(displayName: String): Boolean = displayName.startsWith(".")

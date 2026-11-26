@@ -48,6 +48,19 @@ class PickedFoldersTest {
     }
 
     @Test
+    fun `a folder picked inside another picked folder is walked only as itself, and a folder picked twice once`() {
+        val music = PickedTreeRoot("content://a/tree/primary%3AMusic", ExternalStorageDocumentsAuthority, "primary:Music")
+        val rock = PickedTreeRoot("content://a/tree/primary%3AMusic%2FRock", ExternalStorageDocumentsAuthority, "primary:Music/Rock")
+        val musicAgain = PickedTreeRoot("content://a/tree/primary%3AMusic?x", ExternalStorageDocumentsAuthority, "primary:Music")
+        val walked = pickedTreesToWalk(listOf(rock, musicAgain, music))
+        assertEquals(listOf(music, rock), walked)
+        assertEquals("the walk of «Music» never enters «Music/Rock»", setOf("primary:Music/Rock"), otherPickedRoots(music, walked))
+        assertEquals(setOf("primary:Music"), otherPickedRoots(rock, walked))
+        val drive = PickedTreeRoot("content://d/tree/x", "com.example.docs", "primary:Music/Rock")
+        assertEquals("another provider's ids are its own", emptySet<String>(), otherPickedRoots(drive, walked + drive))
+    }
+
+    @Test
     fun `hidden and trashed files are never imported`() {
         assertTrue(isHiddenDocumentName(".trashed-1700000000-song.mp3"))
         assertTrue(isHiddenDocumentName(".hidden.flac"))
@@ -65,6 +78,8 @@ class PickedFoldersTest {
     fun `the walk is bounded, cancellable and reports a failed or empty folder as unread`() {
         val walker = text("app/src/main/kotlin/com/music/echo/localmedia/PickedFolderWalker.kt")
         assertTrue(walker.contains("job?.ensureActive()"))
+        assertTrue("overlapping picks: each file once, with one id", walker.contains("if (documentId in otherRoots) continue"))
+        assertTrue(walker.contains("val picked = pickedTreesToWalk("))
         assertTrue(walker.contains("if (SystemClock.elapsedRealtime() > deadlineElapsedMs || entries >= MaxEntriesPerScan) {"))
         assertTrue(walker.contains("if (depth + 1 <= MaxDepth) pending.add(documentId to depth + 1) else complete = false"))
         assertTrue("a folder that cannot be listed is unread, never empty", walker.contains("if (children == null) {\n                    complete = false"))

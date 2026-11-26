@@ -43,11 +43,18 @@ internal class PickedFolderWalker(private val context: Context) {
         val files = ArrayList<PickedFolderAudio>()
         val unread = LinkedHashSet<String>()
         var entries = 0
-        for (raw in treeUris.distinct()) {
+        val picked = pickedTreesToWalk(
+            treeUris.mapNotNull { raw ->
+                runCatching { Uri.parse(raw).let { PickedTreeRoot(raw, it.authority, DocumentsContract.getTreeDocumentId(it)) } }.getOrNull()
+            },
+        )
+        for (pickedTree in picked) {
             job?.ensureActive()
-            val tree = runCatching { Uri.parse(raw) }.getOrNull() ?: continue
-            val treeDocumentId = runCatching { DocumentsContract.getTreeDocumentId(tree) }.getOrNull() ?: continue
+            val raw = pickedTree.uri
+            val tree = Uri.parse(raw)
+            val treeDocumentId = pickedTree.documentId
             val prefix = folderPrefix(raw) ?: continue
+            val otherRoots = otherPickedRoots(pickedTree, picked)
             val found = ArrayList<PickedFolderAudio>()
             var complete = true
             val pending = ArrayDeque<Pair<String, Int>>().apply { add(treeDocumentId to 0) }
@@ -79,6 +86,8 @@ internal class PickedFolderWalker(private val context: Context) {
                         if (isHiddenDocumentName(name)) continue
                         val mime = cursor.getString(2)
                         if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                            // Another picked folder is walked as itself: its files keep one id (row 881 repair).
+                            if (documentId in otherRoots) continue
                             if (depth + 1 <= MaxDepth) pending.add(documentId to depth + 1) else complete = false
                             continue
                         }
