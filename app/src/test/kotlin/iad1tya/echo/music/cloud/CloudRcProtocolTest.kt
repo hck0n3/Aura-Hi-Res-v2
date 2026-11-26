@@ -74,7 +74,7 @@ class CloudRcProtocolTest {
         assertEquals("off", body.getString("vfs_cache_mode"))
         assertTrue(body.getBoolean("disable_zip"))
         assertTrue(body.getBoolean("disable_dir_list"))
-        assertEquals(setOf("type", "fs", "addr", "user", "pass", "read_only", "vfs_cache_mode", "disable_zip", "disable_dir_list"), body.keySet())
+        assertEquals(setOf("type", "fs", "addr", "user", "pass", "read_only", "vfs_cache_mode", "disable_zip", "disable_dir_list"), body.keys().asSequence().toSet())
         // The only place a serve is started: random port and credentials per serve, never logged.
         val streams = File(root(), "app/src/main/kotlin/com/music/echo/cloud/CloudStreams.kt").readText()
         assertTrue(streams.contains("val port = RcloneDaemon.freeLoopbackPort()"))
