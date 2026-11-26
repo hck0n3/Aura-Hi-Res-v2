@@ -101,6 +101,30 @@ class CloudDaemonLifecycleTest {
     }
 
     @Test
+    fun `the binary is librclone so in nativeLibraryDir, null when this ABI has none`() {
+        // The accessor lives in main sources (it once existed only as a local stub, and the app did not compile).
+        val accessor = File(mainDir, "cloud/RcloneBinary.kt").readText()
+        assertTrue(accessor.contains("object RcloneBinary {"))
+        assertTrue(accessor.contains("fun path(context: Context): File? = resolve(context.applicationInfo.nativeLibraryDir)"))
+        val dir = kotlin.io.path.createTempDirectory("rclone-abi").toFile()
+        try {
+            assertNull("no directory", RcloneBinary.resolve(null))
+            assertNull("no binary for this ABI", RcloneBinary.resolve(dir.path))
+            val binary = File(dir, "librclone.so")
+            binary.writeText("x")
+            assertTrue(binary.setExecutable(false, false))
+            assertNull("not executable", RcloneBinary.resolve(dir.path))
+            assertTrue(binary.setExecutable(true))
+            assertEquals(binary, RcloneBinary.resolve(dir.path))
+            binary.delete()
+            assertTrue(File(dir, "librclone.so").mkdir())
+            assertNull("a directory is not the binary", RcloneBinary.resolve(dir.path))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `nothing starts it at boot or in the background`() {
         // Only the cloud package and the cloud page may name the daemon (wave 2 adds the player's cloud source).
         val namers = mainDir.walkTopDown().filter { it.isFile && it.extension == "kt" }
