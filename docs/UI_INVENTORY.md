@@ -1934,7 +1934,7 @@ viven dentro de `LibraryScreen` y se cambian con los chips de filtro.
 | Fecha de actualización (orden) | Local > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:538 | conmutador | ocasional | solo con el desplegable abierto |
 | Nombre (orden) | Local > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:539 | conmutador | ocasional | solo con el desplegable abierto |
 | Artista (orden) | Local > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:540 | conmutador | ocasional | solo con el desplegable abierto |
-| Álbum (orden) | Local > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:541 | conmutador | ocasional | solo con el desplegable abierto |
+| Álbum (orden) | Local > desplegable | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:541 | conmutador | ocasional | solo con el desplegable abierto. **Desde la fila 879:** dentro de cada álbum, disco y luego pista (lo que escribe el escaneo en `song_album_map.index`); «descendente» invierte solo el orden de los álbumes, nunca el de sus canciones |
 | "Toggle sort order" (hardcoded) — invertir asc/desc | Local > tarjeta de controles | app/src/main/kotlin/com/music/echo/ui/component/SortHeader.kt:85-119 | conmutador | ocasional | siempre |
 | «%d canciones» | Local > tarjeta de controles | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:548-552 | informativo | constante | siempre |
 | No se encontraron canciones locales | Local > estado vacío | app/src/main/kotlin/com/music/echo/ui/screens/library/LocalSongScreen.kt:580 | informativo | ocasional | lista vacía y búsqueda en blanco — sin botón |
@@ -2873,6 +2873,18 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/ContentSettings
 | Ver oyentes mensuales | Ajustes > Contenido | ContentSettings.kt:770 | conmutador | rara | siempre |
 | Mostrar video lienzo del artista — desc. «Muestra un video en bucle junto al nombre del artista en su página» | Ajustes > Contenido | ContentSettings.kt:790 | conmutador | rara | siempre |
 | Mostrar video de fondo del artista — desc. «Muestra un video artístico en movimiento en bucle detrás de la imagen del artista» | Ajustes > Contenido | ContentSettings.kt:811 | conmutador | rara | siempre |
+
+### Grupo «Música local» *(NUEVO, fila 880; entre «Configuración del catálogo en línea» e «Idioma de la aplicación»)*
+
+Cómo se leen las etiquetas de artista de los archivos del móvil (Biblioteca ▸ Local, sus artistas y álbumes). Se aplica en el
+siguiente escaneo; quien ya usa música local recibe uno automático 30 s después de cambiarlo (fila 881, sin reabrir archivos).
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| **Separar artistas** — desc. «Qué separa varios artistas en las etiquetas de tus archivos. Se aplica en el próximo escaneo de tu música local.» | Ajustes > Contenido > Música local | `ui/screens/settings/ContentSettings.kt` (fila del grupo «Música local») | navegación (diálogo) | rara | siempre |
+| Diálogo «Separar artistas»: una casilla por separador, escrito tal cual («;», « / », « feat. », « ft. », « & », «, », « x »); por defecto todos menos « & »; nota «« & » viene desactivado…»; Guardar / Cancelar | Ajustes > Contenido > Música local > Separar artistas | `ContentSettings.kt` (`showArtistSeparatorsDialog`) · separadores en `localmedia/LocalArtistSplit.kt` | conmutador (casillas) + acción primaria | rara | solo con el diálogo abierto |
+| **Nombres que no se separan** — desc. «AC/DC, Simon & Garfunkel… Añade los tuyos, uno por línea.» | Ajustes > Contenido > Música local | `ContentSettings.kt` (fila del grupo «Música local») | navegación (diálogo) | rara | siempre |
+| Diálogo «Nombres que no se separan»: campo de texto de varias líneas («Un nombre por línea»), la lista de los que ya vienen incluidos («Ya incluidos: …», `BuiltInArtistNameExceptions`); Guardar / Cancelar | Ajustes > Contenido > Música local > Nombres que no se separan | `ContentSettings.kt` (`showArtistExceptionsDialog`) | entrada de texto + acción primaria | rara | solo con el diálogo abierto |
 
 ### Grupo «Idioma de la aplicación»
 
