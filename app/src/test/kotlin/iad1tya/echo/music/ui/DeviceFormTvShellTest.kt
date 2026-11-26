@@ -121,7 +121,11 @@ class DeviceFormTvShellTest {
         assertTrue(rail.contains("onSearchLongClick = onRailSearchLongClick,"))
         assertTrue(rail.contains("tvStyle = tvShell,"))
         assertTrue(rail.contains("onSettingsClick = if (tvShell) onRailSettingsClick else null,"))
-        assertTrue(activity.contains("navController.navigate(\"settings\") { launchSingleTop = true }"))
+        // Ajustes is a tab root: from settings/appearance it pops back to the `settings` below, never stacks a second one.
+        val settingsClick = activity.substringAfter("val onRailSettingsClick: () -> Unit =").substringBefore("val onRailSearchLongClick")
+        assertTrue(settingsClick.contains("navController.currentDestination?.route != \"settings\" &&"))
+        assertTrue(settingsClick.contains("!navController.popBackStack(\"settings\", inclusive = false)"))
+        assertTrue(settingsClick.contains("navController.navigate(\"settings\") { launchSingleTop = true }"))
 
         val nav = main("ui/component/AppNavigation.kt")
         assertTrue("every item, no filter", nav.contains("navigationItems.forEach { screen ->"))

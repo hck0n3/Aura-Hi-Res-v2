@@ -2692,12 +2692,18 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             // Row 895: Ajustes as a rail destination of the TV shell (Spotify TV keeps it in the rail).
+                            // A tab root: back to the `settings` already on the stack (from a page such as settings/appearance)
+                            // instead of pushing a second one; pushed only when it is not there.
                             val onRailSettingsClick: () -> Unit = remember(navController, playerBottomSheetState) {
                                 {
                                     if (playerBottomSheetState.isExpanded) {
                                         playerBottomSheetState.collapseSoft()
                                     }
-                                    navController.navigate("settings") { launchSingleTop = true }
+                                    if (navController.currentDestination?.route != "settings" &&
+                                        !navController.popBackStack("settings", inclusive = false)
+                                    ) {
+                                        navController.navigate("settings") { launchSingleTop = true }
+                                    }
                                 }
                             }
 
