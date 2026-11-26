@@ -280,7 +280,9 @@ constructor(
     // throttling bypass). Swapping the order would re-run the whole resolution per chunk.
     private val dataSourceFactory =
         ResolvingDataSource.Factory(
-            ChunkingDataSourceFactory(
+            // Row 893: a resolved cloud serve URL (127.0.0.1) is fetched over the loopback client with its credentials;
+            // every other URL goes to the chunked OkHttp path below, unchanged.
+            iad1tya.echo.music.cloud.CloudLoopbackDataSource.Factory(ChunkingDataSourceFactory(
                 OkHttpDataSource.Factory(
                         OkHttpClient.Builder()
                             .dns(object : Dns {
@@ -307,9 +309,15 @@ constructor(
                             .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
                             .build(),
                     ),
-            ),
+            )),
         ) { dataSpec ->
             val mediaId = dataSpec.key ?: error("No media id")
+
+            // Row 893: a cloud song downloads through the same loopback serve its playback uses (the URL is resolved
+            // per download, in memory). The bytes land under the song id in the download cache, like any download.
+            if (iad1tya.echo.music.cloud.CloudSongIds.isCloud(mediaId)) {
+                return@Factory iad1tya.echo.music.cloud.CloudPlayback.resolve(context, dataSpec, mediaId)
+            }
 
             if (isVideoDownloadId(mediaId)) {
                 val songId = baseSongIdFromVideoDownload(mediaId)

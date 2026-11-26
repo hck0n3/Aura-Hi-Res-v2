@@ -210,6 +210,7 @@ import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.DeviceCapabilities
 import iad1tya.echo.music.utils.DeviceTier
+import iad1tya.echo.music.utils.isCloudMediaId
 import iad1tya.echo.music.utils.isLocalMediaId
 import iad1tya.echo.music.utils.shareSong
 import iad1tya.echo.music.utils.makeTimeString
@@ -2215,6 +2216,8 @@ private fun AuraPlayerShape(
                 val liked = currentSong?.song?.liked == true
                 val quickAccessGlyph = if (dense) 20.dp else 22.dp
                 val isLocalTrack = meta.id.isLocalMediaId() || currentSong?.song?.isLocal == true
+                // Row 893: a cloud song is the user's own file, but it downloads like an online one (it is not on the phone).
+                val isPhoneTrack = isLocalTrack && !meta.id.isCloudMediaId()
                 Row(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
@@ -2271,7 +2274,7 @@ private fun AuraPlayerShape(
                         val isExported = exportedSongIds.split(',').any { it.trim() == songId } ||
                             exportedVideoIds.split(',').any { it.trim() == songId }
                         val downloadDeferred = songId in pendingDownloadIds
-                        val downloadActive = !isLocalTrack && !downloadsPaused && (
+                        val downloadActive = !isPhoneTrack && !downloadsPaused && (
                             audioDl?.state == Download.STATE_QUEUED ||
                                 audioDl?.state == Download.STATE_DOWNLOADING ||
                                 (isVideo && (
@@ -2279,7 +2282,7 @@ private fun AuraPlayerShape(
                                         videoDl?.state == Download.STATE_DOWNLOADING
                                     ))
                             )
-                        val downloadHeld = !isLocalTrack && (
+                        val downloadHeld = !isPhoneTrack && (
                             downloadDeferred ||
                                 (downloadsPaused && (
                                     (audioDl != null &&
@@ -2291,7 +2294,7 @@ private fun AuraPlayerShape(
                                     ))
                             )
                         val downloadBusy = downloadActive || downloadDeferred
-                        val downloadDone = isLocalTrack ||
+                        val downloadDone = isPhoneTrack ||
                             audioDl?.state == Download.STATE_COMPLETED
                         val downloadProgressFraction = run {
                             val audioPct = liveDownloadProgress[songId]
@@ -2331,7 +2334,7 @@ private fun AuraPlayerShape(
                             onClick = {
                                 ActionLog.tap(ActionId.PLR_DOWNLOAD)
                                 when {
-                                    isLocalTrack -> Unit
+                                    isPhoneTrack -> Unit
                                     isExporting -> Unit
                                     // Row 505 (owner 2026-10-29: «toco el botón de descargar por error o por capricho en una
                                     // canción ya descargada, que me avise»): a tap on a song that is downloading, held, or

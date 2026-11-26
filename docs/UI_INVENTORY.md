@@ -4780,4 +4780,5 @@ Mismos textos, mismos botones, mismos toques y mismas rutas. En la pantalla exte
 | Nube ▸ **«Elegir carpetas de música»** (una fila por cuenta conectada) y su diálogo (Subir, «Toda la nube» / «Esta carpeta», carpetas con casilla, Guardar / Cancelar) | **Nuevo** (sección 18.16c). La búsqueda de Ajustes lo encuentra | 891 |
 | Nube ▸ **«Actualizar música de la nube»** | **Nuevo** (sección 18.16c), con lo que encontró la última vez. La búsqueda de Ajustes lo encuentra | 891 |
 | Biblioteca ▸ **Local** y la carpeta «Local» de Android Auto | **Sin cambio visible:** siguen listando solo los archivos del móvil; las canciones de la nube (que se guardan como música propia) se apartan a propósito para que el número del escaneo siga cuadrando (fila 855) | 891 |
-
+| Reproductor ▸ botón **Descargar** con una canción de la nube | **Cambia lo que hace:** antes la daba por «Descargada» y no hacía nada (la tomaba por un archivo del móvil); ahora la descarga como cualquier canción en línea, con su progreso y su «Descargado». Nada se quita ni se oculta | 893 |
+| «Descargar» del menú de canción, de un álbum o de una lista con canciones de la nube | **Sin cambio visible:** el mismo botón; ahora la descarga funciona (antes fallaba) y la canción aparece en «Descargado» y en la tarjeta de Inicio | 893 |
