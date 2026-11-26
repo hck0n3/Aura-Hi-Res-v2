@@ -225,6 +225,7 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 69 | `settings/commits` | `CommitScreen` | `:548` | ⚠️ **NO — ruta muerta** |
 | 70 | `ambient_mode` | `AmbientModeScreen` | `:553` | sí (menú de la cola) |
 | 71 | `settings/content/hidden` | `HiddenItemsScreen` («Ocultos», fila 811) | `:439` | sí (Ajustes > Contenido > Inicio y descubrimiento) |
+| 71b | `settings/cloud` | `ui/screens/settings/CloudAccountsScreen.kt` `CloudAccountsScreen` («Nube (OneDrive y Dropbox)», fila 890) | NavigationBuilder | sí (Ajustes ▸ Cuentas y sincronización; en pantalla ancha, en el panel derecho) |
 
 ## 1.5 Barra superior del esqueleto
 
@@ -3193,6 +3194,30 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SubscriptionCle
 | Diálogo «¿Quitar N suscripciones?» — «Se quitan de tu cuenta de YouTube una a una. Solo las que seleccionaste.» + **Quitar** / **Cancelar** | Diálogo: Revisar suscripciones | SubscriptionCleanupScreen.kt:309-327 | destructiva / acción secundaria | rara | solo tras tocar «Quitar N suscripciones» |
 | Notificación «Revisar suscripciones» — «Quitando suscripciones: X de N» / «Deteniendo…» con barra (NUEVA, fila 838; canal silencioso «Sincronización de biblioteca») + acción **Detener** (fila 839; igual que el «Detener» de la pantalla) | Barra de notificaciones | `utils/SubscriptionCleanupWorker.kt` (`foregroundInfo`) | informativo / acción secundaria | rara | solo mientras se quitan (trabajo en primer plano que termina con la tanda); **Detener** oculto mientras se detiene |
 
+
+## 18.16c Ajustes ▸ Cuentas y sincronización ▸ Nube (OneDrive y Dropbox) — `settings/cloud` (NUEVA, fila 890)
+
+Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/CloudAccountsScreen.kt` (ViewModel `viewmodels/CloudAccountsViewModel.kt`, lógica `cloud/CloudRepository.kt` y `cloud/CloudLogin.kt`). Fila del índice: Ajustes ▸ **Cuentas y sincronización** ▸ «Nube (OneDrive y Dropbox)» — desc. «Escucha la música de tu OneDrive o tu Dropbox» (`ui/newui/AuraSettingsScreen.kt`, tras Scrobbling). Al abrirla comprueba las cuentas (arranca el proceso de la nube solo mientras hace falta, fila 888). Solo lectura: nada de esta pantalla escribe en la nube. Salir de la página cancela un inicio de sesión a medias. Ola 1: todavía no hay música de la nube en la Biblioteca (ola 2).
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Atrás (tap) | Nube | CloudAccountsScreen.kt:94 | navegación | constante | siempre |
+| Texto «Conecta tu OneDrive o tu Dropbox… Aura solo lee tus archivos: nunca sube, cambia ni borra nada en tu nube.» | Nube | CloudAccountsScreen.kt:110-115 | informativo | — | siempre |
+| «La nube no está disponible en este aparato.» (en rojo) | Nube | CloudAccountsScreen.kt:118 | informativo | rara | solo si el paquete no trae el programa de la nube para el procesador del móvil; las filas de conectar quedan deshabilitadas |
+| «Comprobando tus cuentas…» con indicador | Nube | CloudAccountsScreen.kt:119-123 | informativo | ocasional | mientras comprueba |
+| «Algo falló. Inténtalo de nuevo.» + **Reintentar** | Nube | CloudAccountsScreen.kt:124-129 | acción secundaria | rara | si no se pudieron leer las cuentas |
+| Fila **«Conectar OneDrive»** — desc. «Aura le pide a OneDrive solo permiso de lectura» | Nube | CloudAccountsScreen.kt:204-210 | acción primaria | rara | sin cuenta de OneDrive; deshabilitada sin programa, mientras comprueba o con otro inicio de sesión en marcha |
+| Fila **«Conectar Dropbox»** — desc. «Dropbox pide acceso completo en su página; Aura igualmente solo lee» | Nube | CloudAccountsScreen.kt:204-210 | acción primaria | rara | sin cuenta de Dropbox; igual |
+| Fila **«OneDrive»** / **«Dropbox»** — desc. «Conectado» o «No se pudo comprobar ahora» + botón **Desconectar** | Nube | CloudAccountsScreen.kt:223-233 | informativo / destructiva | rara | con la cuenta conectada («No se pudo comprobar ahora»: sin red u otro fallo que no es de la cuenta) |
+| Fila **«Conectar OneDrive / Dropbox»** — desc. en rojo «Vuelve a conectar: la cuenta dejó de responder» + botón **Desconectar** | Nube | CloudAccountsScreen.kt:211-222 | acción primaria / destructiva | rara | si el permiso se retiró o caducó |
+| «Preparando el inicio de sesión…» con indicador + **Cancelar** | Nube | CloudAccountsScreen.kt:246-256 | acción secundaria | rara | tras tocar «Conectar», hasta que se abre la pestaña |
+| Pestaña del navegador con la página de inicio de sesión de Microsoft o Dropbox (se abre sola una vez) | Navegador (pestaña personalizada; si no hay, el navegador) | CloudAccountsScreen.kt:79-87, :285-289 | navegación | rara | al conectar |
+| «Inicia sesión en la pestaña del navegador que se abrió y vuelve aquí.» + **Abrir de nuevo** + **Cancelar** | Nube | CloudAccountsScreen.kt:257-263 | acción primaria / secundaria | rara | mientras se espera al navegador (máx. 5 min) |
+| «Comprobando la cuenta…» con indicador | Nube | CloudAccountsScreen.kt:246-256 | informativo | rara | tras volver del navegador |
+| «OneDrive conectado.» / «Dropbox conectado.» | Nube | CloudAccountsScreen.kt:264 | informativo | rara | al terminar bien |
+| Aviso en rojo (sin conexión · cancelado · tardó demasiado · no se dio permiso · hay que volver a conectar · algo falló) + **Reintentar** | Nube | CloudAccountsScreen.kt:265-270 | acción primaria | rara | si el inicio de sesión no salió («no disponible en este aparato» sin Reintentar) |
+| Diálogo «¿Desconectar OneDrive?» / «¿Desconectar Dropbox?» — «Aura olvida el acceso a esta cuenta. Tus archivos no se tocan…» + **Desconectar** / **Cancelar** | Diálogo: Nube | CloudAccountsScreen.kt:163-181 | destructiva / acción secundaria | rara | tras tocar «Desconectar» |
+
 ---
 
 ## 18.17 Cuenta (pantalla `account`) — `AccountSettingsScreen.kt`
@@ -4738,3 +4763,9 @@ Mismos textos, mismos botones, mismos toques y mismas rutas. En la pantalla exte
 | Buscar ▸ resultados, sugerencias y búsqueda de Biblioteca con el panel de detalle, en el plegable medio abierto como un libro (`ui/newui/AuraSearchWide.kt:529-577`) | El pliegue partía la lista de resultados (detalle al ~46 %) → la lista en una página y el detalle en la otra; mientras la pantalla entra o sale deslizándose conserva la división que tenía y se coloca en el pliegue al terminar; abierto del todo, plegado o sin pliegue, la división de siempre | 878 |
 | Letras ▸ «Compartir como imagen» (`ui/component/Lyrics.kt:2714-2715`) | Sin cambio visible: la imagen sigue siendo de 2160 × 2160; solo se corrige el tamaño que se le pasaba (estaba multiplicado dos veces por la densidad) | 878 |
 | **No cambia, con motivo (fila 878):** Inicio, Estadísticas y Novedades con el plegable en mesa o libro (listas que se desplazan: cada fila cruza el pliegue al desplazarse) y el reproductor en mesa (propuesta en la fila 878; `AuraPlayer.kt` fuera de este paquete) | Sin cambios | 878 |
+
+## Anexo 2026-11-26 (fila 890): Fase 5.1, la nube privada — conectar OneDrive y Dropbox (no se quitó ni se ocultó nada)
+
+| Qué | Cambio | Fila |
+|---|---|---|
+| Ajustes ▸ **Cuentas y sincronización** ▸ **«Nube (OneDrive y Dropbox)»** — desc. «Escucha la música de tu OneDrive o tu Dropbox» (`ui/newui/AuraSettingsScreen.kt`) | **Fila nueva** tras Scrobbling → `settings/cloud` (sección 18.16c); en pantalla ancha se abre en el panel derecho (`AURA_SETTINGS_PANE_ROUTES`). La búsqueda de Ajustes encuentra la fila del índice, «Conectar OneDrive», «Conectar Dropbox» y el texto de la página | 890 |

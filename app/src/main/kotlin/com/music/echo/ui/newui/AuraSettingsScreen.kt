@@ -181,6 +181,8 @@ internal fun AuraSettingsIndexHost(
     // used. Retyping a label would silently change the Spanish.
     val accountsText = "Cuentas"
     val scrobblingText = stringResource(R.string.scrobbling)
+    val cloudText = stringResource(R.string.cloud_title)
+    val cloudDescText = stringResource(R.string.cloud_entry_desc)
     val appearanceText = stringResource(R.string.appearance)
     val playerText = "Ajustes del reproductor"
     val soundText = "Sonido y ecualización"
@@ -291,6 +293,12 @@ internal fun AuraSettingsIndexHost(
                         AuraSettingsEntry(scrobblingText, description = "Last.fm & ListenBrainz") {
                             navController.navigate("settings/lastfm")
                         }.opensPage("settings/lastfm")
+                    )
+                    // Row 890: the private cloud (OneDrive and Dropbox).
+                    add(
+                        AuraSettingsEntry(cloudText, description = cloudDescText) {
+                            navController.navigate("settings/cloud")
+                        }.opensPage("settings/cloud")
                     )
                 },
             )

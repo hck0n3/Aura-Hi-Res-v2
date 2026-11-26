@@ -2220,6 +2220,22 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.DEVSET.TEXT_CANCEL` | «Cancelar» al editar el servidor o el nombre |
 | `UI.DEVSET.HELD_BACK` | Atrás (Retenidas) |
 
+### Ajustes ▸ Nube (OneDrive y Dropbox) (fila 890)
+
+| Código | Acción |
+|---|---|
+| `UI.CLOUD.BACK` | Atrás (Nube) |
+| `UI.CLOUD.CONNECT_ONEDRIVE` | «Conectar OneDrive» (también al volver a conectar) |
+| `UI.CLOUD.CONNECT_DROPBOX` | «Conectar Dropbox» (también al volver a conectar) |
+| `UI.CLOUD.DISCONNECT_ONEDRIVE` | «Desconectar» de OneDrive (abre la pregunta) |
+| `UI.CLOUD.DISCONNECT_DROPBOX` | «Desconectar» de Dropbox (abre la pregunta) |
+| `UI.CLOUD.DISCONNECT_CONFIRM` | «Desconectar» en «¿Desconectar …?» |
+| `UI.CLOUD.DISCONNECT_CANCEL` | «Cancelar» en «¿Desconectar …?» |
+| `UI.CLOUD.LOGIN_REOPEN` | «Abrir de nuevo» (la pestaña de inicio de sesión) |
+| `UI.CLOUD.LOGIN_CANCEL` | «Cancelar» el inicio de sesión |
+| `UI.CLOUD.LOGIN_RETRY` | «Reintentar» tras un inicio de sesión que no salió |
+| `UI.CLOUD.RETRY` | «Reintentar» al no poder leer las cuentas |
+
 ### Lo que sigue sin código, a propósito (fila 824)
 
 Cada caso tiene su motivo; `ActionLogGuardTest` lleva la lista de archivos exentos con la razón de cada uno y falla si

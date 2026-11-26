@@ -46,6 +46,9 @@ class SettingsSearchCoverageTest {
             // Registry row 864: a notice under «Activar proxy» shown only while Android 17 blocks a LAN proxy; the
             // proxy rows themselves are indexed, and a search hit for a line that is usually hidden would lead nowhere.
             "proxy_local_network_needed",
+            // Registry row 890: the top bar of «Nube (OneDrive y Dropbox)»; the Ajustes index row with the same title
+            // is what search finds, and its rows are indexed under it.
+            "cloud_title",
         )
     }
 }

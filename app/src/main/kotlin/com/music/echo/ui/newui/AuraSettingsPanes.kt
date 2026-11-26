@@ -29,6 +29,7 @@ val AURA_SETTINGS_PANE_ROUTES: List<String> = listOf(
     "settings/accounts",
     "settings/ytm_sync",
     "settings/lastfm",
+    "settings/cloud",
     "settings/storage",
     "settings/integrations/listen_together",
     "settings/device_sync",
