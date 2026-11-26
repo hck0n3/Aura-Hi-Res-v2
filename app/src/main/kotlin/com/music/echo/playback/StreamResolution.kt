@@ -471,7 +471,8 @@ internal fun MusicService.fullyCachedListenUri(mediaId: String, preferredItag: I
 
 internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
     return ResolvingDataSource.Factory(
-        DefaultDataSource.Factory(this, createCacheDataSource())
+        // Row 892: a cloud song takes its own cache chain (same two caches, loopback stream); every other song is untouched.
+        DefaultDataSource.Factory(this, iad1tya.echo.music.cloud.CloudPlayback.routing(createCacheDataSource(), downloadCache, playerCache))
     ) { dataSpec ->
         // VIDEO CACHE KEY normalization (2026-09-05, the "No media id" crash): video items
         // carry a DEDICATED customCacheKey "yt-video-<videoId>" (stable per-video cache —
@@ -482,6 +483,50 @@ internal fun MusicService.createDataSourceFactory(): DataSource.Factory {
         // bytes cached under their own key), only the RESOLUTION identity is normalized.
         val mediaId = (dataSpec.key ?: error("No media id"))
             .removePrefix("yt-video-")
+        // Row 892: a cloud song. Bytes on disk play as they are; otherwise the offline rules of a direct URL, then the
+        // cloud's loopback serve (started on demand). Before the local branch: a cloud id counts as the user's own file.
+        if (iad1tya.echo.music.cloud.CloudSongIds.isCloud(mediaId)) {
+            if (iad1tya.echo.music.cloud.CloudPlayback.isComplete(downloadCache, mediaId) ||
+                iad1tya.echo.music.cloud.CloudPlayback.isComplete(playerCache, mediaId)
+            ) {
+                return@Factory dataSpec
+            }
+            val cloudRejection = when {
+                dataStore.get(OfflineModeKey, false) -> OfflineRejectionException.Kind.MANUAL
+                !hasLiveInternetConnection() -> OfflineRejectionException.Kind.NO_NETWORK
+                PlaybackOfflineSession.shouldRejectResolve(
+                    systemHasNetwork = true,
+                    epoch = iad1tya.echo.music.utils.NetworkState.epoch.value,
+                ) -> OfflineRejectionException.Kind.SESSION
+                else -> null
+            }
+            if (cloudRejection != null) {
+                throw PlaybackException(
+                    getString(R.string.error_offline_not_downloaded),
+                    OfflineRejectionException(cloudRejection),
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                )
+            }
+            return@Factory try {
+                iad1tya.echo.music.cloud.CloudPlayback.resolve(this, dataSpec, mediaId)
+            } catch (e: iad1tya.echo.music.cloud.CloudPlaybackException) {
+                if (e.reason == iad1tya.echo.music.cloud.CloudFailure.NO_NETWORK) {
+                    throw PlaybackException(
+                        getString(R.string.error_offline_not_downloaded),
+                        OfflineRejectionException(OfflineRejectionException.Kind.NO_NETWORK),
+                        PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                    )
+                }
+                // A dead end of this song, not of the network: said and skipped (never retried as «no internet»).
+                val message = when {
+                    e.reason == null -> R.string.cloud_play_missing
+                    e.needsReconnect -> R.string.cloud_play_reconnect
+                    e.reason == iad1tya.echo.music.cloud.CloudFailure.NO_BINARY -> R.string.cloud_unavailable
+                    else -> R.string.cloud_error_generic
+                }
+                throw PlaybackException(getString(message), e, ERROR_CODE_NO_STREAM)
+            }
+        }
         if (mediaId.isLocalMediaId()) return@Factory dataSpec
         // Podcast episodes (and any direct-URL media) are already a playable audio stream — play
         // the URL straight through instead of resolving it through YouTube.

@@ -23,10 +23,16 @@ fun String.isLocalMediaId(): Boolean {
     return runCatching {
         when (toUri().scheme?.lowercase(Locale.US)) {
             "content", "file", "android.resource" -> true
+            // Row 892: a cloud song is the user's own file too, never a catalogue id: no video, radio, related or
+            // scrobble lookups by its id. It is NOT playable offline by itself ([isCloudMediaId]).
+            iad1tya.echo.music.cloud.CloudSongIds.SCHEME -> true
             else -> false
         }
     }.getOrDefault(false)
 }
+
+/** Row 892: a song of the user's cloud. Local in every sense but one: unless downloaded or cached, it needs the network. */
+fun String.isCloudMediaId(): Boolean = iad1tya.echo.music.cloud.CloudSongIds.isCloud(this)
 
 fun shareLocalAudio(
     context: Context,

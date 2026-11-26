@@ -910,4 +910,6 @@
     <string name="cloud_index_running">Looking for your music in the cloud…</string>
     <string name="cloud_index_done">%1$d songs in your cloud</string>
     <string name="cloud_index_partial">Some folders could not be read; what was there is kept.</string>
+    <string name="cloud_play_reconnect">Connect your cloud again</string>
+    <string name="cloud_play_missing">This song is no longer in your cloud</string>
 </resources>

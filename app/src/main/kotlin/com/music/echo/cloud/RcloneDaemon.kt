@@ -16,6 +16,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -115,6 +116,26 @@ object RcloneDaemon {
             lease.held = true
             live.client
         }
+    }
+
+    /**
+     * Row 892: a cloud stream media3 is reading holds the daemon (and the serve it streams from) up like a running [use]
+     * does, without a coroutine around it: called on media3's loader thread when the stream opens, [releaseStream] when it
+     * closes. False when the daemon is not running: nothing is started here, the read then fails and the player resolves
+     * the song again, which starts it.
+     */
+    fun retainForStream(): Boolean = runBlocking {
+        mutex.withLock {
+            if (running?.process?.isAlive != true) return@withLock false
+            idleJob?.cancel()
+            idleJob = null
+            activeUses++
+            true
+        }
+    }
+
+    fun releaseStream() {
+        runBlocking { release() }
     }
 
     private suspend fun release() = mutex.withLock {

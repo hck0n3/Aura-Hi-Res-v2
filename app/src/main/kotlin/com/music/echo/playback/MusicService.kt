@@ -212,6 +212,7 @@ import iad1tya.echo.music.widget.PlaylistWidgetReceiver
 import iad1tya.echo.music.widget.TurntableWidgetReceiver
 import dagger.hilt.android.AndroidEntryPoint
 import iad1tya.echo.music.utils.exportedFileUriExists
+import iad1tya.echo.music.utils.isCloudMediaId
 import iad1tya.echo.music.utils.isLocalMediaId
 import iad1tya.echo.music.utils.parseExportedFileUriMap
 import iad1tya.echo.music.constants.ExportedFileUrisKey
@@ -3980,7 +3981,7 @@ class MusicService :
     internal fun offlinePlayableSource(mediaId: String, exportedUris: Map<String, String>): OfflinePlayability.Source? =
         runCatching {
             OfflinePlayability.source(
-                isLocal = mediaId.isLocalMediaId(),
+                isLocal = mediaId.isLocalMediaId() && !mediaId.isCloudMediaId(),
                 downloadComplete = { OfflineIntegrity.isFullyOnDisk(downloadCache, mediaId) },
                 exportedFileExists = {
                     exportedUris[mediaId]?.takeIf { it.isNotBlank() }?.let { exportedFileUriExists(this, it) } == true
