@@ -188,6 +188,7 @@ fun LocalSongScreen(
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val songs by viewModel.songs.collectAsState()
+    val albumPositions by viewModel.albumPositions.collectAsState()
     val scanState by viewModel.scanState.collectAsState()
     val (showDownloaded) = rememberPreference(ShowDownloadedPlaylistKey, true)
     val (showCached) = rememberPreference(ShowCachedPlaylistKey, true)
@@ -265,7 +266,7 @@ fun LocalSongScreen(
     }
     val bottomContentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues().calculateBottomPadding() + 20.dp
 
-    val visibleSongs by remember(songs, query, sortType, sortDescending, collator) {
+    val visibleSongs by remember(songs, query, sortType, sortDescending, collator, albumPositions) {
         derivedStateOf {
             val normalizedQuery = query.trim()
             val supportedSongs = songs.filter { song ->
@@ -293,21 +294,24 @@ fun LocalSongScreen(
                     },
                 )
 
-                // Secondary key added: grouping by album alone left songs within the SAME album in
-                // whatever arbitrary order they happened to be in beforehand (no track-number field
-                // exists on SongEntity to sort by, so title is the closest available stand-in — still
-                // deterministic and readable, unlike the previous "whatever order" within a group).
-                LocalSongSortType.ALBUM -> filteredSongs.sortedWith(
-                    compareBy<Song, String>(collator) { song -> song.song.albumName.orEmpty() }
-                        .thenBy(collator) { song -> song.song.title },
-                )
+                // Row 879: albums by name (descending flips the albums only), and inside each album its own
+                // order — disc, then track — written by the scan; title only for songs the scan did not place.
+                LocalSongSortType.ALBUM -> {
+                    val byAlbum = compareBy<Song, String>(collator) { song -> song.song.albumName.orEmpty() }
+                        .thenBy { song -> song.song.albumId.orEmpty() }
+                    filteredSongs.sortedWith(
+                        (if (sortDescending) byAlbum.reversed() else byAlbum)
+                            .thenBy { song -> albumPositions[song.song.id] ?: Int.MAX_VALUE }
+                            .thenBy(collator) { song -> song.song.title },
+                    )
+                }
 
                 LocalSongSortType.DURATION -> filteredSongs.sortedBy { song -> song.song.duration }
 
                 LocalSongSortType.PLAY_TIME -> filteredSongs.sortedBy { song -> song.song.totalPlayTime }
             }
 
-            if (sortDescending) sortedSongs.asReversed() else sortedSongs
+            if (sortDescending && sortType != LocalSongSortType.ALBUM) sortedSongs.asReversed() else sortedSongs
         }
     }
 

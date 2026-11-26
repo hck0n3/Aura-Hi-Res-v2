@@ -19,7 +19,7 @@ import kotlinx.serialization.encoding.Encoder
  * reading, artist splitting, album identity): every remembered build is then discarded once and each file is read
  * again. A new or removed field of the remembered track is detected without a bump (its serial shape changes).
  */
-internal const val LocalScanRulesVersion = 1
+internal const val LocalScanRulesVersion = 2
 
 /** What MediaStore says about a file: size, DATE_MODIFIED (seconds) and, on Android 11+, GENERATION_MODIFIED. */
 @Serializable

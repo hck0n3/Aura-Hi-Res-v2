@@ -65,6 +65,13 @@ constructor(
         emptyList(),
     )
 
+    /** Row 879: song id -> position in its album (disc, then track), for the «by album» sort. */
+    val albumPositions = database.localSongAlbumMaps().map { maps -> maps.associate { it.songId to it.index } }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        emptyMap(),
+    )
+
     /**
      * MP4 social exports shown as Biblioteca ▸ Local ▸ Vídeos.
      * Ids come from [ExportedVideoIdsKey]; order follows the export list / song sort prefs.
