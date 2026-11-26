@@ -75,7 +75,10 @@ object LocalLrcSidecar {
             .filterNot { IdTag.matches(it) }
         val text = lines.joinToString("\n").trim()
         if (text.isEmpty()) return null
-        if (lines.any { Synced.containsMatchIn(it) }) return text
+        // Synced: untimed lines before the first timestamp (a credit, «Artist - Title») go, so the text starts with
+        // `[mm:ss.xx]`, which is how the lyrics screen tells synced lyrics (Lyrics.kt `startsWith("[")`).
+        val firstSynced = lines.indexOfFirst { Synced.containsMatchIn(it) }
+        if (firstSynced >= 0) return lines.drop(firstSynced).joinToString("\n").trim()
         return text.takeUnless { it.startsWith("[") }
     }
 

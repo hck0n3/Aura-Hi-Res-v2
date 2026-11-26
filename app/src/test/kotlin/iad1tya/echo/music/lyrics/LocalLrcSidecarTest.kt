@@ -59,6 +59,17 @@ class LocalLrcSidecarTest {
     }
 
     @Test
+    fun `synced lyrics drop the untimed lines before the first timestamp`() {
+        assertEquals(
+            "[00:01.00]Hola\n[00:05.00]Mundo",
+            LocalLrcSidecar.normalize("Artist - Title\r\n[ar:Someone]\r\nCredits: x\r\n[00:01.00]Hola\r\n[00:05.00]Mundo\r\n"),
+        )
+        assertEquals("[00:01.00]a\nuntimed after\n[00:02.00]b", LocalLrcSidecar.normalize("lead\n[0:01]a\nuntimed after\n[0:02]b"))
+        val lyricsScreen = File(repoRoot(), "app/src/main/kotlin/com/music/echo/ui/component/Lyrics.kt").readText()
+        assertTrue("the screen tells synced lyrics by their first character", lyricsScreen.contains("lyrics.startsWith(\"[\")"))
+    }
+
+    @Test
     fun `plain lyrics stay plain and files without lyrics are rejected`() {
         assertEquals("Line one\nLine two", LocalLrcSidecar.normalize("Line one\r\nLine two\r\n"))
         assertNull(LocalLrcSidecar.normalize("[ar:Only tags]\n[ti:Nothing else]\n"))
