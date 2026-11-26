@@ -1,27 +1,28 @@
-# Aura Hi-Res v2.0.69-beta13 — beta privada (2 de 7): pantallas grandes y plegables, nada cortado y nueva bienvenida
+# Aura Hi-Res v2.0.69-beta14 — beta privada (3 de 7): tu música del móvil bien hecha
 
-Beta solo para probar, sobre la 2.0.69-beta12 (incluye todo lo de las betas anteriores; sus notas siguen valiendo y se juntarán en la versión estable). Es la segunda de las 7 betas que acordamos. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Te llega por el actualizador solo con «Recibir versiones beta» encendido (Ajustes ▸ Actualizaciones).
+Beta solo para probar, sobre la 2.0.69-beta13 (incluye todo lo de las betas anteriores; sus notas siguen valiendo y se juntarán en la versión estable). Es la tercera de las 7 betas que acordamos. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Te llega por el actualizador solo con «Recibir versiones beta» encendido (Ajustes ▸ Actualizaciones).
 
-## Qué cambia
+## Qué cambia en tu música del móvil
 
-- **Pantalla grande (Fold abierto, tablets):** Ajustes en dos paneles, con el índice a la izquierda y la página a la derecha; la búsqueda de Ajustes abre su resultado en el panel derecho.
-- **Diálogos y hojas centrados** en pantalla grande, en vez de ocupar todo el ancho.
-- **Biblioteca en varias columnas** en pantalla grande, con tu vista, orden, selección y deslizamientos de siempre.
-- **Álbumes, listas, artistas y colecciones en dos columnas:** carátula y botones a la izquierda, canciones a la derecha.
-- **Inicio, Búsqueda, Estadísticas y Novedades** aprovechan el ancho del Fold abierto.
-- **Cámara:** en horizontal el contenido ya no queda debajo de la cámara.
-- **Fold a medio plegar (postura libro):** la búsqueda se divide en la bisagra en vez de poner contenido encima de ella.
-- **En la pantalla exterior del Fold y en el móvil todo se ve igual que antes.**
-- **Nada cortado:** textos que se cortaban sin «…», diálogos cuyos botones no cabían con letra grande, filas de artista que recortaban la segunda línea y las losas de Inicio con letra grande.
-- **Spotify:** la barra del inicio de sesión ya enseña «Cookie manual» y «Abrir en el navegador», que no se veían.
-- **Imagen de letras para compartir:** ya no sale enorme en el Fold.
-- **Nueva bienvenida (solo instalaciones nuevas; tú no la verás):** Términos → permisos uno a uno, explicados → licencia (igual que siempre) → «Conecta tu música» (cuenta de Google, carpeta del móvil, Spotify u otro servicio, restaurar una copia) → Listo. Los artistas y géneros siguen en Ajustes ▸ Contenido.
+- **Álbumes en su orden:** las canciones van por disco y luego por pista, también en álbumes de varios discos.
+- **Álbumes por su artista del álbum:** un recopilatorio queda como un solo álbum, aunque cada canción sea de un artista distinto.
+- **Varios artistas separados:** «Artista A feat. B», «A; B», «A / B» o «A x B» cuentan como artistas distintos. Nombres como AC/DC o Simon & Garfunkel nunca se parten.
+- **Nuevo ajuste «Música local»** (Ajustes ▸ Contenido): eliges qué separa artistas y añades tus propios «Nombres que no se separan». « & » viene apagado porque muchos grupos lo llevan en el nombre.
+- **El reescaneo actualiza:** si cambias las etiquetas, la carátula o la duración de un archivo, la app lo recoge.
+- **Escaneo más rápido y que gasta menos:** solo vuelve a abrir los archivos que cambiaron. Si una canción sigue con datos antiguos, usa «Volver a leer todos los archivos» en Biblioteca ▸ Local.
+- **La carpeta que eliges se lee de verdad**, incluidos los archivos que Android no tenía indexados.
+- **Mover o renombrar archivos ya no te hace perder nada:** los «me gusta», las listas y el historial siguen con la canción. Si se ha quitado una tarjeta SD, no se borra nada.
+- **Tu música local en la búsqueda de Biblioteca y en Android Auto** (en Listas ▸ Local).
+- **Letras .lrc:** si junto a «Canción.flac» hay un «Canción.lrc», se usa antes que las letras de internet, sincronizadas.
+- **ReplayGain:** la etiqueta de volumen de tus archivos se aplica al reproducirlos, si tienes la normalización encendida.
 
 ## Para que lo pruebes y me cuentes
 
 - No pude probarlo en un aparato: falta tu móvil.
-- **Con el Fold abierto:** Ajustes (elige varias páginas y vuelve atrás), Biblioteca, un álbum, una lista, un artista, Inicio y Búsqueda.
-- **Con el Fold cerrado:** que todo siga como en la beta12.
-- **Letra grande** (Ajustes de Android ▸ Pantalla ▸ Tamaño de letra): diálogos, filas y losas de Inicio.
-- **En horizontal:** que nada quede bajo la cámara.
+- **Importante para las letras .lrc (Android 11 o superior):** solo se leen dentro de una carpeta añadida en Biblioteca ▸ Local ▸ carpetas a partir de esta beta. Si añadiste carpetas antes, quítalas y vuelve a añadirlas.
+- Abre un álbum de varios discos: ¿van en orden?
+- Un recopilatorio: ¿sale como un solo álbum?
+- Una canción con «feat.»: ¿salen los dos artistas por separado?
+- Mueve una canción que te guste a otra carpeta y vuelve a escanear: ¿sigue con su «me gusta» y en sus listas?
+- Busca una canción tuya en Biblioteca y en Android Auto.
 - Si algo falla, manda el registro desde Ajustes ▸ Registros con la hora.
