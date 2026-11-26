@@ -1,3 +1,5 @@
+import contextlib
+import io
 import os
 import re
 import sqlite3
@@ -106,12 +108,127 @@ class DbTest(unittest.TestCase):
             self.assertFalse(st.db_report(d, "Aura smoke playlist")["ok"])
 
 
+class RecoveryTest(unittest.TestCase):
+    def test_lists_only_the_smoke_apks_recovery_lines(self):
+        text = "\n".join([
+            "11-25 22:37:00.000  1234  1250 W AuraSmoke: RECOVERY tab 'Inicio / Home' tapped again (2/3)",
+            "11-25 22:37:01.000  1234  1250 I AuraSmoke: tab 'Inicio / Home' selected",
+            "11-25 22:37:02.000  1234  1250 W AuraSmoke: RECOVERY first run: answering 'wait' on a system dialog: "
+            "System UI isn't responding",
+            "11-25 22:37:03.000   900   900 W OtherTag: RECOVERY not ours",
+        ])
+        self.assertEqual(st.recovery_lines(text), [
+            "tab 'Inicio / Home' tapped again (2/3)",
+            "first run: answering 'wait' on a system dialog: System UI isn't responding",
+        ])
+        self.assertEqual(st.recovery_lines("I AuraSmoke: Home reached"), [])
+
+    def test_missing_steps_file_is_zero_recoveries_not_a_failure(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(st.main(["recoveries", os.path.join(d, "absent.txt")]), 0)
+        self.assertEqual(out.getvalue(), "0\n")
+
+
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 
 
 def _read(*parts):
     with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
         return f.read()
+
+
+_SMOKE = ("smoketest", "src", "main", "java", "iad1tya", "echo", "music", "smoketest")
+
+
+def _method(source, signature):
+    """The body of one Java method, from its signature to the first line that closes it at class indentation."""
+    body = source[source.index(signature):]
+    return body[:body.index("\n    }\n")]
+
+
+class SlowEmulatorTest(unittest.TestCase):
+    """Row 885: betas 11 and 13 failed on 10-15 s UI waits with no app crash, a different scenario on each attempt. The
+    helpers wait longer, keep the app in front and re-tap a bounded number of times, without touching what is asserted
+    about the app itself."""
+
+    def test_run_script_passes_a_validated_slow_factor(self):
+        run = _read("scripts", "emulator_smoke", "run_smoke.sh")
+        self.assertIn("SMOKE_SLOW=${SMOKE_SLOW:-2}", run)
+        self.assertIn('[[ "$SMOKE_SLOW" =~ ^[1-5]$ ]]', run)
+        self.assertIn('-e auraSlowFactor "$SMOKE_SLOW"', run)
+        device = _read(*_SMOKE, "AuraDevice.java")
+        self.assertIn('getString("auraSlowFactor")', device)
+        self.assertIn("Math.max(1, Math.min(5, Integer.parseInt(arg.trim())))", device)
+
+    def test_ui_waits_scale_but_playback_checks_do_not(self):
+        device = _read(*_SMOKE, "AuraDevice.java")
+        wait = _method(device, "UiObject2 waitFor(Lookup lookup, long timeoutMs, String what) {")
+        self.assertIn("long limit = scaled(timeoutMs);", wait)
+        self.assertIn('fail("timed out after " + limit + " ms waiting for " + what);', wait)
+        settle = _method(device, "void settleOnHome(long timeoutMs) {")
+        self.assertIn("long limit = scaled(timeoutMs);", settle)
+        # What the scenarios assert about the app keeps its own times: READY + playing, the position advancing.
+        for name in ("LocalTone.java", "SessionProbe.java", "LocalPlaybackTest.java", "OfflinePlaybackTest.java",
+                     "StreamingSmokeTest.java"):
+            self.assertNotIn("scaled(", _read(*_SMOKE, name), name)
+        tone = _read(*_SMOKE, "LocalTone.java")
+        self.assertIn('30_000, "the tone to play (STATE_READY + isPlaying)"', tone)
+        self.assertIn("LocalTone.assertAdvances(aura, probe, 7_000, 4_500", _read(*_SMOKE, "LocalPlaybackTest.java"))
+        self.assertIn("LocalTone.assertAdvances(aura, probe, 10_000, 7_000", _read(*_SMOKE, "OfflinePlaybackTest.java"))
+        survival = _read(*_SMOKE, "UpdateSurvivalTest.java")
+        self.assertIn('assertFalse("the new welcome was shown after an update", aura.newWelcomeSeen)', survival)
+
+    def test_foreground_recovery_never_hides_a_crash_and_is_bounded(self):
+        device = _read(*_SMOKE, "AuraDevice.java")
+        self.assertIn("static final int MAX_RELAUNCHES = 3;", device)
+        fore = _method(device, "void ensureForeground(String where) {")
+        # The crash screen, the app's own ANR and a dead process fail BEFORE anything is relaunched.
+        self.assertLess(fore.index("assertHealthy(where);"), fore.index("launchWarm();"))
+        self.assertLess(fore.index("if (++relaunches > MAX_RELAUNCHES) {"), fore.index("launchWarm();"))
+        healthy = _method(device, "void assertHealthy(String where) {")
+        self.assertIn('line.contains("CrashActivity")', healthy)
+        self.assertIn("pid().isEmpty()", healthy)
+        dialogs = _method(device, "boolean dismissSystemDialogs(String where) {")
+        self.assertLess(dialogs.index("if (text.contains(appLabel())) {"), dialogs.index("wait.click();"))
+        poll = _method(device, "UiObject2 poll(Lookup lookup, long timeoutMs, String what) {")
+        self.assertIn('ensureForeground("waiting for " + what);', poll)
+        self.assertIn("poll(lookup, limit, what)", _method(device, "UiObject2 waitFor(Lookup lookup, long timeoutMs, String what) {"))
+
+    def test_tabs_are_retapped_a_bounded_number_of_times_after_clearing_the_screen(self):
+        device = _read(*_SMOKE, "AuraDevice.java")
+        self.assertIn("static final int MAX_TAB_TAPS = 3;", device)
+        tab = _method(device, "void openTab(UiLabel label) {")
+        self.assertIn("if (taps < MAX_TAB_TAPS && SystemClock.uptimeMillis() >= nextTap) {", tab)
+        self.assertLess(tab.index("ensureForeground(\"tab '\" + label + \"'\");\n                UiObject2 again"),
+                        tab.index("again.click();"))
+        self.assertIn("never became selected", tab)
+
+    def test_settle_presses_back_only_when_stuck_and_bounded(self):
+        device = _read(*_SMOKE, "AuraDevice.java")
+        self.assertIn("static final int MAX_SETTLE_BACKS = 3;", device)
+        settle = _method(device, "void settleOnHome(long timeoutMs) {")
+        self.assertIn('ensureForeground("first run");', settle)
+        self.assertNotIn('assertHealthy("first run");', settle)
+        self.assertIn("if (backs < MAX_SETTLE_BACKS && quietSince - progressAt >= stuckAfter) {", settle)
+        self.assertEqual(settle.count("device.pressBack();"), 1)
+
+    def test_scan_sheet_is_retapped_only_while_it_is_not_open(self):
+        device = _read(*_SMOKE, "AuraDevice.java")
+        scan = _method(device, "UiObject2 scanUntilToneListed() {")
+        retap = scan[scan.index("if (poll(sheet, scaled(5_000), what) == null) {"):]
+        self.assertLess(retap.index("device.findObject(By.text(exactly(sheetTitle))) == null"),
+                        retap.index("again.click();"))
+        self.assertIn("waitFor(sheet, 10_000, what);", scan)
+
+    def test_every_fail_leaves_a_capture_and_says_what_was_in_front(self):
+        device = _read(*_SMOKE, "AuraDevice.java")
+        fail = _method(device, "void fail(String message) {")
+        self.assertLess(fail.index('capture("FAIL-'), fail.index("throw new AssertionError(detail);"))
+        self.assertIn("foregroundState()", fail)
+        run = _read("scripts", "emulator_smoke", "run_smoke.sh")
+        self.assertIn('adb pull "/sdcard/Android/data/$TEST_PKG/files" "$OUT/captures"', run)
+        self.assertIn('adb shell dumpsys window windows > "$OUT/window-$name.txt"', run)
+        self.assertIn('record "smoke recoveries" INFO', run)
 
 
 class AppLiteralsTest(unittest.TestCase):

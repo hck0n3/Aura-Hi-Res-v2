@@ -38,7 +38,7 @@ public class UpdateSurvivalTest {
         AuraDevice.UiLabel chip = aura.appString("filter_playlists", "Playlists");
         // Wait for the chip instead of one look: on a slow emulator it is not drawn yet, the test stays on the hub (pins
         // only) and the new playlist never shows there (run 45445171939, attempt 1).
-        long chipDeadline = SystemClock.uptimeMillis() + 10_000;
+        long chipDeadline = SystemClock.uptimeMillis() + aura.scaled(10_000);
         while (SystemClock.uptimeMillis() < chipDeadline) {
             UiObject2 playlists = aura.device.findObject(By.text(AuraDevice.exactly(chip)));
             if (playlists != null) {
