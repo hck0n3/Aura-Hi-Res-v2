@@ -21,6 +21,7 @@ class RefreshIdlePolicy {
         private set
 
     private var touching = false
+    private var held = false
 
     /** A finger went down. Returns true when [active] changed and the window's request must be re-evaluated. */
     fun onTouchDown(): Boolean {
@@ -37,9 +38,19 @@ class RefreshIdlePolicy {
     /** A key, D-pad, wheel or trackball event, or the window coming back. The caller re-arms the idle callback. */
     fun onOtherInput(): Boolean = activate()
 
+    /**
+     * Something the activity's own input never sees is in use: a dialog, sheet or menu window (their touches go to
+     * their own window, not to the activity) or the keyboard. While held it stays active and the idle callback does
+     * nothing; on release the caller re-arms the idle callback.
+     */
+    fun onHeld(held: Boolean): Boolean {
+        this.held = held
+        return if (held) activate() else false
+    }
+
     /** The idle callback fired. While a finger is still down nothing changes: lifting it re-arms the callback. */
     fun onIdleTimeout(): Boolean {
-        if (touching || !active) return false
+        if (touching || held || !active) return false
         active = false
         return true
     }

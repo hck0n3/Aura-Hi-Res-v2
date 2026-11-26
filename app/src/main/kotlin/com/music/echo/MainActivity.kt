@@ -57,6 +57,7 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
@@ -676,6 +677,35 @@ class MainActivity : ComponentActivity() {
         noteRefreshInput()
     }
 
+    // Row 899: a dialog, bottom sheet or menu is its own window, so its touches never reach dispatchTouchEvent; the
+    // activity window losing focus to it holds the high request until it closes. The keyboard does not take focus, so
+    // it holds from the composition (RefreshImeHold).
+    private var refreshHoldUnfocused = false
+    private var refreshHoldIme = false
+
+    private fun updateRefreshHold() {
+        val held = refreshHoldUnfocused || refreshHoldIme
+        if (refreshIdle.onHeld(held)) reapplyRefreshRate()
+        if (!held) armRefreshIdle()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        refreshHoldUnfocused = !hasFocus
+        updateRefreshHold()
+    }
+
+    @Composable
+    private fun RefreshImeHold() {
+        val density = LocalDensity.current
+        val ime = WindowInsets.ime
+        val imeShown by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
+        LaunchedEffect(imeShown) {
+            refreshHoldIme = imeShown
+            updateRefreshHold()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         noteRefreshInput()
@@ -878,6 +908,8 @@ class MainActivity : ComponentActivity() {
             refreshSystemCeiling = refreshCeiling
             reapplyRefreshRate()
         }
+        // Row 899: the keyboard holds the high request (its own child scope, so the root never recomposes for it).
+        RefreshImeHold()
 
         // ── "Interfaz nueva": the SHELL and the APP THEME both follow the flag ────────────────────
         // Read here, ABOVE echomusicTheme, and not (as it was) inside the theme's content lambda: by

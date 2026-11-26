@@ -55,6 +55,31 @@ class RefreshIdlePolicyTest {
         assertTrue("with no finger left the callback can rest it", p.onIdleTimeout())
     }
 
+    @Test
+    fun `a dialog, sheet, menu or the keyboard holds it active until released`() {
+        val p = RefreshIdlePolicy()
+        p.onIdleTimeout()
+        assertTrue("holding at rest wakes it", p.onHeld(true))
+        assertFalse("the callback firing while held does nothing", p.onIdleTimeout())
+        assertTrue(p.active)
+        assertFalse("releasing changes nothing by itself: the caller re-arms", p.onHeld(false))
+        assertTrue("after the release, the next callback rests it", p.onIdleTimeout())
+    }
+
+    @Test
+    fun `other windows and the keyboard feed the policy too`() {
+        val main = src("MainActivity.kt")
+        val focus = main.substringAfter("override fun onWindowFocusChanged(hasFocus: Boolean) {").substringBefore("@Composable")
+        assertTrue("a dialog or sheet window takes the focus: hold", focus.contains("refreshHoldUnfocused = !hasFocus"))
+        assertTrue(focus.contains("updateRefreshHold()"))
+        val hold = main.substringAfter("private fun updateRefreshHold() {").substringBefore("override fun onWindowFocusChanged(")
+        assertTrue(hold.contains("refreshIdle.onHeld(held)"))
+        assertTrue("released: re-armed", hold.contains("if (!held) armRefreshIdle()"))
+        val ime = main.substringAfter("private fun RefreshImeHold() {").substringBefore("override fun onResume()")
+        assertTrue("one boolean, not every animation frame", ime.contains("derivedStateOf { ime.getBottom(density) > 0 }"))
+        assertTrue(main.contains("        RefreshImeHold()\n"))
+    }
+
     // ── What is asked for ──
 
     @Test
