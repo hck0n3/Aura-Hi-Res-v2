@@ -209,8 +209,13 @@ class CloudLibraryIndexTest {
         val autoScan = main("localmedia/LocalLibraryAutoScan.kt")
         assertTrue(autoScan.contains("scope.launch(Dispatchers.IO) { cloudIndexer.indexIfStale() }"))
         val vm = main("viewmodels/CloudAccountsViewModel.kt")
-        assertTrue(vm.contains("index(CloudLibraryIndexer.Trigger.FOLDERS_CHOSEN)"))
-        assertTrue(vm.contains("viewModelScope.launch { index(CloudLibraryIndexer.Trigger.USER) }"))
+        assertTrue(vm.contains("index(CloudLibraryIndexer.Trigger.FOLDERS_CHOSEN) { repository.saveFolders(browser.provider, chosen) }"))
+        assertTrue(vm.contains("index(CloudLibraryIndexer.Trigger.USER)"))
+        // The save and the index belong to the app: leaving the cloud page never cancels them before they are written.
+        assertTrue(vm.contains("@ApplicationScope private val appScope: CoroutineScope"))
+        assertTrue(vm.contains("val work = appScope.async {\n            before()\n            indexer.index(trigger)\n        }"))
+        assertFalse(vm.contains("viewModelScope.launch { index("))
+        assertFalse("saving the folders is not owned by the page", vm.contains("viewModelScope.launch {\n            repository.saveFolders"))
         assertEquals("the only callers", 2, Regex("""indexIfStale\(\)""").findAll(autoScan + indexer).count())
     }
 

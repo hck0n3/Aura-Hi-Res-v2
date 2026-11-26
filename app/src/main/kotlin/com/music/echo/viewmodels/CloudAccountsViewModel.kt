@@ -14,9 +14,13 @@ import iad1tya.echo.music.cloud.CloudLoginPolicy
 import iad1tya.echo.music.cloud.CloudLoginState
 import iad1tya.echo.music.cloud.CloudProvider
 import iad1tya.echo.music.cloud.CloudRepository
+import iad1tya.echo.music.di.ApplicationScope
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +36,7 @@ import kotlinx.coroutines.launch
 class CloudAccountsViewModel @Inject constructor(
     private val repository: CloudRepository,
     private val indexer: CloudLibraryIndexer,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel() {
 
     /**
@@ -72,9 +77,18 @@ class CloudAccountsViewModel @Inject constructor(
 
     private var loginJob: Job? = null
 
+    /** Row 891: the save and index started from this page; it runs in the app's scope, so leaving the page never cancels it. */
+    private var indexWork: Deferred<CloudLibraryIndexer.Summary>? = null
+
+    private fun indexBusy() = indexer.running.value || indexWork?.isActive == true
+
     init {
         refresh()
         viewModelScope.launch { loadFolders() }
+        // An index that outlived an earlier visit to this page (or the automatic one) still shows as running.
+        viewModelScope.launch {
+            indexer.running.collect { _ui.update { it.copy(indexing = indexBusy()) } }
+        }
     }
 
     private suspend fun loadFolders() {
@@ -133,29 +147,37 @@ class CloudAccountsViewModel @Inject constructor(
     fun saveFolders() {
         val browser = _ui.value.browser ?: return
         val chosen = CloudIndexPolicy.outermost(browser.chosen)
-        viewModelScope.launch {
-            repository.saveFolders(browser.provider, chosen)
-            _ui.update { it.copy(browser = null, folders = it.folders + (browser.provider to chosen)) }
-            index(CloudLibraryIndexer.Trigger.FOLDERS_CHOSEN)
-        }
+        _ui.update { it.copy(browser = null, folders = it.folders + (browser.provider to chosen)) }
+        index(CloudLibraryIndexer.Trigger.FOLDERS_CHOSEN) { repository.saveFolders(browser.provider, chosen) }
     }
 
     /** «Actualizar música de la nube». */
     fun indexNow() {
-        viewModelScope.launch { index(CloudLibraryIndexer.Trigger.USER) }
+        index(CloudLibraryIndexer.Trigger.USER)
     }
 
-    private suspend fun index(trigger: CloudLibraryIndexer.Trigger) {
-        if (_ui.value.indexing) return
+    /**
+     * Row 891: the work ([before], then the index) belongs to the app, not to this page — backing out of Ajustes ▸ Nube
+     * while it runs still saves the folders and writes the songs. This page only waits for the result to show it.
+     */
+    private fun index(trigger: CloudLibraryIndexer.Trigger, before: suspend () -> Unit = {}) {
+        if (_ui.value.indexing && trigger != CloudLibraryIndexer.Trigger.FOLDERS_CHOSEN) return
         _ui.update { it.copy(indexing = true, indexFailed = false) }
-        try {
-            val summary = indexer.index(trigger)
-            _ui.update { it.copy(indexing = false, indexResult = IndexResult(summary.songs, summary.complete)) }
-        } catch (e: CancellationException) {
-            _ui.update { it.copy(indexing = false) }
-            throw e
-        } catch (e: Throwable) {
-            _ui.update { it.copy(indexing = false, indexFailed = true) }
+        val work = appScope.async {
+            before()
+            indexer.index(trigger)
+        }
+        indexWork = work
+        viewModelScope.launch {
+            try {
+                val summary = work.await()
+                _ui.update { it.copy(indexing = indexBusy(), indexResult = IndexResult(summary.songs, summary.complete)) }
+            } catch (e: CancellationException) {
+                if (work.isCancelled) _ui.update { it.copy(indexing = indexBusy()) }
+                throw e
+            } catch (e: Throwable) {
+                _ui.update { it.copy(indexing = indexBusy(), indexFailed = true) }
+            }
         }
     }
 
