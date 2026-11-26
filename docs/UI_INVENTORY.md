@@ -4413,8 +4413,12 @@ al paquete de la app vieja (`iad1tya.echo.music`) y no abría esta.
 
 `playback/MusicService.kt:245` (`MediaLibraryService`) + `res/xml/automotive_app_desc.xml`.
 El árbol de exploración tiene 4 categorías (canciones, artistas, álbumes, listas). En «listas» se
-anteponen **Canciones que me gustan** y **Canciones descargadas**, y cada carpeta antepone un ítem
-**Aleatorio** (`playback/MediaLibrarySessionCallback.kt:722-755`).
+anteponen **Canciones que me gustan**, **Canciones descargadas** y, desde la fila 883, **Local** (los
+archivos de audio del móvil, lo mismo que Biblioteca ▸ Local; id `playlist/LP_LOCAL`, aleatorio con la
+misma memoria que esa pestaña), y cada carpeta antepone un ítem **Aleatorio**
+(`playback/MediaLibrarySessionCallback.kt:722-755`). La raíz sigue con 4 categorías: Android Auto
+enseña como mucho cuatro pestañas [NO VERIFICADO en el coche]. La búsqueda por voz o texto del coche ya
+incluía las canciones del móvil.
 
 ## 25.6 Otras entradas del manifiesto
 

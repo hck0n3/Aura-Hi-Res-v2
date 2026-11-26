@@ -9,6 +9,16 @@ package iad1tya.echo.music.playback
  * started on another one (or on nothing). [segments] keeps such an id whole as the last segment.
  */
 object AutoBrowsePath {
+    /**
+     * The «Local» entry under Playlists: the audio files on this phone, as in Biblioteca ▸ Local. Not a real
+     * playlist id: those are `LP` + 8 letters ([iad1tya.echo.music.db.entities.PlaylistEntity.generatePlaylistId]),
+     * never with an underscore, like the other virtual ids `LP_LIKED` and `LP_DOWNLOADED`.
+     */
+    const val LOCAL_PLAYLIST_ID = "LP_LOCAL"
+
+    /** Shuffle bucket of the in-app Local tab (`LocalSongScreen`), so the car and the phone share ONE memory. */
+    const val LOCAL_CONTEXT_ID = "local:music"
+
     private val LocalSchemes = listOf("content://", "file://", "android.resource://")
 
     /**
