@@ -2702,6 +2702,23 @@ interface DatabaseDao {
     @Query("DELETE FROM album_artist_map WHERE albumId IN (:albumIds)")
     fun deleteAlbumArtistMapsByAlbumIds(albumIds: List<String>)
 
+    // Row 882: a moved or renamed local file takes its playlist entries, history, play counts and lyrics from its old row
+    // (the new row must exist first: the foreign keys point at it) before the scan deletes the old one.
+    @Query("UPDATE playlist_song_map SET songId = :newId WHERE songId = :oldId")
+    fun moveLocalSongPlaylistEntries(oldId: String, newId: String)
+
+    @Query("UPDATE event SET songId = :newId WHERE songId = :oldId")
+    fun moveLocalSongEvents(oldId: String, newId: String)
+
+    @Query(
+        "UPDATE playCount SET song = :newId WHERE song = :oldId AND NOT EXISTS " +
+            "(SELECT 1 FROM playCount AS taken WHERE taken.song = :newId AND taken.year = playCount.year AND taken.month = playCount.month)",
+    )
+    fun moveLocalSongPlayCounts(oldId: String, newId: String)
+
+    @Query("UPDATE lyrics SET id = :newId WHERE id = :oldId AND NOT EXISTS (SELECT 1 FROM lyrics WHERE id = :newId)")
+    fun moveLocalSongLyrics(oldId: String, newId: String)
+
     // ---- Library sync between the user's devices (registry row 536) ----------------------------------------------------------
     // The reads say what this device has; the writes apply what the others changed. Plain SQL on purpose: nothing here may go
     // through the paths that push to the YouTube account (a change that CAME from another device must not be sent back there).

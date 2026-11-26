@@ -255,11 +255,19 @@ constructor(
             if (!removeMissing && refusesEmptyScan(snapshot.tracks.count { !it.isVideo }, libraryLocalAudio)) {
                 throw LocalScanFailedException("scan found no audio", keptSongs = removedIds.size)
             }
-            val (removable, kept) = if (removeMissing) {
+            val (missingOnMountedVolumes, keptOnVolume) = if (removeMissing) {
                 removedIds to emptyList<String>()
             } else {
                 splitMissingByVolume(removedIds, recordedVolumes, volumePresent)
             }
+            // Row 882: a missing song matched one-to-one with a file seen for the first time was moved or renamed; its
+            // new row takes its likes, playlist entries, history and play counts before the old row is deleted. A song
+            // with several possible matches is never merged and, unless the user confirmed the removal, kept.
+            val existingLocalIdSet = existingLocalIds.toSet()
+            val moved = moveRenamedLocalSongs(missingOnMountedVolumes, snapshot.tracks.filterNot { it.id in existingLocalIdSet })
+            val ambiguousKept = if (removeMissing) emptyList() else missingOnMountedVolumes.filter(moved.ambiguous::contains)
+            val removable = missingOnMountedVolumes - ambiguousKept.toSet()
+            val kept = keptOnVolume + ambiguousKept
             keptOnAbsentVolume = kept
             removable.chunked(SqlBatchSize).forEach(::deleteSongsByIds)
 
@@ -412,7 +420,7 @@ constructor(
 
             summary = localScanSummary(
                 scannedIsVideo = snapshot.tracks.map(LocalTrackRecord::isVideo),
-                removedSongs = removable.size,
+                removedSongs = removable.size - moved.moves.size,
                 keptMissing = kept.size,
                 skippedUnsupported = snapshot.skippedUnsupported,
                 skippedShort = snapshot.skippedShort,
@@ -559,6 +567,50 @@ constructor(
                     setOf(Environment.MEDIA_MOUNTED, Environment.MEDIA_MOUNTED_READ_ONLY)
             }.getOrDefault(false)
         }
+    }
+
+    /**
+     * Row 882, inside the scan transaction: the new row is a copy of the old one (likes, play time, lyrics settings), then
+     * the playlist entries, the history, the play counts and the lyrics are pointed at it. The old row is deleted after.
+     * A file that already has a row of its own never takes another song's data.
+     */
+    private suspend fun moveRenamedLocalSongs(
+        missingIds: List<String>,
+        appearedTracks: List<LocalTrackRecord>,
+    ): LocalSongMoves {
+        if (missingIds.isEmpty() || appearedTracks.isEmpty()) return LocalSongMoves(emptyMap(), emptySet())
+        val oldSongs = loadSongs(missingIds)
+        val takenIds = loadSongs(appearedTracks.map(LocalTrackRecord::id)).keys
+        val verdict = matchMovedLocalSongs(
+            missing = oldSongs.values.map { old ->
+                LocalSongIdentity(
+                    id = old.song.id,
+                    isVideo = old.song.isVideo,
+                    sizeBytes = old.format?.contentLength ?: 0L,
+                    durationSeconds = old.song.duration,
+                    title = old.song.title,
+                    albumName = old.song.albumName,
+                )
+            },
+            appeared = appearedTracks.filterNot { it.id in takenIds }.map { track ->
+                LocalSongIdentity(
+                    id = track.id,
+                    isVideo = track.isVideo,
+                    sizeBytes = track.sizeBytes,
+                    durationSeconds = track.durationSeconds,
+                    title = track.title,
+                    albumName = track.albumName,
+                )
+            },
+        )
+        verdict.moves.forEach { (oldId, newId) ->
+            database.insert(oldSongs.getValue(oldId).song.copy(id = newId))
+            database.moveLocalSongPlaylistEntries(oldId, newId)
+            database.moveLocalSongEvents(oldId, newId)
+            database.moveLocalSongPlayCounts(oldId, newId)
+            database.moveLocalSongLyrics(oldId, newId)
+        }
+        return verdict
     }
 
         private suspend fun loadSongs(ids: List<String>): Map<String, Song> =
