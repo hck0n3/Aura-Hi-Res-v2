@@ -148,6 +148,11 @@ class LocalScanIncrementalTest {
         assertTrue("a full rescan reuses nothing", scan.contains("localScanCacheUsable(scanCache?.header, cacheHeader, fullRescan,"))
         assertTrue(scan.contains("val remembered = if (cacheUsable) scanCache?.tracks.orEmpty().associateBy { it.record.id } else emptyMap()"))
         assertTrue(scanner.contains("File(context.noBackupFilesDir, \"local_scan_tracks.json\")"))
+        assertTrue("the stamp goes with it", scan.indexOf("writeAutoStamp(autoStamp)") > write)
+        assertTrue(scanner.contains("File(context.noBackupFilesDir, \"local_scan_stamp.txt\")"))
+        val auto = scanner.substringAfter("suspend fun scanAutomatically(").substringBefore("suspend fun usesLocalLibrary(")
+        assertTrue("the automatic scan reads the small stamp file only", auto.contains("autoStampFile.takeIf(File::isFile)?.readText()"))
+        assertFalse(auto.contains("readScanCache()"))
     }
 
     @Test

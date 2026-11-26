@@ -486,13 +486,13 @@ constructor(
         writeScanCache(
             LocalScanCacheFile(
                 header = cacheHeader,
-                autoStamp = autoStamp,
                 tracks = snapshot.tracks.mapNotNull { track ->
                     snapshot.fingerprints[track.id]?.let { CachedLocalTrack(fingerprint = it, record = track) }
                 },
                 skippedFiles = snapshot.skippedFiles,
             ),
         )
+        writeAutoStamp(autoStamp)
 
         val videoTracks = snapshot.tracks.filter { it.isVideo }
         if (videoTracks.isNotEmpty()) {
@@ -522,7 +522,8 @@ constructor(
      */
     suspend fun scanAutomatically(scanConfig: LocalSongScanConfig): LocalSongScanSummary? {
         if (!hasAudioReadPermission()) return null
-        val stored = withContext(Dispatchers.IO) { readScanCache()?.autoStamp }
+        // Row 881 (review repair): only the small stamp file is read here, never the whole remembered library.
+        val stored = withContext(Dispatchers.IO) { runCatching { autoStampFile.takeIf(File::isFile)?.readText() }.getOrNull() }
         if (autoScanFindsNothingNew(stored, currentAutoScanStamp(scanConfig))) return null
         return scanDevice(scanConfig, automatic = true)
     }
@@ -533,6 +534,13 @@ constructor(
 
     // Row 881: what the last successful scan built from each file. noBackupFilesDir: MediaStore ids belong to this phone.
     private val scanCacheFile: File get() = File(context.noBackupFilesDir, "local_scan_tracks.json")
+
+    // Row 881: the MediaStore stamp of the last successful scan, apart so the automatic scan reads a few bytes only.
+    private val autoStampFile: File get() = File(context.noBackupFilesDir, "local_scan_stamp.txt")
+
+    private fun writeAutoStamp(stamp: String?) {
+        runCatching { if (stamp == null) autoStampFile.delete() else autoStampFile.writeText(stamp) }
+    }
 
     private fun readScanCache(): LocalScanCacheFile? = runCatching {
         if (scanCacheFile.isFile) ScanCacheJson.decodeFromString(LocalScanCacheFile.serializer(), scanCacheFile.readText()) else null
@@ -1410,7 +1418,6 @@ constructor(
     @Serializable
     private data class LocalScanCacheFile(
         val header: LocalScanCacheHeader,
-        val autoStamp: String? = null,
         val tracks: List<CachedLocalTrack> = emptyList(),
         val skippedFiles: List<SkippedLocalFile> = emptyList(),
     )
