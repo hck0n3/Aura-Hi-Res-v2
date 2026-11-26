@@ -107,6 +107,7 @@ class LocalLrcReader(private val context: Context) {
 
     /** A folder the user granted with the system folder picker (persisted read access), when it holds the song. */
     private fun fromGrantedTrees(location: AudioLocation, names: List<String>): String? {
+        if (location.relativePath == null) return null // before Android 10: no folder to place it in the tree
         val trees = context.contentResolver.persistedUriPermissions
             .filter { it.isReadPermission && it.uri.authority == EXTERNAL_STORAGE_AUTHORITY && DocumentsContract.isTreeUri(it.uri) }
         for (grant in trees) {
