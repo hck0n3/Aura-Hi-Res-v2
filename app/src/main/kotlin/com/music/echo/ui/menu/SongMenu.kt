@@ -110,6 +110,7 @@ import iad1tya.echo.music.ui.newui.toAuraDownloadItem
 import iad1tya.echo.music.ui.utils.ShowMediaInfo
 import iad1tya.echo.music.utils.deleteExportedVideo
 import iad1tya.echo.music.utils.makeTimeString
+import iad1tya.echo.music.utils.isCloudMediaId
 import iad1tya.echo.music.utils.isLocalMediaId
 import iad1tya.echo.music.utils.listItemShape
 import iad1tya.echo.music.utils.lookupExportedFileUri
@@ -180,6 +181,7 @@ fun SongMenu(
         exportedVideoIds.split(",").contains(song.id)
     }
     val isLocalTrack = song.song.isLocal || song.id.isLocalMediaId()
+    val isCloudTrack = song.id.isCloudMediaId()
     var showExportFormatDialog by rememberSaveable { mutableStateOf(false) }
 
     var refetchIconDegree by remember { mutableFloatStateOf(0f) }
@@ -557,7 +559,8 @@ fun SongMenu(
                         text = stringResource(R.string.add_to_playlist),
                         onClick = { ActionLog.tap(ActionId.SONGMENU_ADD_TO_PLAYLIST); showChoosePlaylistDialog = true }
                     ),
-                    NewAction(
+                    // Row 893: a cloud song has no link to share and no file on the phone: no «Compartir» for it.
+                    if (!isCloudTrack) NewAction(
                         icon = {
                             Icon(
                                 painter = painterResource(R.drawable.share),
@@ -583,7 +586,7 @@ fun SongMenu(
                                 onDismiss()
                             }
                         }
-                    )
+                    ) else null,
                 ),
                 columns = 3,
                 modifier = Modifier.padding(bottom = 12.dp)
@@ -905,7 +908,8 @@ fun SongMenu(
             )
         }
 
-        if (enableExportAsMp3) {
+        // Row 893: neither «Compartir» (no phone file) nor «Exportar» (a YouTube export) works for a cloud song.
+        if (enableExportAsMp3 && !isCloudTrack) {
             item { Spacer(modifier = Modifier.height(12.dp)) }
             item {
                 Material3MenuGroup(

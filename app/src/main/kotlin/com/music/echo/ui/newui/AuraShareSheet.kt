@@ -63,7 +63,8 @@ object ShareChoiceState {
     val request = mutableStateOf<ShareSongRequest?>(null)
 
     fun open(request: ShareSongRequest) {
-        if (request.songId.isBlank()) return
+        // Row 893: never a link or a YouTube export built from a cloud song's id.
+        if (request.songId.isBlank() || iad1tya.echo.music.cloud.CloudSongIds.isCloud(request.songId)) return
         this.request.value = request
     }
 

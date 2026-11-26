@@ -2399,7 +2399,8 @@ private fun AuraPlayerShape(
                         tint = AuraPalette.OnGround.copy(alpha = 0.7f),
                         modifier = Modifier.tvFocusable(isTvOrCar, CircleShape),
                     )
-                    AuraIconButton(
+                    // Row 893: a cloud song has nothing to share (no link, no phone file).
+                    if (!meta.id.isCloudMediaId()) AuraIconButton(
                         icon = AuraIcons.Share,
                         contentDescription = stringResource(R.string.share),
                         onClick = {

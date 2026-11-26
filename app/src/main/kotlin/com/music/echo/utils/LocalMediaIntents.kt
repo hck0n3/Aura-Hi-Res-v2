@@ -149,7 +149,8 @@ suspend fun shareSong(
     thumbnailUrl: String = "",
     hasVideo: Boolean = isExportedVideo,
 ): Boolean {
-    if (songId.isBlank()) return false
+    // Row 893: a cloud song has neither a catalogue link nor a phone file to send.
+    if (songId.isBlank() || songId.isCloudMediaId()) return false
     if (isLocalTrack && shareLocalAudio(context, songId)) return true
     // Row 520 (owner 2026-10-29): the choice — link, MP3, and video when the song has one — is asked EVERY time, here, for
     // every caller. [isExported] / [isExportedVideo] are only hints now: the sheet reads what is saved by itself.

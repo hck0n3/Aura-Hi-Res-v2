@@ -81,6 +81,7 @@ import iad1tya.echo.music.echomusic.AudioDeviceBottomSheet
 import iad1tya.echo.music.ui.player.rememberHidePlayerVolume
 import iad1tya.echo.music.ui.player.showPlayerVolumeControl
 import iad1tya.echo.music.utils.shareSong
+import iad1tya.echo.music.utils.isCloudMediaId
 import iad1tya.echo.music.utils.isLocalMediaId
 import iad1tya.echo.music.utils.needsOnlineBrowseResolution
 import iad1tya.echo.music.utils.rememberEnumPreference
@@ -776,7 +777,8 @@ fun AuraPlayerMenu(
                         onDismiss()
                     },
                 )
-                row(
+                // Row 893: a cloud song has nothing to share (no link, no phone file).
+                if (!mediaMetadata.id.isCloudMediaId()) row(
                     icon = AuraIcons.Share,
                     label = stringResource(R.string.share),
                     onClick = {

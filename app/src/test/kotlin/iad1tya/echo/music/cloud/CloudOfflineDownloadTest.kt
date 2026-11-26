@@ -72,6 +72,23 @@ class CloudOfflineDownloadTest {
     }
 
     @Test
+    fun `a cloud song is never shared as a catalogue link, a YouTube export or a phone file`() {
+        // The two common entry points refuse a cloud id, so no caller can build a link from it.
+        assertTrue(main("utils/LocalMediaIntents.kt").contains("if (songId.isBlank() || songId.isCloudMediaId()) return false"))
+        assertTrue(
+            main("ui/newui/AuraShareSheet.kt")
+                .contains("if (request.songId.isBlank() || iad1tya.echo.music.cloud.CloudSongIds.isCloud(request.songId)) return"),
+        )
+        // And the visible «Compartir» / «Exportar» are not offered for it.
+        assertTrue(main("ui/newui/AuraPlayer.kt").contains("if (!meta.id.isCloudMediaId()) AuraIconButton(\n                        icon = AuraIcons.Share,"))
+        assertTrue(main("ui/newui/AuraPlayerMenu.kt").contains("if (!mediaMetadata.id.isCloudMediaId()) row(\n                    icon = AuraIcons.Share,"))
+        val menu = main("ui/menu/SongMenu.kt")
+        assertTrue(menu.contains("val isCloudTrack = song.id.isCloudMediaId()"))
+        assertTrue(menu.contains("if (!isCloudTrack) NewAction(\n                        icon = {\n                            Icon(\n                                painter = painterResource(R.drawable.share),"))
+        assertTrue(menu.contains("if (enableExportAsMp3 && !isCloudTrack) {"))
+    }
+
+    @Test
     fun `the automatic download on like keeps its no-mobile-data rule for cloud songs too`() {
         val util = main("playback/DownloadUtil.kt")
         val like = util.substringAfter("fun downloadOnLike(").substringBefore("fun flushPendingLikeDownloads()")
