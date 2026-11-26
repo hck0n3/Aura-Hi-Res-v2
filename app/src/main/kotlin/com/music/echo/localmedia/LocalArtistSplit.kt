@@ -116,7 +116,7 @@ private val CollabSeparator = Regex("""\s+x\s+""")
 // « & the »: a band («Kool & the Gang», «Echo & the Bunnymen»), never two artists.
 private val AmpersandSeparator = Regex("""\s+&\s+(?!the\s)""", RegexOption.IGNORE_CASE)
 private val BandJoiner = Regex("""&|\band\b""", RegexOption.IGNORE_CASE)
-private val ProtectedToken = Regex("(\\d+)")
+private val ProtectedToken = Regex("\uE000(\\d+)\uE001")
 
 /**
  * Row 880: one artist tag -> the artists it names, by [rules]. A protected name (built in or the user's) is set aside
@@ -130,7 +130,7 @@ internal fun splitArtistNames(rawArtist: String, rules: LocalArtistSplitRules = 
         if (!masked.contains(rules.protectedNames[index], ignoreCase = true)) return@forEachIndexed
         masked = pattern.replace(masked) { match ->
             kept += match.value
-            "${kept.size - 1}"
+            "\uE000${kept.size - 1}\uE001"
         }
     }
     val separators = rules.separators
@@ -144,7 +144,7 @@ internal fun splitArtistNames(rawArtist: String, rules: LocalArtistSplitRules = 
         .splitEach(LocalArtistSeparator.AMPERSAND in separators, AmpersandSeparator)
         .flatMap { if (LocalArtistSeparator.COMMA in separators) splitCommaList(it) else listOf(it) }
         .map(::trimDanglingBracket)
-        .map { part -> ProtectedToken.replace(part) { kept[it.groupValues[1].toInt()] } }
+        .map { part -> ProtectedToken.replace(part) { kept.getOrNull(it.groupValues[1].toIntOrNull() ?: -1) ?: it.value } }
         .filter(String::isNotBlank)
         .ifEmpty { listOf(rawArtist) }
 }

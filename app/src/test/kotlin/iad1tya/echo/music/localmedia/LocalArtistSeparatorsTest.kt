@@ -70,6 +70,19 @@ class LocalArtistSeparatorsTest {
     }
 
     @Test
+    fun `digits in a tag are kept as they are, with or without a protected name`() {
+        listOf("Maroon 5", "U2", "blink-182", "50 Cent", "2Pac", "Sum 41", "The 1975", "10,000 Maniacs", "2147483648").forEach { name ->
+            assertEquals(name, listOf(name), splitArtistNames(name, all))
+            assertEquals(name, listOf(name), splitArtistNames(name, LocalArtistSplitRules.Default))
+        }
+        assertEquals(listOf("U2", "50 Cent"), splitArtistNames("U2 feat. 50 Cent", all))
+        assertEquals(listOf("AC/DC", "2Pac"), splitArtistNames("AC/DC feat. 2Pac", all))
+        assertEquals(listOf("Earth, Wind & Fire", "0"), splitArtistNames("Earth, Wind & Fire feat. 0", all))
+        assertEquals(listOf("Simon & Garfunkel", "Sum 41", "AC/DC"), splitArtistNames("Simon & Garfunkel; Sum 41; AC/DC", all))
+        assertEquals("a stray mask character is not a protected name", listOf("A\uE0007\uE001"), splitArtistNames("A\uE0007\uE001", all))
+    }
+
+    @Test
     fun `the user's own names are never split either`() {
         val rules = LocalArtistSplitRules(separators = LocalArtistSeparator.entries.toSet(), exceptions = setOf("Los Tigres / Del Norte", " Me & My "))
         assertEquals(listOf("Los Tigres / Del Norte"), splitArtistNames("Los Tigres / Del Norte", rules))
