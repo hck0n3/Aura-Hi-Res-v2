@@ -682,9 +682,11 @@ class MainActivity : ComponentActivity() {
     // it holds from the composition (RefreshImeHold).
     private var refreshHoldUnfocused = false
     private var refreshHoldIme = false
+    // A playing music video has no input either; at 60 Hz a 24 fps video needs 3:2 pulldown and judders.
+    private var refreshHoldVideo = false
 
     private fun updateRefreshHold() {
-        val held = refreshHoldUnfocused || refreshHoldIme
+        val held = refreshHoldUnfocused || refreshHoldIme || refreshHoldVideo
         if (refreshIdle.onHeld(held)) reapplyRefreshRate()
         if (!held) armRefreshIdle()
     }
@@ -702,6 +704,18 @@ class MainActivity : ComponentActivity() {
         val imeShown by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
         LaunchedEffect(imeShown) {
             refreshHoldIme = imeShown
+            updateRefreshHold()
+        }
+    }
+
+    @Composable
+    private fun RefreshVideoHold(playerConnection: PlayerConnection?) {
+        val none = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+        val videoMode by (playerConnection?.videoMode ?: none).collectAsState()
+        val playing by (playerConnection?.isPlaying ?: none).collectAsState()
+        val videoPlaying = videoMode && playing
+        LaunchedEffect(videoPlaying) {
+            refreshHoldVideo = videoPlaying
             updateRefreshHold()
         }
     }
@@ -910,6 +924,7 @@ class MainActivity : ComponentActivity() {
         }
         // Row 899: the keyboard holds the high request (its own child scope, so the root never recomposes for it).
         RefreshImeHold()
+        RefreshVideoHold(playerConnection)
 
         // ── "Interfaz nueva": the SHELL and the APP THEME both follow the flag ────────────────────
         // Read here, ABOVE echomusicTheme, and not (as it was) inside the theme's content lambda: by

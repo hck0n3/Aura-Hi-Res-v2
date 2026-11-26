@@ -80,6 +80,16 @@ class RefreshIdlePolicyTest {
         assertTrue(main.contains("        RefreshImeHold()\n"))
     }
 
+    @Test
+    fun `a playing music video holds it active, a paused one does not`() {
+        val main = src("MainActivity.kt")
+        assertTrue(main.contains("val held = refreshHoldUnfocused || refreshHoldIme || refreshHoldVideo"))
+        val video = main.substringAfter("private fun RefreshVideoHold(playerConnection: PlayerConnection?) {").substringBefore("override fun onResume()")
+        assertTrue(video.contains("val videoPlaying = videoMode && playing"))
+        assertTrue(video.contains("refreshHoldVideo = videoPlaying"))
+        assertTrue(main.contains("        RefreshVideoHold(playerConnection)\n"))
+    }
+
     // ── What is asked for ──
 
     @Test
