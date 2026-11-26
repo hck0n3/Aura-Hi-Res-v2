@@ -4,16 +4,23 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import iad1tya.echo.music.cloud.CloudAccountStatus
+import iad1tya.echo.music.cloud.CloudEntry
 import iad1tya.echo.music.cloud.CloudFailure
+import iad1tya.echo.music.cloud.CloudIndexPolicy
+import iad1tya.echo.music.cloud.CloudLibraryIndexer
 import iad1tya.echo.music.cloud.CloudLoginEvent
 import iad1tya.echo.music.cloud.CloudLoginMachine
 import iad1tya.echo.music.cloud.CloudLoginPolicy
 import iad1tya.echo.music.cloud.CloudLoginState
 import iad1tya.echo.music.cloud.CloudProvider
 import iad1tya.echo.music.cloud.CloudRepository
+import iad1tya.echo.music.di.ApplicationScope
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,7 +35,25 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class CloudAccountsViewModel @Inject constructor(
     private val repository: CloudRepository,
+    private val indexer: CloudLibraryIndexer,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel() {
+
+    /**
+     * Row 891: «Elegir carpetas de música» of one account. [folders] null while listing; [chosen] the folders ticked so
+     * far (saved only with «Guardar»). Only folders are listed, at most [CloudIndexPolicy.FOLDER_BROWSER_LIMIT].
+     */
+    data class FolderBrowser(
+        val provider: CloudProvider,
+        val path: String,
+        val folders: List<CloudEntry>? = null,
+        val truncated: Boolean = false,
+        val failed: Boolean = false,
+        val chosen: Set<String> = emptySet(),
+    )
+
+    /** Row 891: what the last «Actualizar» did ([songs] in the cloud library, [complete] = every chosen folder read). */
+    data class IndexResult(val songs: Int, val complete: Boolean)
 
     data class Ui(
         /** null while checking. */
@@ -39,6 +64,12 @@ class CloudAccountsViewModel @Inject constructor(
         val login: CloudLoginState = CloudLoginState.Idle,
         /** A refresh or a disconnect that did not work. */
         val problem: CloudFailure? = null,
+        /** Row 891: the folders chosen per account. */
+        val folders: Map<CloudProvider, List<String>> = emptyMap(),
+        val browser: FolderBrowser? = null,
+        val indexing: Boolean = false,
+        val indexResult: IndexResult? = null,
+        val indexFailed: Boolean = false,
     )
 
     private val _ui = MutableStateFlow(Ui())
@@ -46,8 +77,108 @@ class CloudAccountsViewModel @Inject constructor(
 
     private var loginJob: Job? = null
 
+    /** Row 891: the save and index started from this page; it runs in the app's scope, so leaving the page never cancels it. */
+    private var indexWork: Deferred<CloudLibraryIndexer.Summary>? = null
+
+    private fun indexBusy() = indexer.running.value || indexWork?.isActive == true
+
     init {
         refresh()
+        viewModelScope.launch { loadFolders() }
+        // An index that outlived an earlier visit to this page (or the automatic one) still shows as running.
+        viewModelScope.launch {
+            indexer.running.collect { _ui.update { it.copy(indexing = indexBusy()) } }
+        }
+    }
+
+    private suspend fun loadFolders() {
+        val folders = repository.chosenFolders()
+        _ui.update { ui -> ui.copy(folders = CloudProvider.entries.associateWith { folders[it.remoteName].orEmpty() }) }
+    }
+
+    /** Row 891: opens the folder browser of [provider] at the top of the account, with what is chosen ticked. */
+    fun openFolders(provider: CloudProvider) {
+        _ui.update { it.copy(browser = FolderBrowser(provider, "", chosen = it.folders[provider].orEmpty().toSet())) }
+        browse("")
+    }
+
+    /** Lists the folders inside [path] (one `operations/list`, folders only, bounded). */
+    fun browse(path: String) {
+        val browser = _ui.value.browser ?: return
+        _ui.update { it.copy(browser = browser.copy(path = path, folders = null, failed = false, truncated = false)) }
+        viewModelScope.launch {
+            val listed = try {
+                repository.list(browser.provider.remoteName, path).filter(CloudEntry::isDir).sortedBy { it.name.lowercase() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                null
+            }
+            _ui.update { ui ->
+                val current = ui.browser?.takeIf { it.provider == browser.provider && it.path == path } ?: return@update ui
+                ui.copy(
+                    browser = current.copy(
+                        folders = listed?.take(CloudIndexPolicy.FOLDER_BROWSER_LIMIT).orEmpty(),
+                        truncated = (listed?.size ?: 0) > CloudIndexPolicy.FOLDER_BROWSER_LIMIT,
+                        failed = listed == null,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun browseUp() {
+        val path = _ui.value.browser?.path ?: return
+        if (path.isNotEmpty()) browse(path.substringBeforeLast('/', missingDelimiterValue = ""))
+    }
+
+    fun toggleFolder(path: String) {
+        _ui.update { ui ->
+            val b = ui.browser ?: return@update ui
+            ui.copy(browser = b.copy(chosen = if (path in b.chosen) b.chosen - path else b.chosen + path))
+        }
+    }
+
+    fun closeFolders() {
+        _ui.update { it.copy(browser = null) }
+    }
+
+    /** «Guardar»: the choice is saved and the library is indexed right away (row 891: after choosing folders). */
+    fun saveFolders() {
+        val browser = _ui.value.browser ?: return
+        val chosen = CloudIndexPolicy.outermost(browser.chosen)
+        _ui.update { it.copy(browser = null, folders = it.folders + (browser.provider to chosen)) }
+        index(CloudLibraryIndexer.Trigger.FOLDERS_CHOSEN) { repository.saveFolders(browser.provider, chosen) }
+    }
+
+    /** «Actualizar música de la nube». */
+    fun indexNow() {
+        index(CloudLibraryIndexer.Trigger.USER)
+    }
+
+    /**
+     * Row 891: the work ([before], then the index) belongs to the app, not to this page — backing out of Ajustes ▸ Nube
+     * while it runs still saves the folders and writes the songs. This page only waits for the result to show it.
+     */
+    private fun index(trigger: CloudLibraryIndexer.Trigger, before: suspend () -> Unit = {}) {
+        if (_ui.value.indexing && trigger != CloudLibraryIndexer.Trigger.FOLDERS_CHOSEN) return
+        _ui.update { it.copy(indexing = true, indexFailed = false) }
+        val work = appScope.async {
+            before()
+            indexer.index(trigger)
+        }
+        indexWork = work
+        viewModelScope.launch {
+            try {
+                val summary = work.await()
+                _ui.update { it.copy(indexing = indexBusy(), indexResult = IndexResult(summary.songs, summary.complete)) }
+            } catch (e: CancellationException) {
+                if (work.isCancelled) _ui.update { it.copy(indexing = indexBusy()) }
+                throw e
+            } catch (e: Throwable) {
+                _ui.update { it.copy(indexing = indexBusy(), indexFailed = true) }
+            }
+        }
     }
 
     fun refresh() {

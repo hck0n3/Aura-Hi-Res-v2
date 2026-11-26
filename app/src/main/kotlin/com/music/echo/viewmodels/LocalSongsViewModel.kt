@@ -23,6 +23,7 @@ import iad1tya.echo.music.db.entities.Song
 import iad1tya.echo.music.extensions.filterExplicit
 import iad1tya.echo.music.extensions.toEnum
 import iad1tya.echo.music.R
+import iad1tya.echo.music.cloud.isCloudSongId
 import iad1tya.echo.music.localmedia.LocalLibraryAutoScan
 import iad1tya.echo.music.localmedia.LocalScanFailedException
 import iad1tya.echo.music.localmedia.LocalSongScanConfig
@@ -59,7 +60,8 @@ constructor(
     // Row 583 (owner 2026-10-31: «videos importados… están apartados en Local y ahí está lo que ya está en otro lado»): a scanned VIDEO file is
     // registered under Biblioteca ▸ «Vídeos exportados» by the scanner itself, so listing it here too showed the same file twice. Local keeps
     // the audio; the videos stay one tap away in their own shortcut.
-    val songs = database.localSongs().map { list -> list.filterNot { it.song.isVideo } }.stateIn(
+    // Row 891: cloud songs share isLocal = 1; Local stays what is on the phone (the scan's count matches it, row 855).
+    val songs = database.localSongs().map { list -> list.filterNot { it.song.isVideo } }.map { list -> list.filterNot { it.id.isCloudSongId() } }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
         emptyList(),

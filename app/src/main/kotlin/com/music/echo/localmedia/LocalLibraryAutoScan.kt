@@ -46,6 +46,7 @@ constructor(
     @ApplicationContext private val context: Context,
     private val scanner: LocalSongScanner,
     @ApplicationScope private val scope: CoroutineScope,
+    private val cloudIndexer: iad1tya.echo.music.cloud.CloudLibraryIndexer,
 ) {
     private val started = AtomicBoolean(false)
     // replay = 1: the app-start request is not lost if it is emitted before the collector subscribes.
@@ -53,6 +54,9 @@ constructor(
 
     /** App start (default process) and after the user's own successful scan. Idempotent. */
     fun ensureStarted() {
+        // Row 891: the cloud library's one automatic index per app start (only when stale, with folders chosen, on an
+        // unmetered network: CloudLibraryIndexer.indexIfStale), independent of the phone's library.
+        scope.launch(Dispatchers.IO) { cloudIndexer.indexIfStale() }
         if (started.get()) return
         scope.launch(Dispatchers.IO) {
             if (!runCatching { scanner.usesLocalLibrary() }.getOrDefault(false)) return@launch

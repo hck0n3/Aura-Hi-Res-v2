@@ -897,4 +897,21 @@
     <string name="cloud_error_denied">Access was not allowed. To connect, accept the permission on the sign-in page.</string>
     <string name="cloud_error_reconnect">The account needs to be connected again.</string>
     <string name="cloud_error_generic">Something went wrong. Try again.</string>
+    <string name="cloud_choose_folders">Choose music folders</string>
+    <string name="cloud_folders_none">No folder chosen</string>
+    <string name="cloud_folders_count">Folders chosen: %1$d</string>
+    <string name="cloud_folders_up">Up</string>
+    <string name="cloud_folders_this">This folder</string>
+    <string name="cloud_folders_whole">The whole cloud</string>
+    <string name="cloud_folders_empty">No folders here</string>
+    <string name="cloud_folders_truncated">Showing the first %1$d folders</string>
+    <string name="cloud_index_now">Update cloud music</string>
+    <string name="cloud_index_hint">Looks for new songs in the chosen folders</string>
+    <string name="cloud_index_running">Looking for your music in the cloud…</string>
+    <string name="cloud_index_done">%1$d songs in your cloud</string>
+    <string name="cloud_index_partial">Some folders could not be read; what was there is kept.</string>
+    <string name="cloud_play_reconnect">Connect your cloud again</string>
+    <string name="cloud_play_missing">This song is no longer in your cloud</string>
+    <string name="artist_source_phone">On your phone</string>
+    <string name="artist_source_cloud">In your cloud</string>
 </resources>

@@ -22,7 +22,7 @@ class CloudRcProtocolTest {
             "operations/deletefile", "operations/delete", "operations/purge", "operations/rmdir", "operations/rmdirs",
             "operations/mkdir", "operations/copyfile", "operations/movefile", "operations/uploadfile", "operations/copyurl",
             "operations/settier", "operations/cleanup", "sync/sync", "sync/copy", "sync/move", "sync/bisync",
-            "core/command", "options/set", "rc/noopauth", "serve/start", "mount/mount", "backend/command", "config/setpath",
+            "core/command", "options/set", "rc/noopauth", "serve/list", "serve/types", "serve/stop", "mount/mount", "backend/command", "config/setpath",
             "config/password", "config/dump", "config/get", "config/unlock",
         )
         for (method in writes) {
@@ -48,11 +48,42 @@ class CloudRcProtocolTest {
             setOf(
                 "core/version", "core/quit", "config/create", "config/update", "config/delete", "config/listremotes",
                 "config/oauthstatus", "config/oauthstop", "operations/list", "job/status", "job/stop",
+                // Row 891/892: the read-only HTTP serve the index and the player read files through.
+                "serve/start",
             ),
             RcAllowList.METHODS,
         )
-        assertTrue(RcAllowList.METHODS.none { it.startsWith("sync/") || it.startsWith("serve/") })
+        assertTrue(RcAllowList.METHODS.none { it.startsWith("sync/") })
+        assertEquals(listOf("serve/start"), RcAllowList.METHODS.filter { it.startsWith("serve/") })
         assertEquals(listOf("operations/list"), RcAllowList.METHODS.filter { it.startsWith("operations/") })
+    }
+
+    @Test
+    fun `a serve is always read-only, on loopback, behind its own credentials, with no listing or cache`() {
+        // Params read in cmd/serve/rc.go and cmd/serve/http/http.go of rclone v1.76.0; checked against that binary:
+        // a PUT answers 405, no credentials 401, a directory 404 (no listing), a Range request 206.
+        val call = RcRequests.serveStart("aura-onedrive", 40500, "u", "p")
+        assertEquals("serve/start", call.method)
+        val body = call.body
+        assertEquals("http", body.getString("type"))
+        assertEquals("aura-onedrive:", body.getString("fs"))
+        assertEquals("127.0.0.1:40500", body.getString("addr"))
+        assertEquals("u", body.getString("user"))
+        assertEquals("p", body.getString("pass"))
+        assertTrue(body.getBoolean("read_only"))
+        assertEquals("off", body.getString("vfs_cache_mode"))
+        assertTrue(body.getBoolean("disable_zip"))
+        assertTrue(body.getBoolean("disable_dir_list"))
+        assertEquals(setOf("type", "fs", "addr", "user", "pass", "read_only", "vfs_cache_mode", "disable_zip", "disable_dir_list"), body.keySet())
+        // The only place a serve is started: random port and credentials per serve, never logged.
+        val streams = File(root(), "app/src/main/kotlin/com/music/echo/cloud/CloudStreams.kt").readText()
+        assertTrue(streams.contains("val port = RcloneDaemon.freeLoopbackPort()"))
+        assertTrue(streams.contains("val user = RcloneDaemon.randomToken(16)"))
+        assertTrue(streams.contains("val pass = RcloneDaemon.randomToken(32)"))
+        assertFalse(streams.contains("Timber"))
+        val starters = File(root(), "app/src/main/kotlin/com/music/echo").walkTopDown().filter { it.extension == "kt" }
+            .filter { it.readText().contains("RcRequests.serveStart(") }.map { it.name }.toList()
+        assertEquals(listOf("CloudStreams.kt"), starters)
     }
 
     @Test

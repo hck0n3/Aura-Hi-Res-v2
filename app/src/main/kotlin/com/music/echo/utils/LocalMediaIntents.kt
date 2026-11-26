@@ -23,10 +23,16 @@ fun String.isLocalMediaId(): Boolean {
     return runCatching {
         when (toUri().scheme?.lowercase(Locale.US)) {
             "content", "file", "android.resource" -> true
+            // Row 892: a cloud song is the user's own file too, never a catalogue id: no video, radio, related or
+            // scrobble lookups by its id. It is NOT playable offline by itself ([isCloudMediaId]).
+            iad1tya.echo.music.cloud.CloudSongIds.SCHEME -> true
             else -> false
         }
     }.getOrDefault(false)
 }
+
+/** Row 892: a song of the user's cloud. Local in every sense but one: unless downloaded or cached, it needs the network. */
+fun String.isCloudMediaId(): Boolean = iad1tya.echo.music.cloud.CloudSongIds.isCloud(this)
 
 fun shareLocalAudio(
     context: Context,
@@ -143,7 +149,8 @@ suspend fun shareSong(
     thumbnailUrl: String = "",
     hasVideo: Boolean = isExportedVideo,
 ): Boolean {
-    if (songId.isBlank()) return false
+    // Row 893: a cloud song has neither a catalogue link nor a phone file to send.
+    if (songId.isBlank() || songId.isCloudMediaId()) return false
     if (isLocalTrack && shareLocalAudio(context, songId)) return true
     // Row 520 (owner 2026-10-29): the choice — link, MP3, and video when the song has one — is asked EVERY time, here, for
     // every caller. [isExported] / [isExportedVideo] are only hints now: the sheet reads what is saved by itself.

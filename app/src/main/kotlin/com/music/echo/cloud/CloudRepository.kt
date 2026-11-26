@@ -16,8 +16,8 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 
 /**
- * The private cloud, as the rest of Aura sees it (registry row 890). Wave 1: accounts and listing. Wave 2 fills
- * [serveHttpUrl] (streaming over 127.0.0.1 into the media3 cache) and adds the library.
+ * The private cloud, as the rest of Aura sees it (registry row 890). Wave 1: accounts and listing. Wave 2 (rows 891-894):
+ * the chosen music folders here, the library in [CloudLibraryIndexer], streaming in [CloudStreams].
  *
  * Every call starts the daemon on demand and lets it stop by itself when idle (row 888). Logs carry the provider and an
  * outcome only: never a path, a file name, a token, the sign-in URL or an account name (rule 4).
@@ -36,9 +36,13 @@ class CloudRepository @Inject constructor(
     suspend fun list(remote: String, path: String): List<CloudEntry> =
         rc { RcResponses.entries(it.call(RcRequests.list(remote, path))) }
 
-    /** Wave 2: the loopback HTTP url media3 streams [remote] from. Not served yet. */
-    @Suppress("UNUSED_PARAMETER", "FunctionOnlyReturningConstant")
-    fun serveHttpUrl(remote: String): String? = null
+    /** Row 891: remote name -> the music folders the user chose there. */
+    suspend fun chosenFolders(): Map<String, List<String>> = CloudLibraryStore.read(context).folders
+
+    /** Row 891: replaces the music folders of [provider]; nothing is indexed here ([CloudLibraryIndexer] does). */
+    suspend fun saveFolders(provider: CloudProvider, folders: List<String>) {
+        CloudLibraryStore.update(context) { it.copy(folders = it.folders + (provider.remoteName to folders)) }
+    }
 
     /** The account behind [provider] answers a listing of its root; null when it works. */
     suspend fun check(provider: CloudProvider): CloudFailure? = try {
