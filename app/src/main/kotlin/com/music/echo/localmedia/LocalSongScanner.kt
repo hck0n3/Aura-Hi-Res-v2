@@ -1104,6 +1104,12 @@ constructor(
             val id = file.documentUri
             val fingerprint = LocalFileFingerprint(sizeBytes = file.sizeBytes, modifiedEpochSeconds = file.lastModifiedMs / 1000L)
             val cached = remembered[id]?.takeIf { isUnchangedFile(it.fingerprint, fingerprint) }
+            // Row 881 (review repair): a remembered build obeys today's minimum too (a raised slider drops it, as the
+            // SQL floor drops a MediaStore file). Whole seconds against whole seconds: the same verdict as a fresh read.
+            if (cached != null && cached.record.durationSeconds * 1000L < minimumDurationMs) {
+                skippedShort++
+                continue
+            }
             if (cached != null) {
                 tracks += cached.record
                 fingerprints[id] = fingerprint

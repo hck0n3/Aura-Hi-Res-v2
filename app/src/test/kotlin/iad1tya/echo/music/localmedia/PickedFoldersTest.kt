@@ -98,6 +98,8 @@ class PickedFoldersTest {
         val picked = scanner.substringAfter("private fun pickedFolderTracks(").substringBefore("private fun mediaStoreIndexedKeys(")
         assertTrue(picked.contains("?: return PickedFolderTracks(unreadPrefixes = trees.mapNotNullTo(HashSet(), walker::folderPrefix))"))
         assertTrue("an unchanged walked file is not reopened", picked.indexOf("isUnchangedFile(it.fingerprint, fingerprint)") in 0 until picked.indexOf("extractId3Metadata("))
+        val floor = picked.indexOf("if (cached != null && cached.record.durationSeconds * 1000L < minimumDurationMs) {")
+        assertTrue("a remembered build obeys today's minimum duration", floor in 0 until picked.indexOf("tracks += cached.record"))
         assertTrue("what does not fit in the time keeps its folder", picked.contains("unread += file.folderPrefix"))
         assertTrue(picked.contains("job?.ensureActive()"))
         assertTrue(scanner.contains("const val PickedFolderBudgetMs = 60_000L"))
