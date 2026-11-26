@@ -203,6 +203,12 @@ fun AppearanceSettings(
         DefaultOpenTabKey,
         defaultValue = NavigationTab.HOME
     )
+    // Registry row 895: «Tipo de aparato». AUTO (the default) keeps the detection; the root reads the same key.
+    val (deviceFormChoice, onDeviceFormChoiceChange) = rememberEnumPreference(
+        iad1tya.echo.music.constants.DeviceFormChoiceKey,
+        defaultValue = iad1tya.echo.music.utils.DeviceFormChoice.AUTO
+    )
+    val detectedDeviceForm = iad1tya.echo.music.ui.utils.LocalDeviceForm.current?.detected
     val (playerButtonsStyle, onPlayerButtonsStyleChange) = rememberEnumPreference(
         PlayerButtonsStyleKey,
         defaultValue = PlayerButtonsStyle.DEFAULT
@@ -673,6 +679,24 @@ fun AppearanceSettings(
                     NavigationTab.LIBRARY -> stringResource(R.string.filter_library)
                 }
             }
+        )
+    }
+
+    var showDeviceFormDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    if (showDeviceFormDialog) {
+        EnumDialog(
+            onDismiss = { showDeviceFormDialog = false },
+            onSelect = {
+                onDeviceFormChoiceChange(it)
+                showDeviceFormDialog = false
+            },
+            title = stringResource(R.string.device_form_title),
+            current = deviceFormChoice,
+            values = iad1tya.echo.music.utils.DeviceFormChoice.entries,
+            valueText = { deviceFormChoiceText(it, detectedDeviceForm) },
         )
     }
 
@@ -1996,6 +2020,12 @@ fun AppearanceSettings(
                     onClick = { ActionLog.tap(ActionId.SETAPP_DEFAULT_OPEN_TAB); showDefaultOpenTabDialog = true }
                 ),
                 Material3SettingsItem(
+                    icon = painterResource(R.drawable.nav_bar),
+                    title = { Text(stringResource(R.string.device_form_title)) },
+                    description = { Text(deviceFormChoiceText(deviceFormChoice, detectedDeviceForm)) },
+                    onClick = { ActionLog.tap(ActionId.SETAPP_DEVICE_FORM); showDeviceFormDialog = true }
+                ),
+                Material3SettingsItem(
                     icon = painterResource(R.drawable.tab),
                     title = { Text(stringResource(R.string.default_lib_chips)) },
                     description = {
@@ -2259,4 +2289,31 @@ enum class LyricsPosition {
     LEFT,
     CENTER,
     RIGHT,
+}
+
+/** «Automático (ahora: Tablet)» or the form chosen by hand (registry row 895). */
+@Composable
+private fun deviceFormChoiceText(
+    choice: iad1tya.echo.music.utils.DeviceFormChoice,
+    detected: iad1tya.echo.music.utils.DeviceFormFactor?,
+): String = when (choice) {
+    iad1tya.echo.music.utils.DeviceFormChoice.AUTO ->
+        if (detected == null) {
+            stringResource(R.string.device_form_auto)
+        } else {
+            stringResource(R.string.device_form_auto_now, deviceFormFactorText(detected))
+        }
+    iad1tya.echo.music.utils.DeviceFormChoice.PHONE -> stringResource(R.string.device_form_phone)
+    iad1tya.echo.music.utils.DeviceFormChoice.TABLET -> stringResource(R.string.device_form_tablet)
+    iad1tya.echo.music.utils.DeviceFormChoice.FOLDABLE -> stringResource(R.string.device_form_foldable)
+    iad1tya.echo.music.utils.DeviceFormChoice.TV -> stringResource(R.string.device_form_tv)
+}
+
+@Composable
+private fun deviceFormFactorText(form: iad1tya.echo.music.utils.DeviceFormFactor): String = when (form) {
+    iad1tya.echo.music.utils.DeviceFormFactor.PHONE -> stringResource(R.string.device_form_phone)
+    iad1tya.echo.music.utils.DeviceFormFactor.TABLET -> stringResource(R.string.device_form_tablet)
+    iad1tya.echo.music.utils.DeviceFormFactor.FOLDABLE -> stringResource(R.string.device_form_foldable)
+    iad1tya.echo.music.utils.DeviceFormFactor.TV -> stringResource(R.string.device_form_tv)
+    iad1tya.echo.music.utils.DeviceFormFactor.CAR -> stringResource(R.string.device_form_car)
 }

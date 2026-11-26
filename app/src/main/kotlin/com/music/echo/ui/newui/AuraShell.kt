@@ -1611,8 +1611,8 @@ private fun Modifier.pointerInputSwipe(
     )
 }
 
-/** Registry row 823: one log code per bottom-bar tab. */
-private fun auraNavTap(screen: Screens) {
+/** Registry row 823: one log code per bottom-bar tab (row 895: the TV rail logs the same codes). */
+internal fun auraNavTap(screen: Screens) {
     when (screen) {
         Screens.Home -> ActionLog.tap(ActionId.NAV_HOME)
         Screens.Novedades -> ActionLog.tap(ActionId.NAV_NOVEDADES)
