@@ -219,8 +219,9 @@ class CloudLibraryIndexer @Inject constructor(
         database.withTransaction {
             // Row 882: an orphan whose file reappeared under another path (same size, title, album, duration; one-to-one)
             // hands its likes, play time, playlist entries, history, play counts and lyrics to the new row. A row that
-            // already exists only receives when nothing of the user's hangs on it yet.
-            val missing = orphans.values.map { old ->
+            // already exists only receives when nothing of the user's hangs on it yet. Row 893: a DOWNLOADED orphan never
+            // moves — its bytes are keyed by its own id in the download cache, so it stays (and plays offline) where it is.
+            val missing = orphans.values.filterNot { it.song.isDownloaded || it.song.dateDownload != null }.map { old ->
                 iad1tya.echo.music.localmedia.LocalSongIdentity(
                     id = old.song.id,
                     isVideo = false,

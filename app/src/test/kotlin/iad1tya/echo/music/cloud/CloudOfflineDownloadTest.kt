@@ -61,6 +61,17 @@ class CloudOfflineDownloadTest {
     }
 
     @Test
+    fun `a downloaded cloud song whose file moved keeps its row, flag and bytes under its own id`() {
+        val indexer = main("cloud/CloudLibraryIndexer.kt")
+        // Only orphans without a download are offered to the row-882 move; a downloaded one stays (kept) where its bytes are.
+        assertTrue(indexer.contains("val missing = orphans.values.filterNot { it.song.isDownloaded || it.song.dateDownload != null }.map { old ->"))
+        assertTrue(indexer.contains("val verdict = matchMovedLocalSongs(missing, appeared)"))
+        // A kept orphan is never deleted while downloaded, and a receiving row only takes data when nothing hangs on it.
+        assertTrue(indexer.contains("!it.song.isDownloaded && it.song.dateDownload == null"))
+        assertTrue(indexer.contains("val unusedTaken = unusedIds(takenRows.values)"))
+    }
+
+    @Test
     fun `the automatic download on like keeps its no-mobile-data rule for cloud songs too`() {
         val util = main("playback/DownloadUtil.kt")
         val like = util.substringAfter("fun downloadOnLike(").substringBefore("fun flushPendingLikeDownloads()")
