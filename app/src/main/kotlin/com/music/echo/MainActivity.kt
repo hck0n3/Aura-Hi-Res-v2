@@ -678,11 +678,14 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         noteRefreshInput()
+        iad1tya.echo.music.utils.JankReport.setTracking(true)
     }
 
     override fun onPause() {
         refreshIdleHandler.removeCallbacks(refreshIdleTimeout)
         refreshIdle.onHidden()
+        iad1tya.echo.music.utils.JankReport.setTracking(false)
+        iad1tya.echo.music.utils.JankReport.flush()
         super.onPause()
     }
 
@@ -749,6 +752,8 @@ class MainActivity : ComponentActivity() {
             }
             }
         }
+        // Row 899: frame / jank counts per screen, DEBUG builds only (no-op in release).
+        iad1tya.echo.music.utils.JankReport.attach(window)
     }
 
     /**
@@ -1105,6 +1110,8 @@ class MainActivity : ComponentActivity() {
                 val currentRoute by remember {
                     derivedStateOf { navBackStackEntry?.destination?.route }
                 }
+                // Row 899: the route TEMPLATE names the screen for the debug-only jank counts (no-op in release).
+                LaunchedEffect(currentRoute) { iad1tya.echo.music.utils.JankReport.onRoute(currentRoute) }
 
                 val inSearchScreen by remember {
                     derivedStateOf { currentRoute?.startsWith("search/") == true }

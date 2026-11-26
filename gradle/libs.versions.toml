@@ -37,6 +37,7 @@ desugaring = "2.1.5"
 junit = "4.13.2"
 timber = "5.0.1"
 zxing = "3.5.4"
+metricsPerformance = "1.0.0"
 materialKolor = "5.0.1"
 kuromojiIpadic = "0.9.0"
 pipepipeextractor = "bba8d84453"
@@ -140,6 +141,7 @@ junit = { module = "junit:junit", version.ref = "junit" }
 
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+androidx-metrics-performance = { module = "androidx.metrics:metrics-performance", version.ref = "metricsPerformance" }
 
 pipepipeextractor = { module = "com.github.maxrave-dev:PipePipeExtractor", version.ref = "pipepipeextractor" }
 bravenewpipeextractor = { module = "com.github.maxrave-dev:BravePipeExtractor", version.ref = "bravenewpipeextractor" }
