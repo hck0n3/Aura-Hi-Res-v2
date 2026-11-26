@@ -244,15 +244,12 @@ constructor(
         val autoStamp = currentAutoScanStamp(scanConfig)
         val cacheHeader = currentScanCacheHeader()
         val scanCache = readScanCache()
-        val remembered = if (
+        val cacheUsable =
             localScanCacheUsable(scanCache?.header, cacheHeader, fullRescan, versionRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-        ) {
-            scanCache?.tracks.orEmpty().associateBy { it.record.id }
-        } else {
-            emptyMap()
-        }
+        val remembered = if (cacheUsable) scanCache?.tracks.orEmpty().associateBy { it.record.id } else emptyMap()
+        val rememberedSkipped = if (cacheUsable) scanCache?.skippedFiles.orEmpty().associateBy(SkippedLocalFile::id) else emptyMap()
         val snapshot = try {
-            queryTracks(scanConfig, remembered, currentCoroutineContext()[Job])
+            queryTracks(scanConfig, remembered, currentCoroutineContext()[Job], rememberedSkipped)
         } catch (e: CancellationException) {
             throw e
         } catch (e: LocalScanFailedException) {
@@ -493,6 +490,7 @@ constructor(
                 tracks = snapshot.tracks.mapNotNull { track ->
                     snapshot.fingerprints[track.id]?.let { CachedLocalTrack(fingerprint = it, record = track) }
                 },
+                skippedFiles = snapshot.skippedFiles,
             ),
         )
 
@@ -764,6 +762,7 @@ constructor(
         scanConfig: LocalSongScanConfig,
         remembered: Map<String, CachedLocalTrack> = emptyMap(),
         job: Job? = null,
+        rememberedSkipped: Map<String, SkippedLocalFile> = emptyMap(),
     ): LocalScanSnapshot {
         val sanitizedMinimumDurationMs = scanConfig.sanitizedMinimumDurationSeconds.toLong() * 1000L
         val sanitizedExcludedFolders = scanConfig.sanitizedExcludedFolders
@@ -1036,7 +1035,7 @@ constructor(
         }
 
         // Row 881: the audio in the picked folders that MediaStore does not index, found by walking them.
-        val picked = pickedFolderTracks(scanConfig, remembered, job)
+        val picked = pickedFolderTracks(scanConfig, remembered, job, rememberedSkipped)
         tracks += picked.tracks
         fingerprints += picked.fingerprints
         reusedIds += picked.reusedIds
@@ -1069,6 +1068,7 @@ constructor(
             fingerprints = fingerprints,
             reusedIds = reusedIds,
             unreadFolderPrefixes = picked.unreadPrefixes,
+            skippedFiles = picked.skipped,
         )
     }
 
@@ -1082,6 +1082,7 @@ constructor(
         scanConfig: LocalSongScanConfig,
         remembered: Map<String, CachedLocalTrack>,
         job: Job?,
+        rememberedSkipped: Map<String, SkippedLocalFile>,
     ): PickedFolderTracks {
         val trees = scanConfig.includedTreeUris.filter(String::isNotBlank)
         if (trees.isEmpty()) return PickedFolderTracks()
@@ -1095,6 +1096,7 @@ constructor(
         val tracks = ArrayList<LocalTrackRecord>()
         val fingerprints = HashMap<String, LocalFileFingerprint>()
         val reusedIds = HashSet<String>()
+        val skipped = ArrayList<SkippedLocalFile>()
         var skippedShort = 0
         val minimumDurationMs = scanConfig.sanitizedMinimumDurationSeconds * 1000L
         val unknownArtist = context.getString(R.string.unknown_artist)
@@ -1103,6 +1105,13 @@ constructor(
             job?.ensureActive()
             val id = file.documentUri
             val fingerprint = LocalFileFingerprint(sizeBytes = file.sizeBytes, modifiedEpochSeconds = file.lastModifiedMs / 1000L)
+            // Row 881 (review repair): an unchanged file left out last time as too short is not opened again.
+            val skippedBefore = rememberedSkipped[id]
+            if (skippedBefore != null && skipsAgainUnopened(skippedBefore, fingerprint, minimumDurationMs)) {
+                skippedShort++
+                skipped += skippedBefore
+                continue
+            }
             val cached = remembered[id]?.takeIf { isUnchangedFile(it.fingerprint, fingerprint) }
             // Row 881 (review repair): a remembered build obeys today's minimum too (a raised slider drops it, as the
             // SQL floor drops a MediaStore file). Whole seconds against whole seconds: the same verdict as a fresh read.
@@ -1124,6 +1133,7 @@ constructor(
             val durationMs = tags?.durationMs ?: 0L
             if (durationMs <= 0L || durationMs < minimumDurationMs) {
                 skippedShort++
+                skipped += SkippedLocalFile(id = id, fingerprint = fingerprint, durationMs = durationMs.coerceAtLeast(0L))
                 continue
             }
             val artists = splitArtistNames(normalizeArtistName(tags?.artist, unknownArtist))
@@ -1149,7 +1159,7 @@ constructor(
             )
             fingerprints[id] = fingerprint
         }
-        return PickedFolderTracks(tracks, fingerprints, reusedIds, unread, skippedShort)
+        return PickedFolderTracks(tracks, fingerprints, reusedIds, unread, skippedShort, skipped)
     }
 
     /** Row 881: every audio file MediaStore lists, as [mediaStoreDocumentKey]s. Null when it cannot be read. */
@@ -1379,6 +1389,8 @@ constructor(
         val reusedIds: Set<String> = emptySet(),
         /** Row 881: picked folders not walked completely; the songs under them that were not seen are kept. */
         val unreadFolderPrefixes: Set<String> = emptySet(),
+        /** Row 881: picked-folder files left out as too short or unreadable, remembered so they are not reopened. */
+        val skippedFiles: List<SkippedLocalFile> = emptyList(),
     )
 
     private class PickedFolderTracks(
@@ -1387,6 +1399,7 @@ constructor(
         val reusedIds: Set<String> = emptySet(),
         val unreadPrefixes: Set<String> = emptySet(),
         val skippedShort: Int = 0,
+        val skipped: List<SkippedLocalFile> = emptyList(),
     )
 
     /** Row 881: what the last successful scan built, file by file (`local_scan_tracks.json`). */
@@ -1395,6 +1408,7 @@ constructor(
         val header: LocalScanCacheHeader,
         val autoStamp: String? = null,
         val tracks: List<CachedLocalTrack> = emptyList(),
+        val skippedFiles: List<SkippedLocalFile> = emptyList(),
     )
 
     @Serializable

@@ -46,6 +46,25 @@ class LocalScanIncrementalTest {
     }
 
     @Test
+    fun `a picked-folder file left out as too short is not reopened while unchanged, unless the minimum drops`() {
+        val fp = LocalFileFingerprint(sizeBytes = 10, modifiedEpochSeconds = 100)
+        val short = SkippedLocalFile(id = "doc", fingerprint = fp, durationMs = 12_000)
+        assertTrue(skipsAgainUnopened(short, fp.copy(), minimumDurationMs = 30_000))
+        assertFalse("the slider went down: read it again", skipsAgainUnopened(short, fp, minimumDurationMs = 10_000))
+        assertFalse("the file changed: read it again", skipsAgainUnopened(short, fp.copy(modifiedEpochSeconds = 101), 30_000))
+        assertFalse(skipsAgainUnopened(null, fp, 30_000))
+        val unreadable = short.copy(durationMs = 0)
+        assertTrue("no readable duration stays out until it changes or a full rescan", skipsAgainUnopened(unreadable, fp, 0))
+        val scanner = text("app/src/main/kotlin/com/music/echo/localmedia/LocalSongScanner.kt")
+        val picked = scanner.substringAfter("private fun pickedFolderTracks(").substringBefore("private fun mediaStoreIndexedKeys(")
+        val again = picked.indexOf("if (skippedBefore != null && skipsAgainUnopened(skippedBefore, fingerprint, minimumDurationMs)) {")
+        assertTrue("checked before any tag read", again in 0 until picked.indexOf("extractId3Metadata("))
+        assertTrue(picked.contains("skipped += SkippedLocalFile(id = id, fingerprint = fingerprint, durationMs = durationMs.coerceAtLeast(0L))"))
+        assertTrue("a full rescan forgets them too", scanner.contains("val rememberedSkipped = if (cacheUsable) scanCache?.skippedFiles.orEmpty()"))
+        assertTrue(scanner.contains("skippedFiles = snapshot.skippedFiles,"))
+    }
+
+    @Test
     fun `the automatic scan stamp moves with MediaStore and with the scan settings`() {
         val config = LocalSongScanConfig(minimumDurationSeconds = 30, includedFolders = setOf("Music/Rock"))
         val stamp = localAutoScanStamp(mapOf("external_primary" to "v1:10", "1a2b-3c4d" to "v2:5"), config)
@@ -115,6 +134,7 @@ class LocalScanIncrementalTest {
         val write = scan.indexOf("writeScanCache(")
         assertTrue(write > scan.indexOf("database.withTransaction {"))
         assertTrue("a full rescan reuses nothing", scan.contains("localScanCacheUsable(scanCache?.header, cacheHeader, fullRescan,"))
+        assertTrue(scan.contains("val remembered = if (cacheUsable) scanCache?.tracks.orEmpty().associateBy { it.record.id } else emptyMap()"))
         assertTrue(scanner.contains("File(context.noBackupFilesDir, \"local_scan_tracks.json\")"))
     }
 

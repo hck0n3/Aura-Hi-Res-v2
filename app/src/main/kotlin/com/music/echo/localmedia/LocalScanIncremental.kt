@@ -55,6 +55,23 @@ internal fun isUnchangedFile(remembered: LocalFileFingerprint?, current: LocalFi
     remembered != null && current.sizeBytes > 0L && remembered == current
 
 /**
+ * Row 881 (review repair): a picked-folder file the scan left out as shorter than the minimum or with no readable
+ * duration, remembered so the next scan does not open it again (AGENTS rule 7).
+ */
+@Serializable
+internal data class SkippedLocalFile(
+    val id: String,
+    val fingerprint: LocalFileFingerprint,
+    /** What the tag read measured; 0 when it could not say. */
+    val durationMs: Long,
+)
+
+/** An unchanged file skipped last time is skipped again unopened, unless today's lower minimum would now take it. */
+internal fun skipsAgainUnopened(remembered: SkippedLocalFile?, current: LocalFileFingerprint, minimumDurationMs: Long): Boolean =
+    remembered != null && isUnchangedFile(remembered.fingerprint, current) &&
+        (remembered.durationMs <= 0L || remembered.durationMs < minimumDurationMs)
+
+/**
  * Android 11+: MediaStore's version and generation of every volume, plus the scan settings. When an automatic scan
  * (app start, MediaStore change) finds the same stamp as the last successful scan, nothing it reads can have changed.
  * Null when any part is unknown: the automatic scan then runs.
