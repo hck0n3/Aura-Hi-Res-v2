@@ -5,9 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -26,6 +30,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────────
 // Plan «Fase 6.3» (row 897): the TV remote / D-pad on EVERY screen of the Aura UI.
@@ -107,6 +112,26 @@ private suspend fun requestFocusWithRetry(requester: FocusRequester) {
     }
 }
 
+/**
+ * The in-window modal panels open now, oldest first. Composition runs on the main thread, so no lock. Pure, for test.
+ */
+internal class TvModalStack<T : Any> {
+    private val open = ArrayList<T>()
+
+    fun opened(panel: T) {
+        open.add(panel)
+    }
+
+    /** Forgets [panel]; returns the panel that gets the focus back — the new top — only when [panel] WAS the top. */
+    fun closed(panel: T): T? {
+        val wasTop = open.lastOrNull() === panel
+        open.remove(panel)
+        return if (wasTop) open.lastOrNull() else null
+    }
+}
+
+private val tvModalPanels = TvModalStack<() -> Unit>()
+
 /** A D-pad / Tab move — the only focus changes a modal panel refuses to let out. Pure, for test. */
 fun isDirectionalFocusMove(direction: FocusDirection): Boolean =
     direction == FocusDirection.Left || direction == FocusDirection.Right ||
@@ -120,14 +145,24 @@ fun isDirectionalFocusMove(direction: FocusDirection): Boolean =
  * (the panel's own back callback), and programmatic focus changes (clear on dismiss, a text field) are never
  * refused — so it is modal, not a trap. [initialFocus]: a control inside the panel to land on instead of its first
  * one — for a panel whose first control is a text field, which would raise the keyboard over the panel at once.
+ * A panel opened OVER another one (a dialog from the ⋯ menu) takes the focus away and clears it when it closes; the
+ * panel left on top then takes it back, or the next D-pad press would start from the screen under the scrim.
  */
 @Composable
 fun Modifier.tvModalFocusGroup(key: Any? = Unit, initialFocus: FocusRequester? = null): Modifier {
     if (!rememberAuraTvFocus()) return this
     val requester = remember { FocusRequester() }
+    val currentInitialFocus by rememberUpdatedState(initialFocus)
     // Keyed by what the panel shows: a sheet that swaps its page in place (a menu opening its sub-menu) disposes the
     // focused row, so the focus is handed to the new page instead of being left on nothing.
     LaunchedEffect(key) { requestFocusWithRetry(initialFocus ?: requester) }
+    // Only when a panel closes, never while one is open (bounded retry, nothing per frame).
+    val scope = rememberCoroutineScope()
+    DisposableEffect(requester) {
+        val regainFocus: () -> Unit = { scope.launch { requestFocusWithRetry(currentInitialFocus ?: requester) } }
+        tvModalPanels.opened(regainFocus)
+        onDispose { tvModalPanels.closed(regainFocus)?.invoke() }
+    }
     return this
         .focusRequester(requester)
         .focusProperties {

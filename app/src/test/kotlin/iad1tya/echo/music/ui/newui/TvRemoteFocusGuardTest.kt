@@ -3,12 +3,15 @@ package iad1tya.echo.music.ui.newui
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.unit.LayoutDirection
+import iad1tya.echo.music.ui.utils.TvModalStack
 import iad1tya.echo.music.ui.utils.holdsElementOf
 import iad1tya.echo.music.ui.utils.isDirectionalFocusMove
 import iad1tya.echo.music.ui.utils.tvTrailingIsRight
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -158,6 +161,11 @@ class TvRemoteFocusGuardTest {
         assertTrue(modal.contains("onExit = { if (isDirectionalFocusMove(requestedFocusDirection)) cancelFocusChange() }"))
         assertTrue(modal.contains("if (!rememberAuraTvFocus()) return this"))
         assertTrue(modal.contains("LaunchedEffect(key) { requestFocusWithRetry(initialFocus ?: requester) }"))
+        // A dialog closing over a menu that stays open hands the focus back to the menu (only at close, bounded).
+        assertTrue(modal.contains("DisposableEffect(requester) {"))
+        assertTrue(modal.contains("tvModalPanels.opened(regainFocus)"))
+        assertTrue(modal.contains("onDispose { tvModalPanels.closed(regainFocus)?.invoke() }"))
+        assertTrue(modal.contains("scope.launch { requestFocusWithRetry(currentInitialFocus ?: requester) }"))
         assertTrue(dialog.contains("override fun handleOnBackPressed() {"))
     }
 
@@ -222,6 +230,21 @@ class TvRemoteFocusGuardTest {
         }
         assertFalse("requestFocus / clearFocus are never refused", isDirectionalFocusMove(FocusDirection.Enter))
         assertFalse(isDirectionalFocusMove(FocusDirection.Exit))
+    }
+
+    @Test
+    fun `closing the top panel gives the focus back to the one under it, closing one underneath does not`() {
+        val stack = TvModalStack<String>()
+        stack.opened("menu")
+        stack.opened("dialog")
+        assertSame("menu", stack.closed("dialog"))
+        assertNull("the last panel closed: nothing to give the focus to", stack.closed("menu"))
+
+        stack.opened("menu")
+        stack.opened("dialog")
+        assertNull("a menu closing under its dialog takes nothing", stack.closed("menu"))
+        assertNull(stack.closed("dialog"))
+        assertNull("closing a panel never opened is harmless", stack.closed("unknown"))
     }
 
     @Test
