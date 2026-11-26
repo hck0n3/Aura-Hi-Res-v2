@@ -1269,6 +1269,10 @@ val EqFftMeterEnabledKey = booleanPreferencesKey("eq_fft_meter_enabled")
 // video decode capped to 1280p, next-song preload off, video mode disabled, smaller buffers/image cache) while
 // AUDIO fidelity (EQ/Safe Volume/normalization) is untouched. Auto-enabled on first launch on LOW-tier / TV / car.
 val HighPerformanceModeKey = booleanPreferencesKey("high_performance_mode")
+// Registry row 898 (plan phase 7): the performance class picked in Ajustes ▸ Rendimiento (PerformanceClassChoice name;
+// absent = AUTO), and the class the one-time seed used (absent = the seed has not run on this install yet).
+val PerformanceClassChoiceKey = stringPreferencesKey("performance_class_choice")
+val PerformanceClassSeededKey = stringPreferencesKey("performance_class_seeded_v1")
 // One-tap "Improve low quality": declipper + HF regeneration for low-bitrate/distorted tracks. Off by default.
 val AudioEnhanceEnabledKey = booleanPreferencesKey("audio_enhance_low_quality")
 val PreloadNextSongEnabledKey = booleanPreferencesKey("preload_next_song_enabled")

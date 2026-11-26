@@ -972,6 +972,11 @@ fun Lyrics(
             if (perfOn) {
                 tick()
                 delay(120)
+            } else if (!playerConnection.player.isPlaying) {
+                // Row 899: paused, the position only moves on a seek, so the clock is sampled at the same ~8 Hz as the
+                // Performance mode instead of on every display frame (a seek while paused still moves the highlight).
+                tick()
+                delay(120)
             } else {
                 withFrameMillis { tick() }
             }

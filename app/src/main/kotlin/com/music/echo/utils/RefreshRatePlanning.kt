@@ -32,13 +32,18 @@ object RefreshRatePlanning {
      * The best mode at the CURRENT resolution (a mode with another resolution would resize the panel's framebuffer):
      * the highest rate not above [ceilingHz]; when every mode is above it, the lowest there is. Falls back to every
      * mode if none shares the resolution. `null` only for an empty list.
+     *
+     * Row 899: [floorHz] (0 = none, the previous behaviour exactly) keeps the choice at or above it: with no mode
+     * between the floor and the ceiling, the lowest mode at or above the floor, and only then the lowest there is.
      */
-    fun pick(modes: List<RefreshMode>, current: RefreshMode, ceilingHz: Float): RefreshMode? {
+    fun pick(modes: List<RefreshMode>, current: RefreshMode, ceilingHz: Float, floorHz: Float = 0f): RefreshMode? {
         val sameSize = modes.filter { it.width == current.width && it.height == current.height }
         val pool = sameSize.ifEmpty { modes }
         if (pool.isEmpty()) return null
         // +0.5: a "60 Hz" mode is reported as 59.99 on several panels.
-        val allowed = pool.filter { it.hz <= ceilingHz + 0.5f }
-        return allowed.maxByOrNull { it.hz } ?: pool.minByOrNull { it.hz }
+        val allowed = pool.filter { it.hz <= ceilingHz + 0.5f && it.hz >= floorHz - 0.5f }
+        return allowed.maxByOrNull { it.hz }
+            ?: pool.filter { it.hz >= floorHz - 0.5f }.minByOrNull { it.hz }
+            ?: pool.minByOrNull { it.hz }
     }
 }

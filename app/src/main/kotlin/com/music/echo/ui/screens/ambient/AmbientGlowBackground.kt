@@ -87,16 +87,11 @@ fun AmbientGlowBackground(
         modifier = modifier
     ) { colors ->
         if (colors.isNotEmpty()) {
-            val infiniteTransition = rememberInfiniteTransition(label = "GlowAnimation")
-
-            val progress by infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(20000, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                ),
-                label = "glowProgress"
+            // Row 899: the glow used to move on every vsync for as long as this screen was open, also with the music
+            // paused. It now stops where it is while paused (or with motion reduced) and goes on from there.
+            val progress by iad1tya.echo.music.ui.newui.rememberAuraLoopPhase(
+                running = iad1tya.echo.music.ui.newui.rememberMusicLoopRuns(),
+                periodMs = 20000,
             )
 
             fun rotatedColorAt(index: Int): Color {

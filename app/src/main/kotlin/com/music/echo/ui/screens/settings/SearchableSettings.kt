@@ -588,6 +588,7 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.share_song_link_summary), "Contenido", "settings/content"),
             Triple(stringResource(R.string.immersive_canvas_on_rotate), "Rendimiento", "settings/performance"),
             Triple(stringResource(R.string.immersive_canvas_on_rotate_desc), "Rendimiento", "settings/performance"),
+            Triple(stringResource(R.string.perf_class_choice_title), "Rendimiento", "settings/performance"),
             Triple(stringResource(R.string.send_playback_metrics_title), "Scrobbling", "settings/lastfm"),
             Triple(stringResource(R.string.send_playback_metrics_description), "Scrobbling", "settings/lastfm"),
             Triple(stringResource(R.string.cipher_applied_configs), "Descifrado de reproducción", "settings/youtube_decryption"),

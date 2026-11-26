@@ -40,7 +40,11 @@ object DeviceCapabilities {
         } else {
             0
         }
+        return classify(lowRam = lowRam, totalRamMb = totalRamMb, cores = cores, perfClass = perfClass)
+    }
 
+    /** Pure, for tests (registry row 898): the tier from the four signals [compute] reads. */
+    internal fun classify(lowRam: Boolean, totalRamMb: Int, cores: Int, perfClass: Int): DeviceTier {
         // RAM is the primary signal — but MemoryInfo.totalMem reports PHYSICAL ram minus kernel/reserved
         // carveouts, so a nominal 4 GB phone reports ~3.6–3.9 GB and a 6 GB phone ~5.5–5.8 GB. Thresholds
         // are set against those REPORTED values (not the nominal capacity). Cores are only a fallback when RAM

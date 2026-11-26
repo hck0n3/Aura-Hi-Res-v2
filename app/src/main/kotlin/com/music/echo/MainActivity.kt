@@ -57,6 +57,7 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
@@ -93,7 +94,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -619,13 +619,119 @@ class MainActivity : ComponentActivity() {
     // Compose's pointer dispatch into a rare NullPointerException deep in obfuscated framework code,
     // which would otherwise take down the whole app on a single tap. Dropping one stray touch is far
     // better than crashing the session, so we log and continue instead of propagating.
-    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean =
-        try {
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        noteRefreshTouch(ev)
+        return try {
             super.dispatchTouchEvent(ev)
         } catch (e: Exception) {
             timber.log.Timber.e(e, "Swallowed touch-dispatch exception")
             false
         }
+    }
+
+    // ── Row 899: high refresh while interacting, 60 Hz at rest (RefreshIdlePolicy) ──────────────────────────────────
+    // Only DOWN / UP / CANCEL are looked at (not every MOVE), and the idle side is ONE delayed callback that every input
+    // re-arms: nothing runs while the user is not touching the app.
+    private val refreshIdle = iad1tya.echo.music.utils.RefreshIdlePolicy()
+    private val refreshIdleHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val refreshIdleTimeout = Runnable { if (refreshIdle.onIdleTimeout()) reapplyRefreshRate() }
+    // Null until the composition has read the «alta tasa de refresco» switch; nothing is asserted before that.
+    private var refreshEnabled: Boolean? = null
+    private var refreshSystemCeiling = iad1tya.echo.music.utils.RefreshRatePlanning.NO_CEILING
+
+    private fun armRefreshIdle() {
+        refreshIdleHandler.removeCallbacks(refreshIdleTimeout)
+        refreshIdleHandler.postDelayed(refreshIdleTimeout, iad1tya.echo.music.utils.RefreshIdlePolicy.IDLE_MS)
+    }
+
+    private fun reapplyRefreshRate() {
+        val enabled = refreshEnabled ?: return
+        val active = refreshIdle.active || !iad1tya.echo.music.utils.RefreshIdlePolicy.restAllowed(Build.VERSION.SDK_INT)
+        applyPreferredRefreshRate(
+            enabled,
+            iad1tya.echo.music.utils.RefreshIdlePolicy.ceilingHz(active, refreshSystemCeiling),
+            iad1tya.echo.music.utils.RefreshIdlePolicy.floorHz(active),
+            activeCeilingHz = refreshSystemCeiling,
+        )
+    }
+
+    private fun noteRefreshTouch(ev: android.view.MotionEvent) {
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> if (refreshIdle.onTouchDown()) reapplyRefreshRate()
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                if (refreshIdle.onTouchEnd()) reapplyRefreshRate()
+                armRefreshIdle()
+            }
+        }
+    }
+
+    private fun noteRefreshInput() {
+        if (refreshIdle.onOtherInput()) reapplyRefreshRate()
+        armRefreshIdle()
+    }
+
+    // Called by the platform for every key, D-pad, trackball and generic-motion event (and a touch DOWN).
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        noteRefreshInput()
+    }
+
+    // Row 899: a dialog, bottom sheet or menu is its own window, so its touches never reach dispatchTouchEvent; the
+    // activity window losing focus to it holds the high request until it closes. The keyboard does not take focus, so
+    // it holds from the composition (RefreshImeHold).
+    private var refreshHoldUnfocused = false
+    private var refreshHoldIme = false
+    // A playing music video has no input either; at 60 Hz a 24 fps video needs 3:2 pulldown and judders.
+    private var refreshHoldVideo = false
+
+    private fun updateRefreshHold() {
+        val held = refreshHoldUnfocused || refreshHoldIme || refreshHoldVideo
+        if (refreshIdle.onHeld(held)) reapplyRefreshRate()
+        if (!held) armRefreshIdle()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        refreshHoldUnfocused = !hasFocus
+        updateRefreshHold()
+    }
+
+    @Composable
+    private fun RefreshImeHold() {
+        val density = LocalDensity.current
+        val ime = WindowInsets.ime
+        val imeShown by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
+        LaunchedEffect(imeShown) {
+            refreshHoldIme = imeShown
+            updateRefreshHold()
+        }
+    }
+
+    @Composable
+    private fun RefreshVideoHold(playerConnection: PlayerConnection?) {
+        val none = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+        val videoMode by (playerConnection?.videoMode ?: none).collectAsState()
+        val playing by (playerConnection?.isPlaying ?: none).collectAsState()
+        val videoPlaying = videoMode && playing
+        LaunchedEffect(videoPlaying) {
+            refreshHoldVideo = videoPlaying
+            updateRefreshHold()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        noteRefreshInput()
+        iad1tya.echo.music.utils.JankReport.setTracking(true)
+    }
+
+    override fun onPause() {
+        refreshIdleHandler.removeCallbacks(refreshIdleTimeout)
+        refreshIdle.onHidden()
+        iad1tya.echo.music.utils.JankReport.setTracking(false)
+        iad1tya.echo.music.utils.JankReport.flush()
+        super.onPause()
+    }
 
     @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
     @OptIn(ExperimentalMaterial3Api::class)
@@ -693,6 +799,8 @@ class MainActivity : ComponentActivity() {
             }
             }
         }
+        // Row 899: frame / jank counts per screen, DEBUG builds only (no-op in release).
+        iad1tya.echo.music.utils.JankReport.attach(window)
     }
 
     /**
@@ -706,6 +814,8 @@ class MainActivity : ComponentActivity() {
     private fun applyPreferredRefreshRate(
         enableHighRefreshRate: Boolean,
         ceilingHz: Float = iad1tya.echo.music.utils.RefreshRatePlanning.NO_CEILING,
+        floorHz: Float = 0f,
+        activeCeilingHz: Float = ceilingHz,
     ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val layoutParams = window.attributes
@@ -713,11 +823,25 @@ class MainActivity : ComponentActivity() {
             fun Display.Mode.plan() = iad1tya.echo.music.utils.RefreshMode(modeId, physicalWidth, physicalHeight, refreshRate)
             // With the setting off the request is the 60 Hz bucket; with it on, the panel's best mode that the
             // device's CURRENT state (battery saver, heat) allows — see [RefreshRatePlanning].
-            val target = iad1tya.echo.music.utils.RefreshRatePlanning.pick(
-                modes = display.supportedModes.map { it.plan() },
+            val modes = display.supportedModes.map { it.plan() }
+            var target = iad1tya.echo.music.utils.RefreshRatePlanning.pick(
+                modes = modes,
                 current = display.mode.plan(),
                 ceilingHz = if (enableHighRefreshRate) ceilingHz else 60f,
+                // Row 899: the rest floor only applies with the switch on (off keeps its own 60 Hz bucket exactly).
+                floorHz = if (enableHighRefreshRate) floorHz else 0f,
             )
+            // Row 899: going to rest must never blank the panel. A rest switch the current mode cannot make seamlessly
+            // (API 31+ tells) asks for what interacting asks for instead — which still honours battery saver and heat.
+            if (enableHighRefreshRate && floorHz > 0f && target != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                !iad1tya.echo.music.utils.RefreshIdlePolicy.seamless(
+                    display.mode.refreshRate,
+                    target.hz,
+                    display.mode.alternativeRefreshRates.toList(),
+                )
+            ) {
+                target = iad1tya.echo.music.utils.RefreshRatePlanning.pick(modes, display.mode.plan(), activeCeilingHz)
+            }
             // Re-asserting the same mode is pointless and, since a window-attribute change can itself raise
             // onDisplayChanged, is exactly how a listener would loop on itself.
             if (target != null && layoutParams.preferredDisplayModeId != target.id) {
@@ -766,7 +890,6 @@ class MainActivity : ComponentActivity() {
                 (context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true,
             )
         }
-        var displayTick by remember { mutableIntStateOf(0) }
         DisposableEffect(Unit) {
             iad1tya.echo.music.utils.ThermalManager.acquire(context)
             val receiver = object : BroadcastReceiver() {
@@ -784,7 +907,9 @@ class MainActivity : ComponentActivity() {
             val listener = object : android.hardware.display.DisplayManager.DisplayListener {
                 override fun onDisplayAdded(displayId: Int) {}
                 override fun onDisplayRemoved(displayId: Int) {}
-                override fun onDisplayChanged(displayId: Int) { displayTick++ }
+                // Row 899: re-asserted right here on the main thread, not through a state the root composable reads:
+                // the rest/active switches change the display mode themselves, and each one would recompose the root.
+                override fun onDisplayChanged(displayId: Int) { reapplyRefreshRate() }
             }
             dm?.registerDisplayListener(listener, null)
             onDispose {
@@ -794,9 +919,15 @@ class MainActivity : ComponentActivity() {
             }
         }
         val refreshCeiling = iad1tya.echo.music.utils.RefreshRatePlanning.ceilingHz(powerSave, thermalStatus)
-        LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling, displayTick) {
-            applyPreferredRefreshRate(enableHighRefreshRate, refreshCeiling)
+        LaunchedEffect(enableHighRefreshRate, configuration, refreshCeiling) {
+            // Row 899: the same request, now also following interaction vs rest (reapplyRefreshRate reads the policy).
+            refreshEnabled = enableHighRefreshRate
+            refreshSystemCeiling = refreshCeiling
+            reapplyRefreshRate()
         }
+        // Row 899: the keyboard holds the high request (its own child scope, so the root never recomposes for it).
+        RefreshImeHold()
+        RefreshVideoHold(playerConnection)
 
         // ── "Interfaz nueva": the SHELL and the APP THEME both follow the flag ────────────────────
         // Read here, ABOVE echomusicTheme, and not (as it was) inside the theme's content lambda: by
@@ -1032,6 +1163,8 @@ class MainActivity : ComponentActivity() {
                 val currentRoute by remember {
                     derivedStateOf { navBackStackEntry?.destination?.route }
                 }
+                // Row 899: the route TEMPLATE names the screen for the debug-only jank counts (no-op in release).
+                LaunchedEffect(currentRoute) { iad1tya.echo.music.utils.JankReport.onRoute(currentRoute) }
 
                 val inSearchScreen by remember {
                     derivedStateOf { currentRoute?.startsWith("search/") == true }

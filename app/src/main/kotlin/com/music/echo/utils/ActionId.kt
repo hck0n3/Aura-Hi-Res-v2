@@ -1371,6 +1371,7 @@ enum class ActionId(val code: String) {
 
     // ── Settings ▸ Performance ──
     SETPERF_BACK("UI.SETPERF.BACK"),
+    SETPERF_CLASS("UI.SETPERF.CLASS"),
 
     // ── Settings ▸ Player and audio ──
     SETPLR_CROSSFADE_BETA_CANCEL("UI.SETPLR.CROSSFADE_BETA_CANCEL"),

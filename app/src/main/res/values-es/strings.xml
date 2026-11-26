@@ -860,4 +860,14 @@
     <!-- Fila 896 (plan, fase 6.2): «Pantalla» del reproductor en modo TV. -->
     <string name="player_screen_mode">Pantalla</string>
     <string name="player_screen_cover">Portada</string>
+    <string name="perf_class_entry">Entrada</string>
+    <string name="perf_class_balanced">Equilibrada</string>
+    <string name="perf_class_premium">Premium</string>
+    <string name="perf_class_detected">Clase detectada: %1$s</string>
+    <string name="perf_class_detected_form">Clase detectada: %1$s · %2$s</string>
+    <string name="perf_class_form_tv">Android TV</string>
+    <string name="perf_class_form_car">pantalla de auto</string>
+    <string name="perf_class_choice_title">Clase de rendimiento</string>
+    <string name="perf_class_choice_desc">En uso: %1$s. Al elegir una clase se aplican sus ajustes (Modo alto rendimiento, lienzo animado y Liquid Glass); después puedes cambiar cada uno.</string>
+    <string name="perf_class_auto_value">Automático (%1$s)</string>
 </resources>
