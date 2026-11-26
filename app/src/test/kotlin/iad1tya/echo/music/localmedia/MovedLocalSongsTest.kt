@@ -97,8 +97,11 @@ class MovedLocalSongsTest {
         val move = transaction.indexOf("val moved = moveRenamedLocalSongs(missingOnMountedVolumes,")
         assertTrue("moves are matched only among songs the volume guard lets go", move > transaction.indexOf("splitMissingByVolume("))
         assertTrue("moves run before the delete", move in 0 until transaction.indexOf("removable.chunked(SqlBatchSize).forEach(::deleteSongsByIds)"))
-        assertTrue("ambiguous songs are kept unless the user confirmed the removal", transaction.contains("val ambiguousKept = if (removeMissing) emptyList() else missingOnMountedVolumes.filter(moved.ambiguous::contains)"))
-        assertTrue(transaction.contains("val kept = keptOnVolume + ambiguousKept"))
+        val kept = transaction.substringAfter("val keptUnconfirmed = when {").substringBefore("val removable =")
+        assertTrue("the confirmed removal keeps nothing", kept.contains("removeMissing -> emptyList()"))
+        assertTrue("ambiguous songs are kept unless the user confirmed the removal", kept.contains("else -> missingOnMountedVolumes.filter(moved.ambiguous::contains)"))
+        assertTrue(transaction.contains("val removable = missingOnMountedVolumes - keptUnconfirmed.toSet()"))
+        assertTrue(transaction.contains("val kept = keptOnVolume + keptUnconfirmed"))
         assertTrue("a moved song is not counted as removed", scanner.contains("removedSongs = removable.size - moved.moves.size,"))
 
         val helper = scanner.substringAfter("private suspend fun moveRenamedLocalSongs(").substringBefore("private suspend fun loadSongs(")

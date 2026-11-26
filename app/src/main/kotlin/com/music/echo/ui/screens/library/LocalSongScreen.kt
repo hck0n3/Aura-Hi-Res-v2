@@ -320,6 +320,7 @@ fun LocalSongScreen(
                 }
             },
             onRemoveMissing = { viewModel.scanDevice(scanConfig, removeMissing = true) },
+            onFullRescan = { viewModel.scanDevice(scanConfig, fullRescan = true) },
         )
     }
 
@@ -793,6 +794,7 @@ private fun LocalSongScanSheet(
     onDismiss: () -> Unit,
     onPrimaryAction: () -> Unit,
     onRemoveMissing: () -> Unit,
+    onFullRescan: () -> Unit,
 ) {
     val lastSummary = scanState.lastSummary
     val hasError = scanState.errorMessage != null
@@ -1182,6 +1184,23 @@ private fun LocalSongScanSheet(
                         )
                     }
                 }
+            }
+
+            // Row 881: the scan above reopens only the files that changed; this one reads every file again.
+            if (hasStoragePermission) {
+                TextButton(
+                    onClick = { ActionLog.tap(ActionId.LOCAL_SCAN_FULL); onFullRescan() },
+                    enabled = !scanState.isScanning,
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    Text(text = stringResource(R.string.local_songs_full_rescan), textAlign = TextAlign.Center)
+                }
+                Text(
+                    text = stringResource(R.string.local_songs_full_rescan_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
             }
 
             AnimatedVisibility(

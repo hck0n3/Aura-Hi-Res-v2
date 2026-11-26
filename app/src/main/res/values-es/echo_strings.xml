@@ -1479,4 +1479,6 @@
     </plurals>
     <string name="proxy_local_network_needed">Android pide permiso de red local para usar este proxy. Toca para darlo.</string>
     <string name="proxy_local_network_notice">Android bloquea tu proxy de la red local hasta que des el permiso: sin él, no carga nada en línea.</string>
+    <string name="local_songs_full_rescan">Volver a leer todos los archivos</string>
+    <string name="local_songs_full_rescan_desc">El escaneo solo vuelve a abrir los archivos que cambiaron desde el anterior. Úsalo si una canción sigue mostrando datos antiguos.</string>
 </resources>
