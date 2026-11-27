@@ -143,6 +143,7 @@ class LibrarySyncGuardTest {
         val s = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
         assertTrue("the journal is dated before a page of the room is weighed against it", s.contains("// Row 900: what was journaled before this page competes with it by when it was made, not by when it arrives.\n        convertJournalLocked()"))
         assertTrue("an op carries its id", s.contains("add(JsonPrimitive(LibrarySyncCore.opId(r)))"))
+        assertTrue("«Aplicar» is not journaled as the user's own removal", s.contains("store.append(released)\n        // Row 900: what «Aplicar» removed came from the room, not from the user: the journal's baseline follows it.\n        if (apply) followBaselineLocked(released)"))
         assertTrue("only acknowledged ops stop being pending", s.contains("if (done != null && LibrarySyncCore.opId(sent) !in done) {\n                refused += sent.key\n                continue"))
         assertTrue(
             "what a full room turned down is not resent on every pass",

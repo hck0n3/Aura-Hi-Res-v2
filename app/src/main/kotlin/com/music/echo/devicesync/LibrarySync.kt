@@ -539,6 +539,8 @@ class LibrarySync(
         }
         released.forEach { ledger[it.key] = it }
         store.append(released)
+        // Row 900: what «Aplicar» removed came from the room, not from the user: the journal's baseline follows it.
+        if (apply) followBaselineLocked(released)
         Timber.tag(TAG).i("LIB_SYNC held removals resolved apply=%b count=%d", apply, held.size)
         if (!apply && connected && pulledOnce && isEnabled()) pushDiffLocked()
         publishHeldLocked()

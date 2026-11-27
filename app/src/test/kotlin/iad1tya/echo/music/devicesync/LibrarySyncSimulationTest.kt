@@ -1635,6 +1635,32 @@ class LibrarySyncSimulationTest {
     }
 
     @Test
+    fun `Aplicar after a restart offline is not journaled as the user's own removal, so a newer re-add elsewhere still wins`() {
+        val tablet = roomRemovedThreeLikes()
+        val phone = Device("phone")
+        repeat(3) { phone.backend.like("w$it") }
+        phone.connect()
+        eventually("held") { phone.ledger.stored.values.count { LibrarySyncCore.isHeld(it) } == 3 }
+        settle()
+        phone.disconnect(); phone.sync.stop()
+        val restarted = Device("phone", backend = phone.backend, ledger = phone.ledger, since = phone.since, journal = phone.journal)
+        restarted.sync.start()
+        settle()
+        // While the phone is away, the tablet likes w0 again.
+        tablet.backend.like("w0"); tablet.changed()
+        eventually("the room has w0 again") { room.value("lk:w0") == "1" }
+        // The restarted phone, still offline, applies the held removals.
+        assertEquals(3, runBlocking { restarted.sync.resolveHeld(apply = true) })
+        restarted.changed()
+        settle()
+        assertTrue("what the sync removed is not a change of the user's", restarted.journal.load().none { it.key.startsWith("lk:w") })
+        restarted.connect()
+        eventually("w0 comes back here: the tablet's like is newer than the removal") { "w0" in restarted.backend.likes }
+        settle()
+        assertTrue("and stays on the tablet", "w0" in tablet.backend.likes)
+    }
+
+    @Test
     fun `Aplicar on a first pairing removes the old copies here too`() {
         roomRemovedThreeLikes()
         val phone = Device("phone")
