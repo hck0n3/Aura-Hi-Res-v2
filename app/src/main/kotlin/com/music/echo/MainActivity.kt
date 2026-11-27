@@ -3528,6 +3528,18 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        // Row 907: the TV's sign-in QR (echomusic://tvlogin?c=…) read by any camera app. It only opens «Iniciar sesión en la TV»
+        // with the code filled in; that screen names the TV and sends nothing until the user taps «Enviar sesión».
+        if (uri.scheme == "echomusic" && uri.host.equals("tvlogin", ignoreCase = true)) {
+            val normalized = iad1tya.echo.music.tvlink.TvLinkCode.fromLink(uri.toString())
+            if (normalized == null) {
+                android.widget.Toast.makeText(this, R.string.tvlink_invalid_link, android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                runCatching { navController.navigate("settings/accounts/tv_link_send?code=$normalized") { launchSingleTop = true } }
+            }
+            return
+        }
+
         val coroutineScope = lifecycle.coroutineScope
 
         // Local audio files (content:// or file://) opened from file manager, downloads, or external apps

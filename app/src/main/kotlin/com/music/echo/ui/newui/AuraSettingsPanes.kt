@@ -56,6 +56,8 @@ val AURA_SETTINGS_PANE_CHILDREN: Map<String, String> = mapOf(
     "settings/content/hidden" to "settings/content",
     "settings/sound/autoeq" to "settings/sound",
     "settings/accounts/subscription_cleanup" to "settings/accounts",
+    "settings/accounts/tv_link_receive" to "settings/accounts",
+    "settings/accounts/tv_link_send" to "settings/accounts",
     "settings/device_sync/held" to "settings/device_sync",
 )
 

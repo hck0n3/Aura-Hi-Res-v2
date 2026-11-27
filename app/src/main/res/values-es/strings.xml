@@ -876,4 +876,34 @@
     <string name="fidelity_mode_tempo_locked">El Modo Fidelidad está activo: el tempo y el tono se quedan en 1,0× para no alterar el audio. Desactívalo en Ajustes ▸ Sonido para cambiarlos.</string>
     <string name="fidelity_mode_eq_banner_title">El ecualizador está en pausa</string>
     <string name="fidelity_mode_eq_banner_desc">El Modo Fidelidad está activo, así que nada de esta pantalla cambia lo que oyes. Tus ajustes se guardan y vuelven a aplicarse al apagarlo en Ajustes ▸ Sonido.</string>
+    <!-- Fila 907 del registro: iniciar sesión en la TV con un QR (un solo uso, cifrado de extremo a extremo) -->
+    <string name="tvlink_receive_title">Iniciar sesión con el móvil</string>
+    <string name="tvlink_receive_desc">Muestra un código QR: tu móvil te envía su sesión, sin escribir la contraseña en la TV</string>
+    <string name="tvlink_send_title">Iniciar sesión en la TV</string>
+    <string name="tvlink_send_desc">Envía la sesión de este móvil a una TV que muestre un código de Aura</string>
+    <string name="tvlink_receive_howto">En tu móvil, con la sesión iniciada en Aura, escanea este QR con la cámara. O abre Ajustes ▸ Cuentas ▸ Iniciar sesión en la TV y escribe el código.</string>
+    <string name="tvlink_receive_privacy">El código sirve una sola vez y caduca en 2 minutos. Solo esta TV puede abrir lo que envía tu móvil: el servidor de Aura lo pasa sin poder leerlo.</string>
+    <string name="tvlink_connecting">Conectando…</string>
+    <string name="tvlink_waiting">Esperando a tu móvil…</string>
+    <string name="tvlink_signing_in">Sesión recibida de «%1$s». Iniciando sesión…</string>
+    <string name="tvlink_signed_in">Sesión iniciada con la de «%1$s»</string>
+    <string name="tvlink_sign_in_failed">No se pudo comprobar la sesión. Vuelve a intentarlo con un código nuevo.</string>
+    <string name="tvlink_expired">El código caducó.</string>
+    <string name="tvlink_used">Este código ya se usó.</string>
+    <string name="tvlink_disconnected">Se perdió la conexión.</string>
+    <string name="tvlink_new_code">Código nuevo</string>
+    <string name="tvlink_reconnect">Reconectar</string>
+    <string name="tvlink_code_label">Código que muestra la TV</string>
+    <string name="tvlink_send_howto">En la TV, abre Ajustes ▸ Cuentas ▸ Iniciar sesión con el móvil; luego escanea su QR con la cámara de este móvil o escribe aquí su código.</string>
+    <string name="tvlink_continue">Continuar</string>
+    <string name="tvlink_checking">Comprobando el código…</string>
+    <string name="tvlink_confirm">«%1$s» quiere iniciar sesión con tu cuenta de Google. Envía la sesión solo si ese aparato es tuyo y lo tienes delante.</string>
+    <string name="tvlink_send">Enviar sesión</string>
+    <string name="tvlink_sent">Sesión enviada a «%1$s».</string>
+    <string name="tvlink_sent_later">Sesión lista para «%1$s»: la TV la recibe en cuanto se reconecte, antes de 2 minutos.</string>
+    <string name="tvlink_err_no_link">Ninguna TV espera con ese código. Revísalo o muestra un código nuevo en la TV.</string>
+    <string name="tvlink_err_wrong_code">Ese código no coincide con el de la TV.</string>
+    <string name="tvlink_err_used">Ese código ya se usó. Muestra uno nuevo en la TV.</string>
+    <string name="tvlink_err_network">No se pudo conectar con el servidor de Aura. Revisa tu conexión.</string>
+    <string name="tvlink_invalid_link">Ese QR no es un código de TV válido</string>
 </resources>

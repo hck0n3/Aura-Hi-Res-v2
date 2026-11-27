@@ -167,6 +167,17 @@
                 <data android:host="pair" />
             </intent-filter>
 
+            <!-- Row 907: the TV's one-use sign-in QR opens «Iniciar sesión en la TV» on the phone (it sends nothing on its own). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="echomusic" />
+                <data android:host="tvlogin" />
+            </intent-filter>
+
             <!-- Tidal OAuth (PKCE) redirect for the playlist migration importer -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

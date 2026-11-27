@@ -635,6 +635,11 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // Registry row 813: «Revisar suscripciones», a row of Ajustes ▸ Cuentas (shown only while signed in).
             Triple(stringResource(R.string.sub_cleanup_title), "Cuentas", "settings/accounts"),
             Triple(stringResource(R.string.sub_cleanup_desc), "Cuentas", "settings/accounts"),
+            // Registry row 907: «Iniciar sesión con el móvil» (TV or no session) and «Iniciar sesión en la TV» (signed in), rows of Cuentas.
+            Triple(stringResource(R.string.tvlink_receive_title), "Cuentas", "settings/accounts"),
+            Triple(stringResource(R.string.tvlink_receive_desc), "Cuentas", "settings/accounts"),
+            Triple(stringResource(R.string.tvlink_send_title), "Cuentas", "settings/accounts"),
+            Triple(stringResource(R.string.tvlink_send_desc), "Cuentas", "settings/accounts"),
             // Registry row 890: the rows of «Nube (OneDrive y Dropbox)». Its title is the Ajustes index row itself
             // (Cuentas y sincronización), so it is not echoed here (INDEX-ECHO RULE).
             Triple(stringResource(R.string.cloud_connect_onedrive), stringResource(R.string.cloud_title), "settings/cloud"),

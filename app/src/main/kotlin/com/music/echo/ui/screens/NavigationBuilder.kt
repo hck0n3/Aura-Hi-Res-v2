@@ -416,6 +416,27 @@ fun NavGraphBuilder.navigationBuilder(
         }
     }
 
+    // Registry row 907: «Iniciar sesión con el móvil» (the TV shows a one-use QR) and «Iniciar sesión en la TV» (the phone sends).
+    composable("settings/accounts/tv_link_receive") {
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.TvLinkReceiveScreen(navController, scrollBehavior)
+        }
+    }
+
+    composable(
+        route = "settings/accounts/tv_link_send?code={code}",
+        arguments = listOf(
+            navArgument("code") {
+                type = NavType.StringType
+                nullable = true
+            },
+        ),
+    ) {
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.TvLinkSendScreen(navController, scrollBehavior, it.arguments?.getString("code"))
+        }
+    }
+
     // Registry row 890: «Nube (OneDrive y Dropbox)», from Ajustes ▸ Cuentas y sincronización.
     composable("settings/cloud") {
         AuraSettingsPaneFrame(navController, it) {

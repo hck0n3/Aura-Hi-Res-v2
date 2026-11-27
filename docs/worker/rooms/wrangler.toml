@@ -10,3 +10,12 @@ class_name = "Room"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
+
+# Row 907: «Iniciar sesión en la TV» — one-shot relay of an end-to-end sealed session (the Worker never holds the key).
+[[durable_objects.bindings]]
+name = "TVLINK"
+class_name = "TvLink"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["TvLink"]

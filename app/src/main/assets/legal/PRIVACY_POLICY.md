@@ -21,7 +21,7 @@ This is the English translation of the privacy policy of **Aura Hi-Res v2** (the
 - What you play, pause and skip, and your listening history (for the statistics and for the recommendations computed on the device itself).
 - Your playlists, likes, search history, settings and downloads.
 - Access to your local music files.
-- Cookies and session tokens of the third-party services you sign in to. They are **not included** in backups or in sync.
+- Cookies and session tokens of the third-party services you sign in to. They are **not included** in backups or in sync. They only leave your device if you send your Google session to your TV with "Sign in on the TV" (section 2), end-to-end encrypted.
 - The purchase e-mail, if you type it when activating the licence.
 
 You erase all of it by clearing the App's data or uninstalling it. Whatever has already been sent to our services (section 2) is erased as explained in section 6.
@@ -40,6 +40,7 @@ We run four online services on Cloudflare's infrastructure: the licence server (
 | Aura services: **smart-queue AI second opinion** (**off by default**) | Title and artist of what is playing and of the doubtful candidate songs, up to four style names, the language and whether it is Christian music. Your IP. | Only if you turn it on. | The content is not stored. The IP, for at most 48 hours. |
 | **Device sync** (turns itself on when you activate the licence **with the purchase e-mail**, or when you pair with a code; turned off in Settings ▸ Sincronizar dispositivos) | Your likes and dislikes, your playlist names and the title, artist and cover of their songs; your device names; what is playing (title, artist, cover and position). Your group is identified by an encrypted fingerprint (SHA-256) of your key and e-mail, or of your code. It does **not** store accounts, cookies, the e-mail or the key. | While it is on. | For as long as your group exists. You can ask us to delete it. |
 | **Listen Together: Aura rooms** (the only Listen Together server) | The name you choose, the room code and the data of the songs playing in it and in the host's queue (identifier, title, artist, album, duration and cover). | Only when you create or join a room. | An empty room is deleted after **5 minutes**. |
+| Aura rooms: **Sign in on the TV** | Your Google account session (the cookies and session identifiers the App keeps) that your phone sends to your TV, **encrypted on the phone** with a key that exists only in the TV's QR code and never reaches the server, and the model of both devices, encrypted the same way. The server only sees a fingerprint (SHA-256) of the code and can neither read nor change what passes through. | Only when, on the phone, you tap "Send session" after scanning or typing the code the TV shows. | Delivered **once** and deleted; nothing lasts more than **2 minutes**. |
 | **Song recognition** (relay) | An audio signature computed from the microphone. | Only while you use recognition, and only if the direct connection to Shazam fails. | It is forwarded to Shazam; we do not store it. |
 
 ## 3. What third parties receive
@@ -97,7 +98,7 @@ In Honduras, **article 182 of the Constitution** recognises the guarantee of **h
 
 ## 7. Security
 
-Communications with our services are encrypted (HTTPS). Cloud backups are encrypted on your device (AES-256-GCM) before they are sent. Your sync group and your cloud-backup identifier are encrypted fingerprints that do not reveal your secret. No system is perfectly secure; if we detect an incident affecting your data, we will announce it in the App.
+Communications with our services are encrypted (HTTPS). Cloud backups are encrypted on your device (AES-256-GCM) before they are sent, and so is the session you send to your TV, with a key that exists only in the TV's code. Your sync group and your cloud-backup identifier are encrypted fingerprints that do not reveal your secret. No system is perfectly secure; if we detect an incident affecting your data, we will announce it in the App.
 
 ## 8. Children
 

@@ -21,7 +21,7 @@ Esta es la versión principal de la política de privacidad de **Aura Hi-Res v2*
 - Lo que escuchas, pausas y saltas, y tu historial de escucha (para las estadísticas y las recomendaciones que se calculan en el propio dispositivo).
 - Tus listas, tus me gusta, tu historial de búsqueda, tus ajustes y tus descargas.
 - El acceso a tus archivos de música locales.
-- Las cookies y los tokens de sesión de los servicios de terceros en los que inicies sesión. **No se incluyen** en las copias de seguridad ni en la sincronización.
+- Las cookies y los tokens de sesión de los servicios de terceros en los que inicies sesión. **No se incluyen** en las copias de seguridad ni en la sincronización. Solo salen de tu dispositivo si tú envías tu sesión de Google a tu TV con «Iniciar sesión en la TV» (apartado 2), cifrada de extremo a extremo.
 - El correo de la compra, si lo escribes al activar la licencia.
 
 Lo borras todo borrando los datos de la aplicación o desinstalándola. Lo que ya se haya enviado a nuestros servicios (apartado 2) se borra como se explica en el apartado 6.
@@ -40,6 +40,7 @@ Operamos cuatro servicios en línea sobre la infraestructura de Cloudflare: el s
 | Servicios Aura: **segunda opinión de IA de la cola** (**desactivada por defecto**) | Título y artista de lo que suena y de las canciones candidatas dudosas, hasta cuatro estilos, el idioma y si es música cristiana. Tu IP. | Solo si la activas. | El contenido no se guarda. La IP, un máximo de 48 horas. |
 | **Sincronización entre dispositivos** (se activa sola al activar la licencia **con el correo de la compra**, o al emparejar con un código; se apaga en Ajustes ▸ Sincronizar dispositivos) | Tus me gusta y no me gusta, los nombres de tus listas y el título, artista y portada de sus canciones; los nombres de tus dispositivos; lo que está sonando (título, artista, portada y posición). Tu grupo se identifica con una huella cifrada (SHA-256) de tu clave y tu correo, o de tu código. **No** guarda cuentas, cookies, el correo ni la clave. | Mientras está activa. | Mientras exista tu grupo. Puedes pedirnos que lo borremos. |
 | **Escuchar juntos: salas de Aura** (el único servidor de Escuchar juntos) | El nombre que elijas, el código de la sala y los datos de las canciones que suenan en ella y en la cola del anfitrión (identificador, título, artista, álbum, duración y portada). | Solo cuando creas una sala o te unes a una. | Una sala vacía se borra a los **5 minutos**. |
+| Salas de Aura: **Iniciar sesión en la TV** | La sesión de tu cuenta de Google (las cookies y los identificadores de sesión que guarda la aplicación) que tu móvil envía a tu TV, **cifrada en el móvil** con una clave que solo está en el código QR de la TV y nunca llega al servidor, y el modelo de los dos aparatos, cifrado igual. El servidor solo ve una huella (SHA-256) del código y no puede leer ni cambiar lo que pasa. | Solo cuando, en el móvil, tocas «Enviar sesión» tras escanear o escribir el código que muestra la TV. | Se entrega **una sola vez** y se borra; nada dura más de **2 minutos**. |
 | **Reconocimiento de canciones** (relé) | Una firma de audio calculada a partir del micrófono. | Solo mientras usas el reconocimiento, y solo si la conexión directa con Shazam falla. | Se reenvía a Shazam; no la guardamos. |
 
 ## 3. Lo que reciben terceros
@@ -97,7 +98,7 @@ En Honduras, el **artículo 182 de la Constitución** reconoce la garantía de *
 
 ## 7. Seguridad
 
-Las comunicaciones con nuestros servicios van cifradas (HTTPS). La copia en la nube se cifra en tu dispositivo (AES-256-GCM) antes de enviarse. Tu grupo de sincronización y el identificador de tu copia en la nube son huellas cifradas que no revelan tu secreto. Ningún sistema es perfectamente seguro; si detectamos un incidente que afecte a tus datos, lo comunicaremos en la aplicación.
+Las comunicaciones con nuestros servicios van cifradas (HTTPS). La copia en la nube se cifra en tu dispositivo (AES-256-GCM) antes de enviarse, igual que la sesión que envías a tu TV, con una clave que solo está en el código de la TV. Tu grupo de sincronización y el identificador de tu copia en la nube son huellas cifradas que no revelan tu secreto. Ningún sistema es perfectamente seguro; si detectamos un incidente que afecte a tus datos, lo comunicaremos en la aplicación.
 
 ## 8. Menores
 
