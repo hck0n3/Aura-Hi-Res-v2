@@ -564,6 +564,39 @@ object LibrarySyncCore {
             return out
         }
 
+        /**
+         * The entries of a list (their song ids [current], in their order here, a song possibly more than once) as indices into
+         * [current], sorted by [positions]. Only the FIRST entry of a song takes its position, as [facts] gave it. A song with no
+         * position stays right after the entry it follows here, as in [sorted]; a later copy of a song stays after the nearest entry
+         * before it that no move touched (the longest run already in order), so a move elsewhere never pulls a duplicate along.
+         */
+        fun sortedEntries(current: List<String>, positions: Map<String, String>): List<Int> {
+            val seen = HashSet<String>()
+            val placed = BooleanArray(current.size) { positions[current[it]]?.let(::valid) == true && seen.add(current[it]) }
+            val kept = increasing(Array(current.size) { if (placed[it]) positions.getValue(current[it]) else null })
+            val ordered = current.indices.filter { placed[it] }.sortedWith(compareBy<Int>({ positions.getValue(current[it]) }, { current[it] }))
+            val following = HashMap<Int, MutableList<Int>>()
+            var anchor = -1
+            var keptAnchor = -1
+            for (i in current.indices) {
+                when {
+                    placed[i] -> {
+                        anchor = i
+                        if (kept[i]) keptAnchor = i
+                    }
+                    current[i] in seen -> following.getOrPut(keptAnchor) { ArrayList() } += i
+                    else -> following.getOrPut(anchor) { ArrayList() } += i
+                }
+            }
+            val out = ArrayList<Int>(current.size)
+            following[-1]?.let(out::addAll)
+            for (i in ordered) {
+                out += i
+                following[i]?.let(out::addAll)
+            }
+            return out
+        }
+
         /** Which entries form the longest strictly increasing run of [given] (nulls never do). */
         private fun increasing(given: Array<String?>): BooleanArray {
             val n = given.size

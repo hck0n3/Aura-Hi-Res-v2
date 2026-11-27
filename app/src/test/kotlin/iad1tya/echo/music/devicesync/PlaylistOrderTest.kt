@@ -86,6 +86,25 @@ class PlaylistOrderTest {
     }
 
     @Test
+    fun `a song in a list twice keeps its second copy where it is when another song moves`() {
+        // «Gym» here is [S, T, U, V, S]: S at #1 and #5. Another device moved V to the top; S keeps its first position.
+        val entries = listOf("S", "T", "U", "V", "S")
+        val positions = mapOf("S" to "a02", "T" to "a03", "U" to "a04", "V" to "a01")
+        val order = PlaylistOrder.sortedEntries(entries, positions)
+        assertEquals("entry indices: the second S stays after U, it does not follow V to the top", listOf(3, 0, 1, 2, 4), order)
+        assertEquals(listOf("V", "S", "T", "U", "S"), order.map { entries[it] })
+        val gym = listOf("S", "T", "U", "V", "W", "S") // T moved to the end on another device
+        val moved = PlaylistOrder.sortedEntries(gym, mapOf("S" to "a02", "T" to "a07", "U" to "a04", "V" to "a05", "W" to "a06"))
+        assertEquals(listOf("S", "U", "V", "W", "S", "T"), moved.map { gym[it] })
+        assertEquals("nothing moved = nothing changes", entries.indices.toList(), PlaylistOrder.sortedEntries(entries, positions - "V" + ("V" to "a05")))
+        assertEquals(
+            "without duplicates it is the order of sorted()",
+            PlaylistOrder.sorted(listOf("a", "local", "b", "c"), mapOf("a" to "a03", "b" to "a01", "c" to "a02")),
+            PlaylistOrder.sortedEntries(listOf("a", "local", "b", "c"), mapOf("a" to "a03", "b" to "a01", "c" to "a02")).map { listOf("a", "local", "b", "c")[it] },
+        )
+    }
+
+    @Test
     fun `the facts of a list use the position key and leave out ids that cannot travel`() {
         val facts = PlaylistOrder.facts("LPabcdefgh", listOf("s1", "bad:id", "s2", "s1"), emptyMap())
         assertEquals(listOf("po:LPabcdefgh:s1", "po:LPabcdefgh:s2"), facts.keys.toList())

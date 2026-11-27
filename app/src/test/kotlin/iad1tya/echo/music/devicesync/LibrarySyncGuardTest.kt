@@ -155,6 +155,7 @@ class LibrarySyncGuardTest {
     fun `row 900 - a playlist's order arriving from another device is written here only, by plain SQL`() {
         val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAdapter.kt")
         assertTrue(a.contains("database.syncSetMapPosition(entry.id, index)"))
+        assertTrue("sorted by entry, not by song: a duplicate keeps its place", a.contains("LibrarySyncCore.PlaylistOrder.sortedEntries(entries.map { it.songId }, positions).map { entries[it] }"))
         assertTrue(a.contains("runCatching { LibrarySyncCore.PlaylistOrder.facts(key, songs, playlists.orderOf(key)) }.onSuccess(facts::putAll)"))
         assertFalse(a.contains("moveSongPlaylist"))
         val dao = read("app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt")

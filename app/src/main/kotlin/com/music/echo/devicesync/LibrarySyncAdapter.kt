@@ -264,8 +264,8 @@ class LibrarySyncAdapter(
             if (positions.isEmpty()) continue
             for (row in targets.rowsOf(key)) {
                 val entries = database.syncPlaylistMapRows(row)
-                val rank = LibrarySyncCore.PlaylistOrder.sorted(entries.map { it.songId }, positions).withIndex().associate { it.value to it.index }
-                val wanted = entries.sortedWith(compareBy<PlaylistSongMap>({ rank[it.songId] ?: Int.MAX_VALUE }, { it.position }, { it.id }))
+                // By entry, not by song: a song in the list twice keeps its second copy where it is (`playlist_song_map` allows it).
+                val wanted = LibrarySyncCore.PlaylistOrder.sortedEntries(entries.map { it.songId }, positions).map { entries[it] }
                 var moved = false
                 wanted.forEachIndexed { index, entry ->
                     if (entry.position != index) {
