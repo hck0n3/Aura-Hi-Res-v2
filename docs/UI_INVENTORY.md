@@ -4799,3 +4799,11 @@ Mismos textos, mismos botones, mismos toques y mismas rutas. En la pantalla exte
 | Artista ▸ **«En tu móvil» / «En tu nube»** | **Nuevo** (sección 17.2.1): con canciones de los dos orígenes, las del móvil y las de la nube en secciones separadas; con uno solo, «Canciones» como antes. Nada se oculta: cada copia sigue en la lista; al tocar una suena la mejor copia de esa canción (y «Aleatorio» usa una copia por canción) | 894 |
 | Búsqueda de la Biblioteca | **Sin cambio visible:** encuentra también las canciones, álbumes y artistas de la nube | 894 |
 
+## Anexo 2026-11-27 (filas 900 y 901): Fase 8, sincronización diferencial entre aparatos (no se quitó ni se ocultó nada)
+
+| Qué | Cambio | Fila |
+|---|---|---|
+| Aviso **«Este dispositivo aún tenía N elementos que tus otros dispositivos ya habían quitado; no los quité aquí por seguridad.»** con el botón «Revisar» (toda la app, `MainActivity`, el mismo aviso de abajo de la fila 807) | **Nuevo texto** (`device_sync_held_notice_new_here`, inglés y español): sale una vez cuando un aparato recién emparejado (o que cambia de sala) trae cosas que los otros ya habían quitado; en vez de borrarlas, quedan en «Borrados retenidos» (Aplicar / Descartar, la misma pantalla). El aviso de un borrado masivo («Otro dispositivo quitó N elementos de golpe…») no cambia | 901 |
+| Listas propias: **orden de las canciones** | **Cambia lo que hace:** al reordenar una lista en un aparato, el otro la muestra en el mismo orden (antes las canciones nuevas iban al final y el orden no viajaba). Sin botones nuevos | 900 |
+| Ajustes ▸ Sincronizar dispositivos (estado «Sincronizado», pendientes, «Borrados retenidos») | **Sin cambio visible:** las posiciones de las canciones no cuentan como elementos ni como borrados | 900 |
+
