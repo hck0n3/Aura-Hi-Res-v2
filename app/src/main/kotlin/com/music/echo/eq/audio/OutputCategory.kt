@@ -130,11 +130,16 @@ object OutputClassifier {
 
     /**
      * Which connected output the music goes to — the same priority the route detection had before row 919
-     * (Bluetooth > wired/USB > HDMI/line/dock > LE Audio speaker > the phone's speaker), now carrying the category.
+     * (Bluetooth / hearing aids > wired/USB > HDMI/line/dock > LE Audio speaker or broadcast > the phone's speaker),
+     * now carrying the category. Every type [classify] knows is in a group, and any other candidate that is not the
+     * phone's speaker still wins over it: the phone-speaker effects never run on an output that is not the phone.
      */
     fun route(candidates: List<Candidate>): OutputCategory {
         val priority = listOf(
-            listOf(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET),
+            listOf(
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET,
+                AudioDeviceInfo.TYPE_HEARING_AID, AudioDeviceInfo.TYPE_BLE_HEARING_AID,
+            ),
             listOf(
                 AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_WIRED_HEADSET,
                 AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE,
@@ -142,13 +147,15 @@ object OutputClassifier {
             listOf(
                 AudioDeviceInfo.TYPE_HDMI, AudioDeviceInfo.TYPE_HDMI_ARC, AudioDeviceInfo.TYPE_AUX_LINE,
                 AudioDeviceInfo.TYPE_DOCK, AudioDeviceInfo.TYPE_HDMI_EARC,
+                AudioDeviceInfo.TYPE_LINE_ANALOG, AudioDeviceInfo.TYPE_LINE_DIGITAL, AudioDeviceInfo.TYPE_DOCK_ANALOG,
             ),
-            listOf(AudioDeviceInfo.TYPE_BLE_SPEAKER),
+            listOf(AudioDeviceInfo.TYPE_BLE_SPEAKER, AudioDeviceInfo.TYPE_BLE_BROADCAST),
         )
         for (group in priority) {
             for (type in group) candidates.firstOrNull { it.type == type }?.let { return it.category }
         }
-        return OutputCategory.PHONE_SPEAKER
+        return candidates.firstOrNull { it.category != OutputCategory.PHONE_SPEAKER }?.category
+            ?: OutputCategory.PHONE_SPEAKER
     }
 
     /** The spatial stage per category: HRTF / crossfeed only on headphones, M/S width on speakers, off on room systems. */

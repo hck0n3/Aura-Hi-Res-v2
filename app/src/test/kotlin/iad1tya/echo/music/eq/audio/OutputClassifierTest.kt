@@ -143,8 +143,41 @@ class OutputClassifierTest {
         assertEquals(OutputCategory.USB_DAC, OutputClassifier.route(listOf(phone, c(AudioDeviceInfo.TYPE_USB_DEVICE, OutputCategory.USB_DAC))))
         assertEquals(OutputCategory.HDMI, OutputClassifier.route(listOf(c(AudioDeviceInfo.TYPE_BLE_SPEAKER, OutputCategory.SPEAKER_BT), c(AudioDeviceInfo.TYPE_HDMI_EARC, OutputCategory.HDMI))))
         assertEquals(OutputCategory.SPEAKER_BT, OutputClassifier.route(listOf(phone, c(AudioDeviceInfo.TYPE_BLE_SPEAKER, OutputCategory.SPEAKER_BT))))
-        // Not a route of its own before row 919 either (falls back to the phone's speaker).
-        assertEquals(OutputCategory.PHONE_SPEAKER, OutputClassifier.route(listOf(phone, c(AudioDeviceInfo.TYPE_HEARING_AID, OutputCategory.HEADPHONES_BT))))
+    }
+
+    @Test
+    fun `a hearing aid, a broadcast or a line out next to the phone's speaker is not the phone's speaker`() {
+        fun c(type: Int, category: OutputCategory) = OutputClassifier.Candidate(type, category)
+        val phone = c(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, OutputCategory.PHONE_SPEAKER)
+        val expected = mapOf(
+            AudioDeviceInfo.TYPE_HEARING_AID to OutputCategory.HEADPHONES_BT,
+            AudioDeviceInfo.TYPE_BLE_HEARING_AID to OutputCategory.HEADPHONES_BT,
+            AudioDeviceInfo.TYPE_BLE_BROADCAST to OutputCategory.SPEAKER_BT,
+            AudioDeviceInfo.TYPE_LINE_ANALOG to OutputCategory.HDMI,
+            AudioDeviceInfo.TYPE_LINE_DIGITAL to OutputCategory.HDMI,
+            AudioDeviceInfo.TYPE_DOCK_ANALOG to OutputCategory.HDMI,
+        )
+        for ((type, category) in expected) {
+            // The route uses the category classify() gives the type, whatever the order the system lists them in.
+            assertEquals("type $type", category, OutputClassifier.classify(type, null, null))
+            assertEquals("type $type", category, OutputClassifier.route(listOf(phone, c(type, category))))
+            assertEquals("type $type", category, OutputClassifier.route(listOf(c(type, category), phone)))
+            // So neither phone-speaker effect (psychoacoustic bass, speaker protection) is armed there.
+            assertFalse("type $type", VirtualBass.allowedOn(OutputClassifier.route(listOf(phone, c(type, category)))))
+        }
+        // Every output type classify() puts in another category wins over the built-in speaker.
+        for (type in 0..64) {
+            val category = OutputClassifier.classify(type, null, null) ?: continue
+            if (category == OutputCategory.PHONE_SPEAKER) continue
+            assertEquals("type $type", category, OutputClassifier.route(listOf(phone, c(type, category))))
+        }
+        // A type the priority does not list still beats the phone's speaker.
+        assertEquals(OutputCategory.HDMI, OutputClassifier.route(listOf(phone, c(9999, OutputCategory.HDMI))))
+        // Classic Bluetooth keeps the first place in its group, ahead of a hearing aid listed before it.
+        assertEquals(
+            OutputCategory.SPEAKER_BT,
+            OutputClassifier.route(listOf(c(AudioDeviceInfo.TYPE_HEARING_AID, OutputCategory.HEADPHONES_BT), c(a2dp, OutputCategory.SPEAKER_BT))),
+        )
     }
 
     @Test
