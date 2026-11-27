@@ -2271,6 +2271,13 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.CLOUD.FOLDERS_SAVE` | «Guardar» en «Elegir carpetas de música» (guarda y busca la música) |
 | `UI.CLOUD.FOLDERS_CANCEL` | «Cancelar» o cerrar «Elegir carpetas de música» |
 | `UI.CLOUD.INDEX_NOW` | «Actualizar música de la nube» |
+| `UI.TVLINK.BACK` | Atrás en «Iniciar sesión con el móvil» o «Iniciar sesión en la TV» (fila 907) |
+| `UI.TVLINK.RECONNECT` | «Volver a conectar» en la TV que espera la sesión |
+| `UI.TVLINK.NEW_CODE` | «Código nuevo» en la TV |
+| `UI.TVLINK.LOGIN` | «Iniciar sesión» en el móvil sin sesión, desde «Iniciar sesión en la TV» |
+| `UI.TVLINK.CONTINUE` | «Continuar» tras escribir o escanear el código de la TV (también «reintentar») |
+| `UI.TVLINK.SEND` | «Enviar» la sesión a la TV confirmada |
+| `UI.TVLINK.CANCEL` | «Cancelar» en la confirmación del envío |
 
 ### Lo que sigue sin código, a propósito (fila 824)
 

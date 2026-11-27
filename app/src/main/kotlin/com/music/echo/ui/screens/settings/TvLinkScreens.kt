@@ -54,6 +54,8 @@ import iad1tya.echo.music.ui.component.AuraTopAppBar
 import iad1tya.echo.music.ui.component.IconButton
 import iad1tya.echo.music.ui.component.QrImage
 import iad1tya.echo.music.ui.screens.completeLogin
+import iad1tya.echo.music.utils.ActionId
+import iad1tya.echo.music.utils.ActionLog
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.isLoggedCookie
 import iad1tya.echo.music.utils.rememberPreference
@@ -150,10 +152,10 @@ fun TvLinkReceiveScreen(
             state is TvLinkRelay.Receiver.State.AlreadyUsed || state is TvLinkRelay.Receiver.State.Invalid
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state is TvLinkRelay.Receiver.State.Disconnected) {
-                Button(onClick = { receiver.start(code, device, keys) }) { Text(stringResource(R.string.tvlink_reconnect)) }
+                Button(onClick = { ActionLog.tap(ActionId.TVLINK_RECONNECT); receiver.start(code, device, keys) }) { Text(stringResource(R.string.tvlink_reconnect)) }
             }
             if (ended || state is TvLinkRelay.Receiver.State.Disconnected) {
-                OutlinedButton(onClick = { code = TvLinkCode.generate() }) { Text(stringResource(R.string.tvlink_new_code)) }
+                OutlinedButton(onClick = { ActionLog.tap(ActionId.TVLINK_NEW_CODE); code = TvLinkCode.generate() }) { Text(stringResource(R.string.tvlink_new_code)) }
             }
         }
         Text(
@@ -211,7 +213,7 @@ fun TvLinkSendScreen(
     TvLinkScaffold(navController, scrollBehavior, stringResource(R.string.tvlink_send_title)) {
         if (!signedIn) {
             Text(stringResource(R.string.sync_login_required), style = MaterialTheme.typography.bodyMedium)
-            Button(onClick = { navController.navigate("login") }) { Text(stringResource(R.string.login)) }
+            Button(onClick = { ActionLog.tap(ActionId.TVLINK_LOGIN); navController.navigate("login") }) { Text(stringResource(R.string.login)) }
         } else {
             Text(stringResource(R.string.tvlink_send_howto), style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(
@@ -227,7 +229,7 @@ fun TvLinkSendScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             when (val p = phase) {
-                SendPhase.Idle -> Button(onClick = { check() }, enabled = TvLinkCode.normalize(input) != null) {
+                SendPhase.Idle -> Button(onClick = { ActionLog.tap(ActionId.TVLINK_CONTINUE); check() }, enabled = TvLinkCode.normalize(input) != null) {
                     Text(stringResource(R.string.tvlink_continue))
                 }
                 SendPhase.Checking -> Text(stringResource(R.string.tvlink_checking))
@@ -235,6 +237,7 @@ fun TvLinkSendScreen(
                     Text(stringResource(R.string.tvlink_confirm, p.device), style = MaterialTheme.typography.titleMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
+                            ActionLog.tap(ActionId.TVLINK_SEND)
                             phase = SendPhase.Sending(p.code, p.device)
                             scope.launch {
                                 val prefs = context.dataStore.data.first()
@@ -250,7 +253,7 @@ fun TvLinkSendScreen(
                                 }
                             }
                         }) { Text(stringResource(R.string.tvlink_send)) }
-                        OutlinedButton(onClick = { phase = SendPhase.Idle }) { Text(stringResource(android.R.string.cancel)) }
+                        OutlinedButton(onClick = { ActionLog.tap(ActionId.TVLINK_CANCEL); phase = SendPhase.Idle }) { Text(stringResource(android.R.string.cancel)) }
                     }
                 }
                 is SendPhase.Sending -> Text(stringResource(R.string.tvlink_checking))
@@ -271,7 +274,7 @@ fun TvLinkSendScreen(
                         ),
                         color = MaterialTheme.colorScheme.error,
                     )
-                    Button(onClick = { check() }, enabled = TvLinkCode.normalize(input) != null) {
+                    Button(onClick = { ActionLog.tap(ActionId.TVLINK_CONTINUE); check() }, enabled = TvLinkCode.normalize(input) != null) {
                         Text(stringResource(R.string.tvlink_continue))
                     }
                 }
@@ -293,7 +296,7 @@ private fun TvLinkScaffold(
             AuraTopAppBar(
                 title = { Text(title) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }, onLongClick = null) {
+                    IconButton(onClick = { ActionLog.tap(ActionId.TVLINK_BACK); navController.navigateUp() }, onLongClick = null) {
                         Icon(painterResource(R.drawable.arrow_back), contentDescription = null)
                     }
                 },
