@@ -132,4 +132,17 @@ class LibrarySyncGuardTest {
         val r = read("docs/worker/sync/README.md")
         assertTrue(r.contains("lib_push"))
     }
+
+    @Test
+    fun `row 900 - the app's journal lives next to the room's ledger and dates changes by the boot and the time since boot`() {
+        val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAndroid.kt")
+        assertTrue(a.contains("journal = LibraryJournalStore(ledgerFile.parentFile"))
+        assertTrue(a.contains("android.provider.Settings.Global.BOOT_COUNT"))
+        assertTrue(a.contains("Mono(boot, android.os.SystemClock.elapsedRealtime())"))
+        assertTrue("a restore still forgets every file of the rooms, the journal included", a.contains("File(context.filesDir, \"device_sync\").walkBottomUp()"))
+        val s = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
+        assertTrue("the journal is dated before a page of the room is weighed against it", s.contains("// Row 900: what was journaled before this page competes with it by when it was made, not by when it arrives.\n        convertJournalLocked()"))
+        assertTrue("an op carries its id", s.contains("add(JsonPrimitive(LibrarySyncCore.opId(r)))"))
+        assertTrue("only acknowledged ops stop being pending", s.contains("if (done != null && LibrarySyncCore.opId(sent) !in done) continue"))
+    }
 }

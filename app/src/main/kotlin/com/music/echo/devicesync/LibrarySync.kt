@@ -51,6 +51,10 @@ class LibrarySync(
     private val timing: Timing = Timing(),
     /** True once [clock] has the server's offset in this process (a `hello_ok` with its time); before that it is the raw phone clock. */
     private val clockKnown: () -> Boolean = { DeviceSyncHub.serverClockKnown },
+    /** Row 900: the changes seen being made before this instance can date them against the room ([LibraryJournal.kt]). */
+    private val journal: JournalPersistence = MemoryJournal(),
+    /** Row 900: the device's monotonic clock (boot + time since boot): when a change was made, whatever the phone clock says. */
+    private val mono: () -> Mono = { Mono(0L, System.nanoTime() / 1_000_000L) },
 ) {
     /** Delays, in one place so a test can make them tiny. */
     data class Timing(
@@ -79,6 +83,18 @@ class LibrarySync(
     /** Caught up with the room in THIS instance and watching, enabled, ever since: see [stampOfflineLocked]. Never persisted. */
     @Volatile private var watchingSinceCaughtUp = false
 
+    /**
+     * Row 900: the library as this instance last read it while watching, before it caught up with the room. A difference from it is
+     * a change seen being made, and goes into the [journal]. Null = not watching: the next read only sets it. [watchGen] grows each
+     * time watching stops, so a pass that was already reading does not set a baseline that hides a change nobody watched.
+     */
+    @Volatile private var baseline: HashMap<String, String>? = null
+    @Volatile private var watchGen = 0
+    private var journalCache: MutableList<JournalEntry>? = null
+
+    /** Row 900: the moment the first change of the next pass was announced ([kick]), so the journal dates it then, not when it is read. */
+    @Volatile private var seenAt: Pair<Mono, Long>? = null
+
     /** One `lib_pull` at a time: a big push makes the room send one `lib_ops` per batch, and a pull per signal is a storm (beta 4: 1656 pages in 5 s). */
     private val pullLock = Any()
     private var pullInFlight = false
@@ -92,6 +108,9 @@ class LibrarySync(
             mutex.withLock {
                 runCatching { ledger(); publishHeldLocked() }
                     .onFailure { Timber.tag(TAG).w("LIB_SYNC held removals not read: %s", it.javaClass.simpleName) }
+                // Row 900: what the library is as this instance starts; from here a change seen being made is journaled with its time.
+                runCatching { if (isEnabled() && !sinceStore.freshStart() && baseline == null) readBaselineLocked() }
+                    .onFailure { Timber.tag(TAG).w("LIB_SYNC journal baseline not read: %s", it.javaClass.simpleName) }
             }
         }
     }
@@ -99,6 +118,7 @@ class LibrarySync(
     fun stop() {
         stopped = true
         watchingSinceCaughtUp = false
+        dropBaseline()
         runCatching { stopWatching?.invoke() }
         stopWatching = null
         connected = false
@@ -121,6 +141,7 @@ class LibrarySync(
         sentKeys.clear()
         if (!isEnabled()) {
             watchingSinceCaughtUp = false
+            dropBaseline()
             DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Off
             return
         }
@@ -156,8 +177,10 @@ class LibrarySync(
         if (!isEnabled()) {
             // A change made while «Biblioteca» is off is not watched: once it is back on, the room decides first again.
             watchingSinceCaughtUp = false
+            dropBaseline()
             return
         }
+        if (seenAt == null) seenAt = mono() to System.currentTimeMillis()
         if (!fast && kickJob?.isActive == true) return // an observer storm collapses into one pass
         if (fast) kickJob?.cancel()
         kickJob = scope.launch {
@@ -165,7 +188,9 @@ class LibrarySync(
             delay(wait)
             mutex.withLock {
                 lastDiffAt = System.currentTimeMillis()
-                runCatching { if (connected && pulledOnce) pushDiffLocked() else stampOfflineLocked() }
+                val announced = seenAt
+                seenAt = null
+                runCatching { if (connected && pulledOnce) pushDiffLocked() else stampOfflineLocked(announced) }
                     .onFailure { Timber.tag(TAG).w("LIB_SYNC diff failed: %s", it.javaClass.simpleName) }
             }
         }
@@ -180,10 +205,15 @@ class LibrarySync(
      * Only when THIS instance caught up with the room and has been watching, enabled, ever since ([watchingSinceCaughtUp]), and the
      * server's clock is known in this process ([clockKnown]). Anything else (the app or its service restarted, «Biblioteca» was
      * off, another room was in use, a backup was restored) may hide an OLD change nobody saw being made: stamped now it would beat
-     * newer changes of the other devices. Then the room decides first and the diff follows, as before.
+     * newer changes of the other devices. Then the room decides first and the diff follows, as before — except for a change SEEN
+     * being made by this instance before it caught up: row 900 journals it with its moment ([journalLocked]).
      */
-    private suspend fun stampOfflineLocked() {
-        if (!watchingSinceCaughtUp || !clockKnown() || sinceStore.freshStart()) return
+    private suspend fun stampOfflineLocked(announced: Pair<Mono, Long>? = null) {
+        if (!watchingSinceCaughtUp || !clockKnown() || sinceStore.freshStart()) {
+            journalLocked(announced)
+            return
+        }
+        convertJournalLocked()
         val ledger = ledger()
         val current = adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger)) { key -> ledger.containsKey(key) }
         val fresh = LibrarySyncCore.localOps(current, ledger, clock())
@@ -191,6 +221,91 @@ class LibrarySync(
         fresh.forEach { ledger[it.key] = it }
         store.append(fresh)
         Timber.tag(TAG).i("LIB_SYNC offline changes recorded=%d", fresh.size)
+    }
+
+    // ── row 900: the journal ───────────────────────────────────────────────────────────────────────────────────────────────────
+
+    private fun dropBaseline() {
+        watchGen++
+        baseline = null
+    }
+
+    private suspend fun readBaselineLocked() {
+        val gen = watchGen
+        val ledger = ledger()
+        val current = adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger)) { key -> ledger.containsKey(key) }
+        if (gen == watchGen) baseline = HashMap(current)
+    }
+
+    /**
+     * A change seen being made before this instance can date it against the room: written to the [journal] at once with the moment
+     * it was announced ([announced], from [kick]) on the monotonic clock, so it survives a restart and an offline day with its time.
+     * Nothing is written while not watching (no baseline yet: this read only sets it), with «Biblioteca» off, or after a restore.
+     */
+    private suspend fun journalLocked(announced: Pair<Mono, Long>?) {
+        if (!isEnabled() || sinceStore.freshStart()) return
+        val gen = watchGen
+        val ledger = ledger()
+        val current = adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger)) { key -> ledger.containsKey(key) }
+        if (gen != watchGen) return
+        val before = baseline
+        baseline = HashMap(current)
+        if (before == null) return
+        val changed = JournalRules.observed(before, current)
+        if (changed.isEmpty()) return
+        val (at, wall) = announced ?: (mono() to System.currentTimeMillis())
+        val first = journal.nextSeq(changed.size)
+        val entries = changed.entries.mapIndexed { i, (key, value) -> JournalEntry(first + i, key, value, at.boot, at.elapsedMs, wall) }
+        journal.append(entries)
+        journalEntriesLocked().addAll(entries)
+        Timber.tag(TAG).i("LIB_SYNC journal recorded=%d", entries.size)
+    }
+
+    private fun journalEntriesLocked(): MutableList<JournalEntry> =
+        journalCache ?: journal.load().toMutableList().also { journalCache = it }
+
+    /**
+     * With the room's clock known, the journal becomes pending registers of the ledger with the room's time of the moment each change
+     * was made ([JournalRules.toRegs]); they then compete newest-wins with what the room sends and stay pending until it acknowledges
+     * them. Written to the ledger before the journal is cleared, so a crash in between only converts them again (to the same thing).
+     */
+    private suspend fun convertJournalLocked() {
+        if (!clockKnown()) return
+        val entries = journalEntriesLocked()
+        if (entries.isEmpty()) return
+        val ledger = ledger()
+        val (regs, undated) = JournalRules.toRegs(entries, ledger, clock(), mono(), System.currentTimeMillis(), journal.calibration())
+        regs.forEach { ledger[it.key] = it }
+        store.append(regs)
+        journal.clear()
+        entries.clear()
+        Timber.tag(TAG).i("LIB_SYNC journal dated=%d undated=%d", regs.size, undated)
+    }
+
+    private var calibrationSaved: Calibration? = null
+
+    /** At most once an hour, or when the offset moved by more than a second: one tiny file write, never per message. */
+    private fun saveCalibrationLocked() {
+        if (!clockKnown()) return
+        val wall = System.currentTimeMillis()
+        val cal = Calibration(clock() - wall, wall)
+        val last = calibrationSaved
+        if (last != null && kotlin.math.abs(last.offsetMs - cal.offsetMs) <= 1_000L && wall - last.atWallMs < 3_600_000L) return
+        runCatching { journal.saveCalibration(cal) }.onSuccess { calibrationSaved = cal }
+    }
+
+    /** Row 900: what the batch just applied changed here is not a change of the user's: the baseline follows it. */
+    private suspend fun followBaselineLocked(applied: List<Reg>) {
+        val base = baseline ?: return
+        if (applied.any { it.key.startsWith("pl:") || it.key.startsWith("pb:") }) {
+            // A list may now travel under another key (row 740): read it again rather than guess.
+            readBaselineLocked()
+            return
+        }
+        for (reg in applied) {
+            if (reg.parked) continue
+            if (reg.value == LibrarySyncCore.OFF) base.remove(reg.key) else base[reg.key] = reg.value
+        }
     }
 
     /** Handles the library messages of the room. True when [msg] was one of them. */
@@ -255,6 +370,8 @@ class LibrarySync(
 
     private suspend fun onStateLocked(msg: JsonObject) {
         val ledger = ledger()
+        // Row 900: what was journaled before this page competes with it by when it was made, not by when it arrives.
+        convertJournalLocked()
         if ((msg["reset"] as? JsonPrimitive)?.booleanOrNull == true) {
             // The room was emptied or recreated: it has nothing of ours any more. Everything we know is pending again.
             since = 0L
@@ -294,6 +411,7 @@ class LibrarySync(
             held.map { it.copy(pending = false, parked = true) }
         stored.forEach { ledger[it.key] = it }
         store.append(stored)
+        followBaselineLocked(stored)
         store.compactIfBloated(ledger)
         since = maxOf(since, (msg["seq"] as? JsonPrimitive)?.longOrNull ?: since)
         sinceStore.put(since)
@@ -323,6 +441,10 @@ class LibrarySync(
             store.append(placed)
         }
         pushDiffLocked()
+        // Row 900: from here the offline stamp dates every change; the journal's baseline is not needed, and the room's clock is
+        // remembered for a change journaled after the next reboot (JournalRules.realTime).
+        baseline = null
+        saveCalibrationLocked()
         // Ledger and database agree now and the watchers are running: from here a difference is a change seen being made here.
         watchingSinceCaughtUp = isEnabled()
         publishStatusLocked()
@@ -404,6 +526,7 @@ class LibrarySync(
             Timber.tag(TAG).i("LIB_SYNC diff held: connected=%b enabled=%b caughtUp=%b", connected, isEnabled(), pulledOnce)
             return
         }
+        convertJournalLocked()
         val ledger = ledger()
         val current = adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger)) { key -> ledger.containsKey(key) }
         val released = ledger.values.filter {

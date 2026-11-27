@@ -249,6 +249,8 @@ class LibrarySyncSimulationTest {
         val ledger: FakeLedger = FakeLedger(),
         var since: Long = 0L,
         clockKnown: () -> Boolean = { true },
+        /** Row 900: the journal on «disk»; a restarted app gets the same one. */
+        val journal: JournalPersistence = MemoryJournal(),
     ) {
         private val inbox = Channel<JsonObject>(Channel.UNLIMITED)
         @Volatile var online = false
@@ -268,6 +270,7 @@ class LibrarySyncSimulationTest {
             clock = { System.currentTimeMillis() + clockSkewMs },
             timing = LibrarySync.Timing(fastDelayMs = 20, slowDelayMs = 20, minIntervalMs = 20, pullTimeoutMs = 2_000),
             clockKnown = clockKnown,
+            journal = journal,
         )
 
         /** [holdAnswers]: the room's answers wait in the inbox until [releaseAnswers] (a slow first pull after a reconnect). */
@@ -1319,6 +1322,105 @@ class LibrarySyncSimulationTest {
         phone.connect()
         eventually("the room has both") { room.value("lk:a") == "1" && room.value("lk:b") == "1" }
         eventually("both settled with an ack that lists no ids") { phone.ledger.stored.values.none { it.pending } }
+    }
+
+    // ── row 900: the journal of changes made before this instance caught up ─────────────────────────────────────────────────────
+
+    /** Both devices agree on «known»; the tablet's app then stops while offline and a NEW instance starts, still offline. */
+    private fun tabletRestartedOffline(phone: Device, tablet: Device): Device {
+        phone.connect(); tablet.connect()
+        eventually("both caught up") { "known" in tablet.backend.likes }
+        settle()
+        tablet.disconnect(); tablet.sync.stop()
+        val restarted = Device("tablet", enabled = tablet.enabled, backend = tablet.backend, ledger = tablet.ledger, since = tablet.since, journal = tablet.journal)
+        restarted.sync.start()
+        settle()
+        return restarted
+    }
+
+    @Test
+    fun `a like made offline after a restart keeps its time and is not undone by an older unlike`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("known")
+        val restarted = tabletRestartedOffline(phone, tablet)
+        // Monday: the phone likes Y and changes its mind.
+        phone.backend.like("Y"); phone.changed()
+        eventually("the like is in the room") { room.value("lk:Y") == "1" }
+        phone.backend.likes -= "Y"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:Y") == "0" }
+        settle()
+        // Tuesday: the restarted tablet, never caught up in this instance and offline, likes Y.
+        restarted.backend.like("Y"); restarted.changed()
+        eventually("journaled at once") { restarted.journal.load().any { it.key == "lk:Y" && it.value == "1" } }
+        assertTrue("not in the ledger yet: it cannot be dated without the room's clock", restarted.ledger.stored["lk:Y"] == null)
+        restarted.connect()
+        eventually("the tablet's newer like reaches the room") { room.value("lk:Y") == "1" }
+        eventually("and the phone") { "Y" in phone.backend.likes }
+        settle()
+        assertTrue("the tablet kept its like", "Y" in restarted.backend.likes)
+        assertTrue("the journal is empty once dated", restarted.journal.load().isEmpty())
+        eventually("settled only after the room's ack") { restarted.ledger.stored["lk:Y"]?.pending == false }
+    }
+
+    @Test
+    fun `an offline change journaled after a restart still loses to a newer change of the other device`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("known"); phone.backend.like("Y")
+        val restarted = tabletRestartedOffline(phone, tablet)
+        // First the restarted tablet unlikes Y offline; THEN the phone unlikes and likes it again: the phone's like is the newest,
+        // although the tablet's change reaches the room after it.
+        restarted.backend.likes -= "Y"; restarted.changed()
+        eventually("journaled") { restarted.journal.load().any { it.key == "lk:Y" } }
+        settle()
+        phone.backend.likes -= "Y"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:Y") == "0" }
+        phone.backend.like("Y"); phone.changed()
+        eventually("the like is in the room again") { room.value("lk:Y") == "1" }
+        settle()
+        restarted.connect()
+        eventually("the newest change, the phone's like, reaches the tablet") { "Y" in restarted.backend.likes }
+        settle()
+        assertEquals("1", room.value("lk:Y"))
+        assertTrue("Y" in phone.backend.likes)
+    }
+
+    @Test
+    fun `the journal survives another restart before the device is back, and the playlist edit keeps its time`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("known"); phone.backend.playlists["LPgymgymgy"] = "Gym"
+        val first = tabletRestartedOffline(phone, tablet)
+        // Monday: renamed on the phone.
+        phone.backend.playlists["LPgymgymgy"] = "Gym 2"; phone.changed()
+        eventually("the phone's rename is in the room") { room.value("pl:LPgymgymgy") == LibrarySyncCore.encodePlaylistName("Gym 2") }
+        settle()
+        // Tuesday, offline: renamed on the restarted tablet — the newest change.
+        first.backend.playlists["LPgymgymgy"] = "Correr"; first.changed()
+        eventually("journaled") { first.journal.load().any { it.key == "pl:LPgymgymgy" } }
+        settle()
+        // Wednesday, still offline, the tablet's app restarts again before it ever reconnects.
+        first.sync.stop()
+        val second = Device("tablet", backend = first.backend, ledger = first.ledger, since = first.since, journal = first.journal)
+        second.sync.start()
+        settle()
+        assertTrue("the restart kept the journal", second.journal.load().any { it.key == "pl:LPgymgymgy" })
+        second.connect()
+        eventually("the tablet's rename, the newest, reaches the phone") { phone.backend.playlists["LPgymgymgy"] == "Correr" }
+        assertEquals(LibrarySyncCore.encodePlaylistName("Correr"), room.value("pl:LPgymgymgy"))
+    }
+
+    @Test
+    fun `a change made while Biblioteca was off is not journaled once it is back on`() {
+        var on = true
+        val phone = Device("phone"); val tablet = Device("tablet", enabled = { on })
+        phone.backend.like("known"); phone.backend.playlists["LPgymgymgy"] = "Gym"
+        val restarted = tabletRestartedOffline(phone, tablet)
+        on = false
+        restarted.backend.playlists["LPgymgymgy"] = "Correr"; restarted.changed()
+        settle()
+        on = true
+        restarted.changed()
+        settle()
+        assertTrue("nothing watched, nothing journaled", restarted.journal.load().isEmpty())
     }
 
     @Test
