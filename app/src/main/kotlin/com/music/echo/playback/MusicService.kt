@@ -231,6 +231,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -3314,8 +3315,10 @@ class MusicService :
                 dataStore.data.map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: false },
             ) { width, headroom -> width to headroom }
                 .distinctUntilChanged()
-                .collect { (width, headroom) ->
-                    val headroomChanged = headroom != autoHeadroomHint
+                .collectIndexed { index, (width, headroom) ->
+                    // Row 915: the first emission only reads the saved setting (the hint starts false); refreshing
+                    // there re-wrote a hand-trimmed preamp on every service start.
+                    val headroomChanged = index > 0 && headroom != autoHeadroomHint
                     stereoWidthHint = width
                     autoHeadroomHint = headroom
                     applyMasteringFromPrefs()

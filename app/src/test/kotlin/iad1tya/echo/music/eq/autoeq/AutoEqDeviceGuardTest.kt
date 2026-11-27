@@ -72,7 +72,9 @@ class AutoEqDeviceGuardTest {
     @Test fun `a new automatic headroom setting re-writes the headphone's correction preamp`() {
         val service = source("$main/playback/MusicService.kt")
         val collector = service.substringAfter("// STEREO WIDTH + AUTO HEADROOM").substringBefore("\n        }\n")
-        assertTrue(collector.contains("val headroomChanged = headroom != autoHeadroomHint"))
+        // Only a real change: the first emission (service start) just reads the saved value, so a hand-trimmed preamp survives.
+        assertTrue(collector.contains(".collectIndexed { index, (width, headroom) ->"))
+        assertTrue(collector.contains("val headroomChanged = index > 0 && headroom != autoHeadroomHint"))
         assertTrue(collector.contains("if (headroomChanged) refreshDeviceAutoEq()"))
         val refresh = service.substringAfter("private fun refreshDeviceAutoEq() {").substringBefore("\n    }\n")
         assertTrue(refresh.contains("EqDeviceProfileStore.currentOutputKey(this@MusicService), force = true)"))
