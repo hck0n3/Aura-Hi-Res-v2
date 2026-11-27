@@ -619,6 +619,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     override fun queueInput(inputBuffer: ByteBuffer) {
         val remaining = inputBuffer.remaining()
         if (remaining == 0) return
+        drainedBeforeFlush = false
 
         val bytesPerSample = if (inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT) 4 else 2
         val channels = inputAudioFormat.channelCount
@@ -688,10 +689,24 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         buffer.flip()
     }
 
+    // Row 911: a flush right after a drain is media3 moving to the next item of a gapless sequence (configure ->
+    // drainToEndOfStream -> flush): the limiter's ~2 ms tail must flow into it, so the line is kept. Any other flush
+    // (a seek) clears it.
+    @Volatile
+    private var drainedBeforeFlush = false
+
+    override fun onQueueEndOfStream() {
+        super.onQueueEndOfStream()
+        drainedBeforeFlush = true
+    }
+
     // Row 911: a seek or a reconfigure flushes the chain; the native limiter's ~2 ms delay line and the EQ state must
     // not carry audio from before it. Only raises a native flag (the processor is kept, never freed here).
     override fun onFlush(streamMetadata: AudioProcessor.StreamMetadata) {
         super.onFlush(streamMetadata)
+        val continuesAfterDrain = drainedBeforeFlush
+        drainedBeforeFlush = false
+        if (continuesAfterDrain) return
         synchronized(eqApplyLock) {
             val ptr = nativePtr
             if (isInitialized && ptr != 0L) flushProcessor(ptr)

@@ -239,6 +239,13 @@ class TruePeakLimiterTest {
         assertTrue(flush.contains("synchronized(eqApplyLock) {"))
         assertTrue(flush.contains("if (isInitialized && ptr != 0L) flushProcessor(ptr)"))
         assertFalse("a flush must never free the processor", flush.contains("releaseSuperpowered("))
+        // Gapless: the flush that follows a drain (the next item) keeps the limiter's tail; only a seek clears it.
+        assertTrue(flush.contains("if (continuesAfterDrain) return"))
+        assertTrue(flush.indexOf("if (continuesAfterDrain) return") < flush.indexOf("flushProcessor(ptr)"))
+        val eos = processorSource.substringAfter("override fun onQueueEndOfStream() {").substringBefore("}")
+        assertTrue(eos.contains("drainedBeforeFlush = true"))
+        val input = processorSource.substringAfter("override fun queueInput(inputBuffer: ByteBuffer) {").substringBefore("val bytesPerSample")
+        assertTrue("new input after a drain is a new item: the next flush is a seek again", input.contains("drainedBeforeFlush = false"))
         assertTrue(processorSource.contains("private external fun flushProcessor(ptr: Long)"))
         assertTrue(bridge.contains("Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_flushProcessor(JNIEnv *env, jobject thiz, jlong ptr) {"))
         assertTrue(bridge.contains("if (processor) processor->flushPending.store(true, std::memory_order_release);"))
