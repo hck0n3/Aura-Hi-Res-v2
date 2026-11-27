@@ -146,8 +146,8 @@ class FidelityModeWiringGuardTest {
         assertTrue(sound.contains("Text(stringResource(R.string.fidelity_mode_title))"))
         assertTrue(sound.contains("Text(stringResource(R.string.fidelity_mode_desc))"))
         // Equalizer, Safe Volume, auto headroom, stereo width, compressor, 32-bit processing and dither, and (row 918)
-        // «Graves y agudos a volumen bajo».
-        assertEquals(8, Regex("""FidelityPausedNote\(fidelityMode\)""").findAll(sound).count())
+        // «Graves y agudos a volumen bajo» and (row 920) the psychoacoustic bass.
+        assertEquals(9, Regex("""FidelityPausedNote\(fidelityMode\)""").findAll(sound).count())
         val player = source("app/src/main/kotlin/com/music/echo/ui/screens/settings/PlayerSettings.kt")
         assertEquals(2, Regex("""FidelityPausedNote\(fidelityMode\)""").findAll(player).count())
         val tempo = source("app/src/main/kotlin/com/music/echo/ui/menu/PlayerMenu.kt")

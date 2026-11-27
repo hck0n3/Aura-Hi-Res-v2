@@ -39,6 +39,8 @@ object FidelityMode {
         FLOAT_OUTPUT,
         /** Row 918: «Graves y agudos a volumen bajo», the shelves that follow the system volume. */
         LOUDNESS_COMPENSATION,
+        /** Row 920: psychoacoustic bass on the phone speaker. It rewrites the bass, so it is bypassed. */
+        VIRTUAL_BASS,
     }
 
     /** What Fidelidad switches off. */
@@ -56,6 +58,7 @@ object FidelityMode {
         Stage.TEMPO_PITCH,
         Stage.FLOAT_16BIT_TAKEOVER,
         Stage.LOUDNESS_COMPENSATION,
+        Stage.VIRTUAL_BASS,
     )
 
     /**

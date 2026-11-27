@@ -28,6 +28,8 @@ class FidelityModeTest {
             Stage.EQUALIZER, Stage.SAFE_VOLUME, Stage.SPATIAL, Stage.TIDAL_SIGNATURE, Stage.DE_ESSER,
             Stage.GLUE_COMPRESSOR, Stage.OUTPUT_DITHER, Stage.STEREO_WIDTH, Stage.CROSSFADE, Stage.MANUAL_FADE,
             Stage.TEMPO_PITCH, Stage.FLOAT_16BIT_TAKEOVER, Stage.LOUDNESS_COMPENSATION,
+            // Row 920: the psychoacoustic bass rewrites the bass.
+            Stage.VIRTUAL_BASS,
         )
         assertEquals(expected, FidelityMode.BYPASSED)
         for (stage in expected) {

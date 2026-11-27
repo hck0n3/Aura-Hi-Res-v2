@@ -144,6 +144,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     private external fun setMasteringOptions(ptr: Long, compressor: Boolean, dither: Boolean, speakerBassProtect: Boolean)
     private external fun setStereoWidth(ptr: Long, width: Float)
     private external fun setLoudnessCompensation(ptr: Long, bassDb: Float, trebleDb: Float, trimDb: Float)
+    private external fun setVirtualBass(ptr: Long, enabled: Boolean)
     private external fun measureEqResponse(sampleRate: Int, bands: FloatArray, freqs: FloatArray): FloatArray
     private external fun measureHeadroom(sampleRate: Int, bands: FloatArray, preampDb: Float): FloatArray
     private external fun disableAllBands(ptr: Long)
@@ -270,6 +271,24 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         }
     }
 
+    // Row 920: psychoacoustic bass, kept for onConfigure restores. Resolved by the caller against the live route.
+    private var virtualBassEnabled = false
+
+    /**
+     * «Graves para altavoces pequeños» (AuraVirtualBass.h). [enabled] must already be resolved against the output route
+     * by the caller (true only while the phone speaker plays). Not a tone stage: the equalizer switch has no say.
+     */
+    fun applyVirtualBass(enabled: Boolean) {
+        synchronized(eqApplyLock) {
+            if (virtualBassEnabled == enabled) return
+            virtualBassEnabled = enabled
+            val ptr = nativePtr
+            if (isInitialized && ptr != 0L) pushToneStages(ptr)
+            // Its extra level counts in «Headroom automático» (effectivePreampDb): re-apply the preamp.
+            if (autoHeadroom && this.enabled) currentProfile?.let { applyProfile(it) }
+        }
+    }
+
     // STEREO WIDTH (M/S) and AUTO HEADROOM (owner directive 2026-09-13), kept for onConfigure restores.
     private var stereoWidth = 1f
     @Volatile private var autoHeadroom = false
@@ -324,8 +343,15 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             tidalSignatureEnabled = tidalSimulationEnabled,
             deEsserEnabled = deEsserEnabled,
         ).tidalSignature
-        return autoHeadroomPreampDb(profile.preamp, active, tidalSounds)
+        return autoHeadroomPreampDb(profile.preamp, active, tidalSounds) -
+            if (virtualBassEnabled) VirtualBass.MAX_EXTRA_DB else 0.0
     }
+
+    /**
+     * Row 920: the preamp while the equalizer is off. 0 dB, except that the psychoacoustic bass runs with the equalizer
+     * off too, so «Headroom automático» still takes its extra level off the front gain (the limiter does not pump).
+     */
+    private fun bypassPreampDb(): Float = if (autoHeadroom && virtualBassEnabled) -VirtualBass.MAX_EXTRA_DB.toFloat() else 0f
 
     /** The native engine is loaded and usable for measurements. */
     fun isEngineReady(): Boolean = isInitialized && nativePtr != 0L
@@ -400,6 +426,9 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             loudness.trebleDb.toFloat(),
             LoudnessCompensation.trimDb(loudness, autoHeadroom).toFloat(),
         )
+        // Row 920: with the equalizer off, its headroom for the psychoacoustic bass (applyProfile owns it when on).
+        if (!enabled) setPreamp(ptr, bypassPreampDb())
+        setVirtualBass(ptr, virtualBassEnabled)
     }
 
     fun disable() {
@@ -412,7 +441,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             // so no block can run with the preamp already reset while the bands are still boosting.
             beginEqBatch(ptr)
             try {
-                setPreamp(ptr, 0f)
+                setPreamp(ptr, bypassPreampDb())
                 disableAllBands(ptr)
             } finally {
                 endEqBatch(ptr)

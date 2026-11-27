@@ -110,7 +110,9 @@ fun AutoEqDeviceOfferHost() {
         val store = EqDeviceProfileStore
         val output = withContext(Dispatchers.IO) { store.currentOutput(context) }
         // Cheap checks first: the catalogue is only read for a Bluetooth output that was never offered.
+        // Row 919: AutoEq measures headphones; a Bluetooth speaker or car is never offered one (the screen still lists it).
         val worthLooking = output.isBluetooth &&
+            iad1tya.echo.music.eq.audio.OutputClassifier.isHeadphones(output.category) &&
             withContext(Dispatchers.IO) {
                 !store.wasAutoEqOffered(context, output.key) &&
                     store.assignedAutoEqLine(context, output.key) == null &&

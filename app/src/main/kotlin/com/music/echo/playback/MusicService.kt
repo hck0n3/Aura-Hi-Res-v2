@@ -863,6 +863,8 @@ class MusicService :
         }
     }
     private val lowVolumeLoudness by lowVolumeLoudnessDelegate
+    // Row 920: «Graves para altavoces pequeños», the user's switch (the route and Fidelidad are applied on top).
+    @Volatile private var virtualBassHint: Boolean = iad1tya.echo.music.constants.VirtualBassDefault
     // PLAN A3: 32-bit float processing for 16-bit decoder output (Opus/AAC). Read by the audio sink on
     // the PLAYBACK thread at every configure (= every new track), never per buffer. Starts at the shared
     // default so a configure that beats the DataStore's first emission gets exactly what the switch shows.
@@ -2441,8 +2443,9 @@ class MusicService :
      * bypass route. Re-run from the audio-device callback so plugging headphones in lifts it immediately.
      */
     private fun applyMasteringFromPrefs() {
+        // Row 919: the phone's own speaker only — a Bluetooth / LE Audio speaker used to count as «speaker» here too.
         val onPhoneSpeaker = speakerBassProtectHint &&
-            SpatialAudioProfile.detectOutputKind(this) == SpatialOutputKind.SPEAKER
+            iad1tya.echo.music.eq.audio.OutputClassifier.detect(this) == iad1tya.echo.music.eq.audio.OutputCategory.PHONE_SPEAKER
         // Row 902: Fidelidad pauses the compressor, the dither and the width; the speaker protection is KEPT
         // (FidelityMode.KEPT): it only ever runs on the phone's own speaker, never on a DAC or headphones.
         val fidelity = fidelityModeHint
@@ -2453,8 +2456,13 @@ class MusicService :
             iad1tya.echo.music.playback.audio.FidelityMode.Stage.OUTPUT_DITHER, outputDitherHint, fidelity,
         )
         val width = iad1tya.echo.music.playback.audio.FidelityMode.effectiveStereoWidth(stereoWidthHint, fidelity)
+        // Row 920: the psychoacoustic bass only on the phone's own speaker, and never in Fidelidad.
+        val virtualBass = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.VIRTUAL_BASS, virtualBassHint, fidelity,
+        ) && iad1tya.echo.music.eq.audio.VirtualBass.allowedOn(iad1tya.echo.music.eq.audio.OutputClassifier.detect(this))
         playerEqProcessors.values.forEach {
             it.applyMastering(compressor, dither, onPhoneSpeaker)
+            it.applyVirtualBass(virtualBass)
             it.applyStereoWidth(width)
             it.applyAutoHeadroom(autoHeadroomHint)
         }
@@ -3322,6 +3330,17 @@ class MusicService :
                 }
         }
 
+        // Row 920: «Graves para altavoces pequeños» (Ajustes ▸ Sonido). Event-driven: one emission per change.
+        scope.launch {
+            dataStore.data
+                .map { it[iad1tya.echo.music.constants.VirtualBassEnabledKey] ?: iad1tya.echo.music.constants.VirtualBassDefault }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    virtualBassHint = enabled
+                    applyMasteringFromPrefs()
+                }
+        }
+
         // PLAN A3 — "Procesado en 32 bits" (Ajustes ▸ Sonido ▸ Masterización). Only mirrors the switch into
         // a hint: createRenderersFactory's sink reads it at its NEXT configure (the next track), so a change
         // never re-creates the AudioTrack under a playing song. Same key + same default constant as the
@@ -3465,8 +3484,12 @@ class MusicService :
                 dataStore.data.map { it[SpatialAudioEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: iad1tya.echo.music.constants.GlueCompressorDefault }.distinctUntilChanged(),
-                dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false }.distinctUntilChanged(),
-                // Row 918: the low-volume loudness stage processes PCM too.
+                // Row 920: the psychoacoustic bass processes PCM too (paired with the speaker protection: five sources max).
+                dataStore.data.map {
+                    (it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false) ||
+                        (it[iad1tya.echo.music.constants.VirtualBassEnabledKey] ?: iad1tya.echo.music.constants.VirtualBassDefault)
+                }.distinctUntilChanged(),
+                // Row 918: the low-volume loudness stage processes PCM too (paired with the stereo width).
                 dataStore.data.map {
                     (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f ||
                         (it[iad1tya.echo.music.constants.LoudnessCompensationEnabledKey] ?: iad1tya.echo.music.constants.LoudnessCompensationDefault)

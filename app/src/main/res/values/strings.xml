@@ -937,7 +937,7 @@
     <string name="perf_class_choice_desc">In use: %1$s. Picking a class applies its settings (High-performance mode, animated canvas and Liquid Glass); you can still change each one afterwards.</string>
     <string name="perf_class_auto_value">Automatic (%1$s)</string>
     <string name="fidelity_mode_title">Fidelity mode</string>
-    <string name="fidelity_mode_desc">Sends the audio to the output untouched. While it is on: no equalizer, Safe Volume, stereo width, compressor, crossfade, soft start when changing songs, or tempo and pitch. Hi-Res keeps its 32-bit float output. With a USB DAC on Android 14 or later the app asks for bit-perfect output, which only applies when the DAC offers the exact format of the track: a DAC without a 32-bit float mode can only give it on 16-bit tracks. Your settings are kept and come back when you turn it off.</string>
+    <string name="fidelity_mode_desc">Sends the audio to the output untouched. While it is on: no equalizer, Safe Volume, stereo width, compressor, bass for small speakers, crossfade, soft start when changing songs, or tempo and pitch. Hi-Res keeps its 32-bit float output. With a USB DAC on Android 14 or later the app asks for bit-perfect output, which only applies when the DAC offers the exact format of the track: a DAC without a 32-bit float mode can only give it on 16-bit tracks. Your settings are kept and come back when you turn it off.</string>
     <string name="fidelity_mode_paused">Paused: Fidelity mode is on (Settings ▸ Sound)</string>
     <string name="fidelity_mode_tempo_locked">Fidelity mode is on: tempo and pitch stay at 1.0× so the audio is not altered. Turn it off in Settings ▸ Sound to change them.</string>
     <string name="fidelity_mode_eq_banner_title">The equalizer is paused</string>
@@ -1104,4 +1104,8 @@
     <string name="loudness_comp_title">Bass and treble at low volume</string>
     <string name="loudness_comp_desc">At low volume the ear loses bass and some treble (ISO 226 equal-loudness contours). This raises them following the Android volume: up to +8 dB of bass and +3 dB of treble, nothing at full volume. Aura cannot know how loud your output really plays: with Bluetooth absolute volume or an amplifier it follows the volume position, not the real decibels. With «Headroom automático» on it lowers the rest by the same amount so nothing clips. Android 9 or later.</string>
     <string name="loudness_comp_intensity">Intensity: %1$d %%</string>
+    <!-- Row 920: psychoacoustic bass (Ajustes > Sonido). -->
+    <string name="sound_virtual_bass_title">Bass for small speakers</string>
+    <string name="sound_virtual_bass_desc">Lets you hear the bass the phone speaker cannot play: it removes what the speaker cannot reproduce (below ≈150 Hz) and adds its harmonics. Only on the phone speaker; never with headphones, Bluetooth, a USB DAC or in Fidelity mode. Off by default.</string>
+    <string name="sound_virtual_bass_suggested">Recommended now: music is playing through the phone speaker.</string>
 </resources>

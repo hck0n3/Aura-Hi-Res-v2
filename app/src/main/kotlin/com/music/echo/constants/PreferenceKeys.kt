@@ -1394,6 +1394,15 @@ val OutputDitherEnabledKey = booleanPreferencesKey("mastering_output_dither_enab
 val SpeakerBassProtectEnabledKey = booleanPreferencesKey("mastering_speaker_bass_protect_enabled")
 
 /**
+ * Row 920: «Graves para altavoces pequeños» — psychoacoustic bass (cpp/superpowered/AuraVirtualBass.h), only while the
+ * PHONE SPEAKER is the output. New key, default OFF: MusicService and the switch both read [VirtualBassDefault].
+ */
+val VirtualBassEnabledKey = booleanPreferencesKey("mastering_virtual_bass_enabled")
+
+/** The ONE default of [VirtualBassEnabledKey]. */
+const val VirtualBassDefault = false
+
+/**
  * Plan A3: run the EQ chain and the AudioTrack in 32-bit float ALSO for 16-bit decoder output (the
  * platform Opus/AAC decoders that ignore media3's float request). Default OFF — opt-in for a dedicated
  * beta. MusicService (the sink's route gate) and SoundSettings (the switch) MUST both read

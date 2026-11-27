@@ -4,6 +4,8 @@ import android.content.Context
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import androidx.core.content.getSystemService
+import iad1tya.echo.music.eq.audio.OutputCategory
+import iad1tya.echo.music.eq.audio.OutputClassifier
 
 /**
  * PowerAmp-style "EQ profile per output device": remembers which saved EQ profile the user assigned to
@@ -19,7 +21,13 @@ object EqDeviceProfileStore {
     /** Stable key for the phone's own speaker (so it survives across sessions / devices). */
     const val PHONE_KEY = "__phone__"
 
-    data class Output(val key: String, val name: String, val isBluetooth: Boolean)
+    /** Row 919: [category] tells a Bluetooth speaker / car from Bluetooth headphones (same transport, same [isBluetooth]). */
+    data class Output(
+        val key: String,
+        val name: String,
+        val isBluetooth: Boolean,
+        val category: OutputCategory = OutputCategory.PHONE_SPEAKER,
+    )
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -88,7 +96,7 @@ object EqDeviceProfileStore {
         result[PHONE_KEY] = Output(PHONE_KEY, "Teléfono (altavoz)", false)
         runCatching {
             am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).forEach { d ->
-                val out = d.toOutput() ?: return@forEach
+                val out = d.toOutput(context) ?: return@forEach
                 result[out.key] = out
             }
         }
@@ -112,21 +120,21 @@ object EqDeviceProfileStore {
             AudioDeviceInfo.TYPE_USB_DEVICE,
         )
         for (type in priority) {
-            devices.firstOrNull { it.type == type }?.toOutput()?.let { return it }
+            devices.firstOrNull { it.type == type }?.toOutput(context)?.let { return it }
         }
         return phone
     }
 
-    private fun AudioDeviceInfo.toOutput(): Output? {
+    private fun AudioDeviceInfo.toOutput(context: Context): Output? {
         val name = productName?.toString()?.takeIf { it.isNotBlank() }
         return when (type) {
             AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> Output(PHONE_KEY, "Teléfono (altavoz)", false)
             AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_BLUETOOTH_SCO ->
-                Output("bt:${name ?: "device"}", name ?: "Bluetooth", true)
+                Output("bt:${name ?: "device"}", name ?: "Bluetooth", true, OutputClassifier.categoryOf(context, this) ?: OutputClassifier.BLUETOOTH_DEFAULT)
             AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_WIRED_HEADSET ->
-                Output("wired", name ?: "Auriculares con cable", false)
+                Output("wired", name ?: "Auriculares con cable", false, OutputCategory.HEADPHONES_WIRED)
             AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE ->
-                Output("usb", name ?: "USB", false)
+                Output("usb", name ?: "USB", false, OutputClassifier.categoryOf(context, this) ?: OutputCategory.USB_DAC)
             else -> null
         }
     }
