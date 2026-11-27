@@ -68,6 +68,16 @@ class TvLinkGuardTest {
     }
 
     @Test
+    fun `a new QR scanned while the send screen is open replaces the old code`() {
+        val screen = main("ui/screens/settings/TvLinkScreens.kt")
+        assertTrue(screen.contains("var input by rememberSaveable(initialCode) {"))
+        assertTrue(screen.contains("var phase by remember(initialCode) { mutableStateOf<SendPhase>(SendPhase.Idle) }"))
+        assertTrue(screen.contains("LaunchedEffect(initialCode) { if (signedIn && TvLinkCode.normalize(input) != null && initialCode != null) check() }"))
+        assertFalse(screen.substringAfter("fun TvLinkSendScreen(").contains("LaunchedEffect(Unit)"))
+        assertTrue("the camera reopens the same entry", main("MainActivity.kt").contains("navController.navigate(\"settings/accounts/tv_link_send?code=\$normalized\") { launchSingleTop = true }"))
+    }
+
+    @Test
     fun `the phone sends only from the Enviar sesion button, never from an opened link`() {
         val screen = main("ui/screens/settings/TvLinkScreens.kt")
         assertEquals(1, Regex("""TvLinkRelay\.send\(""").findAll(screen).count())

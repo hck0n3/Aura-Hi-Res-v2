@@ -187,8 +187,10 @@ fun TvLinkSendScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var input by rememberSaveable { mutableStateOf(initialCode?.let(TvLinkCode::normalize)?.let(TvLinkCode::pretty).orEmpty()) }
-    var phase by remember { mutableStateOf<SendPhase>(SendPhase.Idle) }
+    // Keyed on the code: a new QR scanned while this screen is open reuses the same entry (launchSingleTop) with a new argument,
+    // and must replace the old code and its confirmation, never send to the dead one.
+    var input by rememberSaveable(initialCode) { mutableStateOf(initialCode?.let(TvLinkCode::normalize)?.let(TvLinkCode::pretty).orEmpty()) }
+    var phase by remember(initialCode) { mutableStateOf<SendPhase>(SendPhase.Idle) }
     val (cookie) = rememberPreference(InnerTubeCookieKey, "")
     val signedIn = isLoggedCookie(cookie)
 
@@ -204,7 +206,7 @@ fun TvLinkSendScreen(
     }
 
     // A QR opened from the camera fills the code and asks straight away (it still waits for «Enviar sesión»).
-    LaunchedEffect(Unit) { if (signedIn && TvLinkCode.normalize(input) != null && initialCode != null) check() }
+    LaunchedEffect(initialCode) { if (signedIn && TvLinkCode.normalize(input) != null && initialCode != null) check() }
 
     TvLinkScaffold(navController, scrollBehavior, stringResource(R.string.tvlink_send_title)) {
         if (!signedIn) {
