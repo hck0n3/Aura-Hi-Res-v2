@@ -47,74 +47,80 @@ internal fun AuraStatsHabits(
         ) {
             if (summary.plays == 0) {
                 AuraHabitsLine(stringResource(R.string.stats_habits_empty))
-                return@Column
+            } else {
+                AuraStatsHabitsBody(summary)
             }
-            AuraHabitsLine(
-                pluralStringResource(R.plurals.stats_listening_days, summary.listeningDays, summary.listeningDays),
+        }
+    }
+}
+
+/** The lines and charts, in the caller's column. */
+@Composable
+private fun AuraStatsHabitsBody(summary: ListeningStats.Summary) {
+    AuraHabitsLine(
+        pluralStringResource(R.plurals.stats_listening_days, summary.listeningDays, summary.listeningDays),
+    )
+    if (summary.currentStreak > 0) {
+        AuraHabitsLine(
+            pluralStringResource(R.plurals.stats_streak_current, summary.currentStreak, summary.currentStreak),
+        )
+    }
+    summary.longestStreak?.let { streak ->
+        AuraHabitsLine(pluralStringResource(R.plurals.stats_streak_longest, streak.days, streak.days))
+    }
+    if (summary.newArtists.isNotEmpty()) {
+        AuraHabitsLine(
+            pluralStringResource(R.plurals.stats_new_artists, summary.newArtists.size, summary.newArtists.size),
+        )
+    }
+    summary.topSongsByPlays.firstOrNull()?.let { song ->
+        AuraHabitsLine(
+            stringResource(
+                R.string.stats_habits_most_times,
+                song.name,
+                pluralStringResource(R.plurals.n_time, song.plays, song.plays),
+            ),
+        )
+    }
+
+    AuraHabitsLabel(stringResource(R.string.stats_habits_by_hour))
+    AuraStatsBars(values = summary.playTimeByHour, height = 56.dp)
+    Row(Modifier.fillMaxWidth()) {
+        // One label per six hours, each over its own quarter of the bars.
+        listOf("0", "6", "12", "18").forEach { hour ->
+            Text(
+                text = hour,
+                style = AuraType.RowSubtitle,
+                color = AuraPalette.OnGroundFaint,
+                maxLines = 1,
+                overflow = AuraDefaultOverflow,
+                modifier = Modifier.weight(1f),
             )
-            if (summary.currentStreak > 0) {
-                AuraHabitsLine(
-                    pluralStringResource(R.plurals.stats_streak_current, summary.currentStreak, summary.currentStreak),
-                )
-            }
-            summary.longestStreak?.let { streak ->
-                AuraHabitsLine(pluralStringResource(R.plurals.stats_streak_longest, streak.days, streak.days))
-            }
-            if (summary.newArtists.isNotEmpty()) {
-                AuraHabitsLine(
-                    pluralStringResource(R.plurals.stats_new_artists, summary.newArtists.size, summary.newArtists.size),
-                )
-            }
-            summary.topSongsByPlays.firstOrNull()?.let { song ->
-                AuraHabitsLine(
-                    stringResource(
-                        R.string.stats_habits_most_times,
-                        song.name,
-                        pluralStringResource(R.plurals.n_time, song.plays, song.plays),
-                    ),
-                )
-            }
+        }
+    }
 
-            AuraHabitsLabel(stringResource(R.string.stats_habits_by_hour))
-            AuraStatsBars(values = summary.playTimeByHour, height = 56.dp)
-            Row(Modifier.fillMaxWidth()) {
-                // One label per six hours, each over its own quarter of the bars.
-                listOf("0", "6", "12", "18").forEach { hour ->
-                    Text(
-                        text = hour,
-                        style = AuraType.RowSubtitle,
-                        color = AuraPalette.OnGroundFaint,
-                        maxLines = 1,
-                        overflow = AuraDefaultOverflow,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
+    AuraHabitsLabel(stringResource(R.string.stats_habits_by_weekday))
+    AuraStatsBars(values = summary.playTimeByDayOfWeek, height = 56.dp)
+    val locale = Locale.getDefault()
+    val dayNames = remember(locale) { DayOfWeek.values().map { it.getDisplayName(TextStyle.NARROW, locale) } }
+    Row(Modifier.fillMaxWidth()) {
+        dayNames.forEach { name ->
+            Text(
+                text = name,
+                style = AuraType.RowSubtitle,
+                color = AuraPalette.OnGroundFaint,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = AuraDefaultOverflow,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
 
-            AuraHabitsLabel(stringResource(R.string.stats_habits_by_weekday))
-            AuraStatsBars(values = summary.playTimeByDayOfWeek, height = 56.dp)
-            val locale = Locale.getDefault()
-            val dayNames = remember(locale) { DayOfWeek.values().map { it.getDisplayName(TextStyle.NARROW, locale) } }
-            Row(Modifier.fillMaxWidth()) {
-                dayNames.forEach { name ->
-                    Text(
-                        text = name,
-                        style = AuraType.RowSubtitle,
-                        color = AuraPalette.OnGroundFaint,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = AuraDefaultOverflow,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            if (summary.topGenres.isNotEmpty()) {
-                AuraHabitsLabel(stringResource(R.string.stats_habits_top_genres))
-                summary.topGenres.forEachIndexed { index, genre ->
-                    AuraHabitsLine("${index + 1}. ${genre.name} · ${StatsFormat.hoursMinutes(genre.playTimeMs)}")
-                }
-            }
+    if (summary.topGenres.isNotEmpty()) {
+        AuraHabitsLabel(stringResource(R.string.stats_habits_top_genres))
+        summary.topGenres.forEachIndexed { index, genre ->
+            AuraHabitsLine("${index + 1}. ${genre.name} · ${StatsFormat.hoursMinutes(genre.playTimeMs)}")
         }
     }
 }
