@@ -33,12 +33,23 @@ class AutoEqNameMatcherTest {
         assertEquals(AutoEqRigType.IN_EAR, buds.entry.type)
         assertEquals("Samsung Galaxy Buds2 Pro", matched("Galaxy Buds2 Pro (A1B2)")!!.model)
 
-        val airpods = matched("AirPods Pro")!!
-        assertEquals("Apple AirPods Pro", airpods.model)
-        assertTrue(airpods.entry.recommended)
         // The owner's own name, before or after the model, never changes the model.
-        assertEquals("Apple AirPods Pro", matched("Juan's AirPods Pro")!!.model)
-        assertEquals("Apple AirPods Pro", matched("AirPods Pro de Ana")!!.model)
+        assertEquals("Sony WH-1000XM4", matched("Juan's WH-1000XM4")!!.model)
+        assertEquals("Sony WH-1000XM4", matched("WH-1000XM4 de Ana")!!.model)
+        // «Apple AirPods Pro 2» / «Apple AirPods Pro2» are spellings of one model in the catalogue.
+        assertEquals("appleairpodspro2", AutoEqNameMatcher.tokens(matched("AirPods Pro 2 de Ana")!!.model).joinToString(""))
+    }
+
+    @Test fun `a name shared by two generations is never matched to the first one`() {
+        // Apple names the AirPods Pro 2 «AirPods Pro» too: the gen-1 in-ear correction must not reach a gen-2 owner.
+        assertTrue(catalogue.any { AutoEqNameMatcher.splitVariant(it.name).first == "Apple AirPods Pro" })
+        assertNull(matched("AirPods Pro"))
+        assertNull(matched("Juan's AirPods Pro"))
+        assertNull(matched("AirPods Pro de Ana"))
+        assertNull(matched("AirPods"))
+        assertNull(matched("Galaxy Buds (1A2B)"))
+        // With the number in the name the model is known.
+        assertEquals("Samsung Galaxy Buds2", matched("Galaxy Buds2 (1A2B)")!!.model)
     }
 
     @Test fun `a near name never falls back to another model`() {

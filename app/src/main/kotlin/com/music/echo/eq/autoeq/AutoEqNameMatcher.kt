@@ -14,6 +14,9 @@ package iad1tya.echo.music.eq.autoeq
  *     «WF-1000XM4» never matches «WH-1000XM4». Tokens BEFORE the run are allowed, because that is where a phone puts
  *     the owner in English («Juan's AirPods Pro»).
  *  3. The longest match wins (with the brand beats without). Two different models tied → no match: never guess.
+ *     Nor when the winner has a numbered successor in the catalogue («AirPods Pro» / «AirPods Pro 2», «Galaxy Buds» /
+ *     «Galaxy Buds2»): Apple gives both generations the same Bluetooth name, so a name without the number does not
+ *     say which one it is.
  *  4. Among that model's measurements: AutoEq's own recommended one first (its most accurate source), then a neutral
  *     variant (none, «ANC on», «wireless»…), then oratory1990 › crinacle › Rtings › the rest. Variants that are a preset,
  *     an ear tip, a volume level or a switch setting are never picked automatically.
@@ -110,11 +113,13 @@ object AutoEqNameMatcher {
         if (device.isEmpty()) return null
         // Best glued length per model, scoring the full name above the brand-less one.
         val scored = HashMap<String, Int>()
+        val modelKeys = HashSet<String>()
         for (entry in catalogue) {
             val model = splitVariant(entry.name).first
             if (model in scored) continue
             val t = tokens(model)
             if (t.isEmpty()) continue
+            modelKeys += t.joinToString("")
             val full = matchLength(device, t.joinToString(""))
             val score = if (full > 0) full * 2 + 1 else if (t.size > 1) matchLength(device, t.drop(1).joinToString("")) * 2 else 0
             scored[model] = score
@@ -123,7 +128,9 @@ object AutoEqNameMatcher {
         if (best <= 0) return null
         val winners = scored.filterValues { it == best }.keys
         // Two catalogue spellings of one model («AirPods Pro 2» / «Airpods Pro 2») are the same model, not a tie.
-        if (winners.map { tokens(it).joinToString("") }.toSet().size != 1) return null
+        val winnerKeys = winners.map { tokens(it).joinToString("") }.toSet()
+        if (winnerKeys.size != 1) return null
+        if (('2'..'9').any { winnerKeys.first() + it in modelKeys }) return null
         val hint = hintedType(device)
         val candidates = catalogue.filter { e ->
             val (model, variant) = splitVariant(e.name)
