@@ -56,34 +56,45 @@ enum class StatPeriod {
         }
 }
 
+/**
+ * Start of the range a Estadísticas chip names, as the stored event timestamp (local wall-clock time read as UTC, the
+ * way `Converters` writes `Event.timestamp`). Registry row 909: a week, month or year chip starts at local MIDNIGHT —
+ * it used to keep the current time of day, so on the 1st of a month everything played before «now o'clock» was
+ * counted in the previous month, and the week chips ran one day early. The window of chip `t` ends where chip `t - 1`
+ * starts (chip 0 ends now), so the chips stay contiguous with no gap and no overlap. [OptionStats.CONTINUOUS] is a
+ * rolling window ending now («last month»), unchanged.
+ */
 fun statToPeriod(
     selection: OptionStats,
     test: Int,
+    now: LocalDateTime = LocalDateTime.now(),
 ): Long =
     when (selection) {
+        // Chip 0 is «today» (its label reads «27 - 27 nov»), chip t ≥ 1 the seven days its label names.
         OptionStats.WEEKS -> {
-            LocalDateTime
-                .now()
+            now
+                .toLocalDate()
+                .atStartOfDay()
                 .minusWeeks(test.toLong())
-                .minusDays(1)
                 .toInstant(ZoneOffset.UTC)
                 .toEpochMilli()
         }
 
         OptionStats.MONTHS -> {
-            LocalDateTime
-                .now()
+            now
+                .toLocalDate()
                 .withDayOfMonth(1)
+                .atStartOfDay()
                 .minusMonths(test.toLong())
                 .toInstant(ZoneOffset.UTC)
                 .toEpochMilli()
         }
 
         OptionStats.YEARS -> {
-            LocalDateTime
-                .now()
-                .withDayOfMonth(1)
-                .withMonth(1)
+            now
+                .toLocalDate()
+                .withDayOfYear(1)
+                .atStartOfDay()
                 .minusYears(test.toLong())
                 .toInstant(
                     ZoneOffset.UTC,
