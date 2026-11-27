@@ -66,4 +66,15 @@ class AutoEqDeviceGuardTest {
         for (key in listOf("band24_", "gtype_", "gq_", "eq_mode")) assertTrue(key, reload.contains("\"$key"))
         assertTrue(reload.contains("loadPeqBands()"))
     }
+
+    @Test fun `a new automatic headroom setting re-writes the headphone's correction preamp`() {
+        val service = source("$main/playback/MusicService.kt")
+        val collector = service.substringAfter("// STEREO WIDTH + AUTO HEADROOM").substringBefore("\n        }\n")
+        assertTrue(collector.contains("val headroomChanged = headroom != autoHeadroomHint"))
+        assertTrue(collector.contains("if (headroomChanged) refreshDeviceAutoEq()"))
+        val refresh = service.substringAfter("private fun refreshDeviceAutoEq() {").substringBefore("\n    }\n")
+        assertTrue(refresh.contains("EqDeviceProfileStore.currentOutputKey(this@MusicService), force = true)"))
+        val body = service.substringAfter("private suspend fun applyDeviceAutoEq(").substringBefore("\n    }\n")
+        assertTrue(body.contains("base?.bands.orEmpty(), autoHeadroomHint, force)"))
+    }
 }

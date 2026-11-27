@@ -2342,12 +2342,12 @@ class MusicService :
      * off — back to what the user had — for any other output) and plays the result the way [applyEqForCurrentOutput]
      * plays a device profile. With the master EQ off only the stage is saved; the EQ switch applies it when turned on.
      */
-    private suspend fun applyDeviceAutoEq(outputKey: String, afterDeviceProfile: Boolean = false) {
+    private suspend fun applyDeviceAutoEq(outputKey: String, afterDeviceProfile: Boolean = false, force: Boolean = false) {
         val base = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value
         val correction = iad1tya.echo.music.eq.autoeq.AutoEqDeviceCorrection
         val stage = withContext(Dispatchers.Default) {
             runCatching {
-                correction.sync(this@MusicService, outputKey, base?.bands.orEmpty(), autoHeadroomHint)
+                correction.sync(this@MusicService, outputKey, base?.bands.orEmpty(), autoHeadroomHint, force)
                     ?.also { Timber.tag(TAG).i("Auto-EQ device correction %s", if (it.active) "on" else "off") }
                     // A device profile was just played with its own Auto-EQ bands: put this output's correction back.
                     ?: if (afterDeviceProfile) correction.ownedStage(this@MusicService, outputKey) else null
@@ -2359,6 +2359,18 @@ class MusicService :
         eqProfileRepository.setUnsavedProfile(next)
         // Row 902: saved above; «Modo Fidelidad» applies it when it is turned off.
         if (!fidelityModeHint) equalizerService.applyProfile(next)
+    }
+
+    /**
+     * Row 915: «Headroom automático» changed. [AutoEqSafety.devicePreampDb] gives the correction 0 dB with it on and
+     * -peak with it off, so the correction the current output holds (only while on: `force`) is written again with the
+     * preamp of the new setting, instead of cutting the peak twice or leaving the boost uncut until it reconnects.
+     */
+    private fun refreshDeviceAutoEq() {
+        if (!::eqProfileRepository.isInitialized || !::equalizerService.isInitialized) return
+        scope.launch {
+            applyDeviceAutoEq(iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(this@MusicService), force = true)
+        }
     }
 
     /**
@@ -3294,9 +3306,12 @@ class MusicService :
             ) { width, headroom -> width to headroom }
                 .distinctUntilChanged()
                 .collect { (width, headroom) ->
+                    val headroomChanged = headroom != autoHeadroomHint
                     stereoWidthHint = width
                     autoHeadroomHint = headroom
                     applyMasteringFromPrefs()
+                    // Row 915: a headphone's correction got its preamp for the headroom setting of that moment.
+                    if (headroomChanged) refreshDeviceAutoEq()
                 }
         }
 
