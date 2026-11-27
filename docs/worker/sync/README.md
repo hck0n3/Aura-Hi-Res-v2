@@ -39,13 +39,17 @@ aleatorio, estado «sonando ahora», comandos entre dispositivos y aislamiento e
 | `{t:"now", state:{queue,index,positionMs,playing,…}}` | a los demás `now`. La sala guarda uno por dispositivo. Un `now` en pausa de un dispositivo que no ha sonado en 10 min, mientras otro suena, se guarda marcado `stale` y no se reenvía ni se entrega |
 | `{t:"cmd", to, cmd, args}` | al dispositivo `to`: `cmd {from, cmd, args}` y al que la mandó `cmd_ok {to, cmd}`; si no está: `cmd_fail` |
 | `{t:"library", what}` | a los demás `library` |
-| `{t:"lib_push", ops:[[key, ts, value, id?]…]}` | `lib_ack {seq, accepted, received, ids}`; a los demás `lib_ops {seq}` (solo la señal). Gana el `ts` más reciente (empate: el valor mayor). Hasta 400 por mensaje. `ids` (fila 900): los `id` de las operaciones con las que la sala ya terminó (aplicadas, más viejas que lo que tiene, repetidas o mal formadas); la app solo da por enviadas esas y reenvía el resto (sala llena). Una app que manda `[key, ts, value]` sin `id` recibe lo mismo de antes |
+| `{t:"lib_push", ops:[[key, ts, value, id?]…]}` | `lib_ack {seq, accepted, received, ids}`; a los demás `lib_ops {seq}` (solo la señal). Gana el `ts` más reciente (empate: el valor mayor). Hasta 400 por mensaje. `ids` (fila 900): los `id` de las operaciones con las que la sala ya terminó (aplicadas, más viejas que lo que tiene, repetidas o mal formadas); la app solo da por enviadas esas; el resto (sala llena) lo guarda y no lo vuelve a ofrecer hasta la siguiente conexión o una hora. Con la sala llena el acuse lleva además `full: true`. Una app que manda `[key, ts, value]` sin `id` recibe lo mismo de antes |
 | `{t:"lib_pull", since}` | `lib_state {items, seq, head, more, reset}`: lo que cambió desde `since`, en páginas de 400; `reset` si el cliente va por delante de la sala. La sala apunta hasta dónde llegó cada dispositivo (`ld:<id>` = `since`): es su acuse del registro para la limpieza (fila 901) |
 
 **Limpieza (fila 901).** Para que la sala no crezca para siempre, como mucho una vez cada 12 h y solo cuando un `lib_pull` mueve a
 algún dispositivo, la sala olvida los **borrados** (`"0"` de `lk:`, `dk:`, `pl:`, `pm:`, `ab:`, `pn:`, y la posición `po:` de la
-canción que una lista perdió) que **todos** los dispositivos ya bajaron y que tienen más de 30 días. Un dispositivo que no vuelve en
-180 días deja de frenarla: si vuelve, no se le borra nada (el borrado que se perdió simplemente no le llega) y nada vuelve en los demás.
+canción que una lista perdió) que **todos** los dispositivos ya bajaron y que tienen más de 30 días. La primera limpieza de una sala
+espera 180 días desde el primer `lib_pull` que la sala apunta (`libpruneSince`): un dispositivo emparejado antes del despliegue no
+tiene aún su `ld:` y así tiene una ventana entera para decir hasta dónde llegó. Un dispositivo que no vuelve en 180 días deja de
+frenarla: si vuelve, no se le borra nada (el borrado que se perdió simplemente no le llega) y nada vuelve en los demás, porque de cada
+borrado olvidado queda una lápida (`t:<key>` = `{ts, v}`, no cuenta para el límite y nunca se entrega) y una operación más vieja que
+ella se rechaza (con su `id` en el acuse) en vez de crearse de nuevo.
 Las altas, los nombres, las posiciones vivas y el historial (`hv:`) no se tocan. Las apps antiguas siguen igual: mismos mensajes,
 mismas formas.
 | `{t:"ping"}` | `pong` |
