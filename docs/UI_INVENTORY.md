@@ -3140,6 +3140,7 @@ Pantalla con dos sub-vistas (`BackupSubScreen.MAIN` / `BackupSubScreen.IMPORT`) 
 | **Copia automática** + interruptor — desc. «Guarda la misma copia que «Copia de seguridad local» en una carpeta que elijas, cada día o cada semana, y conserva las 5 últimas. Sin tu sesión de Google, cookies ni licencia.» (apagada) / «Activada: la primera copia se hace en cuanto la batería y el espacio lo permitan» / «Última copia: fecha» / «La última copia no se pudo guardar: vuelve a elegir la carpeta» (NUEVA, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt (grupo tras «Migración selectiva») | conmutador | rara | solo en MAIN; **apagada por defecto**; encenderla sin carpeta abre antes el selector de carpeta (SAF) |
 | **Frecuencia** — «Cada día» / «Cada semana» (toque alterna; semanal por defecto) (NUEVA, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt | conmutador | rara | solo en MAIN |
 | **Carpeta** — nombre de la carpeta o «Elige una carpeta» (abre el selector de carpetas del sistema) (NUEVA, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt | acción primaria | rara | solo en MAIN |
+| Aviso (toast) «Este dispositivo no tiene selector de carpetas» (NUEVO, fila 908; el mismo texto de Almacenamiento) | Ajustes > Copias de seguridad | BackupAndRestore.kt (`pickAutoBackupFolder`) | informativo | rara | al tocar «Copia automática» sin carpeta o «Carpeta» en un aparato sin selector (algunas TV, Android Go); la copia automática sigue apagada |
 | Texto «Para restaurar una: Importar ▸ Importar desde archivo local, y elige un archivo Aura_auto.» (NUEVO, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt | informativo | — | solo en MAIN |
 | Importar (hardcoded) — desc. «Restaura datos desde copias de seguridad u otras fuentes» (hardcoded) | Ajustes > Copias de seguridad | BackupAndRestore.kt:245 | navegación (a la sub-vista Import) | rara | solo en MAIN |
 
@@ -3229,7 +3230,7 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/TvLinkScreens.k
 | **Reconectar** | Iniciar sesión con el móvil | TvLinkScreens.kt | acción primaria | rara | solo si se perdió la conexión (mismo código) |
 | **Código nuevo** | Iniciar sesión con el móvil | TvLinkScreens.kt | acción secundaria | rara | código caducado, ya usado, inválido, sesión que no se pudo comprobar o conexión perdida |
 | Texto «El código sirve una sola vez y caduca en 2 minutos. Solo esta TV puede abrir lo que envía tu móvil…» | Iniciar sesión con el móvil | TvLinkScreens.kt | informativo | — | siempre |
-| Aviso (toast) «Sesión iniciada con la de «X»» y vuelve a Cuentas | Iniciar sesión con el móvil | TvLinkScreens.kt | informativo | rara | al validarse la sesión |
+| Aviso (toast) «Sesión iniciada con la de «X»» y vuelve a Cuentas (solo si esta pantalla sigue delante: si el usuario ya salió, no se cierra otra) | Iniciar sesión con el móvil | TvLinkScreens.kt | informativo | rara | al validarse la sesión |
 
 ## 18.16b3 Ajustes > Cuentas > Iniciar sesión en la TV — `settings/accounts/tv_link_send?code={code}` (NUEVA, fila 907)
 
