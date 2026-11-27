@@ -147,6 +147,8 @@ internal fun youTubeServiceLoginUrl(emailHint: String? = null): String {
  * caller (the disposal safety net) has no UI left to update. The visitor/dataSync states are
  * read AFTER the propagation delay because the JavascriptInterface callbacks deliver those
  * values asynchronously during the wait.
+ *
+ * Returns false (and never calls [onFinished]) when another completion is already running.
  */
 internal fun completeLogin(
     context: Context,
@@ -155,8 +157,8 @@ internal fun completeLogin(
     visitorDataOf: () -> String,
     dataSyncIdOf: () -> String,
     onFinished: ((Boolean) -> Unit)?,
-) {
-    if (!loginCompletionRunning.compareAndSet(false, true)) return
+): Boolean {
+    if (!loginCompletionRunning.compareAndSet(false, true)) return false
     context.applicationScope.launch {
         try {
             // HALLAZGO-028: right after Google sign-in the session is still propagating on
@@ -208,6 +210,7 @@ internal fun completeLogin(
             loginCompletionRunning.set(false)
         }
     }
+    return true
 }
 
 @SuppressLint("SetJavaScriptEnabled")

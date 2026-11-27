@@ -56,6 +56,18 @@ class TvLinkGuardTest {
     }
 
     @Test
+    fun `a sign-in that could not start never leaves the TV stuck on Iniciando sesion`() {
+        val login = main("ui/screens/LoginScreen.kt")
+        assertTrue(login.contains("    onFinished: ((Boolean) -> Unit)?,\n): Boolean {"))
+        assertTrue(login.contains("if (!loginCompletionRunning.compareAndSet(false, true)) return false"))
+        val screen = main("ui/screens/settings/TvLinkScreens.kt")
+        assertTrue(screen.contains("val started = completeLogin("))
+        val notStarted = screen.substringAfter("if (!started) {").substringBefore("}")
+        assertTrue(notStarted.contains("importing = false"))
+        assertTrue("the failure text and the «Código nuevo» button appear", notStarted.contains("signInOk = false"))
+    }
+
+    @Test
     fun `the phone sends only from the Enviar sesion button, never from an opened link`() {
         val screen = main("ui/screens/settings/TvLinkScreens.kt")
         assertEquals(1, Regex("""TvLinkRelay\.send\(""").findAll(screen).count())

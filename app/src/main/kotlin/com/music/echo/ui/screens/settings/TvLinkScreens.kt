@@ -100,7 +100,7 @@ fun TvLinkReceiveScreen(
         if (importing || signInOk != null) return@LaunchedEffect
         importing = true
         receiver.stop()
-        completeLogin(
+        val started = completeLogin(
             context,
             syncUtils,
             session.cookie,
@@ -115,6 +115,11 @@ fun TvLinkReceiveScreen(
                 // navigate while this screen is still on top, as LoginScreen does.
                 if (navController.currentDestination?.route == "settings/accounts/tv_link_receive") navController.navigateUp()
             }
+        }
+        // Another sign-in was still being validated, so this one never ran and onFinished never comes: say so and offer a new code.
+        if (!started) {
+            importing = false
+            signInOk = false
         }
     }
 
