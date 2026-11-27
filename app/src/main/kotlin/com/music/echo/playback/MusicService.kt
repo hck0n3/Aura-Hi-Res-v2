@@ -10945,6 +10945,11 @@ class MusicService :
                      *  tells it at its next buffer. */
                     private var streamFormatToReport: iad1tya.echo.music.playback.audio.BitPerfectMixer.StreamFormat? = null
                     private var streamReportPending = false
+                    /** Row 902: under «Modo Fidelidad», a new format that follows another stream is reported only
+                     *  once the delegate has played that stream out and switched (gapless: configure runs while
+                     *  the previous track's last ~0.5 s is still in the AudioTrack). Same empty-buffer drain as
+                     *  chainDrainPending, on the first handleBuffer after configure only. */
+                    private var streamReportAwaitsDrain = false
 
                     private fun reportStreamFormatIfCurrent() {
                         if (eqProcessor !== currentEqProcessor) return
@@ -10977,6 +10982,8 @@ class MusicService :
                         // "Procesado en 32 bits" switch, no Listen Together room, and tempo/pitch at 1.0 —
                         // read HERE, i.e. once per configuration (= per track), never per buffer.
                         val previousRoute = route
+                        // Row 902: a stream is still configured (reset() clears it): the delegate drains it first.
+                        val followsStream = lastSinkConfig != null
                         var newRoute = iad1tya.echo.music.playback.audio.SinkDspRouting.route(
                             isRaw = androidx.media3.common.MimeTypes.AUDIO_RAW == inputFormat.sampleMimeType,
                             pcmEncoding = inputFormat.pcmEncoding,
@@ -11092,7 +11099,8 @@ class MusicService :
                                 )
                             }
                         streamReportPending = true
-                        reportStreamFormatIfCurrent()
+                        streamReportAwaitsDrain = fidelityModeHint && followsStream
+                        if (!streamReportAwaitsDrain) reportStreamFormatIfCurrent()
                         // The silence detector is fed in-chain ONLY on media3's int16 pipeline; on every float
                         // route the sink tap is its only feed (SilenceDetectorAudioProcessor.externallyFed).
                         // Coming off the int16 chain, the tap is switched on only after the delegate has
@@ -11156,6 +11164,10 @@ class MusicService :
                                 hiResDsp?.flush()
                                 dspActivationPending = false
                             }
+                        }
+                        if (streamReportAwaitsDrain) {
+                            if (!super.handleBuffer(emptyPcm, presentationTimeUs, 0)) return false
+                            streamReportAwaitsDrain = false
                         }
                         // Row 902: a sink that became the current player after its configure (instant-video swap,
                         // crossfade swap). One field read per buffer otherwise.

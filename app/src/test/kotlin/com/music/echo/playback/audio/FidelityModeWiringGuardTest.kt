@@ -78,6 +78,18 @@ class FidelityModeWiringGuardTest {
         assertTrue(report.contains("bitPerfectUsb.onStreamFormat(streamFormatToReport)"))
         // A sink that becomes current after its configure reports at its next buffer.
         assertTrue(service.contains("if (streamReportPending) reportStreamFormatIfCurrent()"))
+        // Gapless under the mode: the previous track's tail plays out before the mixer is re-pointed, and the
+        // first track (nothing to drain) is still reported before its AudioTrack opens.
+        assertTrue(service.contains("val followsStream = lastSinkConfig != null"))
+        assertTrue(service.contains("streamReportAwaitsDrain = fidelityModeHint && followsStream\n                        if (!streamReportAwaitsDrain) reportStreamFormatIfCurrent()"))
+        val drain = Regex(
+            """if \(streamReportAwaitsDrain\) \{\s+if \(!super\.handleBuffer\(emptyPcm, presentationTimeUs, 0\)\) return false\s+streamReportAwaitsDrain = false\s+\}""",
+        )
+        assertTrue("drain before report missing", drain.containsMatchIn(service))
+        // …after the chain drain and before the tap, i.e. on the first buffer after configure.
+        val handle = service.substringAfter("override fun handleBuffer(")
+        assertTrue(handle.indexOf("if (chainDrainPending) {") < handle.indexOf("if (streamReportAwaitsDrain) {"))
+        assertTrue(handle.indexOf("if (streamReportAwaitsDrain) {") < handle.indexOf("val start = buffer.position()"))
     }
 
     @Test
