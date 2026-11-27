@@ -119,6 +119,14 @@ object SinkDspRouting {
         Route.PASSTHROUGH -> false
     }
 
+    /**
+     * True when the delegate's own int16 pipeline (with the shared EQ processor and the in-chain silence
+     * detector) ran the stream: what the next configure must drain before a float route takes over (row 336
+     * `chainDrainPending` / deferred activation). Row 903's [Route.HIRES_INT16_FOR_TEMPO] counts too.
+     */
+    fun delegateRunsInt16Chain(route: Route): Boolean =
+        route == Route.DELEGATE_INT16_CHAIN || route == Route.HIRES_INT16_FOR_TEMPO
+
     /** True for the two routes where this sink drives the EQ chain itself, in float. */
     fun isTakeover(route: Route): Boolean =
         route == Route.FLOAT_TAKEOVER_HIRES || route == Route.FLOAT_TAKEOVER_16BIT

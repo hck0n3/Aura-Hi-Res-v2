@@ -10993,7 +10993,7 @@ class MusicService :
                                 // Hi-res: activate now, exactly as before. 16-bit right after media3's int16
                                 // chain: defer the activation (see dspActivationPending) to handleBuffer.
                                 activationDeferred = takeover16 &&
-                                    previousRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                                    iad1tya.echo.music.playback.audio.SinkDspRouting.delegateRunsInt16Chain(previousRoute)
                                 if (!activationDeferred) {
                                     built.flush() // activates the processors; the pipeline is inert until this
                                 }
@@ -11053,7 +11053,7 @@ class MusicService :
                         val bypassed =
                             iad1tya.echo.music.playback.audio.SinkDspRouting.chainBypassedByDelegate(effectiveRoute)
                         chainDrainPending = bypassed &&
-                            previousRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                            iad1tya.echo.music.playback.audio.SinkDspRouting.delegateRunsInt16Chain(previousRoute)
                         silenceProcessor.externallyFed = bypassed && !chainDrainPending
                         if (revertPending) {
                             // A tempo/pitch change was withheld from the delegate during the previous stream's

@@ -70,6 +70,12 @@ class HiResTempoRoutingTest {
         assertFalse(SinkDspRouting.chainBypassedByDelegate(Route.HIRES_INT16_FOR_TEMPO))
         assertFalse(SinkDspRouting.isTakeover(Route.HIRES_INT16_FOR_TEMPO))
         assertEquals(C.ENCODING_PCM_16BIT, SinkDspRouting.sinkOutputEncoding(Route.HIRES_INT16_FOR_TEMPO))
+        // Leaving it for a float route drains the int16 chain first, exactly like DELEGATE_INT16_CHAIN (row 336).
+        assertTrue(SinkDspRouting.delegateRunsInt16Chain(Route.HIRES_INT16_FOR_TEMPO))
+        assertTrue(SinkDspRouting.delegateRunsInt16Chain(Route.DELEGATE_INT16_CHAIN))
+        for (r in listOf(Route.PASSTHROUGH, Route.DELEGATE_FLOAT_NO_DSP, Route.FLOAT_TAKEOVER_HIRES, Route.FLOAT_TAKEOVER_16BIT)) {
+            assertFalse(r.name, SinkDspRouting.delegateRunsInt16Chain(r))
+        }
     }
 
     @Test
