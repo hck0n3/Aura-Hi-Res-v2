@@ -61,8 +61,10 @@ class FidelityModeWiringGuardTest {
         assertTrue(collector.contains("if (profile != null && fidelityModeHint) return@collect"))
         assertTrue(service.contains("if (!fidelityModeHint) equalizerService.applyProfile(profile)"))
         assertTrue(service.contains("if (::equalizerService.isInitialized && !fidelityModeHint) {\n            runCatching { equalizerService.applyProfile(lowered) }"))
+        // Row 915: the headphone correction (applyDeviceAutoEq) saves its stage and plays it only outside the mode.
+        assertTrue(service.contains("if (!fidelityModeHint) equalizerService.applyProfile(next)"))
         // The only unguarded call in the service is the one that ends the mode.
-        assertEquals(4, Regex("""equalizerService\.applyProfile\(""").findAll(service).count())
+        assertEquals(5, Regex("""equalizerService\.applyProfile\(""").findAll(service).count())
         val vm = source("app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt")
         assertTrue(vm.contains("private val fidelityOn = context.dataStore.data.map { it[FidelityModeKey] ?: false }"))
         assertTrue(vm.contains("if (fidelityOn.value) return\n        equalizerService.applyProfile(profile)"))
