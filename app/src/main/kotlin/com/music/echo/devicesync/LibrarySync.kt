@@ -405,6 +405,18 @@ class LibrarySync(
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
             // Row 807: the app offers «Revisar» once per batch (MainActivity), which opens the screen that applies or discards them.
             DeviceSyncHub.heldTrip.value = DeviceSyncHub.HeldTrip((DeviceSyncHub.heldTrip.value?.token ?: 0) + 1, held.size)
+        } else if (!freshStart) {
+            // Row 901 (owner note H11, row 654a): a removal of something this device HAS and the room never heard from it (a new
+            // pairing, a room switch, an addition nobody saw being made) is held the same way: it is the room's memory of another
+            // device, not a decision about this copy. «Aplicar» removes it here, «Descartar» puts it back on the others. After a
+            // restored backup the room still wins (row 648).
+            held = removalsNeverSeenHereLocked(accepted, ledger)
+            if (held.isNotEmpty()) {
+                accepted = accepted - held.toSet()
+                plan = LibrarySyncCore.plan(accepted, before, LibrarySyncCore.PlaylistIds.of(ledger, accepted + held.map { it.copy(parked = true) }))
+                Timber.tag(TAG).w("LIB_SYNC held removals of items new here=%d", held.size)
+                DeviceSyncHub.heldTrip.value = DeviceSyncHub.HeldTrip((DeviceSyncHub.heldTrip.value?.token ?: 0) + 1, held.size, newHere = true)
+            }
         }
         val more = (msg["more"] as? JsonPrimitive)?.booleanOrNull == true
         // Row 746: what was parked is retried once, after the LAST page (a page in the middle cannot be the end of a download).
@@ -451,6 +463,20 @@ class LibrarySync(
         // Ledger and database agree now and the watchers are running: from here a difference is a change seen being made here.
         watchingSinceCaughtUp = isEnabled()
         publishStatusLocked()
+    }
+
+    /**
+     * Row 901: the removals of [accepted] whose item is here although the ledger has no register for it — this device never told
+     * the room about that copy. The library is read only when the batch carries such a removal (a first pairing, mostly).
+     */
+    private suspend fun removalsNeverSeenHereLocked(accepted: List<Reg>, ledger: Map<String, Reg>): List<Reg> {
+        val candidates = accepted.filter {
+            it.value == LibrarySyncCore.OFF && it.key !in ledger && !LibrarySyncCore.isMeta(it.key) && !LibrarySyncCore.isOrder(it.key) &&
+                LibrarySyncCore.parse(it.key) != null
+        }
+        if (candidates.isEmpty()) return emptyList()
+        val current = adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger)) { key -> ledger.containsKey(key) }
+        return candidates.filter { it.key in current }
     }
 
     private fun publishStatusLocked() {

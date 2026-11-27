@@ -1582,12 +1582,14 @@ class MainActivity : ComponentActivity() {
                 // the batch is cleared once its notice is answered or times out (a rotation mid-notice shows it again);
                 // «Revisar» opens the screen that applies or discards them.
                 val heldNotice = stringResource(R.string.device_sync_held_notice)
+                // Row 901: removals of things this device had and the room never heard from it (a new pairing), in their own words.
+                val heldNoticeNewHere = stringResource(R.string.device_sync_held_notice_new_here)
                 val heldReview = stringResource(R.string.device_sync_held_review)
                 LaunchedEffect(Unit) {
                     iad1tya.echo.music.devicesync.DeviceSyncHub.heldTrip.collectLatest { trip ->
                         if (trip == null) return@collectLatest
                         val result = snackbarHostState.showSnackbar(
-                            message = heldNotice.format(trip.count),
+                            message = (if (trip.newHere) heldNoticeNewHere else heldNotice).format(trip.count),
                             actionLabel = heldReview,
                             duration = SnackbarDuration.Long,
                         )

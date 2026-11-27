@@ -1545,6 +1545,53 @@ class LibrarySyncSimulationTest {
         assertTrue(setOf("stay").all { it in phone.backend.likes && it in tablet.backend.likes })
     }
 
+    // ── row 901 (H11, row 654a): old removals on a first pairing ────────────────────────────────────────────────────────────────
+
+    private fun roomRemovedThreeLikes(): Device {
+        val tablet = Device("tablet")
+        repeat(3) { tablet.backend.like("w$it") }
+        tablet.connect()
+        eventually("the room has the likes") { (0 until 3).all { room.value("lk:w$it") == "1" } }
+        tablet.backend.likes.clear(); tablet.changed()
+        eventually("the room has the removals") { (0 until 3).all { room.value("lk:w$it") == "0" } }
+        return tablet
+    }
+
+    @Test
+    fun `a device new to the room keeps what the others removed before it joined, held for the user to decide`() {
+        val tablet = roomRemovedThreeLikes()
+        val trips = DeviceSyncHub.heldTrip.value?.token ?: 0
+        val phone = Device("phone")
+        repeat(3) { phone.backend.like("w$it") }
+        phone.backend.like("mine")
+        phone.connect()
+        eventually("the phone caught up") { phone.ledger.stored["lk:mine"]?.pending == false }
+        settle()
+        assertEquals("nothing deleted on a first pairing", setOf("w0", "w1", "w2", "mine"), phone.backend.likes)
+        // (DeviceSyncHub is shared by both simulated devices: the phone's own ledger says what it holds)
+        assertEquals(3, phone.ledger.stored.values.count { LibrarySyncCore.isHeld(it) && it.key.startsWith("lk:") })
+        val trip = DeviceSyncHub.heldTrip.value
+        assertTrue("told once, in the words of a new pairing", trip != null && trip.token > trips && trip.newHere && trip.count == 3)
+        assertTrue("the room's removals stand until the user answers", (0 until 3).all { room.value("lk:w$it") == "0" })
+        assertFalse("nothing removed came back on the tablet", (0 until 3).any { "w$it" in tablet.backend.likes })
+
+        // «Descartar»: the phone's copies go back to the room and to the tablet.
+        assertEquals(3, runBlocking { phone.sync.resolveHeld(apply = false) })
+        eventually("the tablet got them back") { (0 until 3).all { "w$it" in tablet.backend.likes } }
+    }
+
+    @Test
+    fun `Aplicar on a first pairing removes the old copies here too`() {
+        roomRemovedThreeLikes()
+        val phone = Device("phone")
+        repeat(3) { phone.backend.like("w$it") }
+        phone.connect()
+        eventually("held") { phone.ledger.stored.values.count { LibrarySyncCore.isHeld(it) } == 3 }
+        assertEquals(3, runBlocking { phone.sync.resolveHeld(apply = true) })
+        assertTrue(phone.backend.likes.isEmpty())
+        assertTrue((0 until 3).all { room.value("lk:w$it") == "0" })
+    }
+
     @Test
     fun `the same register twice reaches the room as one change`() {
         val phone = Device("phone"); val tablet = Device("tablet")

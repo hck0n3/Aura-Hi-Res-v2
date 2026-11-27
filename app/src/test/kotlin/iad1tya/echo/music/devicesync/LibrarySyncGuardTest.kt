@@ -145,4 +145,29 @@ class LibrarySyncGuardTest {
         assertTrue("an op carries its id", s.contains("add(JsonPrimitive(LibrarySyncCore.opId(r)))"))
         assertTrue("only acknowledged ops stop being pending", s.contains("if (done != null && LibrarySyncCore.opId(sent) !in done) continue"))
     }
+
+    @Test
+    fun `row 900 - a playlist's order arriving from another device is written here only, by plain SQL`() {
+        val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAdapter.kt")
+        assertTrue(a.contains("database.syncSetMapPosition(entry.id, index)"))
+        assertTrue(a.contains("facts.putAll(LibrarySyncCore.PlaylistOrder.facts(key, songs, playlists.orderOf(key)))"))
+        assertFalse(a.contains("moveSongPlaylist"))
+        val dao = read("app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt")
+        assertTrue(dao.contains("@Query(\"UPDATE playlist_song_map SET position = :position WHERE id = :id\")\n    suspend fun syncSetMapPosition(id: Int, position: Int)"))
+        assertTrue("the member rows come in each list's order", dao.substringBefore("suspend fun syncMemberRows()").substringAfterLast("@Query(").contains("ORDER BY m.playlistId, m.position, m.id"))
+    }
+
+    @Test
+    fun `row 901 - removals of things the room never heard from this device are held, told in their own words`() {
+        val s = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
+        assertTrue(s.contains("} else if (!freshStart) {\n"))
+        assertTrue(s.contains("held = removalsNeverSeenHereLocked(accepted, ledger)"))
+        assertTrue(s.contains("DeviceSyncHub.HeldTrip((DeviceSyncHub.heldTrip.value?.token ?: 0) + 1, held.size, newHere = true)"))
+        val activity = read("app/src/main/kotlin/com/music/echo/MainActivity.kt")
+        assertTrue(activity.contains("message = (if (trip.newHere) heldNoticeNewHere else heldNotice).format(trip.count),"))
+        for (dir in listOf("values", "values-es")) {
+            val xml = read("app/src/main/res/$dir/device_sync_held_strings.xml")
+            assertTrue(dir, xml.contains("name=\"device_sync_held_notice_new_here\">") && xml.substringAfter("device_sync_held_notice_new_here").contains("%1\$d"))
+        }
+    }
 }
