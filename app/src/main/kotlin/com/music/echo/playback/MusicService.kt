@@ -854,6 +854,10 @@ class MusicService :
     // safeVolumeEnabledHint, which Fidelidad forces off without touching the stored preference.
     @Volatile internal var fidelityModeHint: Boolean = false
     @Volatile private var safeVolumePrefHint: Boolean = true
+    // Row 902: bit-perfect USB output on Android 14+ while «Modo Fidelidad» is on (event-driven, see the class).
+    private val bitPerfectUsb by lazy {
+        iad1tya.echo.music.playback.audio.BitPerfectUsbController(getSystemService(AudioManager::class.java))
+    }
     @Volatile private var stereoWidthHint: Float = 1f
     // Default OFF (owner report 2026-09-22): this trims the master preamp by the loudest active
     // band's boost on every EQ recompute (each slider drag), so moving a band up perceptibly ducked
@@ -2073,6 +2077,7 @@ class MusicService :
             applyEqForCurrentOutput()
             applySpatialFromPrefs()
             applyMasteringFromPrefs()
+            bitPerfectUsb.onAudioDevicesChanged() // row 902: a DAC plugged in
         }
 
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
@@ -2080,6 +2085,7 @@ class MusicService :
             applyEqForCurrentOutput()
             applySpatialFromPrefs()
             applyMasteringFromPrefs()
+            bitPerfectUsb.onAudioDevicesChanged() // row 902: unplugged → cleared
         }
     }
 
@@ -2411,8 +2417,19 @@ class MusicService :
         ) {
             player.playbackParameters = PlaybackParameters.DEFAULT
         }
+        bitPerfectUsb.setFidelityMode(on)
         // No user data: the state only.
         Timber.tag(TAG).i("FIDELITY mode=%s", if (on) "on" else "off")
+    }
+
+    /** Row 902: the bit-perfect preference lives only while playback is wanted (play pressed, not ended). */
+    private fun updateBitPerfectPlayback() {
+        if (!::player.isInitialized) return
+        bitPerfectUsb.setPlaybackActive(
+            player.playWhenReady &&
+                player.playbackState != Player.STATE_ENDED &&
+                player.playbackState != Player.STATE_IDLE,
+        )
     }
 
     override fun onCreate() {
@@ -8129,6 +8146,7 @@ class MusicService :
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
+        updateBitPerfectPlayback() // row 902
         // A rebuilt video→audio exit has finished the moment audio is audible again (soft exits log themselves).
         if (isPlaying) swapLogDone("video->audio", "rebuild")
         val autoConnected = isAndroidAutoControllerConnected()
@@ -8313,6 +8331,7 @@ class MusicService :
     override fun onPlaybackStateChanged(
         @Player.State playbackState: Int,
     ) {
+        updateBitPerfectPlayback() // row 902
         // #27: do NOT clear awaitingFirstUserPlay here — the restored queue reaches STATE_READY while PAUSED,
         // so clearing on any non-IDLE state would drop the veto during the restore itself. It is cleared only
         // on genuine engagement (real playback via EVENT_IS_PLAYING_CHANGED, a genuine playQueue/widget play,
@@ -8423,6 +8442,7 @@ class MusicService :
     }
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+        updateBitPerfectPlayback() // row 902
         // Registry row 473: the other half of the pause trace (PLAY_TOGGLE in PlayerConnection says the tap arrived;
         // this says what the player did with it and whether something else flipped it back). reason: 1 user,
         // 2 focus loss, 3 noisy, 4 remote, 5 end of item, 6 suppressed too long. Ints and booleans only.
@@ -10990,6 +11010,16 @@ class MusicService :
                         }
                         route = effectiveRoute
                         lastSinkConfig = audioSinkConfig
+                        // Row 902: the AudioTrack format of this track, for the bit-perfect USB mixer (once per track).
+                        bitPerfectUsb.onStreamFormat(
+                            iad1tya.echo.music.playback.audio.SinkDspRouting.sinkOutputEncoding(effectiveRoute)?.let { enc ->
+                                iad1tya.echo.music.playback.audio.BitPerfectMixer.StreamFormat(
+                                    encoding = enc,
+                                    sampleRate = inputFormat.sampleRate,
+                                    channelCount = audioSinkConfig.outputChannelMapping?.size ?: inputFormat.channelCount,
+                                )
+                            },
+                        )
                         // The silence detector is fed in-chain ONLY on media3's int16 pipeline; on every float
                         // route the sink tap is its only feed (SilenceDetectorAudioProcessor.externallyFed).
                         // Coming off the int16 chain, the tap is switched on only after the delegate has
@@ -11747,6 +11777,7 @@ class MusicService :
 
     override fun onDestroy() {
         isRunning = false
+        runCatching { bitPerfectUsb.release() } // row 902: never leave the bit-perfect preference behind
         runCatching { deviceSync?.stop() }
         deviceSync = null
         musicRequestFillJob?.cancel()

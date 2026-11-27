@@ -103,6 +103,20 @@ object SinkDspRouting {
     fun isTakeover(route: Route): Boolean =
         route == Route.FLOAT_TAKEOVER_HIRES || route == Route.FLOAT_TAKEOVER_16BIT
 
+    /**
+     * Row 902: the PCM encoding the delegate's AudioTrack is opened with for [route] — what a bit-perfect
+     * mixer has to match ([BitPerfectMixer]). Null for encoded passthrough/offload (no PCM to match).
+     * The int16 chain always hands the AudioTrack 16 bits (`toInt16Pcm` + Sonic); every float route, ours or
+     * media3's own, hands it 32-bit float.
+     */
+    fun sinkOutputEncoding(route: Route): Int? = when (route) {
+        Route.PASSTHROUGH -> null
+        Route.DELEGATE_INT16_CHAIN -> C.ENCODING_PCM_16BIT
+        Route.DELEGATE_FLOAT_NO_DSP,
+        Route.FLOAT_TAKEOVER_HIRES,
+        Route.FLOAT_TAKEOVER_16BIT -> C.ENCODING_PCM_FLOAT
+    }
+
     /** Same comparison as `PlaybackParameters.equals` against `PlaybackParameters.DEFAULT`. */
     fun isDefaultParameters(speed: Float, pitch: Float): Boolean = speed == 1f && pitch == 1f
 }
