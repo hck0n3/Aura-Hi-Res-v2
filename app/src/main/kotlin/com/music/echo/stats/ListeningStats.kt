@@ -98,7 +98,10 @@ object ListeningStats {
         val listeningDays: Int,
         val topDay: DayTotal?,
         val longestStreak: Streak?,
-        /** Consecutive listening days up to today (or up to yesterday while today has none yet); 0 without `today`. */
+        /**
+         * Consecutive listening days up to today (or up to yesterday while today has none yet); 0 without `today`. Counted
+         * over `listeningDaysEver` when given (the real current streak, whatever the range), else over the range's days.
+         */
         val currentStreak: Int,
         /** Artists first heard in this range (their first play ever falls inside it), most listened first. */
         val newArtists: List<Entry>,
@@ -129,6 +132,7 @@ object ListeningStats {
      * @param genreByArtistName lowercased artist name -> genre (`GenreCache.snapshot`).
      * @param artistFirstPlayed [StatsDedupe.artistKey] -> the first time that artist was ever played.
      * @param today the user's local date, for [Summary.currentStreak].
+     * @param listeningDaysEver every local day with a listen, ever, so [Summary.currentStreak] is not cut by [range].
      */
     fun summarize(
         range: Range,
@@ -137,6 +141,7 @@ object ListeningStats {
         genreByArtistName: Map<String, String> = emptyMap(),
         artistFirstPlayed: Map<String, LocalDateTime> = emptyMap(),
         today: LocalDate? = null,
+        listeningDaysEver: Set<LocalDate>? = null,
         limit: Int = 5,
     ): Summary {
         val inRange = plays.filter { it.at in range }
@@ -218,8 +223,8 @@ object ListeningStats {
         }
 
         var current = 0
-        if (today != null && days.isNotEmpty()) {
-            val daySet = byDay.keys
+        val daySet: Set<LocalDate> = listeningDaysEver ?: byDay.keys
+        if (today != null && daySet.isNotEmpty()) {
             var cursor: LocalDate = if (today in daySet) today else today.minusDays(1)
             while (cursor in daySet) {
                 current++

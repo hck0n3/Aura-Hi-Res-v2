@@ -319,6 +319,7 @@ constructor(
             genreByArtistName = GenreCache.snapshot(context),
             artistFirstPlayed = firstPlays,
             today = LocalDate.now(),
+            listeningDaysEver = database.statsListeningEpochDays().mapTo(HashSet<LocalDate>()) { LocalDate.ofEpochDay(it) },
         )
     }
 

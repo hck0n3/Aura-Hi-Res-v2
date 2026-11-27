@@ -154,6 +154,34 @@ class ListeningStatsTest {
     }
 
     @Test
+    fun `the current streak counts every listening day ever, not only the chip's range`() {
+        val songs = mapOf("a" to song("a"))
+        val today = LocalDate.of(2026, 4, 12)
+        val ever = (0L until 40L).map { today.minusDays(it) }.toSet()
+        val todayOnly = ListeningStats.Range(today.atStartOfDay(), today.plusDays(1).atStartOfDay())
+        val s = ListeningStats.summarize(todayOnly, listOf(Play("a", at(2026, 4, 12, 9), min)), songs, today = today, listeningDaysEver = ever)
+        assertEquals("a 40-day streak seen on the «today» chip", 40, s.currentStreak)
+        assertEquals(1, s.listeningDays)
+
+        val lastWeek = ListeningStats.week(today.minusWeeks(1), DayOfWeek.MONDAY)
+        val past = ListeningStats.summarize(lastWeek, listOf(Play("a", at(2026, 4, 1), min)), songs, today = today, listeningDaysEver = ever)
+        assertEquals("a past chip still shows the real streak, today included", 40, past.currentStreak)
+
+        val broken = ever.filter { it != today.minusDays(5) }.toSet()
+        assertEquals(5, ListeningStats.summarize(todayOnly, emptyList(), songs, today = today, listeningDaysEver = broken).currentStreak)
+    }
+
+    @Test
+    fun `the view model passes every listening day ever to the streak`() {
+        val root = generateSequence(java.io.File("").absoluteFile) { it.parentFile }
+            .first { java.io.File(it, "settings.gradle.kts").isFile }
+        val vm = java.io.File(root, "app/src/main/kotlin/com/music/echo/viewmodels/StatsViewModel.kt").readText()
+        assertTrue(vm.contains("listeningDaysEver = database.statsListeningEpochDays().mapTo(HashSet<LocalDate>()) { LocalDate.ofEpochDay(it) },"))
+        val dao = java.io.File(root, "app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt").readText()
+        assertTrue(dao.contains("@Query(\"SELECT DISTINCT timestamp / 86400000 FROM event\")\n    suspend fun statsListeningEpochDays(): List<Long>"))
+    }
+
+    @Test
     fun `a streak across a month boundary and nothing played at all`() {
         val songs = mapOf("a" to song("a"))
         val s = ListeningStats.summarize(

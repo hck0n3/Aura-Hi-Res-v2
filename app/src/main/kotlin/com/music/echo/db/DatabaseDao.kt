@@ -637,6 +637,10 @@ interface DatabaseDao {
     @Query("SELECT COUNT(*) FROM event WHERE timestamp >= :fromTimeStamp AND timestamp < :toTimeStamp")
     suspend fun statsPlayCountInRange(fromTimeStamp: Long, toTimeStamp: Long): Int
 
+    /** Every day with a listen, ever, as epoch days of the stored (local wall-clock) time: «Racha actual» is not cut by the chips. */
+    @Query("SELECT DISTINCT timestamp / 86400000 FROM event")
+    suspend fun statsListeningEpochDays(): List<Long>
+
     /** When each artist row was first played, ever (for «artistas nuevos»). */
     @Query(
         """
