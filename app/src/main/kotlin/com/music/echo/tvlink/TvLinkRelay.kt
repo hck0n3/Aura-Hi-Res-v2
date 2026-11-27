@@ -88,7 +88,7 @@ object TvLinkRelay {
 
     /**
      * Phone: seals [session] with the code and to the TV's key from its hello ([TvLinkSessionSeal]) and hands it to the relay.
-     * Ok(true) = the TV had it at once; Ok(false) = on its reconnect.
+     * Ok(true) = the TV opened it and acknowledged at once; Ok(false) = no ack yet, the TV gets it on its reconnect.
      */
     suspend fun send(normalized: String, tvPublicKey: ByteArray, session: TvLinkSession): Outcome<Boolean> = withContext(Dispatchers.IO) {
         val tvKey = TvLinkKeys.publicFrom(tvPublicKey) ?: return@withContext Outcome.Failed(Failure.WRONG_CODE)
@@ -152,6 +152,9 @@ object TvLinkRelay {
                                 val session = TvLinkSessionSeal.open(normalized, keys.private, payload.optString("session"))
                                     ?.let(TvLinkPayload::parseSession)
                                 // A blob that does not open with this code and this TV's key is not from the user's phone: never imported.
+                                // Only an opened session is acknowledged: the ack is what spends the single use on the relay (queued
+                                // before the close that stop() sends next).
+                                if (session != null) webSocket.send(JSONObject().put("type", "ack").toString())
                                 _state.value = if (session != null) State.Received(session) else State.Invalid
                             }
                             "expired" -> _state.value = State.Expired

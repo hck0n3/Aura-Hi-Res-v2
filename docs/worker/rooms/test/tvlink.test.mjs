@@ -7,6 +7,7 @@ import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TTL = 1500;
+const ACK = 400;
 let mf;
 before(async () => {
   mf = new Miniflare({
@@ -14,7 +15,7 @@ before(async () => {
     scriptPath: path.join(here, "../src/index.js"),
     compatibilityDate: "2024-11-01",
     durableObjects: { ROOM: "Room", TVLINK: "TvLink" },
-    bindings: { TVLINK_TTL_MS: String(TTL) },
+    bindings: { TVLINK_TTL_MS: String(TTL), TVLINK_ACK_MS: String(ACK) },
   });
 });
 after(async () => mf.dispose());
@@ -48,7 +49,11 @@ async function tv(id) {
       setTimeout(() => { const j = waiters.indexOf(w); if (j >= 0) { waiters.splice(j, 1); reject(new Error("timeout waiting for " + type)); } }, ms);
     });
   };
-  return { ws, next, inbox, isClosed: () => closed, hello: (blob) => ws.send(JSON.stringify({ type: "hello", payload: { hello: blob } })) };
+  return {
+    ws, next, inbox, isClosed: () => closed,
+    hello: (blob) => ws.send(JSON.stringify({ type: "hello", payload: { hello: blob } })),
+    ack: () => ws.send(JSON.stringify({ type: "ack" })),
+  };
 }
 const hello = (id) => mf.dispatchFetch(`http://x/tvlink/hello?id=${id}`);
 const sendSession = (id, session) =>
@@ -62,10 +67,12 @@ test("the phone reads the TV's sealed hello, sends once, and the TV receives it 
   const h = await hello(id);
   assert.equal(h.status, 200);
   assert.equal((await h.json()).hello, "SEALEDHELLO==");
-  const s = await sendSession(id, "SEALEDSESSION==");
-  assert.equal(s.status, 200);
-  assert.deepEqual(await s.json(), { delivered: true });
+  const sending = sendSession(id, "SEALEDSESSION==");
   assert.equal((await t.next("session")).session, "SEALEDSESSION==");
+  t.ack();
+  const s = await sending;
+  assert.equal(s.status, 200);
+  assert.deepEqual(await s.json(), { delivered: true }, "delivered only once the TV acknowledged");
   // One use: a second send is refused and the hello is gone.
   assert.equal((await sendSession(id, "OTHER==")).status, 409);
   assert.equal((await hello(id)).status, 404);
@@ -84,9 +91,31 @@ test("a session sent while the TV is reconnecting is handed to its next socket, 
   const t2 = await tv(id);
   t2.hello("H1==");
   assert.equal((await t2.next("session")).session, "S1==");
+  t2.ack();
+  await sleep(100);
   const t3 = await tv(id);
   t3.hello("H1==");
   assert.equal((await t3.next("error")).code, "already_used", "the blob was deleted after its single read");
+});
+
+test("a TV socket that died silently never spends the single use: no ack, delivered false, the reconnect still gets it", async () => {
+  const id = newId();
+  const dead = await tv(id);
+  dead.hello("H1==");
+  await dead.next("waiting");
+  // The socket still looks open to the relay, but nobody answers on it (Wi-Fi blink, no close frame).
+  const s = await sendSession(id, "S1==");
+  assert.equal(s.status, 200);
+  assert.deepEqual(await s.json(), { delivered: false });
+  assert.equal((await dead.next("session")).session, "S1==", "it was offered");
+  assert.equal((await hello(id)).status, 200, "the link is still alive: not tombstoned");
+  const back = await tv(id);
+  back.hello("H1==");
+  assert.equal((await back.next("session")).session, "S1==");
+  back.ack();
+  await sleep(100);
+  assert.equal((await sendSession(id, "S2==")).status, 409);
+  assert.equal((await hello(id)).status, 404);
 });
 
 test("a second hello never replaces the TV's, and the one delivery reaches every waiting socket", async () => {
@@ -98,9 +127,11 @@ test("a second hello never replaces the TV's, and the one delivery reaches every
   b.hello("OTHERHELLO==");
   await b.next("waiting");
   assert.equal((await (await hello(id)).json()).hello, "TVHELLO==", "the phone always sees the first hello (the TV's key)");
-  assert.deepEqual(await (await sendSession(id, "S==")).json(), { delivered: true });
+  const sending = sendSession(id, "S==");
   assert.equal((await a.next("session")).session, "S==");
   assert.equal((await b.next("session")).session, "S==");
+  a.ack();
+  assert.deepEqual(await (await sending).json(), { delivered: true });
   assert.equal((await sendSession(id, "S2==")).status, 409);
 });
 

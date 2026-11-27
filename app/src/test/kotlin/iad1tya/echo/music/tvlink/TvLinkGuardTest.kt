@@ -106,6 +106,23 @@ class TvLinkGuardTest {
     }
 
     @Test
+    fun `the single use is spent only when the TV acknowledges the session it opened`() {
+        val worker = read("docs/worker/rooms/src/index.js")
+        assertTrue(worker.contains("const TV_ACK_WAIT_MS = 5_000;"))
+        assertTrue(worker.contains("if (msg && msg.type === \"ack\") return this.acked();"))
+        assertTrue(worker.contains("return tvJson({ delivered: await ack });"))
+        val deliver = worker.substringAfter("  deliver(sockets, r) {").substringBefore("\n  }\n")
+        assertFalse("handing the session out never tombstones it", deliver.contains("used: true"))
+        val acked = worker.substringAfter("  async acked() {").substringBefore("\n  }\n")
+        assertTrue(acked.contains("await this.ctx.storage.put(\"link\", { used: true, expiresAt: r.expiresAt });"))
+        val relay = main("tvlink/TvLinkRelay.kt")
+        val onSession = relay.substringAfter("\"session\" -> {").substringBefore("\"expired\" ->")
+        assertTrue(onSession.contains("if (session != null) webSocket.send(JSONObject().put(\"type\", \"ack\").toString())"))
+        assertTrue("acked before the screen stops the socket", onSession.indexOf("\"ack\"") < onSession.indexOf("State.Received(session)"))
+        assertTrue(read("docs/worker/rooms/package.json").contains("test/tvlink.test.mjs"))
+    }
+
+    @Test
     fun `both screens are registered as Cuentas pages and indexed`() {
         val nav = main("ui/screens/NavigationBuilder.kt")
         assertTrue(nav.contains("composable(\"settings/accounts/tv_link_receive\") {"))

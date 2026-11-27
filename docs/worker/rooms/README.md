@@ -26,9 +26,9 @@ Cada mensaje es un texto JSON `{"type": …, "payload": {…}}`. Los campos del 
 Relevo de un solo uso entre una TV y el móvil de la misma persona, en su propio Durable Object (`TvLink`, binding `TVLINK`, migración `v2`). Las rutas de salas no cambian.
 - La TV genera un código secreto aleatorio (lo muestra como QR `echomusic://tvlogin?c=…` y como texto). Al servidor solo llega `id` = 32 hex de un hash de ese código: **el servidor nunca ve la clave** y no puede leer ni falsificar lo que pasa.
 - TV: `wss://…/tvlink/wait?id=…` y manda `{"type":"hello","payload":{"hello":"<base64>"}}` (qué aparato pide, cifrado con AES-GCM en la TV) → `waiting {expiresAt}`.
-- Móvil: `GET /tvlink/hello?id=…` → `{hello, expiresAt}`; lo descifra y enseña qué aparato pide. Si el usuario acepta, `POST /tvlink/send?id=…` con `{"session":"<base64>"}` (la sesión, cifrada en el móvil) → `{delivered:true}` si la TV estaba conectada, `{delivered:false}` si se le entrega al reconectar.
+- Móvil: `GET /tvlink/hello?id=…` → `{hello, expiresAt}`; lo descifra y enseña qué aparato pide. Si el usuario acepta, `POST /tvlink/send?id=…` con `{"session":"<base64>"}` (la sesión, cifrada en el móvil) → `{delivered:true}` si la TV la abrió y confirmó con `{"type":"ack"}` en menos de 5 s, `{delivered:false}` si no (TV desconectada, o un socket muerto sin cierre que aún parece abierto): la sesión sigue guardada y se le entrega al reconectar.
 - El `hello` guardado es siempre el primero (otro socket con el mismo `id` no lo cambia). La sesión va sellada también para la clave pública EC que la TV puso en su `hello`, así que solo esa TV puede abrirla.
-- La TV recibe `session {session}` **una sola vez** (se manda a todos los sockets que esperan con ese `id`); después solo queda una lápida (`409 already_used`) y todo se borra a los **2 minutos** del `hello` (alarma, y también al leer).
+- La TV recibe `session {session}` (se manda a todos los sockets que esperan con ese `id`) y responde `ack` cuando la ha descifrado. **El único uso se gasta con ese `ack`**, no al enviarla: después solo queda una lápida (`409 already_used`) y todo se borra a los **2 minutos** del `hello` (alarma, y también al leer).
 - Límites: `hello` 2 KB, `session` 32 KB (413), solo base64 (400), `id` de 32 hex (400). Errores: `404 no_such_link`, `409 already_used`.
 
 ## Reglas
