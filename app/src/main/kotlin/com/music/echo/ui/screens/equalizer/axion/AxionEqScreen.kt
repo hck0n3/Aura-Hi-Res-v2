@@ -980,7 +980,6 @@ private fun ColumnScope.EqMainContent(
             bandTypes = viewModel.graphicTypes.collectAsState().value,
             onBandQChange = { i, q -> viewModel.setGraphicBandQLive(i, q) },
             onBandTypeChange = { i, t -> viewModel.setGraphicBandType(i, t) },
-            onBypassPreview = { viewModel.previewBypass(it) },
             onAudibleDemo = { viewModel.playAudibleDemo() },
             enabled = graphicEnabled,
             onBandChange = { i, v -> viewModel.setBandGainLive(i, v) },
@@ -1000,6 +999,12 @@ private fun ColumnScope.EqMainContent(
             onReset = { viewModel.resetPeq() },
         )
     }
+
+    AbCompareCard(
+        enabled = enabled,
+        referenceGainDb = viewModel.abReferenceGainDb.collectAsState().value,
+        onPreview = { viewModel.previewBypass(it) },
+    )
 
     AnimatedVisibility(
         visible = isDirty && enabled,
@@ -1704,6 +1709,56 @@ private fun FactoryPresetGrid(
     }
 }
 
+/**
+ * Row 921 — «Comparar A/B»: hold to hear the reference B (equalizer and its effects bypassed, played at A's level
+ * so the louder one does not win), release to hear your sound A. Graphic and parametric modes alike. Saves nothing;
+ * leaving the screen releases it (the gesture's `finally` and AxionEqViewModel.onCleared). Unavailable, with the
+ * reason shown, while «Modo Fidelidad» is on or the equalizer is off.
+ */
+@Composable
+private fun AbCompareCard(
+    enabled: Boolean,
+    referenceGainDb: Double?,
+    onPreview: (Boolean) -> Unit,
+) {
+    val fidelityOn = iad1tya.echo.music.ui.component.rememberFidelityModeOn()
+    val active = enabled && !fidelityOn
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        iad1tya.echo.music.ui.component.AuraOutlinedButton(
+            onClick = {},
+            enabled = active,
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(active) {
+                    if (!active) return@pointerInput
+                    detectTapGestures(onPress = {
+                        onPreview(true)
+                        try {
+                            tryAwaitRelease()
+                        } finally {
+                            onPreview(false)
+                        }
+                    })
+                },
+        ) { Text(stringResource(R.string.eq_ab_compare_button)) }
+        val note = when {
+            fidelityOn -> stringResource(R.string.eq_ab_compare_unavailable_fidelity)
+            !enabled -> stringResource(R.string.eq_ab_compare_needs_eq)
+            referenceGainDb != null -> stringResource(
+                R.string.eq_ab_compare_listening_b,
+                "%+.1f".format(referenceGainDb),
+            )
+            else -> stringResource(R.string.eq_ab_compare_desc)
+        }
+        Text(
+            note,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (referenceGainDb != null && active) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun BandEqCard(
     skin: AuraPanelSkin,
@@ -1712,7 +1767,6 @@ private fun BandEqCard(
     bandTypes: IntArray,
     onBandQChange: (Int, Float) -> Unit,
     onBandTypeChange: (Int, Int) -> Unit,
-    onBypassPreview: (Boolean) -> Unit = {},
     onAudibleDemo: () -> Unit = {},
     enabled: Boolean,
     onBandChange: (Int, Float) -> Unit,
@@ -1847,24 +1901,7 @@ private fun BandEqCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            // A/B: hold to hear the song without the EQ, release to hear your tuning again.
-            iad1tya.echo.music.ui.component.AuraOutlinedButton(
-                onClick = {},
-                enabled = enabled,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .pointerInput(enabled) {
-                        if (!enabled) return@pointerInput
-                        detectTapGestures(onPress = {
-                            onBypassPreview(true)
-                            try {
-                                tryAwaitRelease()
-                            } finally {
-                                onBypassPreview(false)
-                            }
-                        })
-                    },
-            ) { Text("Mantén presionado para escuchar sin EQ") }
+            // Row 921: the A/B hold button moved below the band editor as «Comparar A/B» (AbCompareCard), in both modes.
             // Guaranteed-audible check: an extreme curve for 5 s, then back to the user's tuning.
             iad1tya.echo.music.ui.component.AuraOutlinedButton(
                 onClick = { ActionLog.tap(ActionId.EQ_AUDIBLE_DEMO); onAudibleDemo() },
