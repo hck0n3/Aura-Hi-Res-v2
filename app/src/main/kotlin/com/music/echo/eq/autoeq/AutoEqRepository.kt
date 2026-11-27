@@ -145,8 +145,12 @@ class AutoEqRepository(private val context: Context) {
         return@withLock tsv
     }
 
-    /** Downloads and parses one model's ParametricEQ profile. */
+    /**
+     * One model's ParametricEQ profile: from the bundled offline catalogue when it has that model and source (registry
+     * row 916 — the same filters, no network), else downloaded and parsed.
+     */
     suspend fun fetchProfile(entry: AutoEqEntry): AutoEqProfile? = withContext(Dispatchers.IO) {
+        AutoEqOfflineCatalog.find(context, entry.name, entry.source, entry.path)?.let { return@withContext it.toProfile() }
         runCatching {
             val encoded = entry.path.split('/').joinToString("/") {
                 URLEncoder.encode(it, "UTF-8").replace("+", "%20")

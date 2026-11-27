@@ -2877,7 +2877,8 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/equalizer/autoeq/AutoEqS
 | Buscar (ej. WH-1000XM5) (campo de texto, hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:204 | acción secundaria | ocasional | siempre |
 | «No se pudo cargar el catálogo AutoEq. Pulsa 'Actualizar base de datos'.» (hardcoded) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:216 | informativo | rara | solo si el catálogo falló |
 | Favorito (estrella) por modelo | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:234 | acción secundaria (conmutador) | ocasional | una por fila del catálogo |
-| Fila de auricular (aplicar perfil) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:242 | acción primaria | rara | `clickable(enabled = eqEnabled)` — inerte si el ecualizador está apagado |
+| Fila de auricular (aplicar perfil) | Ajustes > Sonido > AutoEQ | AutoEqScreen.kt:242 | acción primaria | rara | `clickable(enabled = eqEnabled)` — inerte si el ecualizador está apagado · **fila 916:** el perfil sale del catálogo incluido en la app (sin red); solo un modelo que no esté en él se descarga como antes |
+| **Fila 916:** «Créditos de los perfiles de auriculares: AutoEq de Jaakko Pasanen (licencia MIT), con mediciones de oratory1990, crinacle, Rtings…» (`autoeq_credits`, ES+EN) | Ajustes > Sonido > AutoEQ, debajo de la pista de Bypass | AutoEqScreen.kt:216 | informativo | rara | siempre |
 
 ---
 

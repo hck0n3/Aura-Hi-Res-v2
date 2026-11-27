@@ -1025,4 +1025,6 @@
     <string name="wrapped_home_title">Tu %1$s en Aura ya está listo</string>
     <string name="wrapped_home_body">Tus minutos, artistas y canciones del año.</string>
     <string name="wrapped_home_dismiss">Ocultar esta tarjeta</string>
+    <!-- Fila 916 del registro: créditos de los perfiles AutoEq. -->
+    <string name="autoeq_credits">Créditos de los perfiles de auriculares: AutoEq de Jaakko Pasanen (licencia MIT), con mediciones de oratory1990, crinacle, Rtings, Super Review, HypetheSonics y otros revisores.</string>
 </resources>

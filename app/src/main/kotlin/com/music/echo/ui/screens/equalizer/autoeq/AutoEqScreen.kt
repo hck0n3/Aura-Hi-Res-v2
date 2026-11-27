@@ -211,6 +211,13 @@ fun AutoEqScreen(navController: NavController) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // Row 916: who measured the profiles this screen applies.
+        Text(
+            stringResource(R.string.autoeq_credits),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
 
         Row(
             Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
