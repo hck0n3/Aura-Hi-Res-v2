@@ -852,6 +852,8 @@ class MusicService :
     @Volatile private var glueCompressorHint: Boolean = iad1tya.echo.music.constants.GlueCompressorDefault
     @Volatile private var outputDitherHint: Boolean = true
     @Volatile private var speakerBassProtectHint: Boolean = false
+    // Row 920: «Graves para altavoces pequeños», the user's switch (the route and Fidelidad are applied on top).
+    @Volatile private var virtualBassHint: Boolean = iad1tya.echo.music.constants.VirtualBassDefault
     // PLAN A3: 32-bit float processing for 16-bit decoder output (Opus/AAC). Read by the audio sink on
     // the PLAYBACK thread at every configure (= every new track), never per buffer. Starts at the shared
     // default so a configure that beats the DataStore's first emission gets exactly what the switch shows.
@@ -2433,8 +2435,13 @@ class MusicService :
             iad1tya.echo.music.playback.audio.FidelityMode.Stage.OUTPUT_DITHER, outputDitherHint, fidelity,
         )
         val width = iad1tya.echo.music.playback.audio.FidelityMode.effectiveStereoWidth(stereoWidthHint, fidelity)
+        // Row 920: the psychoacoustic bass only on the phone's own speaker, and never in Fidelidad.
+        val virtualBass = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.VIRTUAL_BASS, virtualBassHint, fidelity,
+        ) && iad1tya.echo.music.eq.audio.VirtualBass.allowedOn(iad1tya.echo.music.eq.audio.OutputClassifier.detect(this))
         playerEqProcessors.values.forEach {
             it.applyMastering(compressor, dither, onPhoneSpeaker)
+            it.applyVirtualBass(virtualBass)
             it.applyStereoWidth(width)
             it.applyAutoHeadroom(autoHeadroomHint)
         }
@@ -3287,6 +3294,17 @@ class MusicService :
                 }
         }
 
+        // Row 920: «Graves para altavoces pequeños» (Ajustes ▸ Sonido). Event-driven: one emission per change.
+        scope.launch {
+            dataStore.data
+                .map { it[iad1tya.echo.music.constants.VirtualBassEnabledKey] ?: iad1tya.echo.music.constants.VirtualBassDefault }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    virtualBassHint = enabled
+                    applyMasteringFromPrefs()
+                }
+        }
+
         // PLAN A3 — "Procesado en 32 bits" (Ajustes ▸ Sonido ▸ Masterización). Only mirrors the switch into
         // a hint: createRenderersFactory's sink reads it at its NEXT configure (the next track), so a change
         // never re-creates the AudioTrack under a playing song. Same key + same default constant as the
@@ -3430,7 +3448,11 @@ class MusicService :
                 dataStore.data.map { it[SpatialAudioEnabledKey] ?: false }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: iad1tya.echo.music.constants.GlueCompressorDefault }.distinctUntilChanged(),
-                dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false }.distinctUntilChanged(),
+                // Row 920: the psychoacoustic bass processes PCM too (paired with the speaker protection: five sources max).
+                dataStore.data.map {
+                    (it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false) ||
+                        (it[iad1tya.echo.music.constants.VirtualBassEnabledKey] ?: iad1tya.echo.music.constants.VirtualBassDefault)
+                }.distinctUntilChanged(),
                 dataStore.data.map { (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f }.distinctUntilChanged(),
             ) { spatial, tidal, compressor, speaker, width -> (spatial to tidal) to (compressor || speaker || width) }
                 // Emparejado con la sala en vez de como sexta fuente: `combine` se queda sin

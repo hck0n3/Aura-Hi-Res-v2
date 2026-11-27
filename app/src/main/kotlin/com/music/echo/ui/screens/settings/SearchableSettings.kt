@@ -142,6 +142,8 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // Row 902: «Modo Fidelidad».
             Triple(stringResource(R.string.fidelity_mode_title), "Sonido y ecualización", "settings/sound"),
             Triple(stringResource(R.string.fidelity_mode_desc), "Sonido y ecualización", "settings/sound"),
+            // Row 920: «Graves para altavoces pequeños».
+            Triple(stringResource(R.string.sound_virtual_bass_title), "Sonido y ecualización", "settings/sound"),
             // Fila 358: the Tidal switch now lives only inside the equalizer.
             Triple(stringResource(R.string.eq_tidal_signature_title), "Ecualizador", "settings/equalizer"),
             // Row 793: the de-esser's own switch, next to the Tidal one.

@@ -11,6 +11,7 @@
 #include <algorithm>
 
 #include "AuraTruePeakLimiter.h"
+#include "AuraVirtualBass.h"
 
 #if __has_include("Superpowered.h")
 #define HAS_SUPERPOWERED 1
@@ -338,6 +339,8 @@ public:
     // Row 911: set by flushProcessor (media3 flush: seek, reconfigure), consumed by the next processAudio block, which
     // empties the limiter's delay line and the EQ biquads' state so no audio from before the flush is played after it.
     std::atomic<bool> flushPending{false};
+    // Row 920: psychoacoustic bass for the phone speaker (AuraVirtualBass.h); Kotlin asks for it only on that route.
+    aura::VirtualBass* virtualBass = nullptr;
     Superpowered::Filter* deEsser = nullptr;
     Superpowered::Filter* deEsserDetector = nullptr;
 
@@ -694,6 +697,7 @@ public:
         // Row 911: replaces Superpowered's sample-peak Limiter (threshold -3 dB, ceiling -0.3 dBFS) and the tanh
         // soft clip. Transparent below -1 dBTP (gain exactly 1), and it catches the peaks BETWEEN samples too.
         truePeakLimiter = new aura::TruePeakLimiter(samplerate);
+        virtualBass = new aura::VirtualBass(samplerate);
 
         deEsser = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
         deEsser->frequency = 6500.0f;
@@ -781,6 +785,7 @@ public:
         filters.clear();
         
         if (truePeakLimiter) { delete truePeakLimiter; truePeakLimiter = nullptr; }
+        if (virtualBass) { delete virtualBass; virtualBass = nullptr; }
         if (deEsser) { delete deEsser; deEsser = nullptr; }
         if (deEsserDetector) { delete deEsserDetector; deEsserDetector = nullptr; }
         if (tidalLowShelf) { delete tidalLowShelf; tidalLowShelf = nullptr; }
@@ -1018,6 +1023,15 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setMasteringOptio
 #endif
 }
 
+/// Row 920: psychoacoustic bass on/off. One relaxed atomic: the audio thread ramps to it (AuraVirtualBass.h).
+extern "C" JNIEXPORT void JNICALL
+Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setVirtualBass(JNIEnv *env, jobject thiz, jlong ptr, jboolean enabled) {
+#if HAS_SUPERPOWERED
+    auto* processor = reinterpret_cast<SuperpoweredProcessor*>(ptr);
+    if (processor && processor->virtualBass) processor->virtualBass->setRequested(enabled == JNI_TRUE);
+#endif
+}
+
 extern "C" JNIEXPORT void JNICALL
 Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setStereoWidth(JNIEnv *env, jobject thiz, jlong ptr, jfloat width) {
 #if HAS_SUPERPOWERED
@@ -1190,6 +1204,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         processor->flushPending.exchange(false, std::memory_order_acq_rel)) {
         if (processor->truePeakLimiter) processor->truePeakLimiter->reset();
         for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) processor->eqBiquads[bi].reset();
+        if (processor->virtualBass) processor->virtualBass->reset();
     }
     // Row 912: with the equalizer off the bands do not run, so a band gliding to flat is stopped right away
     // (it would otherwise come back with stale coefficients when the equalizer is switched on again).
@@ -1247,7 +1262,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         runSpatial ||
         (processor && processor->activeTidalSimulationEnabled) ||
         (processor && (processor->activeCompressorEnabled || processor->activeSpeakerBassProtect ||
-                       processor->activeStereoWidth != 1.0f));
+                       processor->activeStereoWidth != 1.0f)) ||
+        (processor && processor->virtualBass && processor->virtualBass->wanted());
     if (runChain && workBuffer && processor) {
         // NO LOCK HERE. Parameters were taken in above via consumeAndApplySnapshot, which is wait-free
         // and delivers a complete set or nothing at all. Everything read below is either that applied
@@ -1424,6 +1440,9 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
                 workBuffer[i] *= tidalGain;
             }
         }
+
+        // Row 920: PSYCHOACOUSTIC BASS (user toggle; Kotlin asks for it only while the phone speaker plays).
+        if (processor->virtualBass) processor->virtualBass->process(workBuffer, num_frames, channels);
 
         // SPEAKER SUB-BASS PROTECTION (user toggle; Kotlin arms it only while the phone speaker plays).
         if (processor->activeSpeakerBassProtect && processor->speakerBassShelf) {

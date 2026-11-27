@@ -196,6 +196,11 @@ fun PlayerSettings(
         key = iad1tya.echo.music.constants.StereoWidthKey,
         defaultValue = 1f
     )
+    // Row 920: the psychoacoustic bass vetoes offload like the other mastering stages (same terms as the service).
+    val (virtualBassEnabled, _) = rememberPreference(
+        key = iad1tya.echo.music.constants.VirtualBassEnabledKey,
+        defaultValue = iad1tya.echo.music.constants.VirtualBassDefault,
+    )
     val listenTogetherRoom = LocalListenTogetherManager.current?.roomState?.collectAsState()?.value
     val inListenTogetherRoom = listenTogetherRoom?.inRoom == true
 
@@ -212,7 +217,7 @@ fun PlayerSettings(
                 eqActive, spatialEnabled, tidalSignatureEnabled,
             ),
             listenTogetherActive = inListenTogetherRoom,
-            masteringActive = glueCompressorEnabled || speakerBassProtectEnabled || stereoWidth != 1f,
+            masteringActive = glueCompressorEnabled || speakerBassProtectEnabled || stereoWidth != 1f || virtualBassEnabled,
         ),
     )
     val offloadBlockedReason: String? = when (offloadBlock) {

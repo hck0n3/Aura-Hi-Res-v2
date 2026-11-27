@@ -129,6 +129,20 @@ fun SoundSettings(
         val (stereoWidth, onStereoWidthChange) = rememberPreference(
             iad1tya.echo.music.constants.StereoWidthKey, defaultValue = 1f
         )
+        // Row 920: off by default (same constant as MusicService). Suggested, never switched on, while the phone's own
+        // speaker plays: re-read on each audio-device event (AudioDeviceCallback), nothing polls.
+        val (virtualBass, onVirtualBassChange) = rememberPreference(
+            iad1tya.echo.music.constants.VirtualBassEnabledKey,
+            defaultValue = iad1tya.echo.music.constants.VirtualBassDefault,
+        )
+        val soundContext = androidx.compose.ui.platform.LocalContext.current
+        val outputChanges = iad1tya.echo.music.ui.screens.equalizer.autoeq.rememberAudioOutputChanges()
+        val onPhoneSpeakerNow = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+        androidx.compose.runtime.LaunchedEffect(outputChanges) {
+            onPhoneSpeakerNow.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                iad1tya.echo.music.eq.audio.VirtualBass.allowedOn(iad1tya.echo.music.eq.audio.OutputClassifier.detect(soundContext))
+            }
+        }
         Material3SettingsGroup(
             title = "Volumen y protección",
             items = listOf(
@@ -182,6 +196,27 @@ fun SoundSettings(
                         )
                     },
                     onClick = { onSpeakerBassProtectChange(!speakerBassProtect) },
+                ),
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.volume_up),
+                    title = { Text(stringResource(R.string.sound_virtual_bass_title)) },
+                    description = {
+                        Column {
+                            Text(stringResource(R.string.sound_virtual_bass_desc))
+                            if (!virtualBass && onPhoneSpeakerNow.value) {
+                                Text(stringResource(R.string.sound_virtual_bass_suggested))
+                            }
+                            FidelityPausedNote(fidelityMode)
+                        }
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = virtualBass,
+                            onCheckedChange = onVirtualBassChange,
+                            thumbContent = thumb(virtualBass),
+                        )
+                    },
+                    onClick = { onVirtualBassChange(!virtualBass) },
                 ),
             ),
         )

@@ -37,6 +37,8 @@ object FidelityMode {
         SPEAKER_BASS_PROTECTION,
         /** 32-bit float output on mid/high-tier devices (`setEnableFloatOutput(!lowEnd)`). */
         FLOAT_OUTPUT,
+        /** Row 920: psychoacoustic bass on the phone speaker. It rewrites the bass, so it is bypassed. */
+        VIRTUAL_BASS,
     }
 
     /** What Fidelidad switches off. */
@@ -53,6 +55,7 @@ object FidelityMode {
         Stage.MANUAL_FADE,
         Stage.TEMPO_PITCH,
         Stage.FLOAT_16BIT_TAKEOVER,
+        Stage.VIRTUAL_BASS,
     )
 
     /**
