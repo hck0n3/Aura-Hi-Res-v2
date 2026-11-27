@@ -55,6 +55,8 @@ class LibrarySync(
     private val journal: JournalPersistence = MemoryJournal(),
     /** Row 900: the device's monotonic clock (boot + time since boot): when a change was made, whatever the phone clock says. */
     private val mono: () -> Mono = { Mono(0L, System.nanoTime() / 1_000_000L) },
+    /** Row 900: the room is full and turned changes of this device down: tell the user (once per connection). */
+    private val onRoomFull: () -> Unit = {},
 ) {
     /** Delays, in one place so a test can make them tiny. */
     data class Timing(
@@ -62,6 +64,8 @@ class LibrarySync(
         val slowDelayMs: Long = 4_000L,
         val minIntervalMs: Long = 30_000L,
         val pullTimeoutMs: Long = 12_000L,
+        /** Row 900: how long the registers a full room turned down wait before they are offered again (chosen, not measured). */
+        val refusedRetryMs: Long = 3_600_000L,
     )
 
     private val mutex = Mutex()
@@ -71,6 +75,11 @@ class LibrarySync(
     private var freshStart = sinceStore.freshStart()
     private val inFlight = ArrayDeque<List<Reg>>()
     private val sentKeys = HashSet<String>()
+
+    /** Row 900: registers a full room turned down, not offered again until the next connection or [Timing.refusedRetryMs]. */
+    private val refusedKeys = HashSet<String>()
+    private var refusedAt = 0L
+    private var roomFullTold = false
     private var kickJob: Job? = null
     private var pullWatchdog: Job? = null
     private var lastDiffAt = 0L
@@ -139,6 +148,8 @@ class LibrarySync(
         synchronized(pullLock) { pullInFlight = false; pullAgain = false }
         inFlight.clear()
         sentKeys.clear()
+        refusedKeys.clear()
+        roomFullTold = false
         if (!isEnabled()) {
             watchingSinceCaughtUp = false
             dropBaseline()
@@ -382,6 +393,7 @@ class LibrarySync(
             store.rewrite(ledger)
             sentKeys.clear()
             inFlight.clear()
+            refusedKeys.clear()
         }
         val incoming = ((msg["items"] as? JsonArray).orEmpty()).mapNotNull { item ->
             val a = item as? JsonArray ?: return@mapNotNull null
@@ -525,16 +537,22 @@ class LibrarySync(
 
     /**
      * Row 900: a room from lib 3 on lists in `ids` every op it is done with; only those stop being pending here. The others (a full
-     * room) stay pending and go out again with the next pass. An older room sends no `ids`: the whole batch is settled, as before.
+     * room turned them down) stay pending, but are not offered again on every pass — each song played kicks one, so a full room
+     * would make the phone resend its whole backlog for as long as it plays: they wait for the next connection or an hour, and the
+     * user is told once. An older room sends no `ids`: the whole batch is settled, as before.
      */
     private suspend fun onAckLocked(msg: JsonObject) {
         val batch = inFlight.removeFirstOrNull() ?: return
         val done = (msg["ids"] as? JsonArray)?.mapNotNullTo(HashSet()) { (it as? JsonPrimitive)?.contentOrNull }
         val ledger = ledger()
         val settled = ArrayList<Reg>()
+        val refused = ArrayList<String>()
         for (sent in batch) {
             sentKeys.remove(sent.key)
-            if (done != null && LibrarySyncCore.opId(sent) !in done) continue
+            if (done != null && LibrarySyncCore.opId(sent) !in done) {
+                refused += sent.key
+                continue
+            }
             // Only if it was not changed again while the room was answering.
             val now = ledger[sent.key]
             if (now != null && now.ts == sent.ts && now.value == sent.value && now.pending) {
@@ -544,6 +562,15 @@ class LibrarySync(
             }
         }
         store.append(settled)
+        if (refused.isNotEmpty()) {
+            refusedKeys += refused
+            refusedAt = System.currentTimeMillis()
+            Timber.tag(TAG).w("LIB_SYNC room full refused=%d", refused.size)
+            if (!roomFullTold) {
+                roomFullTold = true
+                runCatching(onRoomFull)
+            }
+        }
         if (pulledOnce) publishStatusLocked()
     }
 
@@ -569,8 +596,10 @@ class LibrarySync(
         fresh.forEach { ledger[it.key] = it }
         store.append(fresh)
 
-        // Everything not yet acknowledged, parents before children, in batches the room accepts.
-        val pending = ledger.values.filter { it.pending && it.key !in sentKeys }.sortedBy { rank(it.key) }
+        // Everything not yet acknowledged, parents before children, in batches the room accepts — but what a full room turned down
+        // waits (onAckLocked).
+        if (refusedKeys.isNotEmpty() && System.currentTimeMillis() - refusedAt >= timing.refusedRetryMs) refusedKeys.clear()
+        val pending = ledger.values.filter { it.pending && it.key !in sentKeys && it.key !in refusedKeys }.sortedBy { rank(it.key) }
         if (pending.isEmpty()) return
         var sentCount = 0
         for (batch in pending.chunked(BATCH)) {

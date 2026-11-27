@@ -550,6 +550,19 @@ test("cleanup: an older op for a forgotten removal is turned down (and acknowled
   assert.equal(data.get("libcount"), 1);
 });
 
+test("library: a full room says so in the ack and leaves the new key out of `ids`; a change to a key it has still lands", async () => {
+  const { room, data, ws, sent } = memoryRoom();
+  await room.libPush(ws, { ops: [["lk:have", 1000, "1", "have"]] });
+  assert.equal(sent.at(-1).full, undefined, "a room with space says nothing new");
+  data.set("libcount", 150000);
+  await room.libPush(ws, { ops: [["lk:new", 2000, "1", "new"], ["lk:have", 2000, "0", "change"]] });
+  const ack = sent.at(-1);
+  assert.equal(ack.full, true);
+  assert.deepEqual(ack.ids, ["change"], "the new key is not done with: the app keeps it");
+  assert.equal(data.has("k:lk:new"), false);
+  assert.equal(data.get("k:lk:have").v, "0");
+});
+
 test("cleanup: a device that is still behind holds everything after its place", async () => {
   const now = Date.UTC(2026, 10, 27);
   const { room, data, ws } = memoryRoom();

@@ -143,7 +143,12 @@ class LibrarySyncGuardTest {
         val s = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
         assertTrue("the journal is dated before a page of the room is weighed against it", s.contains("// Row 900: what was journaled before this page competes with it by when it was made, not by when it arrives.\n        convertJournalLocked()"))
         assertTrue("an op carries its id", s.contains("add(JsonPrimitive(LibrarySyncCore.opId(r)))"))
-        assertTrue("only acknowledged ops stop being pending", s.contains("if (done != null && LibrarySyncCore.opId(sent) !in done) continue"))
+        assertTrue("only acknowledged ops stop being pending", s.contains("if (done != null && LibrarySyncCore.opId(sent) !in done) {\n                refused += sent.key\n                continue"))
+        assertTrue(
+            "what a full room turned down is not resent on every pass",
+            s.contains("val pending = ledger.values.filter { it.pending && it.key !in sentKeys && it.key !in refusedKeys }"),
+        )
+        assertTrue("the user is told the room is full", a.contains("onRoomFull = { DeviceSyncHub.notice(context.getString(iad1tya.echo.music.R.string.device_sync_room_full)) }"))
     }
 
     @Test

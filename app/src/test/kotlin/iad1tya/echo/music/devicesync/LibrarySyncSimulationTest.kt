@@ -310,7 +310,11 @@ class LibrarySyncSimulationTest {
             timing = LibrarySync.Timing(fastDelayMs = 20, slowDelayMs = 20, minIntervalMs = 20, pullTimeoutMs = 2_000),
             clockKnown = clockKnown,
             journal = journal,
+            onRoomFull = { roomFullNotices++ },
         )
+
+        /** Row 900: how many times the user was told the room is full. */
+        @Volatile var roomFullNotices = 0
 
         /** [holdAnswers]: the room's answers wait in the inbox until [releaseAnswers] (a slow first pull after a reconnect). */
         fun connect(holdAnswers: Boolean = false) {
@@ -1344,7 +1348,8 @@ class LibrarySyncSimulationTest {
         assertEquals("the like that was acknowledged is settled", false, phone.ledger.stored["lk:first"]?.pending)
 
         room.capacity = Int.MAX_VALUE
-        phone.changed()
+        // A full room is not asked again on every pass (see the next test): the next connection tries again.
+        phone.disconnect(); phone.connect()
         eventually("the second try lands") { room.value("lk:second") == "1" }
         eventually("and is settled here") { phone.ledger.stored["lk:second"]?.pending == false }
         val id = LibrarySyncCore.opId(phone.ledger.stored.getValue("lk:second"))
@@ -1352,6 +1357,27 @@ class LibrarySyncSimulationTest {
         val head = room.head
         phone.changed(); settle()
         assertEquals("settled: nothing more goes out", head, room.head)
+    }
+
+    @Test
+    fun `a full room is not asked again on every pass, and the user is told once`() {
+        val phone = Device("phone")
+        phone.backend.like("first")
+        phone.connect()
+        eventually("the room has the first like") { room.value("lk:first") == "1" }
+        settle()
+        room.capacity = 1
+        phone.backend.like("second"); phone.changed()
+        eventually("the like reached the full room") {
+            phone.ledger.stored["lk:second"]?.let { room.received.containsKey(LibrarySyncCore.opId(it)) } == true
+        }
+        settle()
+        val id = LibrarySyncCore.opId(phone.ledger.stored.getValue("lk:second"))
+        repeat(5) { phone.changed(); settle() }
+        phone.backend.like("third"); phone.changed(); settle()
+        assertEquals("turned down once, never resent on the passes that followed", 1, room.received[id])
+        assertTrue("still pending here: nothing is forgotten", phone.ledger.stored["lk:second"]?.pending == true)
+        assertEquals("told once, not once per refusal", 1, phone.roomFullNotices)
     }
 
     @Test

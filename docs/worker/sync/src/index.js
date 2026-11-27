@@ -255,6 +255,7 @@ export class SyncRoom {
     let seq = (await this.ctx.storage.get("libseq")) || 0;
     let count = (await this.ctx.storage.get("libcount")) || 0;
     const accepted = [];
+    let full = false;
     for (let i = 0; i < ops.length; i += LIB_CHUNK) {
       const chunk = ops.slice(i, i + LIB_CHUNK);
       const existing = await this.ctx.storage.get(chunk.flatMap(([k]) => ["k:" + k, "t:" + k]));
@@ -270,8 +271,11 @@ export class SyncRoom {
           if (id) ids.push(id);
           continue;
         }
-        // A full room is NOT done with it: no id, so the app keeps it and tries again once there is room.
-        if (!cur && count >= LIB_MAX_KEYS) continue;
+        // A full room is NOT done with it: no id, so the app keeps it; `full` tells it to wait instead of resending it on every pass.
+        if (!cur && count >= LIB_MAX_KEYS) {
+          full = true;
+          continue;
+        }
         if (id) ids.push(id);
         seq++;
         if (cur) dels.push("s:" + pad(cur.seq));
@@ -290,7 +294,7 @@ export class SyncRoom {
       if (dels.length) await this.ctx.storage.delete(dels);
     }
     if (accepted.length) await this.ctx.storage.put({ libseq: seq, libcount: count });
-    send(ws, { t: "lib_ack", seq, accepted: accepted.length, received: ops.length, ids });
+    send(ws, { t: "lib_ack", seq, accepted: accepted.length, received: ops.length, ids, ...(full ? { full: true } : {}) });
     // The others only need the signal: they pull from where they left off (idempotent, and never misses a gap).
     if (accepted.length) this.broadcast({ t: "lib_ops", seq }, ws);
   }

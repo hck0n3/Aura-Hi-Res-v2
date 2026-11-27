@@ -16,4 +16,5 @@
     <string name="device_sync_held_kind_pins">Pinned</string>
     <string name="device_sync_held_kind_other">Other</string>
     <string name="device_sync_held_notice_new_here">This device still had %1$d items your other devices had already removed; they were not removed here, to be safe.</string>
+    <string name="device_sync_room_full">Your synced library is full: new changes from this device are not reaching your other devices.</string>
 </resources>

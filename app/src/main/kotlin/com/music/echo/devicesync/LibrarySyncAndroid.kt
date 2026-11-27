@@ -73,6 +73,7 @@ object LibrarySyncAndroid {
                 val now: () -> Mono = { Mono(boot, android.os.SystemClock.elapsedRealtime()) }
                 now
             },
+            onRoomFull = { DeviceSyncHub.notice(context.getString(iad1tya.echo.music.R.string.device_sync_room_full)) },
             watchChanges = { kick ->
                 // Likes, playlists and their songs live in the database; whoever changes them, this fires.
                 val observer = object : InvalidationTracker.Observer("song", "playlist", "playlist_song_map", "speed_dial_item", "album") {
