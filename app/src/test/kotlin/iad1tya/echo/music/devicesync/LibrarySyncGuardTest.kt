@@ -138,7 +138,7 @@ class LibrarySyncGuardTest {
         val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAndroid.kt")
         assertTrue(a.contains("journal = LibraryJournalStore(ledgerFile.parentFile"))
         assertTrue(a.contains("android.provider.Settings.Global.BOOT_COUNT"))
-        assertTrue(a.contains("Mono(boot, android.os.SystemClock.elapsedRealtime())"))
+        assertTrue(a.contains("val now: () -> Mono = { Mono(boot, android.os.SystemClock.elapsedRealtime()) }"))
         assertTrue("a restore still forgets every file of the rooms, the journal included", a.contains("File(context.filesDir, \"device_sync\").walkBottomUp()"))
         val s = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
         assertTrue("the journal is dated before a page of the room is weighed against it", s.contains("// Row 900: what was journaled before this page competes with it by when it was made, not by when it arrives.\n        convertJournalLocked()"))

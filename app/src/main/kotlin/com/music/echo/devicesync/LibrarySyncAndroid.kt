@@ -70,7 +70,8 @@ object LibrarySyncAndroid {
                 val boot = runCatching {
                     android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1).toLong()
                 }.getOrDefault(-1L)
-                ({ Mono(boot, android.os.SystemClock.elapsedRealtime()) })
+                val now: () -> Mono = { Mono(boot, android.os.SystemClock.elapsedRealtime()) }
+                now
             },
             watchChanges = { kick ->
                 // Likes, playlists and their songs live in the database; whoever changes them, this fires.
