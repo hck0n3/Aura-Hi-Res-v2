@@ -63,7 +63,8 @@ class LibrarySyncAdapter(
             order.getOrPut(key) { ArrayList() } += row.songId
             referenced += row.songId
         }
-        for ((key, songs) in order) facts.putAll(LibrarySyncCore.PlaylistOrder.facts(key, songs, playlists.orderOf(key)))
+        // A list whose positions cannot be worked out only loses its positions this pass; the rest of the library still travels.
+        for ((key, songs) in order) runCatching { LibrarySyncCore.PlaylistOrder.facts(key, songs, playlists.orderOf(key)) }.onSuccess(facts::putAll)
 
         for (row in database.syncSavedAlbumRows()) {
             if (!LibrarySyncCore.syncableId(row.id)) continue
