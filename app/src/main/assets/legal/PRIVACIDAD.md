@@ -21,7 +21,7 @@ Esta es la versión principal de la política de privacidad de **Aura Hi-Res v2*
 - Lo que escuchas, pausas y saltas, y tu historial de escucha (para las estadísticas y las recomendaciones que se calculan en el propio dispositivo).
 - Tus listas, tus me gusta, tu historial de búsqueda, tus ajustes y tus descargas.
 - El acceso a tus archivos de música locales.
-- Las cookies y los tokens de sesión de los servicios de terceros en los que inicies sesión. **No se incluyen** en las copias de seguridad ni en la sincronización. Solo salen de tu dispositivo si tú envías tu sesión de Google a tu TV con «Iniciar sesión en la TV» (apartado 2), cifrada de extremo a extremo.
+- Las cookies y los tokens de sesión de los servicios de terceros en los que inicies sesión. **No se incluyen** en las copias de seguridad (tampoco en la copia automática, que se guarda solo en la carpeta de tu dispositivo que elijas) ni en la sincronización. Solo salen de tu dispositivo si tú envías tu sesión de Google a tu TV con «Iniciar sesión en la TV» (apartado 2), cifrada de extremo a extremo.
 - El correo de la compra, si lo escribes al activar la licencia.
 
 Lo borras todo borrando los datos de la aplicación o desinstalándola. Lo que ya se haya enviado a nuestros servicios (apartado 2) se borra como se explica en el apartado 6.

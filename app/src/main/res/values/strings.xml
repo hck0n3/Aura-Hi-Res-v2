@@ -972,4 +972,16 @@
     <string name="tvlink_err_used">That code was already used. Show a new one on the TV.</string>
     <string name="tvlink_err_network">Could not reach the Aura server. Check your connection.</string>
     <string name="tvlink_invalid_link">That QR is not a valid TV code</string>
+    <!-- Registry row 908: automatic periodic backup -->
+    <string name="auto_backup_title">Automatic backup</string>
+    <string name="auto_backup_desc">Saves the same copy as “Copia de seguridad local” to a folder you choose, every day or every week, and keeps the last 5. Without your Google session, cookies or licence.</string>
+    <string name="auto_backup_on_pending">On: the first copy is made as soon as the battery and storage allow it</string>
+    <string name="auto_backup_last_ok">Last copy: %1$s</string>
+    <string name="auto_backup_last_failed">The last copy could not be saved: choose the folder again</string>
+    <string name="auto_backup_frequency">Frequency</string>
+    <string name="auto_backup_daily">Every day</string>
+    <string name="auto_backup_weekly">Every week</string>
+    <string name="auto_backup_folder">Folder</string>
+    <string name="auto_backup_folder_none">Choose a folder</string>
+    <string name="auto_backup_restore_hint">To restore one: “Importar” ▸ “Importar desde archivo local”, and pick an Aura_auto file.</string>
 </resources>

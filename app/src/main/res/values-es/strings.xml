@@ -906,4 +906,16 @@
     <string name="tvlink_err_used">Ese código ya se usó. Muestra uno nuevo en la TV.</string>
     <string name="tvlink_err_network">No se pudo conectar con el servidor de Aura. Revisa tu conexión.</string>
     <string name="tvlink_invalid_link">Ese QR no es un código de TV válido</string>
+    <!-- Fila 908 del registro: copia de seguridad automática periódica -->
+    <string name="auto_backup_title">Copia automática</string>
+    <string name="auto_backup_desc">Guarda la misma copia que «Copia de seguridad local» en una carpeta que elijas, cada día o cada semana, y conserva las 5 últimas. Sin tu sesión de Google, cookies ni licencia.</string>
+    <string name="auto_backup_on_pending">Activada: la primera copia se hace en cuanto la batería y el espacio lo permitan</string>
+    <string name="auto_backup_last_ok">Última copia: %1$s</string>
+    <string name="auto_backup_last_failed">La última copia no se pudo guardar: vuelve a elegir la carpeta</string>
+    <string name="auto_backup_frequency">Frecuencia</string>
+    <string name="auto_backup_daily">Cada día</string>
+    <string name="auto_backup_weekly">Cada semana</string>
+    <string name="auto_backup_folder">Carpeta</string>
+    <string name="auto_backup_folder_none">Elige una carpeta</string>
+    <string name="auto_backup_restore_hint">Para restaurar una: Importar ▸ Importar desde archivo local, y elige un archivo Aura_auto.</string>
 </resources>

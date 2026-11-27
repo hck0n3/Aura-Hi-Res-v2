@@ -501,6 +501,11 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.privacy_policy_title), "Privacidad", "settings/privacy"),
             Triple(stringResource(R.string.privacy_policy_entry_desc), "Privacidad", "settings/privacy"),
             // --- Copia y restauracion (settings/backup_restore) : 2 ---
+            // Registry row 908: «Copia automática» and its two rows, on the main view of the screen.
+            Triple(stringResource(R.string.auto_backup_title), stringResource(R.string.backup_restore), "settings/backup_restore"),
+            Triple(stringResource(R.string.auto_backup_desc), stringResource(R.string.backup_restore), "settings/backup_restore"),
+            Triple(stringResource(R.string.auto_backup_frequency), stringResource(R.string.backup_restore), "settings/backup_restore"),
+            Triple(stringResource(R.string.auto_backup_folder), stringResource(R.string.backup_restore), "settings/backup_restore"),
             // --- Acerca de (settings/about) : 1 ---
             Triple(stringResource(R.string.feedback_title), "Reportar y sugerir", "settings/feedback"),
             Triple(stringResource(R.string.feedback_kind_bug), "Reportar y sugerir", "settings/feedback"),

@@ -60,6 +60,7 @@ import iad1tya.echo.music.viewmodels.CsvImportState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import iad1tya.echo.music.utils.dataStore
+import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
@@ -103,6 +104,47 @@ fun BackupAndRestore(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val database = iad1tya.echo.music.LocalDatabase.current
+
+    // Registry row 908: «Copia automática» (off by default) — the same ZIP as the local backup, by WorkManager, into a folder the
+    // user picks, the last 5 kept. Restored through «Importar desde archivo local», unchanged.
+    val autoBackupEnabled by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.backup.AutoBackupEnabledKey, false)
+    val autoBackupFrequency by iad1tya.echo.music.utils.rememberEnumPreference(
+        iad1tya.echo.music.backup.AutoBackupFrequencyKey,
+        iad1tya.echo.music.backup.AutoBackupFrequency.WEEKLY,
+    )
+    val autoBackupFolder by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.backup.AutoBackupFolderKey, "")
+    val autoBackupLastOk by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.backup.AutoBackupLastOkKey, 0L)
+    val autoBackupLastFailed by iad1tya.echo.music.utils.rememberPreference(iad1tya.echo.music.backup.AutoBackupLastFailedKey, 0L)
+    var autoBackupEnableAfterPick by rememberSaveable { mutableStateOf(false) }
+    val autoBackupFolderName by androidx.compose.runtime.produceState<String?>(null, autoBackupFolder) {
+        value = if (autoBackupFolder.isBlank()) null else kotlinx.coroutines.withContext(Dispatchers.IO) {
+            runCatching { androidx.documentfile.provider.DocumentFile.fromTreeUri(context, android.net.Uri.parse(autoBackupFolder))?.name }.getOrNull()
+        }
+    }
+    // Writes the settings first and schedules after, so the first run never reads a stale «off».
+    fun applyAutoBackup(enabled: Boolean, frequency: iad1tya.echo.music.backup.AutoBackupFrequency, folder: String? = null) {
+        coroutineScope.launch {
+            context.dataStore.edit { p ->
+                p[iad1tya.echo.music.backup.AutoBackupEnabledKey] = enabled
+                p[iad1tya.echo.music.backup.AutoBackupFrequencyKey] = frequency.name
+                if (folder != null) p[iad1tya.echo.music.backup.AutoBackupFolderKey] = folder
+            }
+            iad1tya.echo.music.backup.AutoBackupWorker.schedule(context, enabled, frequency)
+        }
+    }
+    val autoBackupFolderLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            val enableNow = autoBackupEnableAfterPick
+            autoBackupEnableAfterPick = false
+            if (uri == null) return@rememberLauncherForActivityResult
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            applyAutoBackup(enableNow || autoBackupEnabled, autoBackupFrequency, uri.toString())
+        }
 
     var cloudStatus by remember { mutableStateOf("") }
     var showCloudRestoreConfirm by rememberSaveable { mutableStateOf(false) }
@@ -320,6 +362,80 @@ fun BackupAndRestore(
                                     onClick = { ActionLog.tap(ActionId.BACKUP_SELECTIVE_EXPORT); showSelectiveExportDialog = true },
                                 ),
                             ),
+                        )
+                        Spacer(modifier = Modifier.padding(8.dp))
+
+                        // Registry row 908: «Copia automática».
+                        val autoBackupStatus = when {
+                            !autoBackupEnabled -> stringResource(R.string.auto_backup_desc)
+                            autoBackupLastFailed > autoBackupLastOk -> stringResource(R.string.auto_backup_last_failed)
+                            autoBackupLastOk > 0L -> stringResource(
+                                R.string.auto_backup_last_ok,
+                                java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
+                                    .format(java.util.Date(autoBackupLastOk)),
+                            )
+                            else -> stringResource(R.string.auto_backup_on_pending)
+                        }
+                        Material3SettingsGroup(
+                            items = listOf(
+                                Material3SettingsItem(
+                                    title = { Text(stringResource(R.string.auto_backup_title)) },
+                                    description = { Text(autoBackupStatus) },
+                                    icon = painterResource(R.drawable.backup),
+                                    trailingContent = {
+                                        Switch(
+                                            checked = autoBackupEnabled,
+                                            onCheckedChange = { on ->
+                                                if (on && autoBackupFolder.isBlank()) {
+                                                    autoBackupEnableAfterPick = true
+                                                    autoBackupFolderLauncher.launch(null)
+                                                } else {
+                                                    applyAutoBackup(on, autoBackupFrequency)
+                                                }
+                                            },
+                                        )
+                                    },
+                                    onClick = {
+                                        if (!autoBackupEnabled && autoBackupFolder.isBlank()) {
+                                            autoBackupEnableAfterPick = true
+                                            autoBackupFolderLauncher.launch(null)
+                                        } else {
+                                            applyAutoBackup(!autoBackupEnabled, autoBackupFrequency)
+                                        }
+                                    },
+                                ),
+                                Material3SettingsItem(
+                                    title = { Text(stringResource(R.string.auto_backup_frequency)) },
+                                    description = {
+                                        Text(
+                                            stringResource(
+                                                if (autoBackupFrequency == iad1tya.echo.music.backup.AutoBackupFrequency.DAILY) R.string.auto_backup_daily
+                                                else R.string.auto_backup_weekly,
+                                            ),
+                                        )
+                                    },
+                                    icon = painterResource(R.drawable.backup),
+                                    onClick = {
+                                        val next = if (autoBackupFrequency == iad1tya.echo.music.backup.AutoBackupFrequency.DAILY) {
+                                            iad1tya.echo.music.backup.AutoBackupFrequency.WEEKLY
+                                        } else {
+                                            iad1tya.echo.music.backup.AutoBackupFrequency.DAILY
+                                        }
+                                        applyAutoBackup(autoBackupEnabled, next)
+                                    },
+                                ),
+                                Material3SettingsItem(
+                                    title = { Text(stringResource(R.string.auto_backup_folder)) },
+                                    description = { Text(autoBackupFolderName ?: stringResource(R.string.auto_backup_folder_none)) },
+                                    icon = painterResource(R.drawable.backup),
+                                    onClick = { autoBackupFolderLauncher.launch(null) },
+                                ),
+                            ),
+                        )
+                        Text(
+                            stringResource(R.string.auto_backup_restore_hint),
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                         Spacer(modifier = Modifier.padding(8.dp))
 

@@ -3137,6 +3137,10 @@ Pantalla con dos sub-vistas (`BackupSubScreen.MAIN` / `BackupSubScreen.IMPORT`) 
 |---|---|---|---|---|---|
 | Copia de seguridad local (hardcoded) — desc. «Crea una copia de seguridad ZIP manual de tus datos» (hardcoded) | Ajustes > Copias de seguridad | BackupAndRestore.kt:220 | acción primaria (abre selector SAF) | rara | solo en `BackupSubScreen.MAIN` |
 | Migración selectiva (Aura) (hardcoded) — desc. «Elige qué playlists migrar, y/o todos los artistas y todos los presets de EQ» (hardcoded) | Ajustes > Copias de seguridad | BackupAndRestore.kt:233 | acción primaria | rara | solo en MAIN |
+| **Copia automática** + interruptor — desc. «Guarda la misma copia que «Copia de seguridad local» en una carpeta que elijas, cada día o cada semana, y conserva las 5 últimas. Sin tu sesión de Google, cookies ni licencia.» (apagada) / «Activada: la primera copia se hace en cuanto la batería y el espacio lo permitan» / «Última copia: fecha» / «La última copia no se pudo guardar: vuelve a elegir la carpeta» (NUEVA, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt (grupo tras «Migración selectiva») | conmutador | rara | solo en MAIN; **apagada por defecto**; encenderla sin carpeta abre antes el selector de carpeta (SAF) |
+| **Frecuencia** — «Cada día» / «Cada semana» (toque alterna; semanal por defecto) (NUEVA, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt | conmutador | rara | solo en MAIN |
+| **Carpeta** — nombre de la carpeta o «Elige una carpeta» (abre el selector de carpetas del sistema) (NUEVA, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt | acción primaria | rara | solo en MAIN |
+| Texto «Para restaurar una: Importar ▸ Importar desde archivo local, y elige un archivo Aura_auto.» (NUEVO, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt | informativo | — | solo en MAIN |
 | Importar (hardcoded) — desc. «Restaura datos desde copias de seguridad u otras fuentes» (hardcoded) | Ajustes > Copias de seguridad | BackupAndRestore.kt:245 | navegación (a la sub-vista Import) | rara | solo en MAIN |
 
 ### Sub-vista «Import» / grupo «Import Data» (hardcoded, sin traducir)

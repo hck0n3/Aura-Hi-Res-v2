@@ -21,7 +21,7 @@ This is the English translation of the privacy policy of **Aura Hi-Res v2** (the
 - What you play, pause and skip, and your listening history (for the statistics and for the recommendations computed on the device itself).
 - Your playlists, likes, search history, settings and downloads.
 - Access to your local music files.
-- Cookies and session tokens of the third-party services you sign in to. They are **not included** in backups or in sync. They only leave your device if you send your Google session to your TV with "Sign in on the TV" (section 2), end-to-end encrypted.
+- Cookies and session tokens of the third-party services you sign in to. They are **not included** in backups (nor in the automatic backup, which is saved only to the folder on your device that you choose) or in sync. They only leave your device if you send your Google session to your TV with "Sign in on the TV" (section 2), end-to-end encrypted.
 - The purchase e-mail, if you type it when activating the licence.
 
 You erase all of it by clearing the App's data or uninstalling it. Whatever has already been sent to our services (section 2) is erased as explained in section 6.
