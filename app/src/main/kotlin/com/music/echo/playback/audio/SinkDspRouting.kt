@@ -32,6 +32,12 @@ import androidx.media3.common.util.Util
  *  - [Route.DELEGATE_FLOAT_NO_DSP]: media3 takes its float branch and NOTHING of ours runs in it —
  *    hi-res with a channel map. Pre-existing and untouched; named so the log stops calling it int16.
  *  - [Route.PASSTHROUGH]: encoded passthrough/offload — no PCM, no chain at all.
+ *  - [Route.HIRES_INT16_FOR_TEMPO] (row 903, owner decision H17 «tempo/tono Hi-Res»): hi-res PCM with
+ *    tempo/pitch off 1.0, only when the caller allows it (not in «Modo Fidelidad», not in a Listen Together
+ *    room). The sink converts it to 16 bits so media3's int16 chain — the only place Sonic exists — applies
+ *    the user's tempo and pitch, with the custom chain (EQ, silence detector) inside it as on any 16-bit
+ *    track. Time-stretching rewrites every sample anyway, so the 16-bit step costs nothing audible that the
+ *    stretch has not already changed; at 1.0 hi-res keeps [Route.FLOAT_TAKEOVER_HIRES] exactly as before.
  */
 @androidx.annotation.OptIn(UnstableApi::class)
 object SinkDspRouting {
@@ -42,6 +48,7 @@ object SinkDspRouting {
         DELEGATE_FLOAT_NO_DSP,
         FLOAT_TAKEOVER_HIRES,
         FLOAT_TAKEOVER_16BIT,
+        HIRES_INT16_FOR_TEMPO,
     }
 
     /**
@@ -51,6 +58,9 @@ object SinkDspRouting {
      * @param hasOutputChannelMapping `AudioSinkConfig.outputChannelMapping != null`.
      * @param float16Allowed the A3 setting AND "not in a Listen Together room", read by the caller.
      * @param speed / [pitch] the playback parameters the sink was last asked for.
+     * @param hiResTempoAllowed row 903: hi-res may leave float for Sonic when tempo/pitch are moved (the
+     *   caller passes «not in Modo Fidelidad and not in a Listen Together room»). Default false = the
+     *   hi-res behaviour that shipped.
      */
     fun route(
         isRaw: Boolean,
@@ -60,9 +70,13 @@ object SinkDspRouting {
         float16Allowed: Boolean,
         speed: Float,
         pitch: Float,
+        hiResTempoAllowed: Boolean = false,
     ): Route {
         if (!isRaw) return Route.PASSTHROUGH
         val highRes = Util.isEncodingHighResolutionPcm(pcmEncoding)
+        if (!lowEnd && highRes && !hasOutputChannelMapping && hiResTempoAllowed && !isDefaultParameters(speed, pitch)) {
+            return Route.HIRES_INT16_FOR_TEMPO
+        }
         // Byte-identical to the predicate that shipped in createRenderersFactory before A3.
         if (!lowEnd && highRes && !hasOutputChannelMapping) return Route.FLOAT_TAKEOVER_HIRES
         // media3 itself takes the float branch here and skips the chain (pre-existing, unchanged).
@@ -81,11 +95,16 @@ object SinkDspRouting {
 
     /**
      * True when a playback-parameter change must hand a 16-bit takeover back to media3's int16 chain
-     * (the only place Sonic can apply it). Never for the hi-res route: that would silently requantize
-     * 24-bit content to 16 bits, and hi-res keeps exactly its pre-A3 behaviour.
+     * (the only place Sonic can apply it). For the hi-res route only when [hiResTempoAllowed] (row 903):
+     * the user moved tempo/pitch on purpose, so the 16-bit step happens because they asked for the stretch;
+     * with the default `false` hi-res keeps exactly its pre-A3 behaviour.
      */
-    fun shouldRevert(route: Route, speed: Float, pitch: Float): Boolean =
-        route == Route.FLOAT_TAKEOVER_16BIT && !isDefaultParameters(speed, pitch)
+    fun shouldRevert(route: Route, speed: Float, pitch: Float, hiResTempoAllowed: Boolean = false): Boolean =
+        !isDefaultParameters(speed, pitch) && (
+            route == Route.FLOAT_TAKEOVER_16BIT ||
+                // Row 903: only when the caller allows hi-res tempo/pitch; the default keeps hi-res as it shipped.
+                (route == Route.FLOAT_TAKEOVER_HIRES && hiResTempoAllowed)
+            )
 
     /**
      * True when the delegate will NOT run the custom chain for raw PCM, so the silence detector has to
@@ -96,6 +115,7 @@ object SinkDspRouting {
         Route.FLOAT_TAKEOVER_16BIT,
         Route.DELEGATE_FLOAT_NO_DSP -> true
         Route.DELEGATE_INT16_CHAIN,
+        Route.HIRES_INT16_FOR_TEMPO,
         Route.PASSTHROUGH -> false
     }
 
@@ -111,7 +131,8 @@ object SinkDspRouting {
      */
     fun sinkOutputEncoding(route: Route): Int? = when (route) {
         Route.PASSTHROUGH -> null
-        Route.DELEGATE_INT16_CHAIN -> C.ENCODING_PCM_16BIT
+        Route.DELEGATE_INT16_CHAIN,
+        Route.HIRES_INT16_FOR_TEMPO -> C.ENCODING_PCM_16BIT
         Route.DELEGATE_FLOAT_NO_DSP,
         Route.FLOAT_TAKEOVER_HIRES,
         Route.FLOAT_TAKEOVER_16BIT -> C.ENCODING_PCM_FLOAT

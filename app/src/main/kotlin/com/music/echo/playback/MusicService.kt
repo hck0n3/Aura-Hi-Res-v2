@@ -10817,6 +10817,12 @@ class MusicService :
                     float32ProcessingHint && !fidelityModeHint &&
                         !runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
                 }
+                // Row 903: hi-res may leave float for Sonic when tempo/pitch are moved — never under «Modo
+                // Fidelidad» (tempo stays 1.0 there) nor in a room (each speed nudge would re-create the
+                // AudioTrack; an unreadable room state counts as a room). Read per configure / per change.
+                val hiResTempoAllowed: () -> Boolean = {
+                    !fidelityModeHint && !runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
+                }
                 val delegateSink = DefaultAudioSink
                     .Builder(this@MusicService)
                     .setEnableFloatOutput(!lowEnd)
@@ -10925,7 +10931,7 @@ class MusicService :
                         // "Procesado en 32 bits" switch, no Listen Together room, and tempo/pitch at 1.0 —
                         // read HERE, i.e. once per configuration (= per track), never per buffer.
                         val previousRoute = route
-                        val newRoute = iad1tya.echo.music.playback.audio.SinkDspRouting.route(
+                        var newRoute = iad1tya.echo.music.playback.audio.SinkDspRouting.route(
                             isRaw = androidx.media3.common.MimeTypes.AUDIO_RAW == inputFormat.sampleMimeType,
                             pcmEncoding = inputFormat.pcmEncoding,
                             lowEnd = lowEnd,
@@ -10933,12 +10939,25 @@ class MusicService :
                             float16Allowed = float16Allowed(),
                             speed = requestedParams.speed,
                             pitch = requestedParams.pitch,
+                            hiResTempoAllowed = hiResTempoAllowed(),
                         )
-                        val takeover16 =
-                            newRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_16BIT
                         var delegateFormat = inputFormat
                         var pipeline: androidx.media3.common.audio.AudioProcessingPipeline? = null
                         var activationDeferred = false
+                        if (newRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.HIRES_INT16_FOR_TEMPO) {
+                            // Row 903: hand the delegate 16-bit PCM so its int16 chain (EQ + Sonic) runs. The
+                            // conversion pipeline is ours alone (no shared processor), so it activates now.
+                            val conversion = buildInt16Conversion(inputFormat)
+                            if (conversion != null) {
+                                pipeline = conversion
+                                delegateFormat = inputFormat.buildUpon().setPcmEncoding(C.ENCODING_PCM_16BIT).build()
+                            } else {
+                                // Unreachable for linear PCM; never a playback error: today's hi-res path.
+                                newRoute = iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_HIRES
+                            }
+                        }
+                        val takeover16 =
+                            newRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_16BIT
                         if (iad1tya.echo.music.playback.audio.SinkDspRouting.isTakeover(newRoute)) {
                             // ToFloatPcmAudioProcessor is media3's own converter and self-bypasses when the
                             // input is already float, so a float decoder output costs zero extra work.
@@ -11047,7 +11066,12 @@ class MusicService :
                         // Fidelidad» switch it off again here, on this same thread, before any buffer of the
                         // new configuration reaches it. Idempotent; once per configure (= per track).
                         if (fidelityModeHint) eqProcessor.disable()
-                        logAudioPath(inputFormat, delegateFormat, pipeline != null, effectiveRoute)
+                        logAudioPath(
+                            inputFormat,
+                            delegateFormat,
+                            pipeline != null && iad1tya.echo.music.playback.audio.SinkDspRouting.isTakeover(effectiveRoute),
+                            effectiveRoute,
+                        )
                     }
 
                     override fun handleBuffer(
@@ -11207,6 +11231,7 @@ class MusicService :
                         requestedParams = playbackParameters
                         if (iad1tya.echo.music.playback.audio.SinkDspRouting.shouldRevert(
                                 route, playbackParameters.speed, playbackParameters.pitch,
+                                hiResTempoAllowed = hiResTempoAllowed(),
                             )
                         ) {
                             // Tempo & pitch dialog, or a Listen Together speed nudge, during a 16-bit float
@@ -11259,16 +11284,30 @@ class MusicService :
                             super.setPlaybackParameters(requestedParams)
                             return true
                         }
+                        // Row 903: a hi-res takeover leaves float the same way, through a 16-bit conversion of
+                        // our own in front of the delegate (Sonic only exists in its int16 chain).
+                        val fromHiRes = route == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_HIRES
+                        val conversion = if (fromHiRes) buildInt16Conversion(original.format) else null
+                        if (fromHiRes && conversion == null) {
+                            // Unreachable for linear PCM: stay on float (tempo/pitch at 1.0, as before row 903).
+                            super.setPlaybackParameters(requestedParams)
+                            return true
+                        }
+                        val revertFormat = if (conversion != null) {
+                            original.format.buildUpon().setPcmEncoding(C.ENCODING_PCM_16BIT).build()
+                        } else {
+                            original.format
+                        }
                         // Same stream, mid-way: its encoder delay (Opus pre-skip) was trimmed at the start
                         // already. Handing it over again would make the delegate's TrimmingAudioProcessor,
                         // re-armed by this configure, cut that many frames once more at the switch point
                         // (TrimmingAudioProcessor 1.11.1 onFlush). Padding is kept: it belongs to the end.
                         @Suppress("DEPRECATION")
-                        val revertConfig = if (original.format.encoderDelay == 0) {
+                        val revertConfig = if (conversion == null && original.format.encoderDelay == 0) {
                             original
                         } else {
                             androidx.media3.exoplayer.audio.AudioSink.AudioSinkConfig.Builder(
-                                original.format.buildUpon().setEncoderDelay(0).build(),
+                                revertFormat.buildUpon().setEncoderDelay(0).build(),
                             )
                                 .setPreferredBufferSizeOverride(original.preferredBufferSizeOverride)
                                 .setOutputChannelMapping(original.outputChannelMapping)
@@ -11288,6 +11327,7 @@ class MusicService :
                             runCatching {
                                 dsp?.configure(androidx.media3.common.audio.AudioProcessor.AudioFormat(original.format))
                             }
+                            conversion?.reset()
                             Timber.tag(TAG).w("AUDIO_PATH revert failed (%s); keeping route=%s", e.javaClass.simpleName, route)
                             super.setPlaybackParameters(requestedParams)
                             return true
@@ -11297,16 +11337,51 @@ class MusicService :
                         // belongs to the delegate's int16 pipeline, which re-configures it (same sample rate
                         // → the native instance, Safe Volume level and filter state survive) and frees it on
                         // its own reset().
-                        hiResDsp = null
+                        // Row 903: from hi-res, our 16-bit conversion takes its place (null for a 16-bit track).
+                        hiResDsp = conversion
                         hiResEosQueued = false
                         dspActivationPending = false
                         chainDrainPending = false
-                        route = iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                        route = if (conversion != null) {
+                            iad1tya.echo.music.playback.audio.SinkDspRouting.Route.HIRES_INT16_FOR_TEMPO
+                        } else {
+                            iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                        }
                         silenceProcessor.externallyFed = false
                         super.setPlaybackParameters(requestedParams)
                         // No user data: the route and the reason only.
                         Timber.tag(TAG).i("AUDIO_PATH revert reason=tempo_pitch route=%s", route)
                         return true
+                    }
+
+                    /**
+                     * Row 903: hi-res PCM to 16 bits with media3's own converter, so the delegate takes its int16
+                     * branch (EQ chain + Sonic) instead of its float one, which drops tempo and pitch. 1:1 and
+                     * zero-latency like the float takeover, so handleBuffer forwards timestamps unchanged.
+                     * Null (and nothing left half-configured) when the format cannot be converted.
+                     */
+                    private fun buildInt16Conversion(
+                        format: androidx.media3.common.Format,
+                    ): androidx.media3.common.audio.AudioProcessingPipeline? {
+                        val built = androidx.media3.common.audio.AudioProcessingPipeline(
+                            com.google.common.collect.ImmutableList.of<androidx.media3.common.audio.AudioProcessor>(
+                                androidx.media3.common.audio.ToInt16PcmAudioProcessor(),
+                            ),
+                        )
+                        val out = try {
+                            built.configure(androidx.media3.common.audio.AudioProcessor.AudioFormat(format))
+                        } catch (e: androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException) {
+                            return null
+                        }
+                        if (out.encoding != C.ENCODING_PCM_16BIT ||
+                            out.sampleRate != format.sampleRate ||
+                            out.channelCount != format.channelCount
+                        ) {
+                            built.reset()
+                            return null
+                        }
+                        built.flush() // activates the converter; the pipeline is inert until this
+                        return built
                     }
 
                     override fun release() {
