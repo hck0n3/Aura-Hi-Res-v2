@@ -229,6 +229,7 @@ export class SyncRoom {
    *                                   replica settles on the same one)
    *   s:<seq padded> → [key, ts, v]   the change log, one entry per item (the entry of an item's previous value is deleted when it
    *                                   changes), so «everything that changed since N» is one ordered range read
+   *   t:<key>        → {ts, v}        row 901: what a removal the cleanup forgot was, so an older change can never bring it back
    * `libseq` is the last sequence number handed out. Nothing but ids, the names of playlists and a song's title/artist/cover (to be
    * able to show a song the other device has never seen) is stored.
    */
@@ -256,13 +257,16 @@ export class SyncRoom {
     const accepted = [];
     for (let i = 0; i < ops.length; i += LIB_CHUNK) {
       const chunk = ops.slice(i, i + LIB_CHUNK);
-      const existing = await this.ctx.storage.get(chunk.map(([k]) => "k:" + k));
+      const existing = await this.ctx.storage.get(chunk.flatMap(([k]) => ["k:" + k, "t:" + k]));
       const puts = {};
       const dels = [];
       for (const [key, ts, value, id] of chunk) {
         const cur = existing.get("k:" + key);
-        if (cur && !(ts > cur.ts || (ts === cur.ts && value > cur.v))) {
-          // Older than (or the same as) what the room holds: done, the same op twice is applied once.
+        const tomb = cur ? null : existing.get("t:" + key);
+        const prior = cur || tomb;
+        if (prior && !(ts > prior.ts || (ts === prior.ts && value > prior.v))) {
+          // Older than (or the same as) what the room holds — or than a removal it forgot (row 901: a device back after a long
+          // time must not bring it back): done, the same op twice is applied once.
           if (id) ids.push(id);
           continue;
         }
@@ -272,6 +276,10 @@ export class SyncRoom {
         seq++;
         if (cur) dels.push("s:" + pad(cur.seq));
         else count++;
+        if (tomb) {
+          dels.push("t:" + key);
+          existing.delete("t:" + key);
+        }
         const entry = { ts, v: value, seq };
         puts["k:" + key] = entry;
         puts["s:" + pad(seq)] = [key, ts, value];
@@ -323,7 +331,9 @@ export class SyncRoom {
    * it has: a removal it missed simply never reaches it). Only a removal older than PRUNE_MIN_AGE_MS goes, with the position of the
    * song it took out of a list (`po:`); additions, names, history and everything that is not a removal stay. The log is walked
    * once, from a cursor, at most PRUNE_SCAN entries per pass, and the pass stops at the first removal still too young (it is looked
-   * at again in a later pass). Returns how many registers were forgotten.
+   * at again in a later pass). A tombstone (`t:`, never counted, never handed out) keeps the time and value of each one, so an
+   * older op from a device that comes back much later is turned down as before instead of creating it again. Returns how many
+   * registers were forgotten.
    */
   async libPrune(now) {
     const storage = this.ctx.storage;
@@ -343,6 +353,7 @@ export class SyncRoom {
     if (!Number.isFinite(floor) || floor <= cursor) return 0;
     const page = await storage.list({ prefix: "s:", start: "s:" + pad(cursor + 1), end: "s:" + pad(floor + 1), limit: PRUNE_SCAN });
     const dels = [];
+    const tombs = {};
     let reached = cursor;
     let young = false;
     for (const [logKey, entry] of page) {
@@ -353,14 +364,21 @@ export class SyncRoom {
           break;
         }
         dels.push(logKey, "k:" + key);
+        tombs["t:" + key] = { ts: Number(ts), v: value };
         if (key.startsWith("pm:")) {
           const position = await storage.get("k:po:" + key.slice(3));
-          if (position) dels.push("k:po:" + key.slice(3), "s:" + pad(position.seq));
+          if (position) {
+            dels.push("k:po:" + key.slice(3), "s:" + pad(position.seq));
+            tombs["t:po:" + key.slice(3)] = { ts: position.ts, v: position.v };
+          }
         }
       }
       reached = Number(logKey.slice(2));
     }
     if (!young && page.size < PRUNE_SCAN) reached = floor;
+    // The tombstones first: a pass cut short in between leaves a register and its tombstone, never neither.
+    const tombKeys = Object.keys(tombs);
+    for (let i = 0; i < tombKeys.length; i += 128) await storage.put(Object.fromEntries(tombKeys.slice(i, i + 128).map((k) => [k, tombs[k]])));
     for (let i = 0; i < dels.length; i += 128) await storage.delete(dels.slice(i, i + 128));
     const removed = dels.filter((k) => k.startsWith("k:")).length;
     const count = (await storage.get("libcount")) || 0;

@@ -528,6 +528,28 @@ test("cleanup: a device not seen for 180 days no longer holds it back, a removal
   assert.equal(data.get("libcount"), 0);
 });
 
+test("cleanup: an older op for a forgotten removal is turned down (and acknowledged), a newer one comes back", async () => {
+  const day = 24 * 3600_000;
+  const now = Date.UTC(2026, 10, 27);
+  const { room, data, ws, sent } = memoryRoom();
+  data.set("libpruneSince", now - 200 * day);
+  await room.libPush(ws, { ops: [["lk:x", now - 60 * day, "0"], ["pm:LPabc:s1", now - 60 * day, "0"], ["po:LPabc:s1", now - 70 * day, "a01"]] });
+  await room.noteDevice("phone-0001", data.get("libseq"), now);
+  assert.equal(await room.libPrune(now), 3);
+  assert.equal(data.get("libcount"), 0);
+  // A tablet whose `ld:` was dropped comes back with a like it made offline BEFORE the removal, and an old position.
+  await room.libPush(ws, { ops: [["lk:x", now - 90 * day, "1", "old-like"], ["po:LPabc:s1", now - 80 * day, "a02", "old-pos"]] });
+  const refused = sent.at(-1);
+  assert.equal(refused.accepted, 0, "the removal is newer: nothing comes back");
+  assert.deepEqual(refused.ids.sort(), ["old-like", "old-pos"], "and the device is done with them");
+  assert.equal(data.has("k:lk:x"), false);
+  await room.libPush(ws, { ops: [["lk:x", now - day, "1", "new-like"]] });
+  assert.equal(sent.at(-1).accepted, 1, "a like made after the removal is a new change");
+  assert.equal(data.get("k:lk:x").v, "1");
+  assert.equal(data.has("t:lk:x"), false, "its tombstone goes");
+  assert.equal(data.get("libcount"), 1);
+});
+
 test("cleanup: a device that is still behind holds everything after its place", async () => {
   const now = Date.UTC(2026, 10, 27);
   const { room, data, ws } = memoryRoom();
