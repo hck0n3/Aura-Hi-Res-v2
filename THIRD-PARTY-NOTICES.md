@@ -185,3 +185,47 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
+
+---
+
+## AutoEq headphone profiles — MIT code, third-party measurements (data, not vendored code)
+
+| Path | Contents |
+| --- | --- |
+| `app/src/main/assets/autoeq_profiles.tsv.gz` | The parametric EQ results (`results/**/<Model> ParametricEQ.txt`: preamp and `ON PK/LSC/HSC` filters) of 8,666 measurements, with each one's source, rig kind and whether it is AutoEq's recommended pick; 539,785 bytes gzip (1.7 MB raw) |
+| `app/src/main/assets/autoeq_index.tsv` | The catalogue list of the Auto-EQ screen (model, source, path), unchanged |
+| `scripts/build_autoeq_profiles.py` | Aura's own generator for the first file (reads a checkout of the AutoEq repository) |
+
+Source: <https://github.com/jaakkopasanen/AutoEq> at commit `7ae0f56d53074872b028649617a22bbb4232feb7` (MIT,
+Copyright (c) 2018-2022 Jaakko Pasanen). Only the published results are bundled, reformatted to one line per
+measurement; no AutoEq code is copied. The measurements those results are computed from belong to their authors —
+oratory1990, crinacle, Rtings, Super Review, HypetheSonics, Innerfidelity, Headphone.com Legacy, Kuulokenurkka,
+Auriculares Argentina, Filk, Harpo, DHRME, Fahryst, Bakkwatan, Hi End Portable, Jaytiss, Kazi, Regan Cipher,
+RikudouGoku, Ted's Squig Hoard, ToneDeafMonk, freeryder05 and kr0mka — and AutoEq publishes them without a separate
+data licence, so Aura credits them in the app (Ajustes ▸ Sonido ▸ Auto-EQ, «Créditos de los perfiles de auriculares»,
+registry row 916), as other players do. Whether that is enough for a paid app is the owner's decision 3 in
+`docs/plan/AUDIO_INVESTIGACION_2026-11-27.md`.
+
+```
+MIT License
+
+Copyright (c) 2018-2022 Jaakko Pasanen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

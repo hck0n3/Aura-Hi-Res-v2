@@ -231,6 +231,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -2309,10 +2310,19 @@ class MusicService :
             val store = iad1tya.echo.music.eq.data.EqDeviceProfileStore
             // Feature off or no assignment → leave the live EQ exactly as the user left it.
             // Never call equalizerService.disable() / putBoolean("enabled", false) from this path.
-            if (!store.isAutoApplyEnabled(this@MusicService)) return@launch
             val key = store.currentOutputKey(this@MusicService)
-            val profileId = store.assignedProfileId(this@MusicService, key) ?: return@launch
-            val profile = eqProfileRepository.getAllProfiles().firstOrNull { it.id == profileId } ?: return@launch
+            if (!store.isAutoApplyEnabled(this@MusicService)) {
+                // Row 915: even then a headphone's correction goes away on any other output, as its offer promised.
+                applyDeviceAutoEq(key, releaseOnly = true)
+                return@launch
+            }
+            val profileId = store.assignedProfileId(this@MusicService, key)
+            val profile = profileId?.let { id -> eqProfileRepository.getAllProfiles().firstOrNull { it.id == id } }
+            // Row 915: the headphone's automatic AutoEq correction, on top of whatever profile the output has.
+            if (profile == null) {
+                applyDeviceAutoEq(key)
+                return@launch
+            }
             getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE).edit().apply {
                 profile.bands.forEachIndexed { i, b -> putFloat("band24_$i", b.gain.toFloat()) }
                 putFloat("preampDb", profile.preamp.toFloat())
@@ -2328,6 +2338,48 @@ class MusicService :
             runCatching {
                 iad1tya.echo.music.eq.data.SoundEffectsSnapshot.apply(this@MusicService, profile.effects)
             }
+            applyDeviceAutoEq(key, afterDeviceProfile = true)
+        }
+    }
+
+    /**
+     * Row 915: syncs the Auto-EQ stage with the automatic correction assigned to [outputKey] (on for that headphone,
+     * off — back to what the user had — for any other output) and plays the result the way [applyEqForCurrentOutput]
+     * plays a device profile. With the master EQ off only the stage is saved; the EQ switch applies it when turned on.
+     */
+    private suspend fun applyDeviceAutoEq(
+        outputKey: String,
+        afterDeviceProfile: Boolean = false,
+        force: Boolean = false,
+        releaseOnly: Boolean = false,
+    ) {
+        val base = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value
+        val correction = iad1tya.echo.music.eq.autoeq.AutoEqDeviceCorrection
+        val stage = withContext(Dispatchers.Default) {
+            runCatching {
+                correction.sync(this@MusicService, outputKey, base?.bands.orEmpty(), autoHeadroomHint, force, releaseOnly)
+                    ?.also { Timber.tag(TAG).i("Auto-EQ device correction %s", if (it.active) "on" else "off") }
+                    // A device profile was just played with its own Auto-EQ bands: put this output's correction back.
+                    ?: if (afterDeviceProfile) correction.ownedStage(this@MusicService, outputKey) else null
+            }.getOrNull()
+        } ?: return
+        val eqOn = getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE).getBoolean("enabled", false)
+        if (!eqOn || base == null) return
+        val next = base.copy(autoBands = stage.autoBands, preamp = stage.preampDb.toDouble())
+        eqProfileRepository.setUnsavedProfile(next)
+        // Row 902: saved above; «Modo Fidelidad» applies it when it is turned off.
+        if (!fidelityModeHint) equalizerService.applyProfile(next)
+    }
+
+    /**
+     * Row 915: «Headroom automático» changed. [AutoEqSafety.devicePreampDb] gives the correction 0 dB with it on and
+     * -peak with it off, so the correction the current output holds (only while on: `force`) is written again with the
+     * preamp of the new setting, instead of cutting the peak twice or leaving the boost uncut until it reconnects.
+     */
+    private fun refreshDeviceAutoEq() {
+        if (!::eqProfileRepository.isInitialized || !::equalizerService.isInitialized) return
+        scope.launch {
+            applyDeviceAutoEq(iad1tya.echo.music.eq.data.EqDeviceProfileStore.currentOutputKey(this@MusicService), force = true)
         }
     }
 
@@ -3263,10 +3315,15 @@ class MusicService :
                 dataStore.data.map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: false },
             ) { width, headroom -> width to headroom }
                 .distinctUntilChanged()
-                .collect { (width, headroom) ->
+                .collectIndexed { index, (width, headroom) ->
+                    // Row 915: the first emission only reads the saved setting (the hint starts false); refreshing
+                    // there re-wrote a hand-trimmed preamp on every service start.
+                    val headroomChanged = index > 0 && headroom != autoHeadroomHint
                     stereoWidthHint = width
                     autoHeadroomHint = headroom
                     applyMasteringFromPrefs()
+                    // Row 915: a headphone's correction got its preamp for the headroom setting of that moment.
+                    if (headroomChanged) refreshDeviceAutoEq()
                 }
         }
 

@@ -48,6 +48,39 @@ object EqDeviceProfileStore {
         }.apply()
     }
 
+    // Registry row 915: the automatic AutoEq correction of an output. Separate keys from the saved-profile assignment
+    // above (a device can have both: the saved profile is the user's taste, the correction is the headphone's).
+    private const val AUTOEQ_PREFIX = "autoeq:"
+    private const val OFFERED_PREFIX = "autoeq_offered:"
+    private const val KEY_AUTOEQ_MAX_BOOST = "__autoeq_max_boost_db__"
+
+    /** The catalogue line ([iad1tya.echo.music.eq.autoeq.AutoEqOfflineEntry.toLine]) assigned to [deviceKey], or null. */
+    fun assignedAutoEqLine(context: Context, deviceKey: String): String? =
+        prefs(context).getString(AUTOEQ_PREFIX + deviceKey, null)
+
+    /** Bind (a line) or clear (null) the automatic correction of [deviceKey]. Never touches the EQ itself. */
+    fun assignAutoEq(context: Context, deviceKey: String, line: String?) {
+        prefs(context).edit().apply {
+            if (line == null) remove(AUTOEQ_PREFIX + deviceKey) else putString(AUTOEQ_PREFIX + deviceKey, line)
+        }.apply()
+    }
+
+    /** True once «Corregir el sonido para …» was shown for [deviceKey] (accepted or dismissed): it is offered once. */
+    fun wasAutoEqOffered(context: Context, deviceKey: String): Boolean =
+        prefs(context).getBoolean(OFFERED_PREFIX + deviceKey, false)
+
+    fun markAutoEqOffered(context: Context, deviceKey: String) {
+        prefs(context).edit().putBoolean(OFFERED_PREFIX + deviceKey, true).apply()
+    }
+
+    /** Highest boost the automatic correction may apply (dB). */
+    fun autoEqMaxBoostDb(context: Context): Float =
+        prefs(context).getFloat(KEY_AUTOEQ_MAX_BOOST, iad1tya.echo.music.eq.autoeq.AutoEqSafety.DEFAULT_MAX_BOOST_DB.toFloat())
+
+    fun setAutoEqMaxBoostDb(context: Context, db: Float) {
+        prefs(context).edit().putFloat(KEY_AUTOEQ_MAX_BOOST, db).apply()
+    }
+
     /** All current output devices the user can assign a profile to (phone + connected BT/wired/USB). */
     fun connectedOutputs(context: Context): List<Output> {
         val am = context.getSystemService<AudioManager>() ?: return listOf(Output(PHONE_KEY, "Teléfono", false))
@@ -63,8 +96,12 @@ object EqDeviceProfileStore {
     }
 
     /** Key of the output audio is currently routed to (best-effort priority: BT > wired/USB > speaker). */
-    fun currentOutputKey(context: Context): String {
-        val am = context.getSystemService<AudioManager>() ?: return PHONE_KEY
+    fun currentOutputKey(context: Context): String = currentOutput(context).key
+
+    /** The output audio is currently routed to, with its name (same priority as [currentOutputKey]). */
+    fun currentOutput(context: Context): Output {
+        val phone = Output(PHONE_KEY, "Teléfono (altavoz)", false)
+        val am = context.getSystemService<AudioManager>() ?: return phone
         val devices = runCatching { am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList() }.getOrDefault(emptyList())
         val priority = listOf(
             AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
@@ -75,9 +112,9 @@ object EqDeviceProfileStore {
             AudioDeviceInfo.TYPE_USB_DEVICE,
         )
         for (type in priority) {
-            devices.firstOrNull { it.type == type }?.toOutput()?.let { return it.key }
+            devices.firstOrNull { it.type == type }?.toOutput()?.let { return it }
         }
-        return PHONE_KEY
+        return phone
     }
 
     private fun AudioDeviceInfo.toOutput(): Output? {

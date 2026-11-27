@@ -1025,4 +1025,20 @@
     <string name="wrapped_home_title">Tu %1$s en Aura ya está listo</string>
     <string name="wrapped_home_body">Tus minutos, artistas y canciones del año.</string>
     <string name="wrapped_home_dismiss">Ocultar esta tarjeta</string>
+    <!-- Fila 916 del registro: créditos de los perfiles AutoEq. -->
+    <string name="autoeq_credits">Créditos de los perfiles de auriculares: AutoEq de Jaakko Pasanen (licencia MIT), con mediciones de oratory1990, crinacle, Rtings, Super Review, HypetheSonics y otros revisores.</string>
+    <!-- Fila 915 del registro: corrección automática AutoEq por auricular. -->
+    <string name="autoeq_offer_title">Corregir el sonido para %1$s</string>
+    <string name="autoeq_offer_body">Aura tiene la medición de este auricular (%1$s, vía AutoEq). La corrección se enciende sola cada vez que sea la salida y se apaga con cualquier otra. Los realces se limitan a +%2$d dB y no se toca nada por encima de 10 kHz.</string>
+    <string name="autoeq_offer_accept">Corregir</string>
+    <string name="autoeq_offer_dismiss">Ahora no</string>
+    <string name="autoeq_device_title">Este auricular</string>
+    <string name="autoeq_device_active">Corrección automática: %1$s (%2$s)</string>
+    <string name="autoeq_device_available">Medición encontrada: %1$s (%2$s)</string>
+    <string name="autoeq_device_none">No hay medición para el auricular Bluetooth conectado. Puedes elegirlo igualmente en la lista.</string>
+    <string name="autoeq_device_apply">Corregir automáticamente</string>
+    <string name="autoeq_device_remove">Quitar</string>
+    <string name="autoeq_device_auto_apply_off">«Aplicar automáticamente» de EQ por dispositivo está apagado: la corrección no seguiría a la salida.</string>
+    <string name="autoeq_max_boost">Realce máximo de la corrección automática</string>
+    <string name="autoeq_max_boost_value">+%1$d dB</string>
 </resources>

@@ -218,7 +218,52 @@ class AxionEqViewModel @Inject constructor(
         _autoEqBands.value = emptyList()
         persistAutoEqBands()
         setAutoEqActive(false)
+        // Row 915: removed by hand — nothing a device's correction kept aside comes back, and while that headphone
+        // stays connected its correction does not return either (the owner mark stays until it disconnects).
+        iad1tya.echo.music.eq.autoeq.AutoEqDeviceCorrection.forgetDeviceOwnership(prefs, keepOwner = true)
         if (_enabled.value) applyToService()
+    }
+
+    /** Row 915: the automatic headroom setting, read by [AutoEqSafety.devicePreampDb] so the preamp is not cut twice. */
+    private val autoHeadroomOn = context.dataStore.data
+        .map { it[iad1tya.echo.music.constants.AutoHeadroomEnabledKey] ?: false }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * Row 915: brings the Auto-EQ stage in line with the automatic correction assigned to [outputKey] — after the offer
+     * is accepted (switching the EQ on, as applying a profile by hand does), after «Quitar» or a new boost cap ([force]).
+     * Writes through [AutoEqDeviceCorrection.sync], the same plan MusicService runs on every output change, then plays
+     * the result like any other edit.
+     */
+    fun syncDeviceAutoEq(outputKey: String, force: Boolean = false, enableEq: Boolean = false) {
+        viewModelScope.launch {
+            // The offer host's instance is the Activity's (outside the NavHost): its manual curve was read once at app
+            // start. Take the saved one, or the preamp and the profile played below would bring back old manual bands.
+            reloadManualEqFromPrefs()
+            val stage = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                iad1tya.echo.music.eq.autoeq.AutoEqDeviceCorrection.sync(
+                    context, outputKey, allBands(), autoHeadroomOn.value, force,
+                )
+            } ?: return@launch
+            _autoEqBands.value = loadAutoEqBands()
+            _autoEqActive.value = stage.active
+            _preamp.value = stage.preampDb
+            if (enableEq && stage.active && !_enabled.value) {
+                _enabled.value = true
+                prefs.edit().putBoolean("enabled", true).apply()
+            }
+            if (_enabled.value) applyToService()
+        }
+    }
+
+    /** Row 915: the manual EQ (graphic and parametric) as `echo_eq_prefs` holds it now. */
+    private fun reloadManualEqFromPrefs() {
+        _bandGains.value = FloatArray(n) { prefs.getFloat("band24_$it", 0f) }
+        _bandTypes.value = IntArray(n) { prefs.getInt("type24_$it", 0) }
+        _graphicTypes.value = IntArray(n) { prefs.getInt("gtype_$it", GRAPHIC_TYPE_AUTO) }
+        _graphicQs.value = FloatArray(n) { prefs.getFloat("gq_$it", EqConstants.Q.toFloat()) }
+        _eqMode.value = runCatching { EqMode.valueOf(prefs.getString("eq_mode", "GRAPHIC")!!) }.getOrDefault(EqMode.GRAPHIC)
+        _peqBands.value = loadPeqBands()
     }
 
     /**
@@ -535,6 +580,9 @@ class AxionEqViewModel @Inject constructor(
                 putBoolean("enabled", true)
             }.apply()
             setAutoEqActive(true)
+            // Row 915: a profile picked by hand is the user's; leaving a headphone must not switch it off, and that
+            // headphone's correction must not come back over it while it stays connected.
+            iad1tya.echo.music.eq.autoeq.AutoEqDeviceCorrection.forgetDeviceOwnership(prefs)
         } else {
             // Loading a saved graphic profile: write the manual 10-band (EqConstants.BAND_COUNT) curve as before.
             _bandGains.value = arr

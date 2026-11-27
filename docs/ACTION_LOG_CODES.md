@@ -1410,6 +1410,11 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.AUTOEQ.REFRESH` | Recargar el catálogo de Auto-EQ |
 | `UI.AUTOEQ.FAVORITE` | Añadir / quitar un auricular de favoritos |
 | `UI.AUTOEQ.APPLY` | Aplicar el perfil de un auricular |
+| `UI.AUTOEQ.OFFER_ACCEPT` | «Corregir» en el aviso «Corregir el sonido para …» (fila 915) |
+| `UI.AUTOEQ.OFFER_DISMISS` | «Ahora no» (o cerrar) en ese aviso |
+| `UI.AUTOEQ.DEVICE_APPLY` | «Corregir automáticamente» en «Este auricular» |
+| `UI.AUTOEQ.DEVICE_REMOVE` | «Quitar» la corrección automática de este auricular |
+| `UI.AUTOEQ.MAX_BOOST` | Elegir el realce máximo (+3 / +6 / +9 dB) de la corrección automática |
 
 ### Ecualizador
 
