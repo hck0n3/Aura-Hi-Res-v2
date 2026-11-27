@@ -1607,6 +1607,34 @@ class LibrarySyncSimulationTest {
     }
 
     @Test
+    fun `a first pairing does not hold the old name of a list that moved under another of its names`() {
+        // The room: «Gym» travels as LPabcabcab, linked to PLgymYT; PLgymYT itself was retired earlier (row 740), "0" with its songs.
+        val then = System.currentTimeMillis() - 60_000
+        fun op(key: String, v: String) = buildJsonArray { add(JsonPrimitive(key)); add(JsonPrimitive(then)); add(JsonPrimitive(v)) }
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray {
+                add(op("pl:LPabcabcab", LibrarySyncCore.encodePlaylistName("Gym")))
+                add(op("pb:LPabcabcab", "PLgymYT"))
+                for (i in 1..6) add(op("pm:LPabcabcab:g$i", "1"))
+                add(op("pl:PLgymYT", "0"))
+                for (i in 1..6) add(op("pm:PLgymYT:g$i", "0"))
+            })
+        })
+        val trips = DeviceSyncHub.heldTrip.value?.token ?: 0
+        // A new device with its own copy of the same YouTube playlist: with an empty ledger it is keyed by the browseId.
+        val phone = Device("phone")
+        phone.listWithSongs("LPcccccccc", "Gym", 6, "g")
+        phone.backend.browseIds["LPcccccccc"] = "PLgymYT"
+        phone.connect()
+        eventually("the phone caught up") { phone.ledger.stored.containsKey("pl:LPabcabcab") && phone.ledger.stored.values.none { it.pending } }
+        settle()
+        assertTrue("a change of name is not a removal to review", phone.ledger.stored.values.none { LibrarySyncCore.isHeld(it) })
+        assertEquals("no «new here» notice", trips, DeviceSyncHub.heldTrip.value?.token ?: 0)
+        assertEquals((1..6).map { "g$it" }.toSet(), phone.songsOf("LPcccccccc"))
+    }
+
+    @Test
     fun `Aplicar on a first pairing removes the old copies here too`() {
         roomRemovedThreeLikes()
         val phone = Device("phone")

@@ -167,7 +167,8 @@ class LibrarySyncGuardTest {
     fun `row 901 - removals of things the room never heard from this device are held, told in their own words`() {
         val s = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
         assertTrue(s.contains("} else if (!freshStart) {\n"))
-        assertTrue(s.contains("held = removalsNeverSeenHereLocked(accepted, ledger)"))
+        assertTrue(s.contains("held = removalsNeverSeenHereLocked(accepted, ledger, LibrarySyncCore.PlaylistIds.of(ledger, accepted))"))
+        assertTrue("a change of name is not held as a removal", s.contains("LibrarySyncCore.parse(it.key)?.let { k -> !renamedList(k, after) } == true"))
         assertTrue(s.contains("DeviceSyncHub.HeldTrip((DeviceSyncHub.heldTrip.value?.token ?: 0) + 1, held.size, newHere = true)"))
         val activity = read("app/src/main/kotlin/com/music/echo/MainActivity.kt")
         assertTrue(activity.contains("message = (if (trip.newHere) heldNoticeNewHere else heldNotice).format(trip.count),"))

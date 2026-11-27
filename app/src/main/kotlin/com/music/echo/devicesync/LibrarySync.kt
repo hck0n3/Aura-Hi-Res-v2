@@ -422,7 +422,7 @@ class LibrarySync(
             // pairing, a room switch, an addition nobody saw being made) is held the same way: it is the room's memory of another
             // device, not a decision about this copy. «Aplicar» removes it here, «Descartar» puts it back on the others. After a
             // restored backup the room still wins (row 648).
-            held = removalsNeverSeenHereLocked(accepted, ledger)
+            held = removalsNeverSeenHereLocked(accepted, ledger, LibrarySyncCore.PlaylistIds.of(ledger, accepted))
             if (held.isNotEmpty()) {
                 accepted = accepted - held.toSet()
                 plan = LibrarySyncCore.plan(accepted, before, LibrarySyncCore.PlaylistIds.of(ledger, accepted + held.map { it.copy(parked = true) }))
@@ -479,16 +479,26 @@ class LibrarySync(
 
     /**
      * Row 901: the removals of [accepted] whose item is here although the ledger has no register for it — this device never told
-     * the room about that copy. The library is read only when the batch carries such a removal (a first pairing, mostly).
+     * the room about that copy. The library is read only when the batch carries such a removal (a first pairing, mostly). The old
+     * name of a list that lives on under another of its names ([after], row 740) is a change of name, not a removal: [plan] leaves
+     * it out, and so does this.
      */
-    private suspend fun removalsNeverSeenHereLocked(accepted: List<Reg>, ledger: Map<String, Reg>): List<Reg> {
+    private suspend fun removalsNeverSeenHereLocked(accepted: List<Reg>, ledger: Map<String, Reg>, after: LibrarySyncCore.PlaylistIds): List<Reg> {
         val candidates = accepted.filter {
             it.value == LibrarySyncCore.OFF && it.key !in ledger && !LibrarySyncCore.isMeta(it.key) && !LibrarySyncCore.isOrder(it.key) &&
-                LibrarySyncCore.parse(it.key) != null
+                LibrarySyncCore.parse(it.key)?.let { k -> !renamedList(k, after) } == true
         }
         if (candidates.isEmpty()) return emptyList()
         val current = adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger)) { key -> ledger.containsKey(key) }
         return candidates.filter { it.key in current }
+    }
+
+    /** The same change-of-name rule as [LibrarySyncCore.plan] for lists, their songs and their pins. */
+    private fun renamedList(k: LibrarySyncCore.Key, after: LibrarySyncCore.PlaylistIds): Boolean = when (k) {
+        is LibrarySyncCore.Key.Playlist -> after.renamed(k.playlistKey)
+        is LibrarySyncCore.Key.Member -> after.renamed(k.playlistKey)
+        is LibrarySyncCore.Key.Pin -> k.ref.code == "P" && LibrarySyncCore.isOwnPlaylistId(k.ref.id) && after.renamed(k.ref.id)
+        else -> false
     }
 
     private fun publishStatusLocked() {
