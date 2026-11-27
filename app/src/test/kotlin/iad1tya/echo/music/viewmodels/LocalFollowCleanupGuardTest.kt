@@ -45,35 +45,52 @@ class LocalFollowCleanupGuardTest {
         // The lists are the import lists of the account signed in now, read the way the upload pass reads them.
         val lists = src(cleanupPath).substringAfter("suspend fun lists(").substringBefore("\n    /**")
         assertTrue(lists.contains("libraryUploadSync.importFollowsHeldBack()"))
-        assertTrue(lists.contains("prefs[ImportFollowsAwaitingConfirmKey].orEmpty(), prefs[ImportFollowsLocalOnlyKey].orEmpty()"))
+        assertTrue(lists.contains("prefs[ImportFollowsLocalOnlyKey].orEmpty()"))
     }
 
+    /**
+     * Repair of row 905: the awaiting list alone is no proof an import wrote a follow (its one-time move also files the
+     * onboarding picks, follows made signed out and a restore's follows). Only the ids the importers record are offered.
+     */
     @Test
-    fun `only the preview dialog starts a local removal, and only the selection reaches it`() {
-        val screen = src(screenPath)
-        assertEquals(1, Regex("""localViewModel\.removeChosen\(\)""").findAll(screen).count())
-        assertTrue(screen.contains("localPreview = false\n                        localViewModel.removeChosen()"))
-        val vm = src(vmPath)
-        assertTrue(vm.contains("val plan = LocalFollowCleanupPolicy.plan(s.candidates, s.selected)"))
-        assertTrue(vm.contains("init {\n        load()\n    }"))
-        val callers = File(root, "app/src/main/kotlin").walkTopDown()
-            .filter { it.extension == "kt" && it.readText().contains("removeChosen()") }
+    fun `only the follows an import itself wrote are offered`() {
+        val lists = src(cleanupPath).substringAfter("suspend fun lists(").substringBefore("\n    /**")
+        assertTrue(
+            lists.contains(
+                "LocalFollowCleanupPolicy.importedAwaiting(\n" +
+                    "                prefs[ImportFollowsAwaitingConfirmKey].orEmpty(),\n" +
+                    "                prefs[ImportFollowsWrittenByImportKey].orEmpty(),\n" +
+                    "            ),",
+            ),
+        )
+        assertTrue(
+            src("app/src/main/kotlin/com/music/echo/constants/PreferenceKeys.kt")
+                .contains("val ImportFollowsWrittenByImportKey = stringSetPreferencesKey(\"import_follows_written_by_import\")"),
+        )
+        val importWrite = "it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() + match.id\n" +
+            "                it[ImportFollowsWrittenByImportKey] = it[ImportFollowsWrittenByImportKey].orEmpty() + match.id"
+        listOf(
+            "app/src/main/kotlin/com/music/echo/spotifyimport/SpotifyImportRepository.kt",
+            "app/src/main/kotlin/com/music/echo/ui/screens/migration/MigrationViewModel.kt",
+        ).forEach { assertTrue("$it records what the import wrote", src(it).contains(importWrite)) }
+        // Only the importers add to the record; the follow tap takes ids out of it.
+        val writers = File(root, "app/src/main/kotlin").walkTopDown()
+            .filter { it.extension == "kt" && it.readText().contains("it[ImportFollowsWrittenByImportKey] = ") }
             .map { it.name }.toSet()
-        assertEquals(setOf("LocalFollowCleanupViewModel.kt", "SubscriptionCleanupScreen.kt"), callers)
-        val removers = File(root, "app/src/main/kotlin").walkTopDown()
-            .filter { it.extension == "kt" && it.readText().contains("cleanup.remove(") }
-            .map { it.name }.toSet()
-        assertEquals(setOf("LocalFollowCleanupViewModel.kt"), removers)
-    }
-
-    @Test
-    fun `both confirmations show the names before anything is removed`() {
-        val screen = src(screenPath)
-        assertTrue(screen.contains("CleanupPreview(stringResource(R.string.sub_cleanup_confirm_message), stringResource(R.string.sub_cleanup_confirm_list), names)"))
-        assertTrue(screen.contains("stringResource(R.string.sub_cleanup_local_confirm_message),"))
-        assertTrue(screen.contains("plan.map { it.name },"))
-        // The account batch still starts only from its own dialog (row 813).
-        assertTrue(screen.contains("confirmCount = 0\n                    viewModel.removeSelected()"))
+        assertEquals(setOf("SpotifyImportRepository.kt", "MigrationViewModel.kt", "AccountPush.kt"), writers)
+        assertTrue(
+            src("app/src/main/kotlin/com/music/echo/utils/AccountPush.kt").substringAfter("suspend fun onUserFollowedArtist(artistId: String) {")
+                .substringBefore("\n    }\n")
+                .contains("it[ImportFollowsWrittenByImportKey] = it[ImportFollowsWrittenByImportKey].orEmpty() - artistId"),
+        )
+        val restore = src("app/src/main/kotlin/com/music/echo/viewmodels/BackupRestoreViewModel.kt")
+        assertTrue(
+            restore.contains(
+                "settings.remove(iad1tya.echo.music.constants.ImportFollowsPendingHeldV1Key)\n" +
+                    "                        // Row 905: the rows it described were replaced; a restored follow is never «written by an import».\n" +
+                    "                        settings.remove(iad1tya.echo.music.constants.ImportFollowsWrittenByImportKey)",
+            ),
+        )
     }
 
     @Test

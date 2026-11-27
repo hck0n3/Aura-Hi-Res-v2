@@ -438,8 +438,8 @@ private fun CleanupPreview(message: String, listTitle: String, names: List<Strin
 }
 
 /**
- * Row 905 — «Seguidos solo en Aura»: the artists an import (Spotify, Tidal, Deezer) or a restored backup followed in Aura
- * and the user never confirmed ([LocalFollowCleanupPolicy]). Shown only when there is something (or an undo) to offer.
+ * Row 905 — «Seguidos solo en Aura»: the artists an import (Spotify, Tidal, Deezer) followed in Aura and the user never
+ * confirmed ([LocalFollowCleanupPolicy]). Shown only when there is something (or an undo) to offer.
  * Select some or all, preview, remove from Aura only, undo. Never touches the account.
  */
 @OptIn(ExperimentalLayoutApi::class)

@@ -47,6 +47,17 @@ class LocalFollowCleanupPolicyTest {
     }
 
     @Test
+    fun `an awaiting id the importers never recorded is never offered`() {
+        // The one-time move files every pending follow (onboarding picks, follows made signed out, a restore's) as awaiting.
+        val awaiting = LocalFollowCleanupPolicy.importedAwaiting(awaiting = setOf("UCa", "UCb"), writtenByImport = setOf("UCb", "UCc"))
+        assertEquals(setOf("UCb"), awaiting)
+        val rows = listOf(artist("UCa"), artist("UCb"), artist("UCc"))
+        val found = LocalFollowCleanupPolicy.candidates(rows, awaiting, localOnly = emptySet(), interest = emptyList())
+        assertEquals("not suggested, not even listed", listOf("UCb"), found.map { it.id })
+        assertTrue(LocalFollowCleanupPolicy.importedAwaiting(setOf("UCa"), emptySet()).isEmpty())
+    }
+
+    @Test
     fun `a follow that is not in the awaiting list is a hand follow and is never offered`() {
         // A follow tap takes the id out of the awaiting list (AccountPush.onUserFollowedArtist).
         val rows = listOf(artist("UCa"), artist("UCb"))

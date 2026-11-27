@@ -4,6 +4,7 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
 import iad1tya.echo.music.constants.ImportFollowsLocalOnlyKey
+import iad1tya.echo.music.constants.ImportFollowsWrittenByImportKey
 import iad1tya.echo.music.db.MusicDatabase
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,13 +43,20 @@ class LocalFollowCleanup @Inject constructor(
     /**
      * The two import lists of the account signed in now. First through [LibraryUploadSync.importFollowsHeldBack], the
      * same call the upload pass makes: it adopts the lists of the current account (row 808) and, the first time after an
-     * install or a restore, files the pending follows as awaiting (row 646 (a)). Null when the preferences cannot be read:
-     * the screen then offers nothing.
+     * install or a restore, files the pending follows as awaiting (row 646 (a)). `awaiting` keeps only the ids an import
+     * itself wrote ([LocalFollowCleanupPolicy.importedAwaiting]). Null when the preferences cannot be read: the screen then
+     * offers nothing.
      */
     suspend fun lists(): Lists? = try {
         libraryUploadSync.importFollowsHeldBack()
         val prefs = context.dataStore.data.first()
-        Lists(prefs[ImportFollowsAwaitingConfirmKey].orEmpty(), prefs[ImportFollowsLocalOnlyKey].orEmpty())
+        Lists(
+            LocalFollowCleanupPolicy.importedAwaiting(
+                prefs[ImportFollowsAwaitingConfirmKey].orEmpty(),
+                prefs[ImportFollowsWrittenByImportKey].orEmpty(),
+            ),
+            prefs[ImportFollowsLocalOnlyKey].orEmpty(),
+        )
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {

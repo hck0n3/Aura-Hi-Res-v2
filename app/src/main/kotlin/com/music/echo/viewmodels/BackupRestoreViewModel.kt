@@ -349,6 +349,8 @@ class BackupRestoreViewModel @Inject constructor(
                         settings[iad1tya.echo.music.constants.YtmUploadSyncKey] =
                             iad1tya.echo.music.utils.LibraryUploadOptIn.onAccountDetached()
                         settings.remove(iad1tya.echo.music.constants.ImportFollowsPendingHeldV1Key)
+                        // Row 905: the rows it described were replaced; a restored follow is never «written by an import».
+                        settings.remove(iad1tya.echo.music.constants.ImportFollowsWrittenByImportKey)
                     }
                 }
             }

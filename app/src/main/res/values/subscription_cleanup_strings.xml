@@ -52,13 +52,13 @@
         <item quantity="one">%d suggested</item>
         <item quantity="other">%d suggested</item>
     </plurals>
-    <!-- Registry row 905: «Seguidos solo en Aura» (follows an import or a restore wrote and the user never confirmed). -->
+    <!-- Registry row 905: «Seguidos solo en Aura» (follows an import wrote and the user never confirmed). -->
     <plurals name="sub_cleanup_local_title">
         <item quantity="one">%d artist followed only in Aura</item>
         <item quantity="other">%d artists followed only in Aura</item>
     </plurals>
-    <string name="sub_cleanup_local_intro">An import (Spotify, Tidal or Deezer) or a restored backup added them in Aura and you never confirmed them. Removing them only changes Aura: your Google account is not touched, and you can undo it.</string>
-    <string name="sub_cleanup_local_reason">Added by an import or a restored backup; never confirmed</string>
+    <string name="sub_cleanup_local_intro">An import (Spotify, Tidal or Deezer) added them in Aura and you never confirmed them. Removing them only changes Aura: your Google account is not touched, and you can undo it.</string>
+    <string name="sub_cleanup_local_reason">Added by an import; never confirmed</string>
     <string name="sub_cleanup_local_suggested_badge">Probably not yours</string>
     <string name="sub_cleanup_local_select_all">Select all (%1$d)</string>
     <string name="sub_cleanup_local_select_suggested">Select the suggested (%1$d)</string>

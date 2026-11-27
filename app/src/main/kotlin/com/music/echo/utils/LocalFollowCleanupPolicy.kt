@@ -6,15 +6,17 @@ import java.time.LocalDateTime
 /**
  * Registry row 905 (plan, phase 9: «Herramienta para limpiar artistas que no siguió el usuario»). The «Revisar
  * suscripciones» screen (rows 813/814) already cleans the ACCOUNT. What it could not see: artists Aura itself shows as
- * followed that never reached the account — the follows an import (Spotify, Tidal, Deezer) or a restored backup wrote
- * here and the user never confirmed («esperan confirmación», `ImportFollowsAwaitingConfirmKey`, row 646). They read
+ * followed that never reached the account — the follows an import (Spotify, Tidal, Deezer) wrote here and the user
+ * never confirmed («esperan confirmación», `ImportFollowsAwaitingConfirmKey`, row 646). They read
  * «Suscrito» everywhere in Aura and, once the user confirms the import list or turns the upload switch on, they are the
  * ones that would be subscribed on the account.
  *
  * Pure: which of those Aura can offer to remove, how a selection becomes the rows to clear, and how «Deshacer» puts
- * them back. The signals are the ones the code already keeps — nothing new is recorded:
- *  - an id in the awaiting list was written there by an import or by the first upload pass after a restore, and a
- *    follow TAP takes it out (`onUserFollowedArtist` in AccountPush), so a channel the user followed by hand is not in it;
+ * them back. The signals:
+ *  - [importedAwaiting]: an id is offered only while it is BOTH in the awaiting list and in the record the importers write
+ *    (`ImportFollowsWrittenByImportKey`). The awaiting list alone is no proof: its one-time move (`ImportFollowsPendingHeldV1Key`)
+ *    also files the onboarding picks, follows made signed out and a restore's follows. A follow TAP takes the id out of
+ *    both (`onUserFollowedArtist` in AccountPush), so a channel the user followed by hand is never offered;
  *  - «Solo en Aura» (`ImportFollowsLocalOnlyKey`) is the user's own answer «keep it here»: never offered;
  *  - a channel the account already holds (`ytmSyncedAt`) or with an unfollow of the user's own (`unfollowedByUserAt`) is
  *    not local-only: the account part of the screen and the existing machinery own it.
@@ -24,7 +26,7 @@ import java.time.LocalDateTime
  * never touched» of [ArtistEntity]). That is also what makes it undoable: [restored] writes back the two values.
  */
 object LocalFollowCleanupPolicy {
-    /** One channel Aura shows as followed only because an import or a restore said so. */
+    /** One channel Aura shows as followed only because an import said so. */
     data class Candidate(
         /** The followed spelling shown on screen (the first in id order: stable between reads). */
         val id: String,
@@ -40,9 +42,15 @@ object LocalFollowCleanupPolicy {
     data class Snapshot(val id: String, val bookmarkedAt: LocalDateTime?, val followedByUserAt: LocalDateTime?)
 
     /**
+     * The awaiting ids an import itself wrote: what [eligible], [candidates] and [cleared] take as `awaiting`. An id the
+     * one-time move or a restore put in [awaiting] is not in [writtenByImport], and is never offered.
+     */
+    fun importedAwaiting(awaiting: Set<String>, writtenByImport: Set<String>): Set<String> = awaiting intersect writtenByImport
+
+    /**
      * [spellings] are the stored rows of ONE channel (every id of [ArtistSyncPolicy.aliasIds]). True when the channel is
-     * followed in Aura only because of an import or a restore the user never confirmed: some spelling is followed, every
-     * followed spelling is in [awaiting], none is a local-file artist, no spelling is in [localOnly], and no spelling is
+     * followed in Aura only because of an import the user never confirmed: some spelling is followed, every followed
+     * spelling is in [awaiting] (already [importedAwaiting]), none is a local-file artist, no spelling is in [localOnly], and no spelling is
      * on the account or carries the user's own unfollow.
      */
     fun eligible(spellings: List<ArtistEntity>, awaiting: Set<String>, localOnly: Set<String>): Boolean {

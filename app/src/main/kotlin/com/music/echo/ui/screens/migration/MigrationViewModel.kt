@@ -28,6 +28,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.DataSaverEnabledKey
 import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
+import iad1tya.echo.music.constants.ImportFollowsWrittenByImportKey
 import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.db.MusicDatabase
 import iad1tya.echo.music.db.entities.ArtistEntity
@@ -971,6 +972,7 @@ class MigrationViewModel @Inject constructor(
         if (existing?.followedByUserAt == null) {
             context.dataStore.edit {
                 it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() + match.id
+                it[ImportFollowsWrittenByImportKey] = it[ImportFollowsWrittenByImportKey].orEmpty() + match.id
             }
         }
         database.withTransaction {
