@@ -60,6 +60,20 @@ object FunctionNameExtractor {
      * - N-transform: GU(6, 6010, n) with 87-element self-referential array
      */
     private val KNOWN_PLAYER_CONFIGS = mapOf(
+        // player_ias b485e332 (2026-11-26): sig=Yo(3,7911,Zo(2,253,sig)); n=g.Xo URL round-trip trick. Built by
+        // scripts/player_extract.py from the live base.js and run through scripts/verify/player_verify.mjs (sig PASS, n PASS).
+        "b485e332" to HardcodedPlayerConfig(
+            sigFuncName = "Yo",
+            sigConstantArg = 3,
+            sigConstantArgs = listOf(3, 7911),
+            sigPreprocessFunc = "Zo",
+            sigPreprocessArgs = listOf(2, 253),
+            nFuncName = "_expr_n",
+            nArrayIndex = null,
+            nConstantArgs = null,
+            nJsExpression = "(function(n){try{var u=new g.Xo('https://x.googlevideo.com/videoplayback?n='+n,true);var t=u.get('n');return(t&&t!==n)?t:n;}catch(e){return n;}})(INPUT)",
+            signatureTimestamp = 20779
+        ),
         // player_ias 3891b194 (2026-08-18, rotated from c74cbcd6 within ~1h): sig=pB(20,268,JQ(74,8344,sig));
         // n=g.cY URL round-trip trick. Same verification method as c74cbcd6 below: executed the live
         // player.js in a real JS engine, confirmed output is a character-subset of the input (81 from
