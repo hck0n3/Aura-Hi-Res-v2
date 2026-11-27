@@ -1041,4 +1041,7 @@
     <string name="autoeq_device_auto_apply_off">«Aplicar automáticamente» de EQ por dispositivo está apagado: la corrección no seguiría a la salida.</string>
     <string name="autoeq_max_boost">Realce máximo de la corrección automática</string>
     <string name="autoeq_max_boost_value">+%1$d dB</string>
+    <string name="loudness_comp_title">Graves y agudos a volumen bajo</string>
+    <string name="loudness_comp_desc">A volumen bajo el oído pierde graves y algo de agudos (curvas de igual sonoridad ISO 226). Esto los sube según el volumen de Android: hasta +8 dB de graves y +3 dB de agudos, nada al máximo. Aura no sabe cuánto suena de verdad tu salida: con el volumen absoluto del Bluetooth o con un amplificador sigue la posición del volumen, no los decibelios reales. Con «Headroom automático» encendido baja el resto lo mismo para no saturar. Android 9 o superior.</string>
+    <string name="loudness_comp_intensity">Intensidad: %1$d %%</string>
 </resources>

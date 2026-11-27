@@ -37,6 +37,8 @@ object FidelityMode {
         SPEAKER_BASS_PROTECTION,
         /** 32-bit float output on mid/high-tier devices (`setEnableFloatOutput(!lowEnd)`). */
         FLOAT_OUTPUT,
+        /** Row 918: «Graves y agudos a volumen bajo», the shelves that follow the system volume. */
+        LOUDNESS_COMPENSATION,
     }
 
     /** What Fidelidad switches off. */
@@ -53,6 +55,7 @@ object FidelityMode {
         Stage.MANUAL_FADE,
         Stage.TEMPO_PITCH,
         Stage.FLOAT_16BIT_TAKEOVER,
+        Stage.LOUDNESS_COMPENSATION,
     )
 
     /**

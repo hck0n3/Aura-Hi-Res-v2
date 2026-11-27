@@ -98,7 +98,7 @@ class FidelityModeWiringGuardTest {
     fun `every other stage goes through the gating table`() {
         for (stage in listOf(
             "Stage.SPATIAL", "Stage.TIDAL_SIGNATURE", "Stage.DE_ESSER", "Stage.GLUE_COMPRESSOR",
-            "Stage.OUTPUT_DITHER", "Stage.SAFE_VOLUME",
+            "Stage.OUTPUT_DITHER", "Stage.SAFE_VOLUME", "Stage.LOUDNESS_COMPENSATION",
         )) {
             assertTrue(stage, service.contains("FidelityMode.$stage"))
         }
@@ -145,8 +145,9 @@ class FidelityModeWiringGuardTest {
         val sound = source("app/src/main/kotlin/com/music/echo/ui/screens/settings/SoundSettings.kt")
         assertTrue(sound.contains("Text(stringResource(R.string.fidelity_mode_title))"))
         assertTrue(sound.contains("Text(stringResource(R.string.fidelity_mode_desc))"))
-        // Equalizer, Safe Volume, auto headroom, stereo width, compressor, 32-bit processing and dither.
-        assertEquals(7, Regex("""FidelityPausedNote\(fidelityMode\)""").findAll(sound).count())
+        // Equalizer, Safe Volume, auto headroom, stereo width, compressor, 32-bit processing and dither, and (row 918)
+        // «Graves y agudos a volumen bajo».
+        assertEquals(8, Regex("""FidelityPausedNote\(fidelityMode\)""").findAll(sound).count())
         val player = source("app/src/main/kotlin/com/music/echo/ui/screens/settings/PlayerSettings.kt")
         assertEquals(2, Regex("""FidelityPausedNote\(fidelityMode\)""").findAll(player).count())
         val tempo = source("app/src/main/kotlin/com/music/echo/ui/menu/PlayerMenu.kt")

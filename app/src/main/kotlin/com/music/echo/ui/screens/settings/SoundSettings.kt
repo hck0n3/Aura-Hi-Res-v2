@@ -36,6 +36,7 @@ import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
+import kotlin.math.roundToInt
 
 /**
  * Dedicated, ordered "Sonido" hub: equalizer, Auto-EQ, all DSP effects/plugins and loudness in one
@@ -129,6 +130,15 @@ fun SoundSettings(
         val (stereoWidth, onStereoWidthChange) = rememberPreference(
             iad1tya.echo.music.constants.StereoWidthKey, defaultValue = 1f
         )
+        // Row 918: off by default; the same default constants MusicService reads.
+        val (loudnessComp, onLoudnessCompChange) = rememberPreference(
+            iad1tya.echo.music.constants.LoudnessCompensationEnabledKey,
+            defaultValue = iad1tya.echo.music.constants.LoudnessCompensationDefault,
+        )
+        val (loudnessIntensity, onLoudnessIntensityChange) = rememberPreference(
+            iad1tya.echo.music.constants.LoudnessCompensationIntensityKey,
+            defaultValue = iad1tya.echo.music.constants.LoudnessCompensationIntensityDefault,
+        )
         Material3SettingsGroup(
             title = "Volumen y protección",
             items = listOf(
@@ -182,6 +192,33 @@ fun SoundSettings(
                         )
                     },
                     onClick = { onSpeakerBassProtectChange(!speakerBassProtect) },
+                ),
+                // Row 918: «Graves y agudos a volumen bajo». The intensity slider is always shown, live while the switch is on.
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.volume_up),
+                    title = { Text(stringResource(R.string.loudness_comp_title)) },
+                    description = {
+                        Column {
+                            Text(stringResource(R.string.loudness_comp_desc))
+                            FidelityPausedNote(fidelityMode)
+                            Text(stringResource(R.string.loudness_comp_intensity, (loudnessIntensity * 100).roundToInt()))
+                            Slider(
+                                value = loudnessIntensity,
+                                onValueChange = { onLoudnessIntensityChange((it * 10).roundToInt() / 10f) },
+                                valueRange = 0f..1f,
+                                steps = 9,
+                                enabled = loudnessComp,
+                            )
+                        }
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = loudnessComp,
+                            onCheckedChange = onLoudnessCompChange,
+                            thumbContent = thumb(loudnessComp),
+                        )
+                    },
+                    onClick = { onLoudnessCompChange(!loudnessComp) },
                 ),
             ),
         )

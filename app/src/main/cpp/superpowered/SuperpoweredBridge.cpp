@@ -12,6 +12,7 @@
 
 #include "AuraTruePeakLimiter.h"
 #include "AuraDeEsser.h"
+#include "AuraLoudnessCompensation.h"
 
 #if __has_include("Superpowered.h")
 #define HAS_SUPERPOWERED 1
@@ -317,6 +318,10 @@ struct EqSnapshot {
     bool speakerBassProtect = false;
     /// Stereo width (Mid/Side): 1.0 = untouched, > 1 widens the sides, < 1 narrows. The centre (Mid) is kept.
     float stereoWidth = 1.0f;
+    /// Row 918: loudness compensation at low volume, linear (1 = untouched). Set by Kotlin from the system volume.
+    float loudnessBass = 1.0f;
+    float loudnessTreble = 1.0f;
+    float loudnessTrim = 1.0f;
     /// Bumped by writers ONLY when a band actually changed (setEqBand / disableAllBands). Lets the audio
     /// thread skip re-writing all 64 filters for a publication that only moved a scalar — most importantly
     /// the per-track Safe Volume update, which must not touch EQ coefficients at all.
@@ -341,6 +346,8 @@ public:
     std::atomic<bool> flushPending{false};
     // Row 917: split-band dynamic de-esser (AuraDeEsser.h), only inside the EQ block.
     aura::DeEsser* deEsser = nullptr;
+    // Row 918: low-volume loudness compensation (AuraLoudnessCompensation.h), outside the EQ switch (Ajustes ▸ Sonido).
+    aura::LoudnessCompensation* loudness = nullptr;
 
     Superpowered::Filter* tidalLowShelf = nullptr;
     Superpowered::Filter* tidalMidParam = nullptr;
@@ -537,6 +544,7 @@ public:
         activeDitherEnabled = s.ditherEnabled;
         activeSpeakerBassProtect = s.speakerBassProtect;
         activeStereoWidth = s.stereoWidth;
+        if (loudness) loudness->setTarget(s.loudnessBass, s.loudnessTreble, s.loudnessTrim);
         applySpatializerProperties();
 
         // Filter objects are touched ONLY when a band genuinely changed. A publication caused purely by
@@ -692,6 +700,7 @@ public:
         truePeakLimiter = new aura::TruePeakLimiter(samplerate);
 
         deEsser = new aura::DeEsser(samplerate);
+        loudness = new aura::LoudnessCompensation(samplerate);
 
         tidalLowShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
         tidalLowShelf->frequency = 60.0f; // Más bajo para dar profundidad sin barro (antes 85)
@@ -769,6 +778,7 @@ public:
         
         if (truePeakLimiter) { delete truePeakLimiter; truePeakLimiter = nullptr; }
         if (deEsser) { delete deEsser; deEsser = nullptr; }
+        if (loudness) { delete loudness; loudness = nullptr; }
         if (tidalLowShelf) { delete tidalLowShelf; tidalLowShelf = nullptr; }
         if (tidalMidParam) { delete tidalMidParam; tidalMidParam = nullptr; }
         if (tidalHighMidParam) { delete tidalHighMidParam; tidalHighMidParam = nullptr; }
@@ -1177,6 +1187,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         if (processor->truePeakLimiter) processor->truePeakLimiter->reset();
         for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) processor->eqBiquads[bi].reset();
         if (processor->deEsser) processor->deEsser->reset();
+        if (processor->loudness) processor->loudness->clearState();
     }
     // Row 912: with the equalizer off the bands do not run, so a band gliding to flat is stopped right away
     // (it would otherwise come back with stale coefficients when the equalizer is switched on again).
@@ -1234,7 +1245,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         runSpatial ||
         (processor && processor->activeTidalSimulationEnabled) ||
         (processor && (processor->activeCompressorEnabled || processor->activeSpeakerBassProtect ||
-                       processor->activeStereoWidth != 1.0f));
+                       processor->activeStereoWidth != 1.0f)) ||
+        (processor && processor->loudness && processor->loudness->engaged());
     if (runChain && workBuffer && processor) {
         // NO LOCK HERE. Parameters were taken in above via consumeAndApplySnapshot, which is wait-free
         // and delivers a complete set or nothing at all. Everything read below is either that applied
@@ -1294,6 +1306,12 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
                 // Switched off: start from flat when it is switched back on.
                 if (processor->deEsser) processor->deEsser->reset();
             }
+        }
+
+        // Row 918: LOUDNESS COMPENSATION at low volume (AuraLoudnessCompensation.h), with or without the EQ: two first-order
+        // shelves (100 Hz, 10 kHz) whose gains follow the system music volume, and the automatic headroom's trim.
+        if (processor->loudness && processor->loudness->engaged()) {
+            processor->loudness->process(workBuffer, num_frames, channels);
         }
 
         // SAFE VOLUME — its own stage, AFTER the EQ bands and immediately BEFORE the limiter, so the limiter
@@ -1505,6 +1523,24 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setDeEsserEnabled
 
     std::lock_guard<std::mutex> lock(processor->writerMutex);
     processor->staging.deEsserEnabled = (enabled == JNI_TRUE);
+    processor->publishIfNotBatchingLocked();
+#endif
+}
+
+/// Row 918: loudness compensation at low volume. Gains in dB (0 = untouched); bass and treble are boosts, trim a cut.
+extern "C" JNIEXPORT void JNICALL
+Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setLoudnessCompensation(JNIEnv *env, jobject thiz, jlong ptr, jfloat bassDb, jfloat trebleDb, jfloat trimDb) {
+#if HAS_SUPERPOWERED
+    auto* processor = reinterpret_cast<SuperpoweredProcessor*>(ptr);
+    if (!processor) return;
+    auto lin = [](float db, float lo, float hi) {
+        if (!(db >= lo)) db = lo; else if (db > hi) db = hi;
+        return db == 0.0f ? 1.0f : powf(10.0f, db / 20.0f);
+    };
+    std::lock_guard<std::mutex> lock(processor->writerMutex);
+    processor->staging.loudnessBass = lin(bassDb, 0.0f, 12.0f);
+    processor->staging.loudnessTreble = lin(trebleDb, 0.0f, 12.0f);
+    processor->staging.loudnessTrim = lin(trimDb, -12.0f, 0.0f);
     processor->publishIfNotBatchingLocked();
 #endif
 }
