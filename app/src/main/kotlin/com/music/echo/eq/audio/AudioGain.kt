@@ -1,5 +1,8 @@
 package iad1tya.echo.music.eq.audio
 
+import iad1tya.echo.music.eq.EqResponse
+import iad1tya.echo.music.eq.data.FilterType
+import iad1tya.echo.music.eq.data.ParametricEQBand
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.tanh
@@ -23,6 +26,33 @@ fun headroomPreampDb(userPreampDb: Double, enabledBandGainsDb: List<Double>): Do
     val maxBoost = (enabledBandGainsDb.maxOrNull() ?: 0.0).coerceAtLeast(0.0)
     return userPreampDb - maxBoost - if (maxBoost > 0.0) 1.0 else 0.0
 }
+
+/**
+ * Row 911: the native «firma Tidal» stage (the `tidal*` filters built in the SuperpoweredProcessor constructor of
+ * SuperpoweredBridge.cpp) as RBJ bands with the same frequencies and gains: 60 Hz low shelf +1 dB (slope 0.5), 250 Hz
+ * peak -0.5 dB (1 octave), 3 kHz peak +0.5 dB (1.2 octaves), 12 kHz high shelf +1.5 dB (slope 0.5); its 6.5 kHz
+ * filter is at 0 dB. Superpowered's own filter formulas are not published, so this is a MODEL used only to decide the
+ * automatic headroom (`EqResponse.shelfSlope`: slope 0.5 is Q 0.707; 1.2 octaves is Q 1.17).
+ */
+val TIDAL_SIGNATURE_MODEL_BANDS: List<ParametricEQBand> = listOf(
+    ParametricEQBand(frequency = 60.0, gain = 1.0, q = 0.707, filterType = FilterType.LSC),
+    ParametricEQBand(frequency = 250.0, gain = -0.5, q = 1.414, filterType = FilterType.PK),
+    ParametricEQBand(frequency = 3000.0, gain = 0.5, q = 1.17, filterType = FilterType.PK),
+    ParametricEQBand(frequency = 12000.0, gain = 1.5, q = 0.707, filterType = FilterType.HSC),
+)
+
+/**
+ * Row 911: the preamp «Headroom automático» applies: the user's preamp minus the highest boost of the WHOLE combined
+ * curve the chain will run — the AutoEQ and manual bands together and, while it sounds, the Tidal signature
+ * ([TIDAL_SIGNATURE_MODEL_BANDS]) — measured on the combined response ([EqResponse.peakBoostDb]), not band by band.
+ * So the curve itself never pushes the signal above where the user's preamp puts it (its 12 kHz shelf on top of a
+ * treble boost included). The user's preamp still applies on top, unchanged (row 790).
+ */
+fun autoHeadroomPreampDb(
+    userPreampDb: Double,
+    activeBands: List<ParametricEQBand>,
+    tidalSignatureOn: Boolean,
+): Double = userPreampDb - EqResponse.peakBoostDb(if (tidalSignatureOn) activeBands + TIDAL_SIGNATURE_MODEL_BANDS else activeBands)
 
 /**
  * Attenuate-only loudness-normalization multiplier (linear, in (0, 1]). [loudnessDb] is the stream's

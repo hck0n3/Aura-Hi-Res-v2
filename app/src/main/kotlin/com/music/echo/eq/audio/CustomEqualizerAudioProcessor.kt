@@ -208,6 +208,8 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             // stores the choice and publishes the bypass, so a settings change cannot switch a stage back
             // on behind a disabled equalizer.
             if (isInitialized && ptr != 0L) pushToneStages(ptr)
+            // Row 911: with «Headroom automático» on, the preamp depends on the Tidal shelves — re-apply it.
+            if (autoHeadroom && this.enabled) currentProfile?.let { applyProfile(it) }
         }
     }
 
@@ -292,7 +294,14 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     private fun effectivePreampDb(profile: ParametricEQ): Double {
         if (!autoHeadroom) return profile.preamp
         val active = (profile.autoBands + profile.bands).filter { it.enabled }
-        return profile.preamp - iad1tya.echo.music.eq.EqResponse.peakBoostDb(active)
+        // Row 911: the Tidal signature's shelves count too, while they sound (same gate pushToneStages publishes).
+        val tidalSounds = EqBypass.toneStages(
+            masterEqOn = enabled,
+            spatialEnabled = spatialEnabled,
+            tidalSignatureEnabled = tidalSimulationEnabled,
+            deEsserEnabled = deEsserEnabled,
+        ).tidalSignature
+        return autoHeadroomPreampDb(profile.preamp, active, tidalSounds)
     }
 
     /** The native engine is loaded and usable for measurements. */
