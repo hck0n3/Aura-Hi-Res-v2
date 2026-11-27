@@ -9,25 +9,35 @@ import com.music.innertube.YouTube
 import iad1tya.echo.music.constants.HideVideoSongsKey
 import iad1tya.echo.music.constants.statToPeriod
 import iad1tya.echo.music.db.MusicDatabase
+import iad1tya.echo.music.reco.GenreCache
+import iad1tya.echo.music.stats.ListeningStats
 import iad1tya.echo.music.stats.StatsDedupe
+import iad1tya.echo.music.stats.statsInput
 import iad1tya.echo.music.ui.screens.OptionStats
 import iad1tya.echo.music.utils.dataStore
 import iad1tya.echo.music.utils.reportException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import javax.inject.Inject
+import timber.log.Timber
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -261,6 +271,50 @@ constructor(
             },
         )
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    /**
+     * Registry row 909 — «Tus hábitos» for the range of the chips: hour of day, day of week, streaks, new artists,
+     * genres, and the de-duplicated counts of the Resumen sheet. Recomputed only when the range changes or a listen is
+     * added or removed ([MusicDatabase.statsEventCount]), and only while the screen collects it; nothing leaves the phone.
+     */
+    val insights: StateFlow<ListeningStats.Summary?> =
+        combine(selectedOption, indexChips, database.statsEventCount()) { selection, t, _ -> selection to t }
+            .mapLatest { (selection, t) ->
+                withContext(Dispatchers.IO) {
+                    try {
+                        computeInsights(selection, t)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // The class name only (rule 4); not reported off the phone.
+                        Timber.w("Stats insights failed: %s", e.javaClass.simpleName)
+                        null
+                    }
+                }
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private suspend fun computeInsights(selection: OptionStats, t: Int): ListeningStats.Summary {
+        val from = statToPeriod(selection, t)
+        // An open window (the current chip, or a rolling one) has no end: a listen that ends while the screen is open counts.
+        val openEnded = selection == OptionStats.CONTINUOUS || t == 0
+        val to = if (openEnded) ListeningStats.ALL_TIME.endStored else statToPeriod(selection, t - 1)
+        val (plays, songs) = statsInput(
+            database.statsPlaysInRange(from, to),
+            database.statsSongsInRange(from, to),
+            database.statsSongArtistsInRange(from, to),
+        )
+        val firstPlays = ListeningStats.artistFirstPlays(
+            database.statsArtistFirstPlays().map { Triple(it.artistId, it.name, ListeningStats.fromStored(it.firstPlayed)) },
+        )
+        return ListeningStats.summarize(
+            range = ListeningStats.Range(ListeningStats.fromStored(from), ListeningStats.fromStored(to)),
+            plays = plays,
+            songs = songs,
+            genreByArtistName = GenreCache.snapshot(context),
+            artistFirstPlayed = firstPlays,
+            today = LocalDate.now(),
+        )
+    }
 
     val firstEvent =
         database

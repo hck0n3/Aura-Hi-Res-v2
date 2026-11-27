@@ -33,6 +33,10 @@ import iad1tya.echo.music.db.entities.Artist
 import iad1tya.echo.music.db.entities.ArtistEntity
 import iad1tya.echo.music.db.entities.Event
 import iad1tya.echo.music.db.entities.EventWithSong
+import iad1tya.echo.music.stats.StatsArtistFirstPlayRow
+import iad1tya.echo.music.stats.StatsPlayRow
+import iad1tya.echo.music.stats.StatsSongArtistRow
+import iad1tya.echo.music.stats.StatsSongRow
 import iad1tya.echo.music.db.entities.FormatEntity
 import iad1tya.echo.music.db.entities.LyricsEntity
 import iad1tya.echo.music.db.entities.PlayCountEntity
@@ -598,6 +602,48 @@ interface DatabaseDao {
     """
     )
     fun getUniqueAlbumCountInRange(fromTimeStamp: Long, toTimeStamp: Long): Flow<Int>
+
+    // ── Registry rows 909-910: the plain reads behind Estadísticas «Tus hábitos» and «Tu año en Aura» (SELECT only).
+    // The range is [from, to) on the stored timestamp (local wall-clock time read as UTC); ListeningStats does the rest.
+
+    /** Changes whenever a listen is added or removed: the statistics recompute on THIS, never on a timer. */
+    @Query("SELECT COUNT(*) FROM event")
+    fun statsEventCount(): Flow<Int>
+
+    @Query("SELECT songId, timestamp, playTime FROM event WHERE timestamp >= :fromTimeStamp AND timestamp < :toTimeStamp")
+    suspend fun statsPlaysInRange(fromTimeStamp: Long, toTimeStamp: Long): List<StatsPlayRow>
+
+    @Query(
+        """
+        SELECT id, title, duration, albumId, albumName, thumbnailUrl
+        FROM song
+        WHERE id IN (SELECT DISTINCT songId FROM event WHERE timestamp >= :fromTimeStamp AND timestamp < :toTimeStamp)
+        """,
+    )
+    suspend fun statsSongsInRange(fromTimeStamp: Long, toTimeStamp: Long): List<StatsSongRow>
+
+    @Query(
+        """
+        SELECT song_artist_map.songId AS songId, artist.id AS artistId, artist.name AS name, song_artist_map.position AS position
+        FROM song_artist_map
+        JOIN artist ON artist.id = song_artist_map.artistId
+        WHERE song_artist_map.songId IN
+              (SELECT DISTINCT songId FROM event WHERE timestamp >= :fromTimeStamp AND timestamp < :toTimeStamp)
+        """,
+    )
+    suspend fun statsSongArtistsInRange(fromTimeStamp: Long, toTimeStamp: Long): List<StatsSongArtistRow>
+
+    /** When each artist row was first played, ever (for «artistas nuevos»). */
+    @Query(
+        """
+        SELECT artist.id AS artistId, artist.name AS name, MIN(event.timestamp) AS firstPlayed
+        FROM event
+        JOIN song_artist_map ON song_artist_map.songId = event.songId
+        JOIN artist ON artist.id = song_artist_map.artistId
+        GROUP BY artist.id
+        """,
+    )
+    suspend fun statsArtistFirstPlays(): List<StatsArtistFirstPlayRow>
 
     @Transaction
     @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)

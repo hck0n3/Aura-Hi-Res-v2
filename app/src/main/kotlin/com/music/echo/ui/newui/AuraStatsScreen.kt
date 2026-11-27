@@ -129,6 +129,8 @@ fun AuraStatsScreen(
     val uniqueSongsCount by viewModel.uniqueSongsCount.collectAsState()
     val uniqueArtistsCount by viewModel.uniqueArtistsCount.collectAsState()
     val uniqueAlbumsCount by viewModel.uniqueAlbumsCount.collectAsState()
+    // Row 909: «Tus hábitos» and the Resumen counts with one song / artist / album per act across the three sources.
+    val insights by viewModel.insights.collectAsState()
 
     var showHistorySheet by rememberSaveable { mutableStateOf(false) }
 
@@ -360,6 +362,12 @@ fun AuraStatsScreen(
                     }
                 }
             }
+
+            insights?.let { summary ->
+                item(key = "aura_stats_habits", contentType = "aura_stats_habits") {
+                    AuraStatsHabits(summary = summary, modifier = Modifier.animateItem())
+                }
+            }
         }
 
         // "Reproducir en aleatorio las más escuchadas" — the classic HideOnScrollFAB, same condition,
@@ -398,9 +406,9 @@ fun AuraStatsScreen(
                 onDismiss = { showHistorySheet = false },
                 totalPlayTimeMs = totalPlayTime,
                 allTimePlayTimeMs = allTimePlayTime,
-                uniqueSongs = uniqueSongsCount,
-                uniqueArtists = uniqueArtistsCount,
-                uniqueAlbums = uniqueAlbumsCount,
+                uniqueSongs = insights?.songs ?: uniqueSongsCount,
+                uniqueArtists = insights?.artists ?: uniqueArtistsCount,
+                uniqueAlbums = insights?.albums ?: uniqueAlbumsCount,
                 periodLabel = statsPeriodLabel(periodChips, indexChips),
             )
         }

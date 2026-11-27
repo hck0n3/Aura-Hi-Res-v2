@@ -942,4 +942,27 @@
     <string name="fidelity_mode_tempo_locked">Fidelity mode is on: tempo and pitch stay at 1.0× so the audio is not altered. Turn it off in Settings ▸ Sound to change them.</string>
     <string name="fidelity_mode_eq_banner_title">The equalizer is paused</string>
     <string name="fidelity_mode_eq_banner_desc">Fidelity mode is on, so nothing on this screen changes what you hear. Your settings are kept and apply again when you turn it off in Settings ▸ Sound.</string>
+    <!-- Registry row 909: Estadísticas «Tus hábitos» -->
+    <string name="stats_habits_title">Your habits</string>
+    <string name="stats_habits_by_hour">By hour of the day</string>
+    <string name="stats_habits_by_weekday">By day of the week</string>
+    <string name="stats_habits_top_genres">Top genres</string>
+    <string name="stats_habits_most_times">Played most often: %1$s · %2$s</string>
+    <string name="stats_habits_empty">Nothing played in this period yet.</string>
+    <plurals name="stats_listening_days">
+        <item quantity="one">%d day with music</item>
+        <item quantity="other">%d days with music</item>
+    </plurals>
+    <plurals name="stats_streak_current">
+        <item quantity="one">Current streak: %d day</item>
+        <item quantity="other">Current streak: %d days</item>
+    </plurals>
+    <plurals name="stats_streak_longest">
+        <item quantity="one">Longest streak: %d day</item>
+        <item quantity="other">Longest streak: %d days</item>
+    </plurals>
+    <plurals name="stats_new_artists">
+        <item quantity="one">%d new artist</item>
+        <item quantity="other">%d new artists</item>
+    </plurals>
 </resources>
