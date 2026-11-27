@@ -1219,11 +1219,11 @@ internal fun MusicService.performCrossfadeSwap() {
                 fadingPlayer?.volume ?: 1f
             }
         } catch (e: Exception) { 1f }
-        // Because LUFS Normalization is fixed and active, tracks play at roughly -14 LUFS,
-        // leaving massive natural headroom. Thus, two tracks summing during an equal-power crossfade
-        // will NEVER clip the Android mixer (they'll sum to ~-11 LUFS). We can safely remove the
-        // old volume dip hack and keep the multiplier at 1.0f for a perfectly transparent blend.
-        val xfHeadroom = 1f
+        // Row 912: two players at -1 dBTP each, summed by the Android mixer under an equal-power curve, can reach
+        // +2 dBTP and clip (loudness normalization keeps the AVERAGE level down, not the peaks). The overlap headroom
+        // (CrossfadeMath.overlapHeadroom) keeps the sum under 0 dBFS; it is 1 at both ends of the fade, so nothing steps.
+        // Each player is behind its true-peak limiter while Safe Volume runs its chain; otherwise assume full scale.
+        val xfPeak = if (safeVolumeEnabledHint) CrossfadeMath.LIMITED_PEAK_LINEAR else 1f
 
         try {
             // DUAL-CLOCK blend. The old single stepped loop had a `while (!player.isPlaying) delay`
@@ -1253,6 +1253,7 @@ internal fun MusicService.performCrossfadeSwap() {
                 val inP = (inElapsed / durIn.toFloat()).coerceAtMost(1f)
                 val fadeIn = crossfadeGains(curve, inP).first
                 val fadeOut = crossfadeGains(curve, outP).second
+                val xfHeadroom = CrossfadeMath.overlapHeadroom(fadeIn, fadeOut, xfPeak)
 
                 try {
                     // Both players smoothly fade without needing to dynamically duck their headroom
