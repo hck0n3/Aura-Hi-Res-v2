@@ -85,7 +85,16 @@ class FidelityModeWiringGuardTest {
         assertTrue(service.contains("if (fadeOnManualChangeHint && !fidelityModeHint &&"))
         assertTrue(service.contains("float32ProcessingHint && !fidelityModeHint &&"))
         assertTrue(service.contains("val fidelityTarget = iad1tya.echo.music.playback.audio.FidelityMode.allowedPlaybackParameters(\n            fidelityModeHint,"))
-        assertTrue(service.contains("player.playbackParameters = PlaybackParameters(fidelityTarget.first, fidelityTarget.second)"))
+        assertTrue(service.contains("applyFidelityPlaybackParameters(fidelityTarget, inRoomNow)"))
+        // The user's own tempo/pitch is remembered at the first reset and given back when the mode ends.
+        val remember = service.substringAfter("private fun applyFidelityPlaybackParameters(")
+            .substringBefore("private fun updateBitPerfectPlayback()")
+        assertTrue(remember.contains("if (playbackParametersBeforeFidelity == null) {\n            playbackParametersBeforeFidelity = player.playbackParameters"))
+        val apply = service.substringAfter("private fun applyFidelityMode(on: Boolean) {")
+            .substringBefore("private fun applyFidelityPlaybackParameters(")
+        assertTrue(apply.contains("playbackParametersBeforeFidelity?.let { saved ->"))
+        assertTrue(apply.contains("FidelityMode.restoredPlaybackParameters("))
+        assertTrue(apply.contains("if (!on) playbackParametersBeforeFidelity = null"))
         // setupLoudnessEnhancer's own read of the Safe Volume switch is gated too (unity gain).
         val setup = service.substringAfter("internal fun setupLoudnessEnhancer()").substringBefore("private fun openAudioEffectSession")
         assertTrue(setup.contains("FidelityMode.Stage.SAFE_VOLUME, it, fidelityModeHint"))

@@ -860,6 +860,10 @@ class MusicService :
     // safeVolumeEnabledHint, which Fidelidad forces off without touching the stored preference.
     @Volatile internal var fidelityModeHint: Boolean = false
     @Volatile private var safeVolumePrefHint: Boolean = true
+    // Row 902: the tempo/pitch the mode first put back (and whether that was inside a Listen Together room),
+    // so turning it off gives them back. Main thread only (applyFidelityMode, onPlaybackParametersChanged).
+    private var playbackParametersBeforeFidelity: PlaybackParameters? = null
+    private var playbackParametersSavedInRoom = false
     // Row 902: bit-perfect USB output on Android 14+ while «Modo Fidelidad» is on (event-driven, see the class).
     private val bitPerfectUsb by lazy {
         iad1tya.echo.music.playback.audio.BitPerfectUsbController(getSystemService(AudioManager::class.java))
@@ -2417,17 +2421,41 @@ class MusicService :
         applyMasteringFromPrefs()
         // Re-applies (or clears) the Safe Volume level of the current track through the same path as its switch.
         setupLoudnessEnhancer()
-        if (on && ::player.isInitialized) {
-            iad1tya.echo.music.playback.audio.FidelityMode.allowedPlaybackParameters(
-                true,
-                player.playbackParameters.speed,
-                player.playbackParameters.pitch,
-                runCatching { listenTogetherManager.isInRoom }.getOrDefault(true),
-            )?.let { (speed, pitch) -> player.playbackParameters = PlaybackParameters(speed, pitch) }
+        if (::player.isInitialized) {
+            val inRoom = runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
+            if (on) {
+                iad1tya.echo.music.playback.audio.FidelityMode.allowedPlaybackParameters(
+                    true,
+                    player.playbackParameters.speed,
+                    player.playbackParameters.pitch,
+                    inRoom,
+                )?.let { applyFidelityPlaybackParameters(it, inRoom) }
+            } else {
+                playbackParametersBeforeFidelity?.let { saved ->
+                    val (speed, pitch) = iad1tya.echo.music.playback.audio.FidelityMode.restoredPlaybackParameters(
+                        saved.speed,
+                        saved.pitch,
+                        playbackParametersSavedInRoom,
+                        player.playbackParameters.speed,
+                        inRoom,
+                    )
+                    player.playbackParameters = PlaybackParameters(speed, pitch)
+                }
+            }
         }
+        if (!on) playbackParametersBeforeFidelity = null
         bitPerfectUsb.setFidelityMode(on)
         // No user data: the state only.
         Timber.tag(TAG).i("FIDELITY mode=%s", if (on) "on" else "off")
+    }
+
+    /** Row 902: sets the tempo/pitch the mode allows, remembering the user's own the first time. Main thread. */
+    private fun applyFidelityPlaybackParameters(target: Pair<Float, Float>, inRoom: Boolean) {
+        if (playbackParametersBeforeFidelity == null) {
+            playbackParametersBeforeFidelity = player.playbackParameters
+            playbackParametersSavedInRoom = inRoom
+        }
+        player.playbackParameters = PlaybackParameters(target.first, target.second)
     }
 
     /** Row 902: the bit-perfect preference lives only while playback is wanted (play pressed, not ended). */
@@ -9289,14 +9317,15 @@ class MusicService :
         // Row 902: «Modo Fidelidad» keeps tempo and pitch at 1.0 whoever wrote them (dialog, media session);
         // inside a Listen Together room, which stays in time by nudging the speed, only the pitch. The reset
         // re-enters this callback once with the allowed values, which pass straight through.
+        val inRoomNow = runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
         val fidelityTarget = iad1tya.echo.music.playback.audio.FidelityMode.allowedPlaybackParameters(
             fidelityModeHint,
             playbackParameters.speed,
             playbackParameters.pitch,
-            runCatching { listenTogetherManager.isInRoom }.getOrDefault(true),
+            inRoomNow,
         )
         if (fidelityTarget != null) {
-            player.playbackParameters = PlaybackParameters(fidelityTarget.first, fidelityTarget.second)
+            applyFidelityPlaybackParameters(fidelityTarget, inRoomNow)
             return
         }
         // Tempo/pitch is something the offload path can only deliver on a HAL that advertises

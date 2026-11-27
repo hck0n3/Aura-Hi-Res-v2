@@ -68,6 +68,15 @@ class FidelityModeTest {
     }
 
     @Test
+    fun `turning the mode off gives back the tempo and pitch it reset`() {
+        assertEquals(1.25f to 1.122462f, FidelityMode.restoredPlaybackParameters(1.25f, 1.122462f, false, 1f, false))
+        // Back inside a room now: the room's current speed stays, the pitch comes back.
+        assertEquals(0.98f to 1.122462f, FidelityMode.restoredPlaybackParameters(1.25f, 1.122462f, false, 0.98f, true))
+        // Saved inside a room: that speed was the room's nudge, never the user's.
+        assertEquals(1f to 1.122462f, FidelityMode.restoredPlaybackParameters(1.02f, 1.122462f, true, 1f, false))
+    }
+
+    @Test
     fun `in a room only the pitch goes back to 1_0 and the room's speed is kept`() {
         assertEquals(1.02f to 1f, FidelityMode.allowedPlaybackParameters(true, 1.02f, 1.122462f, inListenTogetherRoom = true))
         assertEquals(null, FidelityMode.allowedPlaybackParameters(true, 0.98f, 1f, inListenTogetherRoom = true))

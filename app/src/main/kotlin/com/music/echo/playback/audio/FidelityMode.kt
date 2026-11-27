@@ -99,4 +99,17 @@ object FidelityMode {
         // Same comparison as SinkDspRouting.isDefaultParameters (PlaybackParameters.DEFAULT).
         return if (speed == 1f && pitch == 1f) null else 1f to 1f
     }
+
+    /**
+     * The (speed, pitch) to put back when the mode is turned off: what it first reset. A speed saved inside a
+     * Listen Together room was the room's nudge, not the user's, so it is never put back; inside a room now,
+     * the room's current speed stays.
+     */
+    fun restoredPlaybackParameters(
+        savedSpeed: Float,
+        savedPitch: Float,
+        savedInRoom: Boolean,
+        currentSpeed: Float,
+        inListenTogetherRoom: Boolean,
+    ): Pair<Float, Float> = (if (savedInRoom || inListenTogetherRoom) currentSpeed else savedSpeed) to savedPitch
 }
