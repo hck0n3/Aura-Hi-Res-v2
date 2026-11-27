@@ -36,7 +36,7 @@ class LocalFollowCleanupGuardTest {
     @Test
     fun `each channel is re-checked on fresh rows and fresh lists inside one transaction`() {
         val remove = src(cleanupPath).substringAfter("suspend fun remove(").substringBefore("\n    /**")
-        assertTrue(remove.contains("val lists = lists() ?: return@withLock 0"))
+        assertTrue(remove.contains("val lists = lists() ?: return@withLock null"))
         assertTrue(remove.contains("database.withTransaction {"))
         assertTrue(remove.contains("val spellings = artistEntitiesByIdsInTransaction(ArtistSyncPolicy.aliasIds(candidate.id))"))
         assertTrue(remove.contains("LocalFollowCleanupPolicy.cleared(row, spellings, lists.awaiting, lists.localOnly)"))
@@ -89,6 +89,31 @@ class LocalFollowCleanupGuardTest {
                 "settings.remove(iad1tya.echo.music.constants.ImportFollowsPendingHeldV1Key)\n" +
                     "                        // Row 905: the rows it described were replaced; a restored follow is never «written by an import».\n" +
                     "                        settings.remove(iad1tya.echo.music.constants.ImportFollowsWrittenByImportKey)",
+            ),
+        )
+    }
+
+    /** Repair of row 905: the removed count lives next to the undo in the app-scoped singleton, not in the screen's ViewModel. */
+    @Test
+    fun `the undo row counts the channels kept by the singleton, and a failed removal says so`() {
+        val cleanup = src(cleanupPath)
+        assertTrue(cleanup.contains("data class Undo(val channels: Int = 0, val rows: List<LocalFollowCleanupPolicy.Snapshot> = emptyList())"))
+        assertTrue(cleanup.contains("if (snapshots.isNotEmpty()) _undo.value = Undo(cleared, snapshots)"))
+        assertTrue(cleanup.contains("suspend fun remove(plan: List<LocalFollowCleanupPolicy.Candidate>): Int? = lock.withLock {"))
+        val vm = src(vmPath)
+        assertTrue(vm.contains("private fun UiState.withUndo(undo: LocalFollowCleanup.Undo) = copy(lastRemoved = undo.channels, undoRows = undo.rows.size)"))
+        assertTrue(vm.contains("combine(_state, cleanup.undo) { s, undo -> s.withUndo(undo) }"))
+        assertFalse("the count is never held by the ViewModel itself", vm.contains("lastRemoved = removed"))
+        assertTrue(vm.contains("removeFailed = removed == null,"))
+        val screen = src(screenPath)
+        assertTrue(screen.contains("Text(stringResource(R.string.sub_cleanup_local_remove_failed), color = MaterialTheme.colorScheme.error)"))
+        assertTrue(screen.contains("pluralStringResource(R.plurals.sub_cleanup_local_removed, state.lastRemoved, state.lastRemoved)"))
+        // The «N artistas seguidos solo en Aura» title is shown only when there is at least one.
+        assertTrue(
+            screen.contains(
+                "            if (state.candidates.isNotEmpty()) {\n" +
+                    "                Text(\n" +
+                    "                    pluralStringResource(R.plurals.sub_cleanup_local_title, state.candidates.size, state.candidates.size),",
             ),
         )
     }

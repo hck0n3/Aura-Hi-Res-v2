@@ -33,12 +33,15 @@ class LocalFollowCleanup @Inject constructor(
 ) {
     data class Lists(val awaiting: Set<String>, val localOnly: Set<String>)
 
+    /** What «Deshacer» puts back: the [channels] the last removal cleared and their [rows] as they were. */
+    data class Undo(val channels: Int = 0, val rows: List<LocalFollowCleanupPolicy.Snapshot> = emptyList())
+
     private val lock = Mutex()
 
-    private val _undo = MutableStateFlow<List<LocalFollowCleanupPolicy.Snapshot>>(emptyList())
+    private val _undo = MutableStateFlow(Undo())
 
-    /** The rows the last removal cleared (empty once undone, or when nothing was removed). */
-    val undo: StateFlow<List<LocalFollowCleanupPolicy.Snapshot>> = _undo.asStateFlow()
+    /** The last removal (empty once undone, or when nothing was removed). Kept here, with the count, so both outlive the screen. */
+    val undo: StateFlow<Undo> = _undo.asStateFlow()
 
     /**
      * The two import lists of the account signed in now. First through [LibraryUploadSync.importFollowsHeldBack], the
@@ -86,11 +89,12 @@ class LocalFollowCleanup @Inject constructor(
 
     /**
      * Clears the follows of [plan] (the user's confirmed selection) in ONE transaction, re-checking each channel on the
-     * rows and lists read right before the write. Returns how many channels were cleared; their rows become [undo].
+     * rows and lists read right before the write. Returns how many channels were cleared; they become [undo]. Null when
+     * nothing could be written (the lists or the transaction failed): the previous [undo] stays as it was.
      */
-    suspend fun remove(plan: List<LocalFollowCleanupPolicy.Candidate>): Int = lock.withLock {
+    suspend fun remove(plan: List<LocalFollowCleanupPolicy.Candidate>): Int? = lock.withLock {
         if (plan.isEmpty()) return@withLock 0
-        val lists = lists() ?: return@withLock 0
+        val lists = lists() ?: return@withLock null
         val snapshots = ArrayList<LocalFollowCleanupPolicy.Snapshot>()
         var cleared = 0
         try {
@@ -112,16 +116,17 @@ class LocalFollowCleanup @Inject constructor(
             throw e
         } catch (e: Exception) {
             Timber.w("LOCAL_FOLLOW_CLEANUP remove failed: %s", e.javaClass.simpleName)
-            return@withLock 0
+            return@withLock null
         }
-        _undo.value = snapshots
+        // A removal that changed nothing keeps the previous «Deshacer».
+        if (snapshots.isNotEmpty()) _undo.value = Undo(cleared, snapshots)
         Timber.i("LOCAL_FOLLOW_CLEANUP removed=%d skipped=%d rows=%d", cleared, plan.size - cleared, snapshots.size)
         cleared
     }
 
     /** «Deshacer»: puts back the rows of the last removal that are still as it left them. Returns how many rows. */
     suspend fun undo(): Int = lock.withLock {
-        val snapshots = _undo.value
+        val snapshots = _undo.value.rows
         if (snapshots.isEmpty()) return@withLock 0
         var restored = 0
         try {
@@ -141,7 +146,7 @@ class LocalFollowCleanup @Inject constructor(
             Timber.w("LOCAL_FOLLOW_CLEANUP undo failed: %s", e.javaClass.simpleName)
             return@withLock 0
         }
-        _undo.value = emptyList()
+        _undo.value = Undo()
         Timber.i("LOCAL_FOLLOW_CLEANUP undone rows=%d of=%d", restored, snapshots.size)
         restored
     }

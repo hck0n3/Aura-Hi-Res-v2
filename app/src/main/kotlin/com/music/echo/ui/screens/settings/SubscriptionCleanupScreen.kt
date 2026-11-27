@@ -439,7 +439,7 @@ private fun CleanupPreview(message: String, listTitle: String, names: List<Strin
 
 /**
  * Row 905 — «Seguidos solo en Aura»: the artists an import (Spotify, Tidal, Deezer) followed in Aura and the user never
- * confirmed ([LocalFollowCleanupPolicy]). Shown only when there is something (or an undo) to offer.
+ * confirmed ([LocalFollowCleanupPolicy]). Shown only when there is something (an undo, or a failed removal) to say.
  * Select some or all, preview, remove from Aura only, undo. Never touches the account.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -459,20 +459,25 @@ private fun LazyListScope.localFollowSection(
         }
         return
     }
-    if (state.candidates.isEmpty() && state.undoRows == 0) return
+    if (state.candidates.isEmpty() && state.undoRows == 0 && !state.removeFailed) return
     val planned = LocalFollowCleanupPolicy.plan(state.candidates, state.selected).size
     val suggested = LocalFollowCleanupPolicy.suggestedSelection(state.candidates).size
     item {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                pluralStringResource(R.plurals.sub_cleanup_local_title, state.candidates.size, state.candidates.size),
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                stringResource(R.string.sub_cleanup_local_intro),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (state.candidates.isNotEmpty()) {
+                Text(
+                    pluralStringResource(R.plurals.sub_cleanup_local_title, state.candidates.size, state.candidates.size),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    stringResource(R.string.sub_cleanup_local_intro),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (state.removeFailed) {
+                Text(stringResource(R.string.sub_cleanup_local_remove_failed), color = MaterialTheme.colorScheme.error)
+            }
             if (state.undoRows > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

@@ -79,4 +79,5 @@
     <string name="sub_cleanup_local_undo">Undo</string>
     <string name="sub_cleanup_local_failed">Could not read the artists followed only in Aura.</string>
     <string name="sub_cleanup_confirm_list">These are the ones that will be removed:</string>
+    <string name="sub_cleanup_local_remove_failed">Could not remove them. Nothing changed; try again.</string>
 </resources>

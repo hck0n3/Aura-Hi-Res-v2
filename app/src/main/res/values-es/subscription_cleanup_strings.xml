@@ -84,4 +84,5 @@
     <string name="sub_cleanup_local_undo">Deshacer</string>
     <string name="sub_cleanup_local_failed">No se pudieron leer los artistas seguidos solo en Aura.</string>
     <string name="sub_cleanup_confirm_list">Estas son las que se quitarán:</string>
+    <string name="sub_cleanup_local_remove_failed">No se pudieron quitar. No ha cambiado nada; inténtalo de nuevo.</string>
 </resources>

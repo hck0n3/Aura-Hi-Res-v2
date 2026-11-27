@@ -32,14 +32,18 @@ class LocalFollowCleanupViewModel @Inject constructor(
         val candidates: List<LocalFollowCleanupPolicy.Candidate> = emptyList(),
         val selected: Set<String> = emptySet(),
         val working: Boolean = false,
-        /** Channels the last removal cleared (shown with «Deshacer» while [undoRows] > 0). */
+        /** The last «Quitar de Aura» wrote nothing (the lists or the write failed). */
+        val removeFailed: Boolean = false,
+        /** Channels the last removal cleared (shown with «Deshacer» while [undoRows] > 0). From [LocalFollowCleanup.undo]. */
         val lastRemoved: Int = 0,
         val undoRows: Int = 0,
     )
 
     private val _state = MutableStateFlow(UiState())
-    val state: StateFlow<UiState> = combine(_state, cleanup.undo) { s, undo -> s.copy(undoRows = undo.size) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, _state.value.copy(undoRows = cleanup.undo.value.size))
+    val state: StateFlow<UiState> = combine(_state, cleanup.undo) { s, undo -> s.withUndo(undo) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, _state.value.withUndo(cleanup.undo.value))
+
+    private fun UiState.withUndo(undo: LocalFollowCleanup.Undo) = copy(lastRemoved = undo.channels, undoRows = undo.rows.size)
 
     private var job: Job? = null
 
@@ -81,14 +85,14 @@ class LocalFollowCleanupViewModel @Inject constructor(
         if (s.working || job?.isActive == true) return
         val plan = LocalFollowCleanupPolicy.plan(s.candidates, s.selected)
         if (plan.isEmpty()) return
-        _state.update { it.copy(working = true) }
+        _state.update { it.copy(working = true, removeFailed = false) }
         job = viewModelScope.launch(Dispatchers.IO) {
             val removed = cleanup.remove(plan)
             val found = cleanup.candidates()
             _state.update {
                 it.copy(
                     working = false,
-                    lastRemoved = removed,
+                    removeFailed = removed == null,
                     candidates = found ?: it.candidates,
                     selected = emptySet(),
                 )
@@ -99,11 +103,11 @@ class LocalFollowCleanupViewModel @Inject constructor(
     /** «Deshacer». */
     fun undoLast() {
         if (_state.value.working || job?.isActive == true) return
-        _state.update { it.copy(working = true) }
+        _state.update { it.copy(working = true, removeFailed = false) }
         job = viewModelScope.launch(Dispatchers.IO) {
             cleanup.undo()
             val found = cleanup.candidates()
-            _state.update { it.copy(working = false, lastRemoved = 0, candidates = found ?: it.candidates, selected = emptySet()) }
+            _state.update { it.copy(working = false, candidates = found ?: it.candidates, selected = emptySet()) }
         }
     }
 }
