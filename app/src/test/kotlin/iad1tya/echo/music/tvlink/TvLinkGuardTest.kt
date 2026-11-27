@@ -47,6 +47,15 @@ class TvLinkGuardTest {
     }
 
     @Test
+    fun `a sign-in that finishes after the user left never pops another screen`() {
+        val screen = main("ui/screens/settings/TvLinkScreens.kt")
+        val guard = "if (navController.currentDestination?.route == \"settings/accounts/tv_link_receive\") navController.navigateUp()"
+        assertTrue(screen.contains(guard))
+        assertEquals("only the guarded pop", 1, Regex("""navController\.navigateUp\(\)""").findAll(screen.substringBefore("private sealed interface SendPhase")).count())
+        assertTrue("the route the guard compares to", main("ui/screens/NavigationBuilder.kt").contains("composable(\"settings/accounts/tv_link_receive\") {"))
+    }
+
+    @Test
     fun `the phone sends only from the Enviar sesion button, never from an opened link`() {
         val screen = main("ui/screens/settings/TvLinkScreens.kt")
         assertEquals(1, Regex("""TvLinkRelay\.send\(""").findAll(screen).count())

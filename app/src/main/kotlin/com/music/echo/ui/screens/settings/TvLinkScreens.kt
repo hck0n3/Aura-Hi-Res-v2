@@ -111,7 +111,9 @@ fun TvLinkReceiveScreen(
             signInOk = ok
             if (ok) {
                 Toast.makeText(context, context.getString(R.string.tvlink_signed_in, session.fromDevice), Toast.LENGTH_LONG).show()
-                navController.navigateUp()
+                // The completion also finishes after the user left on their own (it runs on the application scope): only
+                // navigate while this screen is still on top, as LoginScreen does.
+                if (navController.currentDestination?.route == "settings/accounts/tv_link_receive") navController.navigateUp()
             }
         }
     }
