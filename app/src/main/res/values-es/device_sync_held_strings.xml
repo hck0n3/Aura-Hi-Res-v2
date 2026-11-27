@@ -15,4 +15,6 @@
     <string name="device_sync_held_kind_albums">Álbumes guardados</string>
     <string name="device_sync_held_kind_pins">Fijados</string>
     <string name="device_sync_held_kind_other">Otros</string>
+    <string name="device_sync_held_notice_new_here">Este dispositivo aún tenía %1$d elementos que tus otros dispositivos ya habían quitado; no los quité aquí por seguridad.</string>
+    <string name="device_sync_room_full">Tu biblioteca sincronizada está llena: los cambios nuevos de este dispositivo no llegan a tus otros dispositivos.</string>
 </resources>

@@ -20,6 +20,8 @@ package iad1tya.echo.music.devicesync
  *  · `hv:<songId>:<second>`     one listen in the History screen (the second is the wall-clock time read as UTC, so every device
  *                               rebuilds the same moment); create-only, value "1", never removed (clearing the history is local)
  *  · `pb:<playlistKey>`         the YouTube browseId a list that travels under its own id was linked to; create-only (row 740)
+ *  · `po:<playlistKey>:<songId>` where a song sits in a playlist (row 900): a fractional position ([PlaylistOrder]); the songs are
+ *                               shown sorted by it. Changed by a reorder, never removed (a song's removal is its `pm:` "0")
  * The playlist key is the playlist's `browseId` when it has one (the same on every device), else its own id — and a list keeps the
  * key it first travelled under for its whole life ([PlaylistIds], row 740).
  */
@@ -36,7 +38,7 @@ object LibrarySyncCore {
     /** A removal the mass-deletion brake kept from this device: the room's "0", parked, so the copy here is neither deleted nor sent back as new. */
     fun isHeld(reg: Reg) = reg.parked && reg.value == OFF
 
-    enum class Kind { LIKE, DISLIKE, PLAYLIST, MEMBER, SONG, ALBUM, ALBUM_META, PLAY, PIN, PLAYLIST_LINK }
+    enum class Kind { LIKE, DISLIKE, PLAYLIST, MEMBER, SONG, ALBUM, ALBUM_META, PLAY, PIN, PLAYLIST_LINK, ORDER }
 
     sealed interface Key {
         val kind: Kind
@@ -50,6 +52,7 @@ object LibrarySyncCore {
         data class Play(val songId: String, val second: Long) : Key { override val kind get() = Kind.PLAY }
         data class Pin(val ref: PinRef) : Key { override val kind get() = Kind.PIN }
         data class PlaylistLink(val playlistKey: String) : Key { override val kind get() = Kind.PLAYLIST_LINK }
+        data class Order(val playlistKey: String, val songId: String) : Key { override val kind get() = Kind.ORDER }
     }
 
     /** Where a pin lives: `l` = Biblioteca ▸ Fijados, `h` = «Fijadas en inicio». */
@@ -81,6 +84,10 @@ object LibrarySyncCore {
     fun playKey(songId: String, second: Long) = "hv:$songId:$second"
     fun pinKey(ref: PinRef) = "pn:${ref.scope}:${ref.code}:${ref.id}"
     fun playlistLinkKey(playlistKey: String) = "pb:$playlistKey"
+    fun orderKey(playlistKey: String, songId: String) = "po:$playlistKey:$songId"
+
+    /** Row 900: a song's position in a playlist. Never sent as «gone», never counted as an item of the library. */
+    fun isOrder(key: String) = key.startsWith("po:")
 
     /** `sg:` and `ag:` registers only describe something so another device can show it: sent once, never changed, never removed. */
     fun isMeta(key: String) = key.startsWith("sg:") || key.startsWith("ag:") || key.startsWith("hv:") || key.startsWith("pb:")
@@ -104,6 +111,10 @@ object LibrarySyncCore {
             }
             "pl" -> rest.takeIf { it.isNotEmpty() && ':' !in it }?.let(Key::Playlist)
             "pb" -> rest.takeIf { it.isNotEmpty() && ':' !in it }?.let(Key::PlaylistLink)
+            "po" -> {
+                val i = rest.indexOf(':')
+                if (i <= 0 || i == rest.lastIndex) null else Key.Order(rest.substring(0, i), rest.substring(i + 1))
+            }
             "pn" -> {
                 // `l:P:<id>`: scope, code, then the id (no colon).
                 if (rest.length < 5 || rest[1] != ':' || rest[3] != ':') null
@@ -123,6 +134,18 @@ object LibrarySyncCore {
             }
             else -> null
         }
+    }
+
+    /**
+     * Row 900 — the id of one pushed register, acknowledged one by one by the room (`lib_ack.ids`, Worker lib 3). Made from the
+     * register itself (time, key, value), so sending the same change again carries the same id and the room applies it once.
+     */
+    fun opId(reg: Reg): String {
+        var h = 0x811c9dc5.toInt()
+        for (c in reg.key) h = (h xor c.code) * 0x01000193
+        h = (h xor 0) * 0x01000193
+        for (c in reg.value) h = (h xor c.code) * 0x01000193
+        return reg.ts.toString(36) + "." + Integer.toUnsignedString(h, 36)
     }
 
     /** Does [incoming] replace what the ledger knows? Newer wins; an exact tie goes to the larger value (the same on every device). */
@@ -151,7 +174,7 @@ object LibrarySyncCore {
             if (known == null || known.value != value) ops += Reg(key, maxOf(now, (known?.ts ?: 0L) + 1), value, pending = true)
         }
         for ((key, known) in ledger) {
-            if (isMeta(key) || known.value == OFF || key in current || parse(key) == null || known.parked) continue
+            if (isMeta(key) || isOrder(key) || known.value == OFF || key in current || parse(key) == null || known.parked) continue
             ops += Reg(key, maxOf(now, known.ts + 1), OFF, pending = true)
         }
         // Row 740: a new link goes out before the list it names (`pb:` ranks first), and the list's unchanged name once more after it,
@@ -193,6 +216,8 @@ object LibrarySyncCore {
         /** Row 740: what the ledger said about the playlists before this batch, and what it says with the batch in it. */
         val before: PlaylistIds = PlaylistIds.EMPTY,
         val after: PlaylistIds = PlaylistIds.EMPTY,
+        /** Row 900: the playlists whose songs must be put in the order [after] gives them (a position changed, or a song arrived). */
+        val reorder: Set<String> = emptySet(),
     ) {
         val removalCount: Int
             get() = playlistRemovals.size + memberRemovals.size + likes.count { !it.second } + dislikes.count { !it.third } +
@@ -222,6 +247,7 @@ object LibrarySyncCore {
         val pinUpserts = ArrayList<Pair<PinRef, PinMeta>>()
         val pinRemovals = ArrayList<PinRef>()
         val undecoded = HashSet<String>()
+        val reorder = LinkedHashSet<String>()
         for (reg in accepted) {
             when (val k = parse(reg.key)) {
                 is Key.Song -> decodeSong(reg.value)?.let { songs += k.songId to it }
@@ -236,18 +262,20 @@ object LibrarySyncCore {
                     if (reg.value == OFF) { if (!after.renamed(k.playlistKey)) plRemovals += k.playlistKey }
                     else decodePlaylistName(reg.value)?.let { upserts += k.playlistKey to it } ?: run { undecoded += reg.key }
                 is Key.Member ->
-                    if (reg.value == ON) adds += k.playlistKey to k.songId
+                    if (reg.value == ON) { adds += k.playlistKey to k.songId; reorder += k.playlistKey }
                     else if (reg.value == OFF) { if (!after.renamed(k.playlistKey)) memberRemovals += k.playlistKey to k.songId }
                     else undecoded += reg.key
                 is Key.Like -> if (reg.value == ON || reg.value == OFF) likes += k.songId to (reg.value == ON) else undecoded += reg.key
                 is Key.Dislike -> if (reg.value == ON || reg.value == OFF) dislikes += Triple(k.set, k.id, reg.value == ON) else undecoded += reg.key
                 is Key.PlaylistLink -> Unit // read through [after] (row 740)
+                // A position that is not a valid one is simply not used: the device that has the song gives it a new one.
+                is Key.Order -> if (PlaylistOrder.valid(reg.value)) reorder += k.playlistKey
                 null -> Unit
             }
         }
         return Plan(
             songs, upserts, plRemovals, adds, memberRemovals, likes, dislikes, albums, albumSaves, plays, pinUpserts, pinRemovals, undecoded,
-            before, after,
+            before, after, reorder,
         )
     }
 
@@ -266,7 +294,12 @@ object LibrarySyncCore {
      * mass-removal brake kept the deletion: two lists). Every device picks the same key for the same list from what the room says:
      * among its names that are live in the room, an app id (`LP…`) first, then the smallest. Built from the ledger only.
      */
-    class PlaylistIds private constructor(private val lists: Map<String, Reg>, private val links: Map<String, String>) {
+    class PlaylistIds private constructor(
+        private val lists: Map<String, Reg>,
+        private val links: Map<String, String>,
+        /** Row 900: playlist key → song id → its valid position (`po:`). */
+        private val orders: Map<String, Map<String, String>> = emptyMap(),
+    ) {
         private val linkedTo: Map<String, List<String>> = links.entries.groupBy({ it.value }, { it.key })
 
         /** The room has the list [key] (or this device has it waiting to be sent). */
@@ -317,6 +350,9 @@ object LibrarySyncCore {
         /** The list [key] named lives on under another of its names: a removal under [key] is a change of name, not a deletion. */
         fun renamed(key: String): Boolean = canonical(group(key)).let { it != null && it != key }
 
+        /** Row 900: the positions the ledger knows for the songs of the list [key] (song id → position). */
+        fun orderOf(key: String): Map<String, String> = orders[key] ?: emptyMap()
+
         /** The `pb:` fact [row] contributes: its link, when the list has travelled under the row's own id. */
         fun linkFact(row: PlaylistRow): Pair<String, String>? {
             val browseId = row.browseId ?: return null
@@ -332,14 +368,19 @@ object LibrarySyncCore {
             fun of(ledger: Map<String, Reg>, accepted: Collection<Reg> = emptyList()): PlaylistIds {
                 val lists = HashMap<String, Reg>()
                 val links = HashMap<String, String>()
+                val orders = HashMap<String, HashMap<String, String>>()
                 for (reg in ledger.values.asSequence() + accepted.asSequence()) {
                     when {
                         reg.key.startsWith("pl:") -> lists[reg.key.substring(3)] = reg
                         reg.key.startsWith("pb:") ->
                             reg.key.substring(3).takeIf { syncableId(it) && syncableId(reg.value) }?.let { links[it] = reg.value }
+                        reg.key.startsWith("po:") -> (parse(reg.key) as? Key.Order)?.let { k ->
+                            val songs = orders.getOrPut(k.playlistKey) { HashMap() }
+                            if (PlaylistOrder.valid(reg.value)) songs[k.songId] = reg.value else songs.remove(k.songId)
+                        }
                     }
                 }
-                return PlaylistIds(lists, links)
+                return PlaylistIds(lists, links, orders)
             }
         }
     }
@@ -395,6 +436,209 @@ object LibrarySyncCore {
         /** Rows with no YouTube link whose list was linked on another device: row id → browseId. */
         fun unlinked(): List<Pair<String, String>> =
             rows.mapNotNull { row -> if (row.browseId != null) null else after.link(row.id)?.let { row.id to it } }
+    }
+
+    // ── playlist order (row 900) ───────────────────────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Row 900 — the order of a playlist's songs between devices: one fractional position per song (`po:<list>:<song>`), newest wins
+     * per song. Chosen over «move X after Y» operations because positions converge on every device whatever order the changes arrive
+     * in: a song added on one device and another song moved on a second one are two different registers, so both survive; only two
+     * moves of the SAME song compete, and the newest wins. A position is a string of base-36 digits compared as text, never ending in
+     * "0" (so there is always room before it); the songs are shown sorted by it, the song id breaking a tie.
+     */
+    object PlaylistOrder {
+        private const val DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
+        private const val BASE = 36
+        /** Positions start as three digits: 46 656 slots to append into before one grows longer. */
+        private const val HEAD = 3
+        private const val SLOTS = BASE * BASE * BASE
+        /** Where the songs of a list that has no positions yet start ("a01"): room before and after. */
+        private const val START = 10 * BASE * BASE + 1
+        const val MAX_LENGTH = 200
+
+        fun valid(p: String): Boolean = p.isNotEmpty() && p.length <= MAX_LENGTH && p.last() != '0' && p.all { it in DIGITS }
+
+        /** A position strictly between [a] ("" = before everything) and [b] (null = after everything). Needs [a] < [b]. */
+        fun between(a: String, b: String?): String {
+            if (b != null) {
+                var n = 0
+                while (n < b.length && (if (n < a.length) a[n] else '0') == b[n]) n++
+                require(n < b.length) { "positions out of order" }
+                if (n > 0) return b.substring(0, n) + between(if (n < a.length) a.substring(n) else "", b.substring(n))
+            }
+            val da = if (a.isEmpty()) 0 else DIGITS.indexOf(a[0])
+            val db = if (b == null) BASE else DIGITS.indexOf(b[0])
+            return when {
+                db - da > 1 -> DIGITS[(da + db + 1) / 2].toString()
+                b != null && b.length > 1 -> b.substring(0, 1)
+                else -> DIGITS[da] + between(if (a.isEmpty()) "" else a.substring(1), null)
+            }
+        }
+
+        /** The next slot after [a] (an append), short while slots last. */
+        fun after(a: String): String {
+            var next = head(a) + 1
+            if (next % BASE == 0) next++
+            return if (next < SLOTS) encode(next) else between(a, null)
+        }
+
+        /** The slot before [b] (an insert at the top). */
+        fun before(b: String): String {
+            var prev = head(b) - 1
+            if (prev % BASE == 0) prev--
+            return if (prev > 0) encode(prev) else between("", b)
+        }
+
+        /** [n] positions spread evenly between [lo] and [hi] ([lo] < [hi]): their length grows with the logarithm of [n], not with [n]. */
+        fun spread(lo: String, hi: String, n: Int): List<String> {
+            if (n <= 0) return emptyList()
+            val mid = between(lo, hi)
+            val left = (n - 1) / 2
+            return spread(lo, mid, left) + mid + spread(mid, hi, n - 1 - left)
+        }
+
+        /**
+         * The positions of [songs] in the order they have here. A song keeps the position [known] gives it when it still fits: the
+         * longest run of known positions already in increasing order is kept, and only the other songs get new ones between their
+         * neighbours. So a move changes the moved song alone, an addition only the added one, and two devices with the same order and
+         * no positions yet produce exactly the same ones.
+         */
+        fun assign(songs: List<String>, known: (String) -> String?): List<String> {
+            val n = songs.size
+            val given = Array(n) { known(songs[it])?.takeIf(::valid) }
+            val keep = increasing(given)
+            val out = arrayOfNulls<String>(n)
+            var lower: String? = null
+            var i = 0
+            while (i < n) {
+                if (keep[i]) {
+                    out[i] = given[i]
+                    lower = given[i]
+                    i++
+                    continue
+                }
+                var j = i
+                while (j < n && !keep[j]) j++
+                val upper = if (j < n) given[j] else null
+                val run = j - i
+                val low = lower
+                val made = when {
+                    low != null && upper != null -> spread(low, upper, run)
+                    low != null -> generateSequence(after(low)) { after(it) }.take(run).toList()
+                    upper != null -> generateSequence(before(upper)) { before(it) }.take(run).toList().asReversed()
+                    else -> generateSequence(encode(START)) { after(it) }.take(run).toList()
+                }
+                for (k in 0 until run) out[i + k] = made[k]
+                i = j
+            }
+            return out.map { it!! }
+        }
+
+        /** The `po:` facts of the list [playlistKey] whose songs are [songs], in order; [known] = the positions the ledger has. */
+        fun facts(playlistKey: String, songs: List<String>, known: Map<String, String>): Map<String, String> {
+            val ids = songs.distinct().filter(::syncableId)
+            val positions = assign(ids) { known[it] }
+            val out = LinkedHashMap<String, String>()
+            for (k in ids.indices) out[orderKey(playlistKey, ids[k])] = positions[k]
+            return out
+        }
+
+        /**
+         * [current] (the songs here, in their order) sorted by [positions]. A song with no position yet keeps its place right after
+         * the song it follows here, so a song added here and not sent yet stays where the user put it.
+         */
+        fun sorted(current: List<String>, positions: Map<String, String>): List<String> {
+            val ids = current.distinct()
+            fun placed(id: String) = positions[id]?.let(::valid) == true
+            val ordered = ids.filter(::placed).sortedWith(compareBy<String>({ positions.getValue(it) }, { it }))
+            val following = HashMap<String?, MutableList<String>>()
+            var anchor: String? = null
+            for (id in ids) if (placed(id)) anchor = id else following.getOrPut(anchor) { ArrayList() } += id
+            val out = ArrayList<String>(ids.size)
+            following[null]?.let(out::addAll)
+            for (id in ordered) {
+                out += id
+                following[id]?.let(out::addAll)
+            }
+            return out
+        }
+
+        /**
+         * The entries of a list (their song ids [current], in their order here, a song possibly more than once) as indices into
+         * [current], sorted by [positions]. Only the FIRST entry of a song takes its position, as [facts] gave it. A song with no
+         * position stays right after the entry it follows here, as in [sorted]; a later copy of a song stays after the nearest entry
+         * before it that no move touched (the longest run already in order), so a move elsewhere never pulls a duplicate along.
+         */
+        fun sortedEntries(current: List<String>, positions: Map<String, String>): List<Int> {
+            val seen = HashSet<String>()
+            val placed = BooleanArray(current.size) { positions[current[it]]?.let(::valid) == true && seen.add(current[it]) }
+            val kept = increasing(Array(current.size) { if (placed[it]) positions.getValue(current[it]) else null })
+            val ordered = current.indices.filter { placed[it] }.sortedWith(compareBy<Int>({ positions.getValue(current[it]) }, { current[it] }))
+            val following = HashMap<Int, MutableList<Int>>()
+            var anchor = -1
+            var keptAnchor = -1
+            for (i in current.indices) {
+                when {
+                    placed[i] -> {
+                        anchor = i
+                        if (kept[i]) keptAnchor = i
+                    }
+                    current[i] in seen -> following.getOrPut(keptAnchor) { ArrayList() } += i
+                    else -> following.getOrPut(anchor) { ArrayList() } += i
+                }
+            }
+            val out = ArrayList<Int>(current.size)
+            following[-1]?.let(out::addAll)
+            for (i in ordered) {
+                out += i
+                following[i]?.let(out::addAll)
+            }
+            return out
+        }
+
+        /** Which entries form the longest strictly increasing run of [given] (nulls never do). */
+        private fun increasing(given: Array<String?>): BooleanArray {
+            val n = given.size
+            val tails = IntArray(n)
+            val prev = IntArray(n) { -1 }
+            var len = 0
+            for (i in 0 until n) {
+                val v = given[i] ?: continue
+                var lo = 0
+                var hi = len
+                while (lo < hi) {
+                    val m = (lo + hi) ushr 1
+                    if (given[tails[m]]!! < v) lo = m + 1 else hi = m
+                }
+                if (lo > 0) prev[i] = tails[lo - 1]
+                tails[lo] = i
+                if (lo == len) len++
+            }
+            val keep = BooleanArray(n)
+            var k = if (len > 0) tails[len - 1] else -1
+            while (k >= 0) {
+                keep[k] = true
+                k = prev[k]
+            }
+            return keep
+        }
+
+        private fun head(p: String): Int {
+            var v = 0
+            for (i in 0 until HEAD) v = v * BASE + (if (i < p.length) DIGITS.indexOf(p[i]).coerceAtLeast(0) else 0)
+            return v
+        }
+
+        private fun encode(v: Int): String {
+            val c = CharArray(HEAD)
+            var x = v
+            for (i in HEAD - 1 downTo 0) {
+                c[i] = DIGITS[x % BASE]
+                x /= BASE
+            }
+            return String(c)
+        }
     }
 
     // ── values ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -88,8 +88,11 @@ object DeviceSyncHub {
     /** Row 807: the removals the mass-deletion brake holds here, by key family (`lk`, `dk`, `pl`, `pm`, `ab`, `pn`) → how many. */
     val heldRemovals = MutableStateFlow<Map<String, Int>>(emptyMap())
 
-    /** Row 807: one batch the brake just held ([token] grows by one each time), so the app offers «Revisar» once per batch. */
-    data class HeldTrip(val token: Int, val count: Int)
+    /**
+     * Row 807: one batch the brake just held ([token] grows by one each time), so the app offers «Revisar» once per batch. Row 901:
+     * [newHere] = removals of things this device has and the room never heard from it (a new pairing), told in their own words.
+     */
+    data class HeldTrip(val token: Int, val count: Int, val newHere: Boolean = false)
 
     val heldTrip = MutableStateFlow<HeldTrip?>(null)
 

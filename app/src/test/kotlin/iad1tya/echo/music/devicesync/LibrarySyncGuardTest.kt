@@ -132,4 +132,50 @@ class LibrarySyncGuardTest {
         val r = read("docs/worker/sync/README.md")
         assertTrue(r.contains("lib_push"))
     }
+
+    @Test
+    fun `row 900 - the app's journal lives next to the room's ledger and dates changes by the boot and the time since boot`() {
+        val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAndroid.kt")
+        assertTrue(a.contains("journal = LibraryJournalStore(ledgerFile.parentFile"))
+        assertTrue(a.contains("android.provider.Settings.Global.BOOT_COUNT"))
+        assertTrue(a.contains("val now: () -> Mono = { Mono(boot, android.os.SystemClock.elapsedRealtime()) }"))
+        assertTrue("a restore still forgets every file of the rooms, the journal included", a.contains("File(context.filesDir, \"device_sync\").walkBottomUp()"))
+        val s = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
+        assertTrue("the journal is dated before a page of the room is weighed against it", s.contains("// Row 900: what was journaled before this page competes with it by when it was made, not by when it arrives.\n        convertJournalLocked()"))
+        assertTrue("an op carries its id", s.contains("add(JsonPrimitive(LibrarySyncCore.opId(r)))"))
+        assertTrue("«Aplicar» is not journaled as the user's own removal", s.contains("store.append(released)\n        // Row 900: what «Aplicar» removed came from the room, not from the user: the journal's baseline follows it.\n        if (apply) followBaselineLocked(released)"))
+        assertTrue("only acknowledged ops stop being pending", s.contains("if (done != null && LibrarySyncCore.opId(sent) !in done) {\n                refused += sent.key\n                continue"))
+        assertTrue(
+            "what a full room turned down is not resent on every pass",
+            s.contains("val pending = ledger.values.filter { it.pending && it.key !in sentKeys && it.key !in refusedKeys }"),
+        )
+        assertTrue("the user is told the room is full", a.contains("onRoomFull = { DeviceSyncHub.notice(context.getString(iad1tya.echo.music.R.string.device_sync_room_full)) }"))
+    }
+
+    @Test
+    fun `row 900 - a playlist's order arriving from another device is written here only, by plain SQL`() {
+        val a = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySyncAdapter.kt")
+        assertTrue(a.contains("database.syncSetMapPosition(entry.id, index)"))
+        assertTrue("sorted by entry, not by song: a duplicate keeps its place", a.contains("LibrarySyncCore.PlaylistOrder.sortedEntries(entries.map { it.songId }, positions).map { entries[it] }"))
+        assertTrue(a.contains("runCatching { LibrarySyncCore.PlaylistOrder.facts(key, songs, playlists.orderOf(key)) }.onSuccess(facts::putAll)"))
+        assertFalse(a.contains("moveSongPlaylist"))
+        val dao = read("app/src/main/kotlin/com/music/echo/db/DatabaseDao.kt")
+        assertTrue(dao.contains("@Query(\"UPDATE playlist_song_map SET position = :position WHERE id = :id\")\n    suspend fun syncSetMapPosition(id: Int, position: Int)"))
+        assertTrue("the member rows come in each list's order", dao.substringBefore("suspend fun syncMemberRows()").substringAfterLast("@Query(").contains("ORDER BY m.playlistId, m.position, m.id"))
+    }
+
+    @Test
+    fun `row 901 - removals of things the room never heard from this device are held, told in their own words`() {
+        val s = read("app/src/main/kotlin/com/music/echo/devicesync/LibrarySync.kt")
+        assertTrue(s.contains("} else if (!freshStart) {\n"))
+        assertTrue(s.contains("held = removalsNeverSeenHereLocked(accepted, ledger, LibrarySyncCore.PlaylistIds.of(ledger, accepted))"))
+        assertTrue("a change of name is not held as a removal", s.contains("LibrarySyncCore.parse(it.key)?.let { k -> !renamedList(k, after) } == true"))
+        assertTrue(s.contains("DeviceSyncHub.HeldTrip((DeviceSyncHub.heldTrip.value?.token ?: 0) + 1, held.size, newHere = true)"))
+        val activity = read("app/src/main/kotlin/com/music/echo/MainActivity.kt")
+        assertTrue(activity.contains("message = (if (trip.newHere) heldNoticeNewHere else heldNotice).format(trip.count),"))
+        for (dir in listOf("values", "values-es")) {
+            val xml = read("app/src/main/res/$dir/device_sync_held_strings.xml")
+            assertTrue(dir, xml.contains("name=\"device_sync_held_notice_new_here\">") && xml.substringAfter("device_sync_held_notice_new_here").contains("%1\$d"))
+        }
+    }
 }

@@ -61,6 +61,18 @@ class LibrarySyncSimulationTest {
         private val inboxes = LinkedHashMap<String, Channel<JsonObject>>()
         @Volatile var pushes = 0
         @Volatile var pulls = 0
+        /** Row 900: false = a room older than lib 3, whose `lib_ack` carries no `ids`. */
+        @Volatile var perOpAck = true
+        /** Row 900: how many items the room holds at most (the Worker's LIB_MAX_KEYS); a new key past it is neither taken nor acknowledged. */
+        @Volatile var capacity = Int.MAX_VALUE
+        /** Row 900: how many times each op id reached the room. */
+        val received = HashMap<String, Int>()
+
+        /** Row 901: the Worker's cleanup forgets a removal (its value and its log entry). */
+        @Synchronized
+        fun prune(key: String) {
+            kv.remove(key)?.let { log.remove(it.seq) }
+        }
 
         @Synchronized
         fun join(id: String, inbox: Channel<JsonObject>) {
@@ -80,20 +92,28 @@ class LibrarySyncSimulationTest {
                 "lib_push" -> {
                     pushes++
                     var accepted = 0
+                    val ids = ArrayList<String>()
                     for (op in msg["ops"] as JsonArray) {
                         val a = op as JsonArray
                         val key = (a[0] as JsonPrimitive).content
                         val ts = (a[1] as JsonPrimitive).longOrNull ?: continue
                         val v = (a[2] as JsonPrimitive).content
+                        val id = (a.getOrNull(3) as? JsonPrimitive)?.contentOrNull
+                        if (id != null) received[id] = (received[id] ?: 0) + 1
                         val cur = kv[key]
-                        if (cur != null && !(ts > cur.ts || (ts == cur.ts && v > cur.v))) continue
+                        if (cur != null && !(ts > cur.ts || (ts == cur.ts && v > cur.v))) { if (id != null) ids += id; continue }
+                        if (cur == null && kv.size >= capacity) continue
+                        if (id != null) ids += id
                         seq++
                         if (cur != null) log.remove(cur.seq)
                         kv[key] = Entry(ts, v, seq)
                         log[seq] = Triple(key, ts, v)
                         accepted++
                     }
-                    deliver(from, buildJsonObject { put("t", "lib_ack"); put("seq", seq); put("accepted", accepted) })
+                    deliver(from, buildJsonObject {
+                        put("t", "lib_ack"); put("seq", seq); put("accepted", accepted)
+                        if (perOpAck) put("ids", buildJsonArray { ids.forEach { add(JsonPrimitive(it)) } })
+                    })
                     if (accepted > 0) inboxes.keys.filter { it != from }.forEach { deliver(it, buildJsonObject { put("t", "lib_ops"); put("seq", seq) }) }
                 }
                 "lib_pull" -> {
@@ -159,6 +179,30 @@ class LibrarySyncSimulationTest {
 
         private fun rows() = playlists.keys.map { LibrarySyncCore.PlaylistRow(it, browseIds[it]) }
 
+        /** Row 900: the songs of [row] in their order here. */
+        fun order(row: String): List<String> = synchronized(lock) { members.filter { it.first == row }.map { it.second } }
+
+        /** Row 900: the user adds [song] to [row] at [index]. */
+        fun insert(row: String, song: String, index: Int) = synchronized(lock) {
+            if (song !in songs) addSong(song)
+            val list = members.filter { it.first == row }.map { it.second }.toMutableList()
+            list.add(index, song)
+            setOrder(row, list)
+        }
+
+        /** Row 900: the user drags [song] of [row] to [index]. */
+        fun move(row: String, song: String, index: Int) = synchronized(lock) {
+            val songs = members.filter { it.first == row }.map { it.second }.toMutableList()
+            songs.remove(song)
+            songs.add(index, song)
+            setOrder(row, songs)
+        }
+
+        private fun setOrder(row: String, songs: List<String>) {
+            members.removeAll { it.first == row }
+            songs.forEach { members += row to it }
+        }
+
         override suspend fun readLocal(playlists: LibrarySyncCore.PlaylistIds, songMetaKnown: (String) -> Boolean): Map<String, String> = synchronized(lock) {
             val facts = LinkedHashMap<String, String>()
             val referenced = LinkedHashSet<String>()
@@ -169,6 +213,10 @@ class LibrarySyncSimulationTest {
             rows().forEach { row -> playlists.linkFact(row)?.let { (k, v) -> facts[k] = v } }
             this.playlists.forEach { (id, n) -> sources[id]?.let { k -> facts[LibrarySyncCore.playlistKey(k)] = LibrarySyncCore.encodePlaylistName(n) } }
             members.forEach { (p, s) -> sources[p]?.let { k -> facts[LibrarySyncCore.memberKey(k, s)] = "1"; referenced += s } }
+            // Row 900: each song's position, as LibrarySyncAdapter does.
+            members.groupBy({ it.first }, { it.second }).forEach { (p, songs) ->
+                sources[p]?.let { k -> facts.putAll(LibrarySyncCore.PlaylistOrder.facts(k, songs, playlists.orderOf(k))) }
+            }
             pins.forEach { (p, meta) -> keyOf[p]?.let { k -> facts[LibrarySyncCore.pinKey(LibrarySyncCore.PinRef("l", "P", k))] = LibrarySyncCore.encodePin(meta) } }
             dislikes.forEach { (set, id) -> facts[LibrarySyncCore.dislikeKey(set, id)] = "1" }
             savedAlbums.forEach { id ->
@@ -212,6 +260,11 @@ class LibrarySyncSimulationTest {
                 if (row != null) pins[row] = meta else { unresolved++; unplaced += LibrarySyncCore.pinKey(ref) }
             }
             for (ref in plan.pinRemovals) if (ref.scope == "l" && ref.code == "P") targets.forRemoval(ref.id).forEach { pins -= it }
+            for (key in plan.reorder) {
+                val positions = plan.after.orderOf(key)
+                if (positions.isEmpty()) continue
+                for (row in targets.rowsOf(key)) setOrder(row, LibrarySyncCore.PlaylistOrder.sorted(members.filter { it.first == row }.map { it.second }, positions))
+            }
             applied++
             ApplyResult(applied, unresolved, unplaced)
         }
@@ -235,6 +288,8 @@ class LibrarySyncSimulationTest {
         val ledger: FakeLedger = FakeLedger(),
         var since: Long = 0L,
         clockKnown: () -> Boolean = { true },
+        /** Row 900: the journal on «disk»; a restarted app gets the same one. */
+        val journal: JournalPersistence = MemoryJournal(),
     ) {
         private val inbox = Channel<JsonObject>(Channel.UNLIMITED)
         @Volatile var online = false
@@ -254,7 +309,12 @@ class LibrarySyncSimulationTest {
             clock = { System.currentTimeMillis() + clockSkewMs },
             timing = LibrarySync.Timing(fastDelayMs = 20, slowDelayMs = 20, minIntervalMs = 20, pullTimeoutMs = 2_000),
             clockKnown = clockKnown,
+            journal = journal,
+            onRoomFull = { roomFullNotices++ },
         )
+
+        /** Row 900: how many times the user was told the room is full. */
+        @Volatile var roomFullNotices = 0
 
         /** [holdAnswers]: the room's answers wait in the inbox until [releaseAnswers] (a slow first pull after a reconnect). */
         fun connect(holdAnswers: Boolean = false) {
@@ -766,7 +826,8 @@ class LibrarySyncSimulationTest {
         phone.backend.members += "LPbig" to "m1"
         for (i in 1..450) phone.backend.like("many$i")
         phone.connect()
-        eventually("the phone sent its library", ms = 10_000) { room.head == 903L }
+        // 450 likes + 450 songs + the list + its song + that song + (row 900) the song's position in the list.
+        eventually("the phone sent its library", ms = 10_000) { room.head == 904L }
         // A rename gives the playlist a newer place in the room's log: after its song, two pages later.
         phone.backend.playlists["LPbig"] = "Después"; phone.changed()
         eventually("the rename is in the room") { room.value("pl:LPbig") == LibrarySyncCore.encodePlaylistName("Después") }
@@ -1267,5 +1328,366 @@ class LibrarySyncSimulationTest {
         assertEquals(0, runBlocking { phone.sync.resolveHeld(apply = true) })
         assertEquals(0, runBlocking { phone.sync.resolveHeld(apply = false) })
         assertEquals(setOf("only"), phone.backend.likes)
+    }
+
+    // ── row 900: each op is acknowledged on its own ─────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `an op the room did not acknowledge stays pending and goes out again with the same id, applied once`() {
+        val phone = Device("phone")
+        phone.backend.like("first")
+        phone.connect()
+        eventually("the room has the first like") { room.value("lk:first") == "1" }
+        settle()
+        room.capacity = 1 // the room is full: a new key is neither taken nor acknowledged
+        phone.backend.like("second"); phone.changed()
+        eventually("the like reached the full room") { room.received.keys.any { id -> phone.ledger.stored["lk:second"]?.let { LibrarySyncCore.opId(it) } == id } }
+        settle()
+        assertEquals("not in the room", null, room.value("lk:second"))
+        assertTrue("still pending here: nothing is forgotten without the room's ack", phone.ledger.stored["lk:second"]?.pending == true)
+        assertEquals("the like that was acknowledged is settled", false, phone.ledger.stored["lk:first"]?.pending)
+
+        room.capacity = Int.MAX_VALUE
+        // A full room is not asked again on every pass (see the next test): the next connection tries again.
+        phone.disconnect(); phone.connect()
+        eventually("the second try lands") { room.value("lk:second") == "1" }
+        eventually("and is settled here") { phone.ledger.stored["lk:second"]?.pending == false }
+        val id = LibrarySyncCore.opId(phone.ledger.stored.getValue("lk:second"))
+        assertTrue("the retry carried the same op id", (room.received[id] ?: 0) >= 2)
+        val head = room.head
+        phone.changed(); settle()
+        assertEquals("settled: nothing more goes out", head, room.head)
+    }
+
+    @Test
+    fun `a full room is not asked again on every pass, and the user is told once`() {
+        val phone = Device("phone")
+        phone.backend.like("first")
+        phone.connect()
+        eventually("the room has the first like") { room.value("lk:first") == "1" }
+        settle()
+        room.capacity = 1
+        phone.backend.like("second"); phone.changed()
+        eventually("the like reached the full room") {
+            phone.ledger.stored["lk:second"]?.let { room.received.containsKey(LibrarySyncCore.opId(it)) } == true
+        }
+        settle()
+        val id = LibrarySyncCore.opId(phone.ledger.stored.getValue("lk:second"))
+        repeat(5) { phone.changed(); settle() }
+        phone.backend.like("third"); phone.changed(); settle()
+        assertEquals("turned down once, never resent on the passes that followed", 1, room.received[id])
+        assertTrue("still pending here: nothing is forgotten", phone.ledger.stored["lk:second"]?.pending == true)
+        assertEquals("told once, not once per refusal", 1, phone.roomFullNotices)
+    }
+
+    @Test
+    fun `a room older than per-op acks still settles the whole batch, as before`() {
+        room.perOpAck = false
+        val phone = Device("phone")
+        phone.backend.like("a"); phone.backend.like("b")
+        phone.connect()
+        eventually("the room has both") { room.value("lk:a") == "1" && room.value("lk:b") == "1" }
+        eventually("both settled with an ack that lists no ids") { phone.ledger.stored.values.none { it.pending } }
+    }
+
+    // ── row 900: the journal of changes made before this instance caught up ─────────────────────────────────────────────────────
+
+    /** Both devices agree on «known»; the tablet's app then stops while offline and a NEW instance starts, still offline. */
+    private fun tabletRestartedOffline(phone: Device, tablet: Device): Device {
+        phone.connect(); tablet.connect()
+        eventually("both caught up") { "known" in tablet.backend.likes }
+        settle()
+        tablet.disconnect(); tablet.sync.stop()
+        val restarted = Device("tablet", enabled = tablet.enabled, backend = tablet.backend, ledger = tablet.ledger, since = tablet.since, journal = tablet.journal)
+        restarted.sync.start()
+        settle()
+        return restarted
+    }
+
+    @Test
+    fun `a like made offline after a restart keeps its time and is not undone by an older unlike`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("known")
+        val restarted = tabletRestartedOffline(phone, tablet)
+        // Monday: the phone likes Y and changes its mind.
+        phone.backend.like("Y"); phone.changed()
+        eventually("the like is in the room") { room.value("lk:Y") == "1" }
+        phone.backend.likes -= "Y"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:Y") == "0" }
+        settle()
+        // Tuesday: the restarted tablet, never caught up in this instance and offline, likes Y.
+        restarted.backend.like("Y"); restarted.changed()
+        eventually("journaled at once") { restarted.journal.load().any { it.key == "lk:Y" && it.value == "1" } }
+        assertTrue("not in the ledger yet: it cannot be dated without the room's clock", restarted.ledger.stored["lk:Y"] == null)
+        restarted.connect()
+        eventually("the tablet's newer like reaches the room") { room.value("lk:Y") == "1" }
+        eventually("and the phone") { "Y" in phone.backend.likes }
+        settle()
+        assertTrue("the tablet kept its like", "Y" in restarted.backend.likes)
+        assertTrue("the journal is empty once dated", restarted.journal.load().isEmpty())
+        eventually("settled only after the room's ack") { restarted.ledger.stored["lk:Y"]?.pending == false }
+    }
+
+    @Test
+    fun `an offline change journaled after a restart still loses to a newer change of the other device`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("known"); phone.backend.like("Y")
+        val restarted = tabletRestartedOffline(phone, tablet)
+        // First the restarted tablet unlikes Y offline; THEN the phone unlikes and likes it again: the phone's like is the newest,
+        // although the tablet's change reaches the room after it.
+        restarted.backend.likes -= "Y"; restarted.changed()
+        eventually("journaled") { restarted.journal.load().any { it.key == "lk:Y" } }
+        settle()
+        phone.backend.likes -= "Y"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:Y") == "0" }
+        phone.backend.like("Y"); phone.changed()
+        eventually("the like is in the room again") { room.value("lk:Y") == "1" }
+        settle()
+        restarted.connect()
+        eventually("the newest change, the phone's like, reaches the tablet") { "Y" in restarted.backend.likes }
+        settle()
+        assertEquals("1", room.value("lk:Y"))
+        assertTrue("Y" in phone.backend.likes)
+    }
+
+    @Test
+    fun `the journal survives another restart before the device is back, and the playlist edit keeps its time`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("known"); phone.backend.playlists["LPgymgymgy"] = "Gym"
+        val first = tabletRestartedOffline(phone, tablet)
+        // Monday: renamed on the phone.
+        phone.backend.playlists["LPgymgymgy"] = "Gym 2"; phone.changed()
+        eventually("the phone's rename is in the room") { room.value("pl:LPgymgymgy") == LibrarySyncCore.encodePlaylistName("Gym 2") }
+        settle()
+        // Tuesday, offline: renamed on the restarted tablet — the newest change.
+        first.backend.playlists["LPgymgymgy"] = "Correr"; first.changed()
+        eventually("journaled") { first.journal.load().any { it.key == "pl:LPgymgymgy" } }
+        settle()
+        // Wednesday, still offline, the tablet's app restarts again before it ever reconnects.
+        first.sync.stop()
+        val second = Device("tablet", backend = first.backend, ledger = first.ledger, since = first.since, journal = first.journal)
+        second.sync.start()
+        settle()
+        assertTrue("the restart kept the journal", second.journal.load().any { it.key == "pl:LPgymgymgy" })
+        second.connect()
+        eventually("the tablet's rename, the newest, reaches the phone") { phone.backend.playlists["LPgymgymgy"] == "Correr" }
+        assertEquals(LibrarySyncCore.encodePlaylistName("Correr"), room.value("pl:LPgymgymgy"))
+    }
+
+    @Test
+    fun `a change made while Biblioteca was off is not journaled once it is back on`() {
+        var on = true
+        val phone = Device("phone"); val tablet = Device("tablet", enabled = { on })
+        phone.backend.like("known"); phone.backend.playlists["LPgymgymgy"] = "Gym"
+        val restarted = tabletRestartedOffline(phone, tablet)
+        on = false
+        restarted.backend.playlists["LPgymgymgy"] = "Correr"; restarted.changed()
+        settle()
+        on = true
+        restarted.changed()
+        settle()
+        assertTrue("nothing watched, nothing journaled", restarted.journal.load().isEmpty())
+    }
+
+    // ── row 900: the order of a playlist ────────────────────────────────────────────────────────────────────────────────────────
+
+    private fun twoDevicesWithOrderedList(): Pair<Device, Device> {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.playlists["LPorderlist"] = "Orden"
+        (1..5).forEach { phone.backend.insert("LPorderlist", "s$it", it - 1) }
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the list in the phone's order") { tablet.backend.order("LPorderlist") == listOf("s1", "s2", "s3", "s4", "s5") }
+        settle()
+        return phone to tablet
+    }
+
+    @Test
+    fun `a reorder travels and nothing echoes afterwards`() {
+        val (phone, tablet) = twoDevicesWithOrderedList()
+        phone.backend.move("LPorderlist", "s4", 0); phone.changed()
+        eventually("the move reaches the tablet") { tablet.backend.order("LPorderlist") == listOf("s4", "s1", "s2", "s3", "s5") }
+        settle()
+        val head = room.head
+        phone.changed(); tablet.changed()
+        settle(); settle()
+        assertEquals("one move, then silence", head, room.head)
+    }
+
+    @Test
+    fun `a song added on one device while another is moved on the other keeps both`() {
+        val (phone, tablet) = twoDevicesWithOrderedList()
+        tablet.disconnect()
+        // At the same time: the phone adds s6 after s2, the offline tablet moves s5 to the top.
+        phone.backend.insert("LPorderlist", "s6", 2); phone.changed()
+        eventually("the addition is in the room") { room.value("pm:LPorderlist:s6") == "1" }
+        tablet.backend.move("LPorderlist", "s5", 0); tablet.changed()
+        settle()
+        tablet.connect()
+        val both = listOf("s5", "s1", "s2", "s6", "s3", "s4")
+        eventually("the tablet has both changes") { tablet.backend.order("LPorderlist") == both }
+        eventually("and the phone too") { phone.backend.order("LPorderlist") == both }
+        val head = room.head
+        phone.changed(); tablet.changed()
+        settle(); settle()
+        assertEquals("they agree: nothing more goes out", head, room.head)
+    }
+
+    @Test
+    fun `two moves of the same song - the newest wins on both devices`() {
+        val (phone, tablet) = twoDevicesWithOrderedList()
+        tablet.disconnect()
+        tablet.backend.move("LPorderlist", "s3", 0); tablet.changed() // first: to the top, offline
+        settle()
+        phone.backend.move("LPorderlist", "s3", 4); phone.changed() // later: to the bottom
+        eventually("the phone's move is in the room") { room.value("po:LPorderlist:s3") != null }
+        settle()
+        tablet.connect()
+        val newest = listOf("s1", "s2", "s4", "s5", "s3")
+        eventually("the tablet follows the newest move") { tablet.backend.order("LPorderlist") == newest }
+        assertEquals(newest, phone.backend.order("LPorderlist"))
+    }
+
+    // ── row 901: what the room's cleanup forgot ─────────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `a removal the room forgot before a device came back deletes nothing there and brings nothing back elsewhere`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("x"); phone.backend.like("stay")
+        phone.connect(); tablet.connect()
+        eventually("both have the likes") { tablet.backend.likes == setOf("x", "stay") }
+        settle()
+        tablet.disconnect()
+        phone.backend.likes -= "x"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:x") == "0" }
+        // The tablet stayed away longer than the room keeps a device in mind: the cleanup forgot the unlike.
+        room.prune("lk:x")
+        tablet.connect()
+        settle(); settle()
+        tablet.changed(); phone.changed()
+        settle(); settle()
+        assertTrue("nothing was deleted on the device that missed it", "x" in tablet.backend.likes)
+        assertEquals("and nothing came back in the room", null, room.value("lk:x"))
+        assertFalse("nor on the phone", "x" in phone.backend.likes)
+        assertTrue(setOf("stay").all { it in phone.backend.likes && it in tablet.backend.likes })
+    }
+
+    // ── row 901 (H11, row 654a): old removals on a first pairing ────────────────────────────────────────────────────────────────
+
+    private fun roomRemovedThreeLikes(): Device {
+        val tablet = Device("tablet")
+        repeat(3) { tablet.backend.like("w$it") }
+        tablet.connect()
+        eventually("the room has the likes") { (0 until 3).all { room.value("lk:w$it") == "1" } }
+        tablet.backend.likes.clear(); tablet.changed()
+        eventually("the room has the removals") { (0 until 3).all { room.value("lk:w$it") == "0" } }
+        return tablet
+    }
+
+    @Test
+    fun `a device new to the room keeps what the others removed before it joined, held for the user to decide`() {
+        val tablet = roomRemovedThreeLikes()
+        val trips = DeviceSyncHub.heldTrip.value?.token ?: 0
+        val phone = Device("phone")
+        repeat(3) { phone.backend.like("w$it") }
+        phone.backend.like("mine")
+        phone.connect()
+        eventually("the phone caught up") { phone.ledger.stored["lk:mine"]?.pending == false }
+        settle()
+        assertEquals("nothing deleted on a first pairing", setOf("w0", "w1", "w2", "mine"), phone.backend.likes)
+        // (DeviceSyncHub is shared by both simulated devices: the phone's own ledger says what it holds)
+        assertEquals(3, phone.ledger.stored.values.count { LibrarySyncCore.isHeld(it) && it.key.startsWith("lk:") })
+        val trip = DeviceSyncHub.heldTrip.value
+        assertTrue("told once, in the words of a new pairing", trip != null && trip.token > trips && trip.newHere && trip.count == 3)
+        assertTrue("the room's removals stand until the user answers", (0 until 3).all { room.value("lk:w$it") == "0" })
+        assertFalse("nothing removed came back on the tablet", (0 until 3).any { "w$it" in tablet.backend.likes })
+
+        // «Descartar»: the phone's copies go back to the room and to the tablet.
+        assertEquals(3, runBlocking { phone.sync.resolveHeld(apply = false) })
+        eventually("the tablet got them back") { (0 until 3).all { "w$it" in tablet.backend.likes } }
+    }
+
+    @Test
+    fun `a first pairing does not hold the old name of a list that moved under another of its names`() {
+        // The room: «Gym» travels as LPabcabcab, linked to PLgymYT; PLgymYT itself was retired earlier (row 740), "0" with its songs.
+        val then = System.currentTimeMillis() - 60_000
+        fun op(key: String, v: String) = buildJsonArray { add(JsonPrimitive(key)); add(JsonPrimitive(then)); add(JsonPrimitive(v)) }
+        room.receive("other", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray {
+                add(op("pl:LPabcabcab", LibrarySyncCore.encodePlaylistName("Gym")))
+                add(op("pb:LPabcabcab", "PLgymYT"))
+                for (i in 1..6) add(op("pm:LPabcabcab:g$i", "1"))
+                add(op("pl:PLgymYT", "0"))
+                for (i in 1..6) add(op("pm:PLgymYT:g$i", "0"))
+            })
+        })
+        val trips = DeviceSyncHub.heldTrip.value?.token ?: 0
+        // A new device with its own copy of the same YouTube playlist: with an empty ledger it is keyed by the browseId.
+        val phone = Device("phone")
+        phone.listWithSongs("LPcccccccc", "Gym", 6, "g")
+        phone.backend.browseIds["LPcccccccc"] = "PLgymYT"
+        phone.connect()
+        eventually("the phone caught up") { phone.ledger.stored.containsKey("pl:LPabcabcab") && phone.ledger.stored.values.none { it.pending } }
+        settle()
+        assertTrue("a change of name is not a removal to review", phone.ledger.stored.values.none { LibrarySyncCore.isHeld(it) })
+        assertEquals("no «new here» notice", trips, DeviceSyncHub.heldTrip.value?.token ?: 0)
+        assertEquals((1..6).map { "g$it" }.toSet(), phone.songsOf("LPcccccccc"))
+    }
+
+    @Test
+    fun `Aplicar after a restart offline is not journaled as the user's own removal, so a newer re-add elsewhere still wins`() {
+        val tablet = roomRemovedThreeLikes()
+        val phone = Device("phone")
+        repeat(3) { phone.backend.like("w$it") }
+        phone.connect()
+        eventually("held") { phone.ledger.stored.values.count { LibrarySyncCore.isHeld(it) } == 3 }
+        settle()
+        phone.disconnect(); phone.sync.stop()
+        val restarted = Device("phone", backend = phone.backend, ledger = phone.ledger, since = phone.since, journal = phone.journal)
+        restarted.sync.start()
+        settle()
+        // While the phone is away, the tablet likes w0 again.
+        tablet.backend.like("w0"); tablet.changed()
+        eventually("the room has w0 again") { room.value("lk:w0") == "1" }
+        // The restarted phone, still offline, applies the held removals.
+        assertEquals(3, runBlocking { restarted.sync.resolveHeld(apply = true) })
+        restarted.changed()
+        settle()
+        assertTrue("what the sync removed is not a change of the user's", restarted.journal.load().none { it.key.startsWith("lk:w") })
+        restarted.connect()
+        eventually("w0 comes back here: the tablet's like is newer than the removal") { "w0" in restarted.backend.likes }
+        settle()
+        assertTrue("and stays on the tablet", "w0" in tablet.backend.likes)
+    }
+
+    @Test
+    fun `Aplicar on a first pairing removes the old copies here too`() {
+        roomRemovedThreeLikes()
+        val phone = Device("phone")
+        repeat(3) { phone.backend.like("w$it") }
+        phone.connect()
+        eventually("held") { phone.ledger.stored.values.count { LibrarySyncCore.isHeld(it) } == 3 }
+        assertEquals(3, runBlocking { phone.sync.resolveHeld(apply = true) })
+        assertTrue(phone.backend.likes.isEmpty())
+        assertTrue((0 until 3).all { room.value("lk:w$it") == "0" })
+    }
+
+    @Test
+    fun `the same register twice reaches the room as one change`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.connect(); tablet.connect()
+        settle()
+        phone.backend.like("twice"); phone.changed()
+        eventually("in the room") { room.value("lk:twice") == "1" }
+        val reg = phone.ledger.stored.getValue("lk:twice")
+        val head = room.head
+        // The same op sent again (a retry after a lost ack): same id, nothing new in the room.
+        room.receive("phone", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive(reg.key)); add(JsonPrimitive(reg.ts)); add(JsonPrimitive(reg.value)); add(JsonPrimitive(LibrarySyncCore.opId(reg))) }) })
+        })
+        settle()
+        assertEquals(head, room.head)
+        assertEquals(setOf("twice"), tablet.backend.likes)
     }
 }

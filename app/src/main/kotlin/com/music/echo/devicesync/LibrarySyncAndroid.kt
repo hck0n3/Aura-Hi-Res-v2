@@ -63,6 +63,17 @@ object LibrarySyncAndroid {
             scope = scope,
             sendMessage = sendMessage,
             isEnabled = isEnabled,
+            // Row 900: the journal of changes seen being made before they can be dated against the room, next to the ledger; the
+            // boot count and the time since boot say WHEN, whatever the phone clock says (-1 = the boot count is not readable).
+            journal = LibraryJournalStore(ledgerFile.parentFile ?: File(context.filesDir, "device_sync/$room")),
+            mono = run {
+                val boot = runCatching {
+                    android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1).toLong()
+                }.getOrDefault(-1L)
+                val now: () -> Mono = { Mono(boot, android.os.SystemClock.elapsedRealtime()) }
+                now
+            },
+            onRoomFull = { DeviceSyncHub.notice(context.getString(iad1tya.echo.music.R.string.device_sync_room_full)) },
             watchChanges = { kick ->
                 // Likes, playlists and their songs live in the database; whoever changes them, this fires.
                 val observer = object : InvalidationTracker.Observer("song", "playlist", "playlist_song_map", "speed_dial_item", "album") {

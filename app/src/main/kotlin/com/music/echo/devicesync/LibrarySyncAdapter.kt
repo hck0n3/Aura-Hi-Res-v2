@@ -54,12 +54,17 @@ class LibrarySyncAdapter(
             keyOf[row.id] = key
             facts[LibrarySyncCore.playlistKey(key)] = LibrarySyncCore.encodePlaylistName(row.name)
         }
+        // Row 900: the rows come in each list's order, so each song's position travels too (`po:`, LibrarySyncCore.PlaylistOrder).
+        val order = LinkedHashMap<String, MutableList<String>>()
         for (row in database.syncMemberRows()) {
             val key = keyOf[row.playlistId] ?: continue
             if (!LibrarySyncCore.syncableId(row.songId)) continue
             facts[LibrarySyncCore.memberKey(key, row.songId)] = ON
+            order.getOrPut(key) { ArrayList() } += row.songId
             referenced += row.songId
         }
+        // A list whose positions cannot be worked out only loses its positions this pass; the rest of the library still travels.
+        for ((key, songs) in order) runCatching { LibrarySyncCore.PlaylistOrder.facts(key, songs, playlists.orderOf(key)) }.onSuccess(facts::putAll)
 
         for (row in database.syncSavedAlbumRows()) {
             if (!LibrarySyncCore.syncableId(row.id)) continue
@@ -250,6 +255,26 @@ class LibrarySyncAdapter(
             if (rows.isEmpty()) continue
             rows.forEach { database.syncDeletePlaylist(it) }
             applied++
+        }
+
+        // 6b. Row 900: the songs of each list in the order the positions give them (only the order changes, here and nowhere else:
+        // nothing of it goes to this device's YouTube account). A song with no position yet stays after the one it follows here.
+        for (key in plan.reorder) {
+            val positions = plan.after.orderOf(key)
+            if (positions.isEmpty()) continue
+            for (row in targets.rowsOf(key)) {
+                val entries = database.syncPlaylistMapRows(row)
+                // By entry, not by song: a song in the list twice keeps its second copy where it is (`playlist_song_map` allows it).
+                val wanted = LibrarySyncCore.PlaylistOrder.sortedEntries(entries.map { it.songId }, positions).map { entries[it] }
+                var moved = false
+                wanted.forEachIndexed { index, entry ->
+                    if (entry.position != index) {
+                        database.syncSetMapPosition(entry.id, index)
+                        moved = true
+                    }
+                }
+                if (moved) applied++
+            }
         }
 
         // 7. Pins (Biblioteca ▸ Fijados and «Fijadas en inicio»): after the playlists, so a pinned playlist already exists here.
