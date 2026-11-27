@@ -203,7 +203,7 @@ class LibrarySync(
                 }
             }
             "lib_ops" -> if (isEnabled()) requestPull()
-            "lib_ack" -> mutex.withLock { onAckLocked() }
+            "lib_ack" -> mutex.withLock { onAckLocked(msg) }
             else -> return false
         }
         return true
@@ -372,12 +372,18 @@ class LibrarySync(
         held.size
     }
 
-    private suspend fun onAckLocked() {
+    /**
+     * Row 900: a room from lib 3 on lists in `ids` every op it is done with; only those stop being pending here. The others (a full
+     * room) stay pending and go out again with the next pass. An older room sends no `ids`: the whole batch is settled, as before.
+     */
+    private suspend fun onAckLocked(msg: JsonObject) {
         val batch = inFlight.removeFirstOrNull() ?: return
+        val done = (msg["ids"] as? JsonArray)?.mapNotNullTo(HashSet()) { (it as? JsonPrimitive)?.contentOrNull }
         val ledger = ledger()
         val settled = ArrayList<Reg>()
         for (sent in batch) {
             sentKeys.remove(sent.key)
+            if (done != null && LibrarySyncCore.opId(sent) !in done) continue
             // Only if it was not changed again while the room was answering.
             val now = ledger[sent.key]
             if (now != null && now.ts == sent.ts && now.value == sent.value && now.pending) {
@@ -424,6 +430,7 @@ class LibrarySync(
                             add(JsonPrimitive(r.key))
                             add(JsonPrimitive(r.ts))
                             add(JsonPrimitive(r.value))
+                            add(JsonPrimitive(LibrarySyncCore.opId(r)))
                         })
                     }
                 })

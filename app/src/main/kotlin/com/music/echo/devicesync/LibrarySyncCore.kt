@@ -125,6 +125,18 @@ object LibrarySyncCore {
         }
     }
 
+    /**
+     * Row 900 — the id of one pushed register, acknowledged one by one by the room (`lib_ack.ids`, Worker lib 3). Made from the
+     * register itself (time, key, value), so sending the same change again carries the same id and the room applies it once.
+     */
+    fun opId(reg: Reg): String {
+        var h = 0x811c9dc5.toInt()
+        for (c in reg.key) h = (h xor c.code) * 0x01000193
+        h = (h xor 0) * 0x01000193
+        for (c in reg.value) h = (h xor c.code) * 0x01000193
+        return reg.ts.toString(36) + "." + Integer.toUnsignedString(h, 36)
+    }
+
     /** Does [incoming] replace what the ledger knows? Newer wins; an exact tie goes to the larger value (the same on every device). */
     fun accepts(known: Reg?, incoming: Reg): Boolean =
         known == null || incoming.ts > known.ts || (incoming.ts == known.ts && incoming.value > known.value)

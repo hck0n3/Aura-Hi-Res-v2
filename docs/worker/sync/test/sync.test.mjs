@@ -345,6 +345,52 @@ test("library: bad input is dropped, rooms are isolated, and nothing works befor
   stranger.ws.close();
 });
 
+// ── row 900: each op is acknowledged on its own ──────────────────────────────────────────────────────────────────────────────
+
+test("library: every op id the room is done with is acknowledged — applied, older, repeated or malformed", async () => {
+  const g = createHash("sha256").update("library-per-op-ack").digest("hex");
+  const a = await connect(g, phone);
+  await a.next((m) => m.t === "hello_ok");
+  a.send({ t: "lib_push", ops: [["lk:x", 2000, "1", "id-new"], ["lk:y", 1000, "1", "id-y"]] });
+  const first = await a.next((m) => m.t === "lib_ack");
+  assert.deepEqual(first.ids.sort(), ["id-new", "id-y"]);
+  assert.equal(first.accepted, 2);
+  // the same op again (a retry after a lost ack) and an older one: both done, neither applied
+  a.send({ t: "lib_push", ops: [["lk:x", 2000, "1", "id-new"], ["lk:x", 1500, "0", "id-old"], ["", 1, "1", "id-bad"]] });
+  const second = await a.next((m) => m.t === "lib_ack");
+  assert.equal(second.accepted, 0);
+  assert.deepEqual(second.ids.sort(), ["id-bad", "id-new", "id-old"]);
+  assert.equal(second.seq, first.seq, "nothing new in the room");
+  a.send({ t: "lib_pull", since: 0 });
+  const state = await a.next((m) => m.t === "lib_state");
+  assert.deepEqual(state.items.sort(), [["lk:x", 2000, "1"], ["lk:y", 1000, "1"]], "the log never carries the op ids");
+  a.ws.close();
+});
+
+test("library: an app that sends three-element ops (an older version) is served exactly as before", async () => {
+  const g = createHash("sha256").update("library-old-client").digest("hex");
+  const oldApp = await connect(g, phone);
+  const newApp = await connect(g, tablet);
+  await oldApp.next((m) => m.t === "hello_ok");
+  await newApp.next((m) => m.t === "hello_ok");
+  oldApp.send({ t: "lib_push", ops: [["lk:old", 1000, "1"], ["pl:LPabc", 1000, '{"n":"Gym"}']] });
+  const ack = await oldApp.next((m) => m.t === "lib_ack");
+  assert.equal(ack.accepted, 2);
+  assert.equal(ack.received, 2);
+  assert.ok(Number.isInteger(ack.seq));
+  assert.deepEqual(ack.ids, [], "no ids sent, none echoed");
+  await newApp.next((m) => m.t === "lib_ops");
+  newApp.send({ t: "lib_push", ops: [["lk:new", 1000, "1", "n1"]] });
+  assert.deepEqual((await newApp.next((m) => m.t === "lib_ack")).ids, ["n1"]);
+  await oldApp.next((m) => m.t === "lib_ops");
+  oldApp.send({ t: "lib_pull", since: 0 });
+  const state = await oldApp.next((m) => m.t === "lib_state");
+  assert.ok(state.items.every((i) => i.length === 3), "an older app still gets [key, ts, value]");
+  assert.deepEqual(state.items.map((i) => i[0]).sort(), ["lk:new", "lk:old", "pl:LPabc"]);
+  oldApp.ws.close();
+  newApp.ws.close();
+});
+
 test("health says which protocol this deployment speaks, and hello_ok repeats it", async () => {
   const res = await mf.dispatchFetch("http://x/health");
   const body = await res.json();

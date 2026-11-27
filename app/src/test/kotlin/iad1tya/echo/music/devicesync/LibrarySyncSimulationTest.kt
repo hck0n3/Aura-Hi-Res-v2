@@ -61,6 +61,12 @@ class LibrarySyncSimulationTest {
         private val inboxes = LinkedHashMap<String, Channel<JsonObject>>()
         @Volatile var pushes = 0
         @Volatile var pulls = 0
+        /** Row 900: false = a room older than lib 3, whose `lib_ack` carries no `ids`. */
+        @Volatile var perOpAck = true
+        /** Row 900: how many items the room holds at most (the Worker's LIB_MAX_KEYS); a new key past it is neither taken nor acknowledged. */
+        @Volatile var capacity = Int.MAX_VALUE
+        /** Row 900: how many times each op id reached the room. */
+        val received = HashMap<String, Int>()
 
         @Synchronized
         fun join(id: String, inbox: Channel<JsonObject>) {
@@ -80,20 +86,28 @@ class LibrarySyncSimulationTest {
                 "lib_push" -> {
                     pushes++
                     var accepted = 0
+                    val ids = ArrayList<String>()
                     for (op in msg["ops"] as JsonArray) {
                         val a = op as JsonArray
                         val key = (a[0] as JsonPrimitive).content
                         val ts = (a[1] as JsonPrimitive).longOrNull ?: continue
                         val v = (a[2] as JsonPrimitive).content
+                        val id = (a.getOrNull(3) as? JsonPrimitive)?.contentOrNull
+                        if (id != null) received[id] = (received[id] ?: 0) + 1
                         val cur = kv[key]
-                        if (cur != null && !(ts > cur.ts || (ts == cur.ts && v > cur.v))) continue
+                        if (cur != null && !(ts > cur.ts || (ts == cur.ts && v > cur.v))) { if (id != null) ids += id; continue }
+                        if (cur == null && kv.size >= capacity) continue
+                        if (id != null) ids += id
                         seq++
                         if (cur != null) log.remove(cur.seq)
                         kv[key] = Entry(ts, v, seq)
                         log[seq] = Triple(key, ts, v)
                         accepted++
                     }
-                    deliver(from, buildJsonObject { put("t", "lib_ack"); put("seq", seq); put("accepted", accepted) })
+                    deliver(from, buildJsonObject {
+                        put("t", "lib_ack"); put("seq", seq); put("accepted", accepted)
+                        if (perOpAck) put("ids", buildJsonArray { ids.forEach { add(JsonPrimitive(it)) } })
+                    })
                     if (accepted > 0) inboxes.keys.filter { it != from }.forEach { deliver(it, buildJsonObject { put("t", "lib_ops"); put("seq", seq) }) }
                 }
                 "lib_pull" -> {
@@ -1267,5 +1281,62 @@ class LibrarySyncSimulationTest {
         assertEquals(0, runBlocking { phone.sync.resolveHeld(apply = true) })
         assertEquals(0, runBlocking { phone.sync.resolveHeld(apply = false) })
         assertEquals(setOf("only"), phone.backend.likes)
+    }
+
+    // ── row 900: each op is acknowledged on its own ─────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `an op the room did not acknowledge stays pending and goes out again with the same id, applied once`() {
+        val phone = Device("phone")
+        phone.backend.like("first")
+        phone.connect()
+        eventually("the room has the first like") { room.value("lk:first") == "1" }
+        settle()
+        room.capacity = 1 // the room is full: a new key is neither taken nor acknowledged
+        phone.backend.like("second"); phone.changed()
+        eventually("the like reached the full room") { room.received.keys.any { id -> phone.ledger.stored["lk:second"]?.let { LibrarySyncCore.opId(it) } == id } }
+        settle()
+        assertEquals("not in the room", null, room.value("lk:second"))
+        assertTrue("still pending here: nothing is forgotten without the room's ack", phone.ledger.stored["lk:second"]?.pending == true)
+        assertEquals("the like that was acknowledged is settled", false, phone.ledger.stored["lk:first"]?.pending)
+
+        room.capacity = Int.MAX_VALUE
+        phone.changed()
+        eventually("the second try lands") { room.value("lk:second") == "1" }
+        eventually("and is settled here") { phone.ledger.stored["lk:second"]?.pending == false }
+        val id = LibrarySyncCore.opId(phone.ledger.stored.getValue("lk:second"))
+        assertTrue("the retry carried the same op id", (room.received[id] ?: 0) >= 2)
+        val head = room.head
+        phone.changed(); settle()
+        assertEquals("settled: nothing more goes out", head, room.head)
+    }
+
+    @Test
+    fun `a room older than per-op acks still settles the whole batch, as before`() {
+        room.perOpAck = false
+        val phone = Device("phone")
+        phone.backend.like("a"); phone.backend.like("b")
+        phone.connect()
+        eventually("the room has both") { room.value("lk:a") == "1" && room.value("lk:b") == "1" }
+        eventually("both settled with an ack that lists no ids") { phone.ledger.stored.values.none { it.pending } }
+    }
+
+    @Test
+    fun `the same register twice reaches the room as one change`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.connect(); tablet.connect()
+        settle()
+        phone.backend.like("twice"); phone.changed()
+        eventually("in the room") { room.value("lk:twice") == "1" }
+        val reg = phone.ledger.stored.getValue("lk:twice")
+        val head = room.head
+        // The same op sent again (a retry after a lost ack): same id, nothing new in the room.
+        room.receive("phone", buildJsonObject {
+            put("t", "lib_push")
+            put("ops", buildJsonArray { add(buildJsonArray { add(JsonPrimitive(reg.key)); add(JsonPrimitive(reg.ts)); add(JsonPrimitive(reg.value)); add(JsonPrimitive(LibrarySyncCore.opId(reg))) }) })
+        })
+        settle()
+        assertEquals(head, room.head)
+        assertEquals(setOf("twice"), tablet.backend.likes)
     }
 }

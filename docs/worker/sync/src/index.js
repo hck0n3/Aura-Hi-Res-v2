@@ -25,13 +25,15 @@ const NOW_FRESH_MS = 70_000; // a playing device heartbeats every 20 s: the app'
 const MAX_NOW_ENTRIES = 16;
 // Library registers (row 536): likes, dislikes and playlists, one last-writer-wins register per item.
 // Bumped whenever the library protocol changes. The app asks for it in `hello_ok` and says so when the deployed Worker is older.
-const LIB_VERSION = 2;
+// 3 (row 900): ops may carry an id and `lib_ack.ids` acknowledges each one; apps that check `lib >= 2` keep working.
+const LIB_VERSION = 3;
 const LIB_PAGE = 400; // items per `lib_state` page
 const LIB_PUSH_MAX = 400; // ops per `lib_push`
 const LIB_CHUNK = 50; // ops per storage write batch (each accepted op writes 2 keys; storage.put takes ≤128)
 const LIB_MAX_KEY = 120;
 const LIB_MAX_VALUE = 800;
 const LIB_MAX_KEYS = 150000;
+const LIB_MAX_ID = 40;
 const pad = (n) => String(n).padStart(12, "0");
 
 export default {
@@ -224,13 +226,21 @@ export class SyncRoom {
   async libPush(ws, msg) {
     const raw = Array.isArray(msg.ops) ? msg.ops.slice(0, LIB_PUSH_MAX) : [];
     const ops = [];
+    // Row 900: an op may carry its id as a 4th element (apps from lib 3 on). `ids` in the ack lists every op this room is done
+    // with — applied, older than what it holds, or malformed — so the app clears exactly those and sends the rest again.
+    // An app that sends no ids (older apps) gets the same ack as before and ignores `ids`.
+    const ids = [];
     for (const op of raw) {
       if (!Array.isArray(op) || op.length < 3) continue;
+      const id = typeof op[3] === "string" && op[3].length > 0 && op[3].length <= LIB_MAX_ID ? op[3] : null;
       const key = String(op[0]);
       const ts = Number(op[1]);
       const value = String(op[2]);
-      if (!key || key.length > LIB_MAX_KEY || value.length > LIB_MAX_VALUE || !Number.isFinite(ts) || ts < 0) continue;
-      ops.push([key, ts, value]);
+      if (!key || key.length > LIB_MAX_KEY || value.length > LIB_MAX_VALUE || !Number.isFinite(ts) || ts < 0) {
+        if (id) ids.push(id);
+        continue;
+      }
+      ops.push([key, ts, value, id]);
     }
     let seq = (await this.ctx.storage.get("libseq")) || 0;
     let count = (await this.ctx.storage.get("libcount")) || 0;
@@ -240,10 +250,16 @@ export class SyncRoom {
       const existing = await this.ctx.storage.get(chunk.map(([k]) => "k:" + k));
       const puts = {};
       const dels = [];
-      for (const [key, ts, value] of chunk) {
+      for (const [key, ts, value, id] of chunk) {
         const cur = existing.get("k:" + key);
-        if (cur && !(ts > cur.ts || (ts === cur.ts && value > cur.v))) continue;
+        if (cur && !(ts > cur.ts || (ts === cur.ts && value > cur.v))) {
+          // Older than (or the same as) what the room holds: done, the same op twice is applied once.
+          if (id) ids.push(id);
+          continue;
+        }
+        // A full room is NOT done with it: no id, so the app keeps it and tries again once there is room.
         if (!cur && count >= LIB_MAX_KEYS) continue;
+        if (id) ids.push(id);
         seq++;
         if (cur) dels.push("s:" + pad(cur.seq));
         else count++;
@@ -257,7 +273,7 @@ export class SyncRoom {
       if (dels.length) await this.ctx.storage.delete(dels);
     }
     if (accepted.length) await this.ctx.storage.put({ libseq: seq, libcount: count });
-    send(ws, { t: "lib_ack", seq, accepted: accepted.length, received: ops.length });
+    send(ws, { t: "lib_ack", seq, accepted: accepted.length, received: ops.length, ids });
     // The others only need the signal: they pull from where they left off (idempotent, and never misses a gap).
     if (accepted.length) this.broadcast({ t: "lib_ops", seq }, ws);
   }

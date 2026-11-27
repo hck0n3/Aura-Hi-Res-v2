@@ -24,7 +24,7 @@ npx wrangler deploy        # crea el Worker «aura-sync» y su Durable Object (p
 Te da una dirección tipo `https://aura-sync.<tu-usuario>.workers.dev`. En la app: **Ajustes ▸ Sincronizar dispositivos ▸ Servidor**
 pegas esa dirección (sin `/sync`) en cada dispositivo, creas el grupo en uno y metes el código en los demás.
 
-Comprobar: `https://aura-sync.<tu-usuario>.workers.dev/health` debe responder `{"ok":true,"lib":2}`. Si responde solo `{"ok":true}`, sigue desplegada una versión vieja que no entiende la sincronización de biblioteca: vuelve a ejecutar `npx wrangler deploy` desde la carpeta con el código nuevo.
+Comprobar: `https://aura-sync.<tu-usuario>.workers.dev/health` debe responder `{"ok":true,"lib":3}`. Si responde solo `{"ok":true}`, sigue desplegada una versión vieja que no entiende la sincronización de biblioteca: vuelve a ejecutar `npx wrangler deploy` desde la carpeta con el código nuevo. Con `"lib":2` la biblioteca funciona, pero sin el acuse por operación (fila 900).
 
 ## Pruebas
 `npm test` ejecuta el Worker de verdad (workerd, vía Miniflare) con varios dispositivos conectados: presencia, unión y reinicio del
@@ -39,6 +39,6 @@ aleatorio, estado «sonando ahora», comandos entre dispositivos y aislamiento e
 | `{t:"now", state:{queue,index,positionMs,playing,…}}` | a los demás `now`. La sala guarda uno por dispositivo. Un `now` en pausa de un dispositivo que no ha sonado en 10 min, mientras otro suena, se guarda marcado `stale` y no se reenvía ni se entrega |
 | `{t:"cmd", to, cmd, args}` | al dispositivo `to`: `cmd {from, cmd, args}` y al que la mandó `cmd_ok {to, cmd}`; si no está: `cmd_fail` |
 | `{t:"library", what}` | a los demás `library` |
-| `{t:"lib_push", ops:[[key, ts, value]…]}` | `lib_ack {seq, accepted}`; a los demás `lib_ops {seq}` (solo la señal). Gana el `ts` más reciente (empate: el valor mayor). Hasta 400 por mensaje |
+| `{t:"lib_push", ops:[[key, ts, value, id?]…]}` | `lib_ack {seq, accepted, received, ids}`; a los demás `lib_ops {seq}` (solo la señal). Gana el `ts` más reciente (empate: el valor mayor). Hasta 400 por mensaje. `ids` (fila 900): los `id` de las operaciones con las que la sala ya terminó (aplicadas, más viejas que lo que tiene, repetidas o mal formadas); la app solo da por enviadas esas y reenvía el resto (sala llena). Una app que manda `[key, ts, value]` sin `id` recibe lo mismo de antes |
 | `{t:"lib_pull", since}` | `lib_state {items, seq, head, more, reset}`: lo que cambió desde `since`, en páginas de 400; `reset` si el cliente va por delante de la sala |
 | `{t:"ping"}` | `pong` |
