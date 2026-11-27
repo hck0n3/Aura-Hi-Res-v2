@@ -700,6 +700,9 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
             }
         }
 
+        // Row 912: a fresh install starts on «Aura Referencia» instead of the v3 seed written above, once.
+        applyAuraReferenciaSeedV1(settings, installOrigin == iad1tya.echo.music.utils.InstallOrigin.FRESH)
+
         // Batch B — pure-DataStore migrations that MUST run AFTER migrateAudioDefaultsV2 (Safe Volume forced ON
         // wins over it). Both are two-phase in the original; in one transaction value+flag are written atomically,
         // so the flag is still never set without the value being applied.
@@ -1635,6 +1638,54 @@ class App : Application(), SingletonImageLoader.Factory, androidx.work.Configura
         }.onFailure { reportException(it) }.getOrDefault(false)
         if (applied) {
             dataStore.edit { it[iad1tya.echo.music.constants.RetiredPresetsToV3AppliedKey] = true }
+        }
+    }
+
+    /**
+     * Row 912 (owner request 2026-11-27, plan point 2 of docs/plan/AUDIO_INVESTIGACION_2026-11-27.md): a FRESH install
+     * starts on «Aura Referencia». Only an EQ that is still exactly the "Aura Hi-Res v3" curve [migrateAudioDefaultsV2]
+     * seeded moments earlier moves, in BOTH the DSP source of truth (profile repo) and the `echo_eq_prefs` mirror; the
+     * preamp and the on/off switch are not touched. An update or a restore only gets the flag stamped, so nobody who
+     * already has the app hears a different sound. On a fresh install the flag is stamped only on success.
+     */
+    private suspend fun applyAuraReferenciaSeedV1(
+        settings: androidx.datastore.preferences.core.Preferences,
+        freshInstall: Boolean,
+    ) {
+        if (settings[iad1tya.echo.music.constants.AuraReferenciaSeedV1AppliedKey] == true) return
+        val done = if (!freshInstall) {
+            true
+        } else {
+            runCatching {
+                val eqPrefs = applicationContext.getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
+                val eqRepo = eqProfileRepository.get()
+                val seeded = iad1tya.echo.music.eq.data.FactoryPreset.AURA_HI_RES_V3.gains
+                val target = iad1tya.echo.music.eq.data.FactoryPreset.AURA_REFERENCIA.gains
+                fun isSeed(gains: List<Float>) = gains.size == seeded.size &&
+                    gains.indices.all { kotlin.math.abs(gains[it] - seeded[it]) < 0.05f }
+
+                val effective = eqRepo.unsavedProfile.value ?: eqRepo.activeProfile.value
+                val moved = effective != null && isSeed(effective.bands.map { it.gain.toFloat() })
+                if (moved && effective != null) {
+                    val updated = effective.copy(
+                        bands = effective.bands.mapIndexed { i, band -> band.copy(gain = target[i].toDouble()) },
+                    )
+                    eqRepo.saveProfile(updated)
+                    eqRepo.setUnsavedProfile(updated)
+                    eqRepo.setActiveProfile(updated.id)
+                }
+                val mirrored = seeded.indices.map { eqPrefs.getFloat("band24_$it", Float.NaN) }
+                if (isSeed(mirrored)) {
+                    val ed = eqPrefs.edit()
+                    target.forEachIndexed { i, g -> ed.putFloat("band24_$i", g) }
+                    ed.apply()
+                }
+                Timber.i("AURA_REFERENCIA_SEED fresh=true moved=%b", moved)
+                true
+            }.onFailure { reportException(it) }.getOrDefault(false)
+        }
+        if (done) {
+            dataStore.edit { it[iad1tya.echo.music.constants.AuraReferenciaSeedV1AppliedKey] = true }
         }
     }
 

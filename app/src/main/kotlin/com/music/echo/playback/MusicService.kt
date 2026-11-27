@@ -10011,8 +10011,8 @@ class MusicService :
      * `safeVolumeGainWithEqPreamp`, which took 75 % of a positive preamp off Safe Volume's boost, so raising the
      * preamp barely raised the volume (and the trim was only refreshed on a track change). The two stages are now
      * independent: the preamp is the native front gain, applied live from the EQ profile flow; Safe Volume is its
-     * own stage before the limiter (-3 dB threshold, -0.3 dBFS ceiling) and the 0.97 soft clip, which bound the
-     * output below full scale whatever the total gain.
+     * own stage before the true-peak limiter (-1 dBTP ceiling, row 911) and the -0.1 dBFS hard clamp, which bound
+     * the output below full scale whatever the total gain.
      */
     internal fun safeVolumeAppliedGain(baseGain: Float): Float = baseGain
 

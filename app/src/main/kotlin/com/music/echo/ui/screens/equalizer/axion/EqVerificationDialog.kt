@@ -65,7 +65,7 @@ fun EqVerificationDialog(result: EqVerification, onDismiss: () -> Unit) {
                     )
                     Text("Entrada: ${formatDbfs(result.peakInDb)} · tras EQ: ${formatDbfs(result.peakAfterEqDb)} · salida: ${formatDbfs(result.peakOutDb)}")
                     Text(
-                        "«Tras EQ» puede pasar de 0 dBFS con realces fuertes: el limitador (techo −0.3 dBFS) lo contiene en la salida.",
+                        "«Tras EQ» puede pasar de 0 dBFS con realces fuertes: el limitador de pico real (techo −1 dBTP) lo contiene en la salida.",
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }

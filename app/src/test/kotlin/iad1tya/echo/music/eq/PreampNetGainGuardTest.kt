@@ -34,11 +34,13 @@ class PreampNetGainGuardTest {
     }
 
     @Test
-    fun `a long mono block is limited in slices instead of skipping the limiter`() {
+    fun `a long mono block is limited instead of skipping the limiter`() {
+        // Row 790 asked for this with Superpowered's stereo-only limiter (dual-mono slices). Row 911 replaced it with
+        // the true-peak limiter, which takes mono (and up to 8 channels) in place, frame by frame, any block length.
         assertFalse(cpp.contains("requiredSize * 2 <= MAX_BUFFER_SIZE"))
-        val mono = cpp.substringAfter("} else if (processor->limiter && processor->limiter->enabled && channels == 1) {")
-            .substringBefore("// Soft-clip final safety net")
-        assertTrue(mono.contains("const int maxSliceFrames = MAX_BUFFER_SIZE / 2;"))
-        assertTrue(mono.contains("processor->limiter->process(scratch, scratch, (unsigned int) n);"))
+        assertTrue(cpp.contains("processor->truePeakLimiter->process(workBuffer, num_frames, channels);"))
+        val header = File(root, "app/src/main/cpp/superpowered/AuraTruePeakLimiter.h").readText()
+        assertTrue(header.contains("if (channels < 1 || channels > kMaxChannels) return;"))
+        assertTrue(header.contains("static constexpr int kMaxChannels = 8;"))
     }
 }

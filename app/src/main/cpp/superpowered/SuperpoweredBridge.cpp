@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <algorithm>
 
+#include "AuraTruePeakLimiter.h"
+
 #if __has_include("Superpowered.h")
 #define HAS_SUPERPOWERED 1
 #include "Superpowered.h"
@@ -131,7 +133,7 @@ static bool probeSuperpoweredDsp(unsigned int samplerate) {
 /// MUST stay identical to Kotlin EqResponse.coefficients — the EQ graph, the in-app verification and this
 /// engine share one definition. typeCode: 0 peak, 1 low shelf, 2 high shelf, 3 low-pass, 4 high-pass.
 /// Shelves take their slope from Q: S = clamp(Q / 1.414, 0.05, 1).
-static void auraRbjCoefficients(double fs, float frequency, float gainDb, float qIn, int typeCode, float out[5]) {
+static void auraRbjCoefficients(double fs, float frequency, float gainDb, float qIn, int typeCode, double out[5]) {
     double q = qIn < 1e-4f ? 1e-4 : (double) qIn;
     double f0 = frequency;
     if (f0 < 1.0) f0 = 1.0;
@@ -179,34 +181,80 @@ static void auraRbjCoefficients(double fs, float frequency, float gainDb, float 
         a1 = -2.0 * cosW0;
         a2 = 1.0 - alpha / A;
     }
-    out[0] = (float) (b0 / a0); out[1] = (float) (b1 / a0); out[2] = (float) (b2 / a0);
-    out[3] = (float) (a1 / a0); out[4] = (float) (a2 / a0);
+    out[0] = b0 / a0; out[1] = b1 / a0; out[2] = b2 / a0;
+    out[3] = a1 / a0; out[4] = a2 / a0;
+}
+
+/// Row 912: length of the coefficient / preamp glide when a band or the preamp changes (no "zipper" or click).
+static constexpr double kEqGlideMs = 10.0;
+static inline int eqGlideFrames(unsigned int samplerate) {
+    const int n = (int) ((double) samplerate * kEqGlideMs / 1000.0);
+    return n < 1 ? 1 : n;
 }
 
 /// EQ band biquad (transposed direct form II, one state per channel) running the RBJ coefficients above.
 /// Replaces Superpowered custom-coefficient filters for the EQ bands: with those the owner's phone played
 /// silence. A non-finite state (never expected) resets the band instead of muting the whole chain.
+///
+/// Row 912: coefficients and state in DOUBLE precision. In float a 31 Hz band at 96-192 kHz has 1 - cos(w0) of
+/// about 5e-7, a few float ulps, so its response was visibly wrong; double costs nothing measurable here (a few
+/// multiply-adds per band per sample, scalar double is native on arm64 and on armeabi-v7a VFP). And a new set of
+/// coefficients GLIDES in linearly over kEqGlideMs instead of stepping (a slider drag, a preset change): the
+/// stability region of (a1, a2) is a triangle, which is convex, so every point between two stable filters is stable.
 struct AuraBiquad {
-    float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
-    float z1[2] = {0.0f, 0.0f};
-    float z2[2] = {0.0f, 0.0f};
-    void set(const float c[5]) { b0 = c[0]; b1 = c[1]; b2 = c[2]; a1 = c[3]; a2 = c[4]; }
-    void reset() { z1[0] = z1[1] = z2[0] = z2[1] = 0.0f; }
+    double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;     // coefficients in use
+    double t[5] = {1.0, 0.0, 0.0, 0.0, 0.0};                    // glide target
+    double d[5] = {0.0, 0.0, 0.0, 0.0, 0.0};                    // per-frame step
+    int glideLeft = 0;
+    double z1[2] = {0.0, 0.0};
+    double z2[2] = {0.0, 0.0};
+    /// Jump straight to [c] (used by the measurements and for a band starting from silence-flat state).
+    void set(const double c[5]) {
+        b0 = c[0]; b1 = c[1]; b2 = c[2]; a1 = c[3]; a2 = c[4];
+        for (int k = 0; k < 5; ++k) { t[k] = c[k]; d[k] = 0.0; }
+        glideLeft = 0;
+    }
+    /// Glide from the coefficients in use to [c] over [frames] frames. Same target again: nothing to do.
+    void glideTo(const double c[5], int frames) {
+        bool same = true;
+        for (int k = 0; k < 5; ++k) if (c[k] != t[k]) same = false;
+        if (same) return;
+        const double cur[5] = {b0, b1, b2, a1, a2};
+        for (int k = 0; k < 5; ++k) { t[k] = c[k]; d[k] = (c[k] - cur[k]) / (double) frames; }
+        glideLeft = frames;
+    }
+    bool gliding() const { return glideLeft > 0; }
+    void reset() { z1[0] = z1[1] = z2[0] = z2[1] = 0.0; }
     void process(float* data, int frames, int channels) {
         const int chs = channels < 2 ? channels : 2;
+        const int ramp = glideLeft < frames ? glideLeft : frames;
         for (int ch = 0; ch < chs; ++ch) {
-            float s1 = z1[ch], s2 = z2[ch];
+            double s1 = z1[ch], s2 = z2[ch];
+            double c0 = b0, c1 = b1, c2 = b2, c3 = a1, c4 = a2;
             for (int i = 0; i < frames; ++i) {
+                if (i < ramp) {
+                    c0 += d[0]; c1 += d[1]; c2 += d[2]; c3 += d[3]; c4 += d[4];
+                    if (i == glideLeft - 1) { c0 = t[0]; c1 = t[1]; c2 = t[2]; c3 = t[3]; c4 = t[4]; }
+                }
                 const int idx = i * channels + ch;
-                const float x = data[idx];
-                const float y = b0 * x + s1;
-                s1 = b1 * x - a1 * y + s2;
-                s2 = b2 * x - a2 * y;
-                data[idx] = y;
+                const double x = data[idx];
+                const double y = c0 * x + s1;
+                s1 = c1 * x - c3 * y + s2;
+                s2 = c2 * x - c4 * y;
+                data[idx] = (float) y;
             }
-            if (!std::isfinite(s1) || !std::isfinite(s2)) { s1 = 0.0f; s2 = 0.0f; }
+            if (!std::isfinite(s1) || !std::isfinite(s2)) { s1 = 0.0; s2 = 0.0; }
             z1[ch] = s1;
             z2[ch] = s2;
+        }
+        if (ramp > 0) {
+            if (ramp == glideLeft) {
+                b0 = t[0]; b1 = t[1]; b2 = t[2]; a1 = t[3]; a2 = t[4];
+                glideLeft = 0;
+            } else {
+                b0 += d[0] * ramp; b1 += d[1] * ramp; b2 += d[2] * ramp; a1 += d[3] * ramp; a2 += d[4] * ramp;
+                glideLeft -= ramp;
+            }
         }
     }
 };
@@ -279,7 +327,17 @@ public:
     std::vector<Superpowered::Filter*> filters;
     AuraBiquad eqBiquads[NUM_EQ_FILTERS];
     bool eqBiquadOn[NUM_EQ_FILTERS] = {};
-    Superpowered::Limiter* limiter = nullptr;
+    // Row 912: a band switched off keeps running while it glides to flat, then stops (no step on a preset change).
+    bool eqBiquadRetiring[NUM_EQ_FILTERS] = {};
+    // Row 912: the preamp gain actually applied, gliding to activePreampMultiplier (audio thread only).
+    float preampCurrent = 1.0f;
+    float preampStep = 0.0f;
+    int preampGlideLeft = 0;
+    // Row 911: last stage of the chain, -1 dBTP true-peak lookahead limiter (AuraTruePeakLimiter.h).
+    aura::TruePeakLimiter* truePeakLimiter = nullptr;
+    // Row 911: set by flushProcessor (media3 flush: seek, reconfigure), consumed by the next processAudio block, which
+    // empties the limiter's delay line and the EQ biquads' state so no audio from before the flush is played after it.
+    std::atomic<bool> flushPending{false};
     Superpowered::Filter* deEsser = nullptr;
     Superpowered::Filter* deEsserDetector = nullptr;
 
@@ -335,7 +393,7 @@ public:
     // The most recently APPLIED snapshot values (the audio thread's private working copy).
     float activePreampMultiplier = 1.0f;
     // Optional "Safe Volume" stage (user opt-in): a per-track loudness-normalization gain + the
-    // limiter/soft-clip below, run even when the EQ is off so loud masters are brought toward a
+    // true-peak limiter below, run even when the EQ is off so loud masters are brought toward a
     // reference instead of blasting at full native level.
     bool activeSafeVolumeEnabled = false;
     float activeSafeVolumeGain = 1.0f;
@@ -447,6 +505,12 @@ public:
         const EqSnapshot& s = slots[audioSlot];
 
         // Scalars are cheap and always refreshed.
+        if (s.preampMultiplier != activePreampMultiplier) {
+            // Row 912: a new preamp glides in over kEqGlideMs (processAudio) instead of stepping.
+            const int n = eqGlideFrames(currentSamplerate);
+            preampStep = (s.preampMultiplier - preampCurrent) / (float) n;
+            preampGlideLeft = n;
+        }
         activePreampMultiplier = s.preampMultiplier;
         activeSafeVolumeEnabled = s.safeVolumeEnabled;
         activeSafeVolumeGain = s.safeVolumeGain;
@@ -485,16 +549,27 @@ public:
         if (s.bandsRevision == appliedBandsRevision) return;
         appliedBandsRevision = s.bandsRevision;
 
+        // Row 912: every change GLIDES over kEqGlideMs. A band switched on starts from flat (identity, clean
+        // state) and glides to its curve; a band switched off glides to flat and only then stops running.
+        static const double kIdentity[5] = {1.0, 0.0, 0.0, 0.0, 0.0};
+        const int glide = eqGlideFrames(currentSamplerate);
         for (int i = 0; i < NUM_EQ_FILTERS; ++i) {
             const BandParams& b = s.bands[i];
             if (b.enabled) {
                 // RBJ coefficients — the same formulas the EQ graph draws — into the band's own biquad.
-                float c[5];
+                double c[5];
                 auraRbjCoefficients((double) currentSamplerate, b.frequency, b.decibel, b.q, b.typeCode, c);
-                if (!eqBiquadOn[i]) eqBiquads[i].reset();
-                eqBiquads[i].set(c);
+                if (!eqBiquadOn[i]) {
+                    eqBiquads[i].reset();
+                    eqBiquads[i].set(kIdentity);
+                }
+                eqBiquads[i].glideTo(c, glide);
+                eqBiquadOn[i] = true;
+                eqBiquadRetiring[i] = false;
+            } else if (eqBiquadOn[i]) {
+                eqBiquads[i].glideTo(kIdentity, glide);
+                eqBiquadRetiring[i] = true;
             }
-            eqBiquadOn[i] = b.enabled;
             filters[i]->enabled = false; // the Superpowered filter objects no longer run the EQ bands
         }
     }
@@ -616,14 +691,9 @@ public:
             filters.push_back(filter);
         }
         
-        limiter = new Superpowered::Limiter(samplerate);
-        limiter->ceilingDb = -0.3f; // true-peak safety ceiling (-0.3 dBFS) for Opus/AAC decoded masters
-        // Threshold below the ceiling so the limiter gain-rides EARLIER and rounds peaks smoothly,
-        // instead of the old thresholdDb=0 all-or-nothing catch right at full scale (which forced the
-        // tanh soft-clip to mop up = harshness). -3 dB gives gentler, more transparent limiting.
-        limiter->thresholdDb = -3.0f;
-        limiter->releaseSec = 0.05f; // slightly longer release avoids pumping at the lower threshold
-        limiter->enabled = true;
+        // Row 911: replaces Superpowered's sample-peak Limiter (threshold -3 dB, ceiling -0.3 dBFS) and the tanh
+        // soft clip. Transparent below -1 dBTP (gain exactly 1), and it catches the peaks BETWEEN samples too.
+        truePeakLimiter = new aura::TruePeakLimiter(samplerate);
 
         deEsser = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
         deEsser->frequency = 6500.0f;
@@ -710,7 +780,7 @@ public:
         }
         filters.clear();
         
-        if (limiter) { delete limiter; limiter = nullptr; }
+        if (truePeakLimiter) { delete truePeakLimiter; truePeakLimiter = nullptr; }
         if (deEsser) { delete deEsser; deEsser = nullptr; }
         if (deEsserDetector) { delete deEsserDetector; deEsserDetector = nullptr; }
         if (tidalLowShelf) { delete tidalLowShelf; tidalLowShelf = nullptr; }
@@ -882,8 +952,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setSafeVolume(JNI
     // stayed quiet forever. (The Kotlin side computed the makeup correctly but handed it to a dead stub
     // processor, so nothing applied it either; both halves are fixed together.)
     //
-    // Boosting is safe here because the limiter below runs for Safe Volume too (ceiling -0.3 dBFS,
-    // threshold -3 dB) and catches the resulting peaks — that is the documented design. The ceiling
+    // Boosting is safe here because the true-peak limiter at the end of the chain runs for Safe Volume too
+    // (ceiling -1 dBTP, row 911) and catches the resulting peaks — that is the documented design. The ceiling
     // matches loudnessMakeupDb's +12 dB cap; anything beyond that is a bug upstream, not a louder track.
     // CLAMP, never fall back to unity: an out-of-range value must become a bounded gain, not a sudden jump
     // to 1.0 (that would be an audible level change if the cap upstream ever moves). NaN fails both
@@ -981,7 +1051,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureEqResponse
     for (jsize k = 0; k < nf; ++k) {
         std::vector<AuraBiquad> cascade((size_t) nb);
         for (jsize i = 0; i < nb; ++i) {
-            float c[5];
+            double c[5];
             auraRbjCoefficients((double) sr, bandData[i * 4], bandData[i * 4 + 1], bandData[i * 4 + 2], (int) bandData[i * 4 + 3], c);
             cascade[(size_t) i].set(c);
         }
@@ -1010,7 +1080,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureEqResponse
 }
 
 /// VERIFICATION (headroom): pink noise normalized to -0.1 dBFS peak -> preamp front gain -> EQ cascade ->
-/// limiter (live settings) -> soft knee. Returns {peak in, peak after EQ, peak out} in dBFS.
+/// true-peak limiter + hard clamp (live settings, row 911). Returns {peak in, peak after EQ, TRUE peak out} in dB.
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(JNIEnv *env, jobject thiz, jint samplerate, jfloatArray bands, jfloat preampDb) {
     jfloatArray result = env->NewFloatArray(3);
@@ -1048,15 +1118,12 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(J
 
     std::vector<AuraBiquad> cascade((size_t) nb);
     for (jsize i = 0; i < nb; ++i) {
-        float c[5];
+        double c[5];
         auraRbjCoefficients((double) sr, bandData[i * 4], bandData[i * 4 + 1], bandData[i * 4 + 2], (int) bandData[i * 4 + 3], c);
         cascade[(size_t) i].set(c);
     }
-    auto* limiter = new Superpowered::Limiter(sr);
-    limiter->ceilingDb = -0.3f;
-    limiter->thresholdDb = -3.0f;
-    limiter->releaseSec = 0.05f;
-    limiter->enabled = true;
+    auto* limiter = new aura::TruePeakLimiter(sr);
+    auto* outMeter = new aura::TruePeakMeter();
 
     const float frontGain = (float) std::pow(10.0, preampDb / 20.0); // same as processAudio: no hidden trim
     const int block = 512;
@@ -1071,17 +1138,16 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(J
         }
         for (auto& bq : cascade) bq.process(buf.data(), block, 2);
         for (int i = 0; i < block * 2; ++i) if (pos >= skip && std::abs(buf[(size_t) i]) > peakEq) peakEq = std::abs(buf[(size_t) i]);
-        limiter->process(buf.data(), buf.data(), (unsigned int) block);
+        limiter->process(buf.data(), block, 2);
         for (int i = 0; i < block * 2; ++i) {
-            float x = buf[(size_t) i];
-            const float absX = std::abs(x);
-            if (absX > 0.97f) {
-                const float o = 0.97f + std::tanh(absX - 0.97f) * 0.03f;
-                x = (x > 0) ? o : -o;
-            }
-            if (pos >= skip && std::abs(x) > peakOut) peakOut = std::abs(x);
+            const float x = buf[(size_t) i];
+            if (x > aura::kTpSafetyClamp) buf[(size_t) i] = aura::kTpSafetyClamp;
+            else if (x < -aura::kTpSafetyClamp) buf[(size_t) i] = -aura::kTpSafetyClamp;
         }
+        if (pos >= skip) outMeter->process(buf.data(), block, 2);
     }
+    peakOut = (float) outMeter->peakLinear();
+    delete outMeter;
     delete limiter;
     auto toDb = [](float v) { return v > 0.0f ? (float) (20.0 * std::log10(v)) : -120.0f; };
     float values[3] = {toDb(peakIn), toDb(peakEq), toDb(peakOut)};
@@ -1120,6 +1186,21 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
     // state so a freshly published set takes effect on this very block. No lock is taken here — see
     // the publication contract on SuperpoweredProcessor.
     if (processor) processor->consumeAndApplySnapshot();
+    if (processor && processor->flushPending.load(std::memory_order_relaxed) &&
+        processor->flushPending.exchange(false, std::memory_order_acq_rel)) {
+        if (processor->truePeakLimiter) processor->truePeakLimiter->reset();
+        for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) processor->eqBiquads[bi].reset();
+    }
+    // Row 912: with the equalizer off the bands do not run, so a band gliding to flat is stopped right away
+    // (it would otherwise come back with stale coefficients when the equalizer is switched on again).
+    if (processor && enabled != JNI_TRUE) {
+        for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) {
+            if (processor->eqBiquadRetiring[bi]) {
+                processor->eqBiquadOn[bi] = false;
+                processor->eqBiquadRetiring[bi] = false;
+            }
+        }
+    }
 
     int requiredSize = num_frames * channels;
     if (requiredSize > MAX_BUFFER_SIZE) {
@@ -1155,8 +1236,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
     }
 
     // Run the DSP block if the EQ is on, Safe Volume is on (or still ramping), OR spatial is on.
-    // When ALL of those are off the block is skipped (pure float pass-through) so default playback
-    // stays bit-perfect.
+    // When ALL of those are off the block is skipped (pure float pass-through, only delayed by the
+    // limiter's line: see passThrough below) so default playback stays bit-perfect.
     bool runEq = (enabled == JNI_TRUE);
     // Also run while Safe Volume is ramping BACK to unity after being switched off — otherwise disabling it
     // would skip the chain outright and drop the gain in one step, the very jump the ramp exists to avoid.
@@ -1172,7 +1253,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // and delivers a complete set or nothing at all. Everything read below is either that applied
         // set or audio-thread-private state.
 
-        // FRONT gain = the EQ preamp ONLY. The limiter below (thresholdDb -3) catches its peaks, and a
+        // FRONT gain = the EQ preamp ONLY. The true-peak limiter at the end catches its peaks, and a
         // positive preamp raises the body audibly.
         //
         // Safe Volume is deliberately NOT folded in here — it runs as its own stage AFTER the EQ bands
@@ -1186,7 +1267,18 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // No hidden trim (row 790): the preamp the user sees is the gain applied. It used to be multiplied by
         // 0.7943 (-2 dB), so the house +2.5 dB was really +0.5 dB.
         float frontGain = processor->activePreampMultiplier;
-        if (frontGain != 1.0f) {
+        if (processor->preampGlideLeft > 0) {
+            // Row 912: a preamp change glides in over kEqGlideMs, one step per frame, instead of stepping.
+            float g = processor->preampCurrent;
+            for (int f = 0; f < num_frames; ++f) {
+                if (processor->preampGlideLeft > 0) {
+                    g += processor->preampStep;
+                    if (--processor->preampGlideLeft == 0) g = frontGain;
+                }
+                for (int c = 0; c < channels; ++c) workBuffer[f * channels + c] *= g;
+            }
+            processor->preampCurrent = g;
+        } else if (frontGain != 1.0f) {
             for (int i = 0; i < num_frames * channels; ++i) {
                 workBuffer[i] *= frontGain;
             }
@@ -1195,7 +1287,13 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         if (runEq) {
             // Apply EQ bands (own TDF-II biquads with the graph's RBJ coefficients).
             for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) {
-                if (processor->eqBiquadOn[bi]) processor->eqBiquads[bi].process(workBuffer, num_frames, channels);
+                if (!processor->eqBiquadOn[bi]) continue;
+                processor->eqBiquads[bi].process(workBuffer, num_frames, channels);
+                // Row 912: a switched-off band stops once it has glided to flat.
+                if (processor->eqBiquadRetiring[bi] && !processor->eqBiquads[bi].gliding()) {
+                    processor->eqBiquadOn[bi] = false;
+                    processor->eqBiquadRetiring[bi] = false;
+                }
             }
 
             // Dynamic De-Esser (only with EQ on — it exists to tame EQ-boosted sibilance). Improved
@@ -1240,16 +1338,15 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // Levels in BOTH directions: attenuates loud masters and brings quiet ones up toward the reference,
         // which is what makes a library play at one consistent volume. The makeup side is capped at +12 dB
         // upstream (loudnessMakeupDb maxBoostDb, row 152) and again here by kMaxSafeVolumeGain (x4); the
-        // limiter below rides the resulting peaks with a 0.05 s release.
+        // true-peak limiter at the end catches the resulting peaks (-1 dBTP, ~100 ms release, row 911).
         //
         // Applied through a RAMP, never as a step: the target can change mid-song (the sanctioned
         // real-loudness-arrived upgrade, or the user toggling Safe Volume), and an instantaneous multiplier
         // change is exactly the audible level jump this feature exists to avoid.
         if (processor->activeSafeVolumeEnabled || processor->safeVolumeGainCurrent != 1.0f) {
             float target = processor->activeSafeVolumeEnabled ? processor->activeSafeVolumeGain : 1.0f;
-            // NOT STEREO: never amplify. Written when the limiter was stereo-only; mono now goes through it
-            // as dual-mono (below), but more than two channels still skip it and would have only the 0.97
-            // soft clip (bounded, but it saturates) after a boost. The conservative clamp is kept for both.
+            // NOT STEREO: never amplify. Written when the limiter was stereo-only; the true-peak limiter of row
+            // 911 handles mono and up to 8 channels, but the conservative clamp is kept as it was.
             // ATTENUATION stays allowed (it cannot clip), so a loud mono master is still tamed; only the
             // makeup is withheld. Stereo — what this player is actually used for — gets the full two-way
             // levelling.
@@ -1328,8 +1425,6 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
             }
         }
 
-        // Limiter (peak safety) — runs whenever the chain runs. Stereo directly, mono as dual-mono, more than
-        // two channels not at all (see below); the soft-clip knee after it runs for every channel count.
         // SPEAKER SUB-BASS PROTECTION (user toggle; Kotlin arms it only while the phone speaker plays).
         if (processor->activeSpeakerBassProtect && processor->speakerBassShelf) {
             if (channels == 1) processor->speakerBassShelf->processMono(workBuffer, workBuffer, num_frames);
@@ -1342,43 +1437,28 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
             processor->glueCompressor->process(workBuffer, workBuffer, num_frames);
         }
 
-        if (processor->limiter && processor->limiter->enabled && channels == 2) {
-            processor->limiter->process(workBuffer, workBuffer, num_frames);
-        } else if (processor->limiter && processor->limiter->enabled && channels == 1) {
-            // MONO LIMITING (2026-09-13): the SDK limiter is stereo-only, so mono tracks used to reach the
-            // output with nothing but the tanh knee below. Run the mono signal as a dual-mono pair through
-            // the same limiter (deEsserBuffer is free scratch at this point) and take one channel back.
-            // Row 790: in slices of MAX_BUFFER_SIZE / 2 frames, so a mono block longer than the scratch's
-            // 16384 dual-mono frames is limited too instead of skipping the limiter. Slices run in order
-            // through the same instance, like consecutive blocks.
-            float* scratch = processor->deEsserBuffer;
-            const int maxSliceFrames = MAX_BUFFER_SIZE / 2;
-            for (int off = 0; off < num_frames; off += maxSliceFrames) {
-                const int n = (num_frames - off < maxSliceFrames) ? (num_frames - off) : maxSliceFrames;
-                for (int i = 0; i < n; ++i) {
-                    scratch[i * 2] = workBuffer[off + i];
-                    scratch[i * 2 + 1] = workBuffer[off + i];
-                }
-                processor->limiter->process(scratch, scratch, (unsigned int) n);
-                for (int i = 0; i < n; ++i) {
-                    workBuffer[off + i] = scratch[i * 2];
-                }
+        // TRUE-PEAK LIMITER (row 911) — runs whenever the chain runs; never in Modo Fidelidad, where the chain is off.
+        // 4x reconstruction of the peaks between samples, -1 dBTP ceiling, ~1.5 ms lookahead, ~100 ms release, every
+        // channel linked. It handles mono and up to 8 channels in place, so the dual-mono slicing and the ">2
+        // channels skip the limiter" gap of Superpowered's stereo-only limiter (row 790) are gone. Below the ceiling
+        // the gain is exactly 1: the audio is only delayed (AuraTruePeakLimiter::latencyFrames, under 2 ms at 48 kHz).
+        if (processor->truePeakLimiter) {
+            processor->truePeakLimiter->process(workBuffer, num_frames, channels);
+        }
+        // Last-resort HARD clamp at -0.1 dBFS, replacing the tanh soft clip: the limiter's output already sits at or
+        // below -1 dBTP, so this only acts on more than 8 channels or on a numerical accident.
+        {
+            const float kClamp = aura::kTpSafetyClamp;
+            for (int i = 0; i < num_frames * channels; ++i) {
+                const float x = workBuffer[i];
+                if (x > kClamp) workBuffer[i] = kClamp;
+                else if (x < -kClamp) workBuffer[i] = -kClamp;
             }
         }
-        // MORE THAN TWO CHANNELS (e.g. a 5.1 file) skip the limiter: one stereo instance cannot carry a
-        // multichannel envelope. They end on the soft clip below alone, which stays under full scale (no
-        // hard clip) but saturates loud peaks instead of limiting them.
-
-        // Soft-clip final safety net (rarely fires now that the limiter threshold is -3 dB).
-        for (int i = 0; i < num_frames * channels; ++i) {
-            float x = workBuffer[i];
-            float absX = std::abs(x);
-            // Knee sits ABOVE the limiter ceiling (0.966 = -0.3 dBFS) so it never shapes limited audio.
-            if (absX > 0.97f) {
-                float out = 0.97f + std::tanh(absX - 0.97f) * 0.03f;
-                workBuffer[i] = (x > 0) ? out : -out;
-            }
-        }
+    } else if (workBuffer && processor && processor->truePeakLimiter) {
+        // Row 911: chain off — the audio still goes through the limiter's delay line (a bit-exact delayed copy once the
+        // chain's last frames are out), so switching the chain on or off mid-song neither drops nor skips samples.
+        processor->truePeakLimiter->passThrough(workBuffer, num_frames, channels);
     }
 
     if (encoding != 4 && workBuffer) {
@@ -1417,6 +1497,16 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         int bytesPerSample = (encoding == 4) ? 4 : 2;
         memcpy(output, input, num_frames * channels * bytesPerSample);
     }
+#endif
+}
+
+/// Row 911: media3 flushed the processor (seek, reconfigure). Only raises a flag: the audio thread empties the limiter's
+/// delay line and the EQ state at the start of its next block. Never frees or replaces the processor.
+extern "C" JNIEXPORT void JNICALL
+Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_flushProcessor(JNIEnv *env, jobject thiz, jlong ptr) {
+#if HAS_SUPERPOWERED
+    auto* processor = reinterpret_cast<SuperpoweredProcessor*>(ptr);
+    if (processor) processor->flushPending.store(true, std::memory_order_release);
 #endif
 }
 

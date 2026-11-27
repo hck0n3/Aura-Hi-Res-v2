@@ -6,6 +6,22 @@ import kotlin.math.sin
 
 object CrossfadeMath {
 
+    /** -1 dBTP: the most one player puts out while its Superpowered chain (and so its true-peak limiter) runs. */
+    const val LIMITED_PEAK_LINEAR = 0.8912509f
+
+    /**
+     * Row 912: the gain BOTH players get while they overlap, so their sum can never pass 0 dBFS. Each player peaks at
+     * most at [peakLinear], so the sum peaks at most at `(fadeIn + fadeOut) * peakLinear`; this brings that back to 1.0.
+     * It is exactly 1 whenever the sum already fits — both ends of every fade, and the whole of every curve whose gains
+     * add up to 1 or less — so it never steps. On the equal-power curves it dips by at most 2 dB at mid-blend behind the
+     * limiter (3 dB without it), only for the instants the two gains together pass that limit. The curves themselves
+     * ([getGains]) are untouched.
+     */
+    fun overlapHeadroom(fadeIn: Float, fadeOut: Float, peakLinear: Float): Float {
+        val worst = (fadeIn + fadeOut) * peakLinear
+        return if (worst > 1f) 1f / worst else 1f
+    }
+
     /**
      * Gain pair (incoming, outgoing) for crossfade progress [p] in 0..1, per the selected style.
      *  0 = Linear: straight amplitude ramp (1 - p); amplitude sum never exceeds 1.0.
