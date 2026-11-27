@@ -119,6 +119,43 @@ class LocalFollowCleanupGuardTest {
     }
 
     @Test
+    fun `the Spanish plurals carry the many form lint requires`() {
+        val es = src("app/src/main/res/values-es/subscription_cleanup_strings.xml")
+        listOf("sub_cleanup_local_title", "sub_cleanup_local_remove_n", "sub_cleanup_local_confirm_title", "sub_cleanup_local_removed").forEach { name ->
+            val body = es.substringAfter("<plurals name=\"$name\">").substringBefore("</plurals>")
+            assertTrue("$name has no many", body.contains("<item quantity=\"many\">"))
+        }
+    }
+
+    @Test
+    fun `only the preview dialog starts a local removal, and only the selection reaches it`() {
+        val screen = src(screenPath)
+        assertEquals(1, Regex("""localViewModel\.removeChosen\(\)""").findAll(screen).count())
+        assertTrue(screen.contains("localPreview = false\n                        localViewModel.removeChosen()"))
+        val vm = src(vmPath)
+        assertTrue(vm.contains("val plan = LocalFollowCleanupPolicy.plan(s.candidates, s.selected)"))
+        assertTrue(vm.contains("init {\n        load()\n    }"))
+        val callers = File(root, "app/src/main/kotlin").walkTopDown()
+            .filter { it.extension == "kt" && it.readText().contains("removeChosen()") }
+            .map { it.name }.toSet()
+        assertEquals(setOf("LocalFollowCleanupViewModel.kt", "SubscriptionCleanupScreen.kt"), callers)
+        val removers = File(root, "app/src/main/kotlin").walkTopDown()
+            .filter { it.extension == "kt" && it.readText().contains("cleanup.remove(") }
+            .map { it.name }.toSet()
+        assertEquals(setOf("LocalFollowCleanupViewModel.kt"), removers)
+    }
+
+    @Test
+    fun `both confirmations show the names before anything is removed`() {
+        val screen = src(screenPath)
+        assertTrue(screen.contains("CleanupPreview(stringResource(R.string.sub_cleanup_confirm_message), stringResource(R.string.sub_cleanup_confirm_list), names)"))
+        assertTrue(screen.contains("stringResource(R.string.sub_cleanup_local_confirm_message),"))
+        assertTrue(screen.contains("plan.map { it.name },"))
+        // The account batch still starts only from its own dialog (row 813).
+        assertTrue(screen.contains("confirmCount = 0\n                    viewModel.removeSelected()"))
+    }
+
+    @Test
     fun `logs carry counts only`() {
         listOf(cleanupPath, vmPath).forEach { path ->
             val lines = Regex("""Timber\.\w\([^\n]*(\n[^\n]*){0,3}""").findAll(src(path)).map { it.value }.toList()
