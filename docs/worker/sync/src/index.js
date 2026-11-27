@@ -308,7 +308,10 @@ export class SyncRoom {
   /** Row 901: remembers up to where device [id] has pulled. True when that moved (or an hour passed): a cleanup may follow. */
   async noteDevice(id, since, now) {
     const key = "ld:" + id;
-    const seen = await this.ctx.storage.get(key);
+    const got = await this.ctx.storage.get([key, "libpruneSince"]);
+    const seen = got.get(key);
+    // The first note of this room starts the wait of [libPrune]: a device paired before this Worker has no `ld:` yet.
+    if (!got.get("libpruneSince")) await this.ctx.storage.put("libpruneSince", now);
     if (seen && seen.since === since && now - (seen.at || 0) < DEVICE_NOTE_EVERY_MS) return false;
     await this.ctx.storage.put(key, { since, at: now });
     return true;
@@ -324,6 +327,10 @@ export class SyncRoom {
    */
   async libPrune(now) {
     const storage = this.ctx.storage;
+    // A device that pulled before the room started noting devices has no `ld:` and would not hold the floor: nothing is forgotten
+    // until a whole retention window has passed since the first note, so every device seen in that window has said where it is.
+    const noting = (await storage.get("libpruneSince")) || 0;
+    if (!noting || now - noting < PRUNE_DEVICE_RETENTION_MS) return 0;
     if (now - ((await storage.get("libprunedAt")) || 0) < PRUNE_EVERY_MS) return 0;
     let floor = Infinity;
     const gone = [];

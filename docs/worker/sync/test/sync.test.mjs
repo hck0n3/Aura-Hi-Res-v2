@@ -394,7 +394,7 @@ test("library: an app that sends three-element ops (an older version) is served 
 // ── row 901: the room forgets the removals every device has pulled past ──────────────────────────────────────────────────────
 
 const oldTs = 1000; // a removal from 1970: far older than the 30 days the cleanup waits
-test("cleanup: a removal goes only once EVERY device pulled past it; additions, names and young removals stay", async () => {
+test("cleanup: nothing is forgotten while one device is behind, nor in the first retention window after the deploy", async () => {
   const g = createHash("sha256").update("library-prune").digest("hex");
   const a = await connect(g, phone);
   const b = await connect(g, tablet);
@@ -423,16 +423,13 @@ test("cleanup: a removal goes only once EVERY device pulled past it; additions, 
   assert.equal((await pull(a, 0)).items.length, 6, "nothing forgotten while one device is behind");
   await pull(a, head);
   await pull(b, head); // now both have pulled past every entry
-  // An app joining now (an older version included) gets [key, ts, value] and the live library, without the old removals.
+  // The room started noting devices just now: a device paired earlier may not have said where it is yet, so nothing goes before a
+  // whole retention window has passed (the forgetting itself, with the clock moved, is in the tests below).
   const fresh = await connect(g, { id: "old-app-0001", name: "Old", kind: "phone" });
   await fresh.next((m) => m.t === "hello_ok");
   const all = await pull(fresh, 0);
-  assert.ok(all.items.every((i) => i.length === 3));
-  assert.deepEqual(
-    all.items.map((i) => i[0]).sort(),
-    ["lk:keep", "lk:young", "pl:LPabc"],
-    "old removals (and the position of the song a list lost) are forgotten",
-  );
+  assert.ok(all.items.every((i) => i.length === 3), "an older app still gets [key, ts, value]");
+  assert.equal(all.items.length, 6, "nothing forgotten in the first 180 days the room notes devices");
   a.ws.close();
   b.ws.close();
   fresh.ws.close();
@@ -459,10 +456,65 @@ function memoryRoom() {
   return { room, data, ws, sent };
 }
 
+/** [fn] with the Worker's clock at [t] (libPull reads Date.now()). */
+async function atTime(t, fn) {
+  const real = Date.now;
+  Date.now = () => t;
+  try {
+    return await fn();
+  } finally {
+    Date.now = real;
+  }
+}
+
+test("cleanup: a removal goes only once EVERY device pulled past it, with the position of the song a list lost", async () => {
+  const day = 24 * 3600_000;
+  const t0 = Date.UTC(2026, 10, 27);
+  const { room, data, ws, sent } = memoryRoom();
+  const pull = (id, since, t) => atTime(t, () => room.libPull(ws, { since }, { id })).then(() => sent.at(-1));
+  await room.libPush(ws, {
+    ops: [
+      ["lk:gone", oldTs, "0"],
+      ["pm:LPabc:s1", oldTs, "0"],
+      ["po:LPabc:s1", oldTs, "a01"],
+      ["lk:keep", oldTs, "1"],
+      ["pl:LPabc", oldTs, '{"n":"Gym"}'],
+    ],
+  });
+  const head = data.get("libseq");
+  await pull("phone-0001", head, t0);
+  await pull("tablet-0001", 0, t0 + 100 * day);
+  await pull("phone-0001", head, t0 + 181 * day);
+  assert.equal(data.has("k:lk:gone"), true, "the tablet has not pulled past it yet");
+  await pull("tablet-0001", head, t0 + 182 * day);
+  const all = await pull("new-app-0001", 0, t0 + 182 * day);
+  assert.deepEqual(all.items.map((i) => i[0]).sort(), ["lk:keep", "pl:LPabc"], "old removals (and the lost song's position) are forgotten");
+});
+
+test("cleanup: a device paired before the room noted devices is waited for a whole retention window", async () => {
+  const day = 24 * 3600_000;
+  const t0 = Date.UTC(2026, 10, 27); // the day this Worker is deployed
+  const { room, data, ws, sent } = memoryRoom();
+  const pull = (id, since, t) => atTime(t, () => room.libPull(ws, { since }, { id })).then(() => sent.at(-1));
+  // The tablet last pulled from the previous Worker 60 days before t0 (so it has no `ld:`); since then the phone removed a song.
+  await room.libPush(ws, { ops: [["lk:x", t0 - 40 * day, "0"]] });
+  const head = data.get("libseq");
+  await pull("phone-0001", head, t0);
+  assert.equal(data.has("k:lk:x"), true, "the first pull after the deploy forgets nothing");
+  await pull("phone-0001", head, t0 + 100 * day);
+  assert.equal(data.has("k:lk:x"), true, "nor any pull inside the window");
+  const back = await pull("tablet-0001", 0, t0 + 110 * day); // back after 170 days: within the 180 promised
+  assert.deepEqual(back.items.map((i) => i[0]), ["lk:x"], "the tablet still learns the removal");
+  await pull("tablet-0001", head, t0 + 110 * day);
+  await pull("phone-0001", head, t0 + 181 * day);
+  assert.equal(data.has("k:lk:x"), false, "once every device pulled past it and the window passed, it goes");
+});
+
 test("cleanup: a device not seen for 180 days no longer holds it back, a removal younger than 30 days is kept, and it runs at most every 12 h", async () => {
   const day = 24 * 3600_000;
   const now = Date.UTC(2026, 10, 27);
   const { room, data, ws } = memoryRoom();
+  data.set("libpruneSince", now - 200 * day); // the room has noted devices for longer than a retention window
   await room.libPush(ws, { ops: [["lk:old", now - 60 * day, "0"], ["lk:recent", now - 5 * day, "0"], ["lk:after", now - 60 * day, "0"]] });
   await room.noteDevice("phone-0001", 3, now);
   await room.noteDevice("lost-0001", 0, now - 200 * day); // paired once, never back
@@ -479,6 +531,7 @@ test("cleanup: a device not seen for 180 days no longer holds it back, a removal
 test("cleanup: a device that is still behind holds everything after its place", async () => {
   const now = Date.UTC(2026, 10, 27);
   const { room, data, ws } = memoryRoom();
+  data.set("libpruneSince", now - 200 * 24 * 3600_000);
   await room.libPush(ws, { ops: [["lk:a", 1000, "0"], ["lk:b", 1000, "0"]] });
   await room.noteDevice("phone-0001", 2, now);
   await room.noteDevice("tablet-0001", 1, now);
