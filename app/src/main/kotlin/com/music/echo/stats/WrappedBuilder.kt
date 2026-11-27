@@ -50,7 +50,10 @@ object WrappedBuilder {
         data class Ready(val cards: List<Card>) : Story
     }
 
-    fun hasEnough(summary: ListeningStats.Summary): Boolean = summary.plays >= MIN_PLAYS && summary.minutes >= MIN_MINUTES
+    fun hasEnough(summary: ListeningStats.Summary): Boolean = hasEnough(summary.plays, summary.minutes)
+
+    /** The same floor from two plain numbers: Inicio offers the card only when the screen would show the summary. */
+    fun hasEnough(plays: Int, minutes: Long): Boolean = plays >= MIN_PLAYS && minutes >= MIN_MINUTES
 
     fun build(summary: ListeningStats.Summary): Story {
         if (!hasEnough(summary)) return Story.TooLittle(summary.plays, summary.minutes)

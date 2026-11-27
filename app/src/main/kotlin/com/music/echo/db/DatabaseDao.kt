@@ -637,6 +637,10 @@ interface DatabaseDao {
     @Query("SELECT COUNT(*) FROM event WHERE timestamp >= :fromTimeStamp AND timestamp < :toTimeStamp")
     suspend fun statsPlayCountInRange(fromTimeStamp: Long, toTimeStamp: Long): Int
 
+    /** Row 910: the listening time of a period in ms, negatives as 0 (what `ListeningStats` adds), for the same Inicio check. */
+    @Query("SELECT COALESCE(SUM(MAX(playTime, 0)), 0) FROM event WHERE timestamp >= :fromTimeStamp AND timestamp < :toTimeStamp")
+    suspend fun statsPlayTimeInRange(fromTimeStamp: Long, toTimeStamp: Long): Long
+
     /** Every day with a listen, ever, as epoch days of the stored (local wall-clock) time: «Racha actual» is not cut by the chips. */
     @Query("SELECT DISTINCT timestamp / 86400000 FROM event")
     suspend fun statsListeningEpochDays(): List<Long>

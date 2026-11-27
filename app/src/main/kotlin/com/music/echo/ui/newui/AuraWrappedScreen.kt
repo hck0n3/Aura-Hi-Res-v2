@@ -507,9 +507,9 @@ private fun auraPersonalityDescription(p: WrappedBuilder.Personality): Int = whe
 
 /**
  * The «Tu año en Aura» card of Inicio: only in December and the first days of January ([WrappedBuilder.homeCardYear]),
- * only when that year has enough listens for a summary, and gone for that year once the user hides it (the year is
- * kept in [WrappedHomeDismissedYearKey]; next December it comes back). One COUNT on the local database when Inicio
- * opens in those weeks; nothing at all the rest of the year.
+ * only when that year has enough listens for a summary (the screen's own [WrappedBuilder.hasEnough]), and gone for that
+ * year once the user hides it (the year is kept in [WrappedHomeDismissedYearKey]; next December it comes back). One
+ * COUNT and one SUM on the local database when Inicio opens in those weeks; nothing at all the rest of the year.
  */
 @Composable
 internal fun AuraWrappedHomeCard(navController: NavController, modifier: Modifier = Modifier) {
@@ -517,13 +517,17 @@ internal fun AuraWrappedHomeCard(navController: NavController, modifier: Modifie
     val today = remember { LocalDate.now() }
     val year = WrappedBuilder.homeCardYear(today, dismissedYear.takeIf { it != 0 }) ?: return
     val database = LocalDatabase.current
-    val plays by produceState<Int?>(initialValue = null, year) {
+    val enough by produceState(initialValue = false, year) {
         val range = ListeningStats.year(year)
         value = withContext(Dispatchers.IO) {
-            runCatching { database.statsPlayCountInRange(range.startStored, range.endStored) }.getOrNull()
+            runCatching {
+                val plays = database.statsPlayCountInRange(range.startStored, range.endStored)
+                plays >= WrappedBuilder.MIN_PLAYS &&
+                    WrappedBuilder.hasEnough(plays, database.statsPlayTimeInRange(range.startStored, range.endStored) / 60_000L)
+            }.getOrDefault(false)
         }
     }
-    if ((plays ?: 0) < WrappedBuilder.MIN_PLAYS) return
+    if (!enough) return
     val isTvOrCar = rememberIsTvOrCar()
     val yearText = WrappedBuilder.yearArg(year)
     val title = stringResource(R.string.wrapped_home_title, yearText)

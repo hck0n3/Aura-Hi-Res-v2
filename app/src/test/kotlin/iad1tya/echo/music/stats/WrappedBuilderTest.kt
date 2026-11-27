@@ -88,6 +88,21 @@ class WrappedBuilderTest {
     }
 
     @Test
+    fun `Inicio offers the card only when the screen would show the summary`() {
+        assertFalse("25 synced listens with 12 minutes are too little", WrappedBuilder.hasEnough(plays = 25, minutes = 12))
+        assertFalse(WrappedBuilder.hasEnough(plays = 9, minutes = 600))
+        assertTrue(WrappedBuilder.hasEnough(plays = 10, minutes = 30))
+        val short = summary(plays(12, 1))
+        assertEquals(WrappedBuilder.hasEnough(short), WrappedBuilder.hasEnough(short.plays, short.minutes))
+        val card = main("ui/newui/AuraWrappedScreen.kt").substringAfter("internal fun AuraWrappedHomeCard(")
+            .substringBefore("internal fun AuraStatsWrappedEntries(")
+        assertTrue(card.contains("WrappedBuilder.hasEnough(plays, database.statsPlayTimeInRange(range.startStored, range.endStored) / 60_000L)"))
+        assertTrue(card.contains("if (!enough) return"))
+        val dao = main("db/DatabaseDao.kt")
+        assertTrue(dao.contains("@Query(\"SELECT COALESCE(SUM(MAX(playTime, 0)), 0) FROM event WHERE timestamp >= :fromTimeStamp AND timestamp < :toTimeStamp\")\n    suspend fun statsPlayTimeInRange("))
+    }
+
+    @Test
     fun `the route argument names a year or a month and nothing else`() {
         assertEquals("2026", WrappedBuilder.yearArg(2026))
         assertEquals("2026-03", WrappedBuilder.monthArg(YearMonth.of(2026, 3)))
