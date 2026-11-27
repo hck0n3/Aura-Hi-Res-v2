@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/rooms.test.mjs",
+    "test": "node --test test/rooms.test.mjs test/tvlink.test.mjs",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

@@ -181,6 +181,8 @@ Todas en `app/src/main/kotlin/com/music/echo/ui/screens/NavigationBuilder.kt`.
 | 30 | `settings/update` | `UpdateSettings` | `:336` | sí |
 | 31 | `settings/accounts` | `AccountsScreen` | `:342` | sí |
 | 31b | `settings/accounts/subscription_cleanup` | `SubscriptionCleanupScreen` (fila 813) | NavigationBuilder | sí (Ajustes ▸ Cuentas, con sesión iniciada) |
+| 31c | `settings/accounts/tv_link_receive` | `TvLinkReceiveScreen` (fila 907) | NavigationBuilder | sí (Ajustes ▸ Cuentas ▸ «Iniciar sesión con el móvil», en la TV o sin sesión) |
+| 31d | `settings/accounts/tv_link_send?code={code}` | `TvLinkSendScreen` (fila 907) | NavigationBuilder | sí (Ajustes ▸ Cuentas ▸ «Iniciar sesión en la TV», con sesión; y el QR `echomusic://tvlogin?c=…` leído con la cámara) |
 | 32 | `settings/lastfm` | `LastFMSettingsScreen` | `:346` | sí |
 | **[RETIRADO: `QobuzSettingsScreen` y la ruta `settings/qobuz` se borraron]** 33 | `settings/qobuz` | `QobuzSettingsScreen` | `:350` | sí |
 | 34 | `settings/appearance` | `AppearanceSettings` | `:354` | sí |
@@ -3135,6 +3137,11 @@ Pantalla con dos sub-vistas (`BackupSubScreen.MAIN` / `BackupSubScreen.IMPORT`) 
 |---|---|---|---|---|---|
 | Copia de seguridad local (hardcoded) — desc. «Crea una copia de seguridad ZIP manual de tus datos» (hardcoded) | Ajustes > Copias de seguridad | BackupAndRestore.kt:220 | acción primaria (abre selector SAF) | rara | solo en `BackupSubScreen.MAIN` |
 | Migración selectiva (Aura) (hardcoded) — desc. «Elige qué playlists migrar, y/o todos los artistas y todos los presets de EQ» (hardcoded) | Ajustes > Copias de seguridad | BackupAndRestore.kt:233 | acción primaria | rara | solo en MAIN |
+| **Copia automática** + interruptor — desc. «Guarda la misma copia que «Copia de seguridad local» en una carpeta que elijas, cada día o cada semana, y conserva las 5 últimas. Sin tu sesión de Google, cookies ni licencia.» (apagada) / «Activada: la primera copia se hace en cuanto la batería y el espacio lo permitan» / «Última copia: fecha» / «La última copia no se pudo guardar: vuelve a elegir la carpeta» (NUEVA, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt (grupo tras «Migración selectiva») | conmutador | rara | solo en MAIN; **apagada por defecto**; encenderla sin carpeta abre antes el selector de carpeta (SAF) |
+| **Frecuencia** — «Cada día» / «Cada semana» (toque alterna; semanal por defecto) (NUEVA, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt | conmutador | rara | solo en MAIN |
+| **Carpeta** — nombre de la carpeta o «Elige una carpeta» (abre el selector de carpetas del sistema) (NUEVA, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt | acción primaria | rara | solo en MAIN |
+| Aviso (toast) «Este dispositivo no tiene selector de carpetas» (NUEVO, fila 908; el mismo texto de Almacenamiento) | Ajustes > Copias de seguridad | BackupAndRestore.kt (`pickAutoBackupFolder`) | informativo | rara | al tocar «Copia automática» sin carpeta o «Carpeta» en un aparato sin selector (algunas TV, Android Go); la copia automática sigue apagada |
+| Texto «Para restaurar una: Importar ▸ Importar desde archivo local, y elige un archivo Aura_auto.» (NUEVO, fila 908) | Ajustes > Copias de seguridad | BackupAndRestore.kt | informativo | — | solo en MAIN |
 | Importar (hardcoded) — desc. «Restaura datos desde copias de seguridad u otras fuentes» (hardcoded) | Ajustes > Copias de seguridad | BackupAndRestore.kt:245 | navegación (a la sub-vista Import) | rara | solo en MAIN |
 
 ### Sub-vista «Import» / grupo «Import Data» (hardcoded, sin traducir)
@@ -3163,6 +3170,8 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/AccountsScreen.
 | Fila Cuenta de Google (nombre de la cuenta o «Cuenta»; sin sesión, «Inicia sesión con tu cuenta de Google») — grupo «Cuenta de Google» (hardcoded; fila 815) | Ajustes > Cuentas | AccountsScreen.kt:156 | navegación | ocasional | tocar la fila navega a `settings/ytm_sync` solo si `ytLoggedIn` |
 | Finalizar sesión / Cuenta (botón YouTube) | Ajustes > Cuentas | AccountsScreen.kt:188 | destructiva / acción primaria | rara | «Finalizar sesión» si `ytLoggedIn`, si no «Cuenta» (login) |
 | Revisar suscripciones — desc. «Encuentra y quita las suscripciones de YouTube que probablemente no hiciste tú» — grupo «YouTube Music» (NUEVA, fila 813) | Ajustes > Cuentas | AccountsScreen.kt:203-209 | navegación (`settings/accounts/subscription_cleanup`) | rara | solo si `ytLoggedIn` |
+| **Iniciar sesión con el móvil** — desc. «Muestra un código QR: tu móvil te envía su sesión, sin escribir la contraseña en la TV» — grupo «Cuenta de Google» (NUEVA, fila 907) | Ajustes > Cuentas | AccountsScreen.kt (tras «Revisar suscripciones») | navegación (`settings/accounts/tv_link_receive`) | rara | sin sesión iniciada, o en la forma TV (`rememberIsTvShell`, fila 895) |
+| **Iniciar sesión en la TV** — desc. «Envía la sesión de este móvil a una TV que muestre un código de Aura» — grupo «Cuenta de Google» (NUEVA, fila 907) | Ajustes > Cuentas | AccountsScreen.kt (tras la anterior) | navegación (`settings/accounts/tv_link_send`) | rara | solo si `ytLoggedIn` |
 | Fila Spotify — grupo «Spotify» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:215 | navegación | ocasional | siempre |
 | Conectar / Finalizar sesión (botón Spotify) | Ajustes > Cuentas | AccountsScreen.kt:243 | acción primaria / destructiva | rara | según estado de sesión |
 | Fila Last.fm — grupo «Last.fm» (hardcoded) | Ajustes > Cuentas | AccountsScreen.kt:269 | navegación | ocasional | siempre |
@@ -3207,6 +3216,37 @@ Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/SubscriptionCle
 | Diálogo «¿Quitar N suscripciones?» — «Se quitan de tu cuenta de YouTube una a una. Solo las que seleccionaste.» + **Quitar** / **Cancelar** | Diálogo: Revisar suscripciones | SubscriptionCleanupScreen.kt:309-327 | destructiva / acción secundaria | rara | solo tras tocar «Quitar N suscripciones» |
 | Notificación «Revisar suscripciones» — «Quitando suscripciones: X de N» / «Deteniendo…» con barra (NUEVA, fila 838; canal silencioso «Sincronización de biblioteca») + acción **Detener** (fila 839; igual que el «Detener» de la pantalla) | Barra de notificaciones | `utils/SubscriptionCleanupWorker.kt` (`foregroundInfo`) | informativo / acción secundaria | rara | solo mientras se quitan (trabajo en primer plano que termina con la tanda); **Detener** oculto mientras se detiene |
 
+
+## 18.16b2 Ajustes > Cuentas > Iniciar sesión con el móvil — `settings/accounts/tv_link_receive` (NUEVA, fila 907)
+
+Archivo: `app/src/main/kotlin/com/music/echo/ui/screens/settings/TvLinkScreens.kt` (`TvLinkReceiveScreen`). Pensada para la TV: un código de un solo uso (25 letras) en QR y en texto; espera la sesión del móvil por UN socket mientras la pantalla está abierta y la importa con el mismo `completeLogin` del inicio de sesión normal.
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Atrás (tap) | Iniciar sesión con el móvil | TvLinkScreens.kt (`TvLinkScaffold`) | navegación | constante | siempre |
+| Texto «En tu móvil, con la sesión iniciada en Aura, escanea este QR con la cámara. O abre Ajustes ▸ Cuentas ▸ Iniciar sesión en la TV y escribe el código.» | Iniciar sesión con el móvil | TvLinkScreens.kt | informativo | — | siempre |
+| QR (`echomusic://tvlogin?c=…`) y el código en texto `ABCDE-FGHJK-…` | Iniciar sesión con el móvil | TvLinkScreens.kt | informativo | — | siempre |
+| Estado: «Conectando…» / «Esperando a tu móvil…» / «Sesión recibida de «X». Iniciando sesión…» / «El código caducó.» / «Este código ya se usó.» / «Se perdió la conexión.» / «No se pudo comprobar la sesión…» | Iniciar sesión con el móvil | TvLinkScreens.kt | informativo | — | según el estado |
+| **Reconectar** | Iniciar sesión con el móvil | TvLinkScreens.kt | acción primaria | rara | solo si se perdió la conexión (mismo código) |
+| **Código nuevo** | Iniciar sesión con el móvil | TvLinkScreens.kt | acción secundaria | rara | código caducado, ya usado, inválido, sesión que no se pudo comprobar o conexión perdida |
+| Texto «El código sirve una sola vez y caduca en 2 minutos. Solo esta TV puede abrir lo que envía tu móvil…» | Iniciar sesión con el móvil | TvLinkScreens.kt | informativo | — | siempre |
+| Aviso (toast) «Sesión iniciada con la de «X»» y vuelve a Cuentas (solo si esta pantalla sigue delante: si el usuario ya salió, no se cierra otra) | Iniciar sesión con el móvil | TvLinkScreens.kt | informativo | rara | al validarse la sesión |
+
+## 18.16b3 Ajustes > Cuentas > Iniciar sesión en la TV — `settings/accounts/tv_link_send?code={code}` (NUEVA, fila 907)
+
+Archivo: `TvLinkScreens.kt` (`TvLinkSendScreen`). El móvil escribe el código (o llega del QR leído con la cámara: `MainActivity` solo abre esta pantalla con el código puesto) y antes de enviar nada enseña qué aparato lo pide.
+
+| Nombre (ES) | Dónde | archivo:línea | Tipo | Frecuencia | Condicional |
+|---|---|---|---|---|---|
+| Atrás (tap) | Iniciar sesión en la TV | TvLinkScreens.kt (`TvLinkScaffold`) | navegación | constante | siempre |
+| «Inicia sesión con tu cuenta de Google» + **Iniciar sesión** (abre `login`) | Iniciar sesión en la TV | TvLinkScreens.kt | acción primaria | rara | sin sesión en este móvil |
+| Texto «En la TV, abre Ajustes ▸ Cuentas ▸ Iniciar sesión con el móvil; luego escanea su QR…» | Iniciar sesión en la TV | TvLinkScreens.kt | informativo | — | con sesión |
+| Campo «Código que muestra la TV» (guiones solos cada cinco letras) | Iniciar sesión en la TV | TvLinkScreens.kt | campo de texto | rara | con sesión |
+| **Continuar** / «Comprobando el código…» | Iniciar sesión en la TV | TvLinkScreens.kt | acción primaria | rara | con un código completo; al abrir desde el QR se comprueba solo |
+| ««X» quiere iniciar sesión con tu cuenta de Google. Envía la sesión solo si ese aparato es tuyo y lo tienes delante.» + **Enviar sesión** / **Cancelar** | Iniciar sesión en la TV | TvLinkScreens.kt | acción primaria / secundaria | rara | tras comprobar el código; es el ÚNICO sitio que envía la sesión |
+| «Sesión enviada a «X».» / «Sesión lista para «X»: la TV la recibe en cuanto se reconecte…» | Iniciar sesión en la TV | TvLinkScreens.kt | informativo | rara | tras enviar |
+| Errores en rojo: «Ninguna TV espera con ese código…» / «Ese código no coincide con el de la TV.» / «Ese código ya se usó…» / «No se pudo conectar con el servidor de Aura…» + **Continuar** (reintenta) | Iniciar sesión en la TV | TvLinkScreens.kt | informativo / acción primaria | rara | si falla |
+| Aviso (toast) «Ese QR no es un código de TV válido» | Fuera de la app → Aura | `MainActivity.kt` (rama `tvlogin`) | informativo | rara | QR `echomusic://tvlogin` con un código incompleto |
 
 ## 18.16c Ajustes ▸ Cuentas y sincronización ▸ Nube (OneDrive y Dropbox) — `settings/cloud` (NUEVA, fila 890)
 

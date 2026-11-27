@@ -88,6 +88,8 @@ fun AccountsScreen(
     val ytImageUrl by homeViewModel.accountImageUrl.collectAsState()
     val homeAccountName by homeViewModel.accountName.collectAsState()
 
+    val isTvShell = iad1tya.echo.music.ui.utils.rememberIsTvShell()
+
     val ytDisplayName = ytNamePref.ifBlank { homeAccountName }
     val ytSecondary = ytHandle.ifBlank { ytEmail }
 
@@ -210,6 +212,28 @@ fun AccountsScreen(
                             title = { Text(stringResource(R.string.sub_cleanup_title)) },
                             description = { Text(stringResource(R.string.sub_cleanup_desc)) },
                             onClick = { navController.navigate("settings/accounts/subscription_cleanup") },
+                        )
+                    } else {
+                        null
+                    },
+                    // Registry row 907: on a TV (or with no session) sign in with the phone's session through a one-use QR…
+                    if (!ytLoggedIn || isTvShell) {
+                        Material3SettingsItem(
+                            icon = painterResource(R.drawable.account),
+                            title = { Text(stringResource(R.string.tvlink_receive_title)) },
+                            description = { Text(stringResource(R.string.tvlink_receive_desc)) },
+                            onClick = { navController.navigate("settings/accounts/tv_link_receive") },
+                        )
+                    } else {
+                        null
+                    },
+                    // …and, signed in, send this phone's session to the TV that shows it.
+                    if (ytLoggedIn) {
+                        Material3SettingsItem(
+                            icon = painterResource(R.drawable.account),
+                            title = { Text(stringResource(R.string.tvlink_send_title)) },
+                            description = { Text(stringResource(R.string.tvlink_send_desc)) },
+                            onClick = { navController.navigate("settings/accounts/tv_link_send") },
                         )
                     } else {
                         null

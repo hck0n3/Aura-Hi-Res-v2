@@ -966,4 +966,46 @@
     <string name="taste_consent_now">What would be sent now: %1$s</string>
     <string name="taste_consent_accept">Accept</string>
     <string name="taste_consent_decline">Not now</string>
+    <!-- Registry row 907: sign in on the TV with a QR (one use, end-to-end encrypted) -->
+    <string name="tvlink_receive_title">Sign in with your phone</string>
+    <string name="tvlink_receive_desc">Shows a QR code: your phone sends its session, no password to type on the TV</string>
+    <string name="tvlink_send_title">Sign in on the TV</string>
+    <string name="tvlink_send_desc">Send this phone\'s session to a TV that shows an Aura code</string>
+    <string name="tvlink_receive_howto">On your phone, signed in to Aura, scan this QR with the camera. Or open Settings ▸ Accounts ▸ Sign in on the TV and type the code.</string>
+    <string name="tvlink_receive_privacy">The code works once and expires in 2 minutes. Only this TV can open what your phone sends: the Aura server passes it on without being able to read it.</string>
+    <string name="tvlink_connecting">Connecting…</string>
+    <string name="tvlink_waiting">Waiting for your phone…</string>
+    <string name="tvlink_signing_in">Session received from “%1$s”. Signing in…</string>
+    <string name="tvlink_signed_in">Signed in with the session of “%1$s”</string>
+    <string name="tvlink_sign_in_failed">The session could not be checked. Try again with a new code.</string>
+    <string name="tvlink_expired">The code expired.</string>
+    <string name="tvlink_used">This code was already used.</string>
+    <string name="tvlink_disconnected">The connection was lost.</string>
+    <string name="tvlink_new_code">New code</string>
+    <string name="tvlink_reconnect">Reconnect</string>
+    <string name="tvlink_code_label">Code shown on the TV</string>
+    <string name="tvlink_send_howto">On the TV, open Settings ▸ Accounts ▸ Sign in with your phone, then scan its QR with this phone\'s camera or type its code here.</string>
+    <string name="tvlink_continue">Continue</string>
+    <string name="tvlink_checking">Checking the code…</string>
+    <string name="tvlink_confirm">“%1$s” wants to sign in with your Google account. Send the session only if that device is yours and is in front of you.</string>
+    <string name="tvlink_send">Send session</string>
+    <string name="tvlink_sent">Session sent to “%1$s”.</string>
+    <string name="tvlink_sent_later">Session ready for “%1$s”: the TV receives it as soon as it reconnects, within 2 minutes.</string>
+    <string name="tvlink_err_no_link">No TV is waiting with that code. Check it, or show a new code on the TV.</string>
+    <string name="tvlink_err_wrong_code">That code does not match the one on the TV.</string>
+    <string name="tvlink_err_used">That code was already used. Show a new one on the TV.</string>
+    <string name="tvlink_err_network">Could not reach the Aura server. Check your connection.</string>
+    <string name="tvlink_invalid_link">That QR is not a valid TV code</string>
+    <!-- Registry row 908: automatic periodic backup -->
+    <string name="auto_backup_title">Automatic backup</string>
+    <string name="auto_backup_desc">Saves the same copy as “Copia de seguridad local” to a folder you choose, every day or every week, and keeps the last 5. Without your Google session, cookies or licence.</string>
+    <string name="auto_backup_on_pending">On: the first copy is made as soon as the battery and storage allow it</string>
+    <string name="auto_backup_last_ok">Last copy: %1$s</string>
+    <string name="auto_backup_last_failed">The last copy could not be saved: choose the folder again</string>
+    <string name="auto_backup_frequency">Frequency</string>
+    <string name="auto_backup_daily">Every day</string>
+    <string name="auto_backup_weekly">Every week</string>
+    <string name="auto_backup_folder">Folder</string>
+    <string name="auto_backup_folder_none">Choose a folder</string>
+    <string name="auto_backup_restore_hint">To restore one: “Importar” ▸ “Importar desde archivo local”, and pick an Aura_auto file.</string>
 </resources>

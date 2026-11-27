@@ -501,6 +501,11 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             Triple(stringResource(R.string.privacy_policy_title), "Privacidad", "settings/privacy"),
             Triple(stringResource(R.string.privacy_policy_entry_desc), "Privacidad", "settings/privacy"),
             // --- Copia y restauracion (settings/backup_restore) : 2 ---
+            // Registry row 908: «Copia automática» and its two rows, on the main view of the screen.
+            Triple(stringResource(R.string.auto_backup_title), stringResource(R.string.backup_restore), "settings/backup_restore"),
+            Triple(stringResource(R.string.auto_backup_desc), stringResource(R.string.backup_restore), "settings/backup_restore"),
+            Triple(stringResource(R.string.auto_backup_frequency), stringResource(R.string.backup_restore), "settings/backup_restore"),
+            Triple(stringResource(R.string.auto_backup_folder), stringResource(R.string.backup_restore), "settings/backup_restore"),
             // --- Acerca de (settings/about) : 1 ---
             Triple(stringResource(R.string.feedback_title), "Reportar y sugerir", "settings/feedback"),
             Triple(stringResource(R.string.feedback_kind_bug), "Reportar y sugerir", "settings/feedback"),
@@ -638,6 +643,11 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // Registry row 906: «Tu gusto», a row of Ajustes ▸ Traducción de letras con IA.
             Triple(stringResource(R.string.taste_title), "Traducción de letras IA", "settings/ai"),
             Triple(stringResource(R.string.taste_entry_desc), "Traducción de letras IA", "settings/ai"),
+            // Registry row 907: «Iniciar sesión con el móvil» (TV or no session) and «Iniciar sesión en la TV» (signed in), rows of Cuentas.
+            Triple(stringResource(R.string.tvlink_receive_title), "Cuentas", "settings/accounts"),
+            Triple(stringResource(R.string.tvlink_receive_desc), "Cuentas", "settings/accounts"),
+            Triple(stringResource(R.string.tvlink_send_title), "Cuentas", "settings/accounts"),
+            Triple(stringResource(R.string.tvlink_send_desc), "Cuentas", "settings/accounts"),
             // Registry row 890: the rows of «Nube (OneDrive y Dropbox)». Its title is the Ajustes index row itself
             // (Cuentas y sincronización), so it is not echoed here (INDEX-ECHO RULE).
             Triple(stringResource(R.string.cloud_connect_onedrive), stringResource(R.string.cloud_title), "settings/cloud"),

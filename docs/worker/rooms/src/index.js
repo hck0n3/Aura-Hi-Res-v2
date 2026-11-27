@@ -524,6 +524,9 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (url.pathname === "/health") return json({ ok: true, rooms: 1 });
+    // Row 907: the TV sign-in relay lives under its own prefix; every room path below is untouched.
+    const tvlink = await routeTvLink(req, env, url);
+    if (tvlink) return tvlink;
     const stubFor = (code) => env.ROOM.get(env.ROOM.idFromName(code));
     if (url.pathname === "/rooms/create") {
       // A free code, a handful of tries: a taken one answers 409 before any socket exists.
@@ -542,3 +545,168 @@ export default {
     return json({ error: "not found" }, 404);
   },
 };
+
+// Aura Hi-Res «Iniciar sesión en la TV» (registry row 907): a one-shot relay between a TV and a phone of the same person.
+// The TV draws a QR / short code that holds a random secret; the relay only ever sees `id` = a hash of that secret, never the
+// secret itself, so it can neither read nor forge what goes through it. Both blobs are AES-GCM sealed on the devices:
+//   hello   — sealed by the TV (which device is asking), shown on the phone before it agrees to send anything;
+//   session — sealed by the phone (the Google session), handed to the TV exactly once and then forgotten.
+// One Durable Object per id. Nothing outlives TTL_MS (2 minutes from the TV's hello); once the TV acknowledges the session only
+// a tombstone stays, so the same id can never carry a second session.
+
+const TVLINK_TTL_MS = 2 * 60_000;
+// How long the phone's send waits for the TV's ack. A socket that died without a close frame still looks open: without the ack
+// the phone hears delivered:false and the session stays for the TV's reconnect (under the phone's 15 s read timeout).
+const TV_ACK_WAIT_MS = 5_000;
+const MAX_HELLO = 2 * 1024;
+const MAX_SESSION = 32 * 1024;
+const TV_MAX_FRAME = 4 * 1024;
+const TV_ID_RE = /^[0-9a-f]{32}$/;
+const TV_BLOB_RE = /^[A-Za-z0-9+/=_-]+$/;
+
+const tvJson = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+const tvSend = (ws, type, payload = {}) => { try { ws.send(JSON.stringify({ type, payload })); } catch { /* closing */ } };
+
+/** A well-formed relay id (32 lowercase hex), or "". */
+function tvLinkId(raw) {
+  const id = String(raw || "").toLowerCase();
+  return TV_ID_RE.test(id) ? id : "";
+}
+
+/** A sealed blob as the devices send it: base64 text, 1..max characters. */
+function validBlob(v, max) {
+  return typeof v === "string" && v.length > 0 && v.length <= max && TV_BLOB_RE.test(v);
+}
+
+export class TvLink {
+  constructor(ctx, env) {
+    this.ctx = ctx;
+    this.env = env;
+    const ttl = Number(env && env.TVLINK_TTL_MS);
+    this.ttl = Number.isFinite(ttl) && ttl > 0 ? ttl : TVLINK_TTL_MS;
+    const ackWait = Number(env && env.TVLINK_ACK_MS);
+    this.ackWait = Number.isFinite(ackWait) && ackWait > 0 ? ackWait : TV_ACK_WAIT_MS;
+    /** Sends waiting for the TV's ack, in memory only: a pending fetch keeps this object awake. */
+    this.ackWaiters = new Set();
+  }
+
+  /** The live record, or null (none, or past its time: then everything is wiped first). */
+  async record() {
+    const r = (await this.ctx.storage.get("link")) || null;
+    if (r && Date.now() >= r.expiresAt) { await this.wipe(); return null; }
+    return r;
+  }
+  async wipe() {
+    for (const s of this.ctx.getWebSockets()) { tvSend(s, "expired"); try { s.close(1000, "expired"); } catch { /* gone */ } }
+    await this.ctx.storage.deleteAll();
+  }
+  liveSockets() {
+    return this.ctx.getWebSockets().filter((s) => s.readyState === undefined || s.readyState === 1);
+  }
+
+  /**
+   * Hands the stored session to the waiting sockets (a TV that reconnected may still hold a dying one; the blob only opens with the
+   * TV's own private key, so a socket that is not the TV learns nothing). The single use is spent only on the TV's ack ([acked]):
+   * until then the session stays, so a TV whose socket had silently died still gets it when it reconnects with the same code.
+   */
+  deliver(sockets, r) {
+    for (const ws of sockets) tvSend(ws, "session", { session: r.session });
+  }
+
+  /** Resolves true when the TV acknowledges, false after [ackWait]. */
+  waitForAck() {
+    return new Promise((resolve) => {
+      const done = (ok) => { clearTimeout(timer); this.ackWaiters.delete(done); resolve(ok); };
+      const timer = setTimeout(() => done(false), this.ackWait);
+      this.ackWaiters.add(done);
+    });
+  }
+
+  /** The TV opened the session: leave only the tombstone (it is never handed out again) and tell a waiting send. */
+  async acked() {
+    const r = await this.record();
+    if (!r || r.used || !r.session) return;
+    await this.ctx.storage.put("link", { used: true, expiresAt: r.expiresAt });
+    for (const ws of this.ctx.getWebSockets()) { try { ws.close(1000, "delivered"); } catch { /* gone */ } }
+    for (const done of [...this.ackWaiters]) done(true);
+  }
+
+  async fetch(req) {
+    const url = new URL(req.url);
+    const mode = url.searchParams.get("mode");
+    if (mode === "wait") {
+      if (req.headers.get("Upgrade") !== "websocket") return new Response("expected websocket", { status: 426 });
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+      this.ctx.acceptWebSocket(server);
+      return new Response(null, { status: 101, webSocket: client });
+    }
+    if (mode === "hello") {
+      const r = await this.record();
+      if (!r || r.used || !r.hello) return tvJson({ error: "no_such_link" }, 404);
+      return tvJson({ hello: r.hello, expiresAt: r.expiresAt });
+    }
+    if (mode === "send") {
+      const text = await req.text();
+      if (text.length > MAX_SESSION + 256) return tvJson({ error: "too_big" }, 413);
+      let body;
+      try { body = JSON.parse(text); } catch { return tvJson({ error: "bad_json" }, 400); }
+      const session = body && body.session;
+      if (typeof session === "string" && session.length > MAX_SESSION) return tvJson({ error: "too_big" }, 413);
+      if (!validBlob(session, MAX_SESSION)) return tvJson({ error: "bad_session" }, 400);
+      const r = await this.record();
+      if (r && (r.used || r.session)) return tvJson({ error: "already_used" }, 409);
+      if (!r || !r.hello) return tvJson({ error: "no_such_link" }, 404);
+      r.session = session;
+      await this.ctx.storage.put("link", r);
+      const waiting = this.liveSockets();
+      if (!waiting.length) return tvJson({ delivered: false });
+      const ack = this.waitForAck();
+      this.deliver(waiting, r);
+      return tvJson({ delivered: await ack });
+    }
+    return tvJson({ error: "not found" }, 404);
+  }
+
+  async webSocketMessage(ws, data) {
+    const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+    if (text.length > TV_MAX_FRAME) return tvSend(ws, "error", { code: "too_big" });
+    let msg;
+    try { msg = JSON.parse(text); } catch { return tvSend(ws, "error", { code: "bad_json" }); }
+    if (msg && msg.type === "ack") return this.acked();
+    if (!msg || msg.type !== "hello") return tvSend(ws, "error", { code: "unknown_message_type" });
+    const hello = msg.payload && msg.payload.hello;
+    if (!validBlob(hello, MAX_HELLO)) return tvSend(ws, "error", { code: "bad_hello" });
+    let r = await this.record();
+    if (r && r.used) { tvSend(ws, "error", { code: "already_used" }); try { ws.close(1000, "used"); } catch { /* gone */ } return; }
+    if (r && r.session) { this.deliver([ws], r); return; }
+    if (!r) {
+      r = { hello, expiresAt: Date.now() + this.ttl };
+      await this.ctx.storage.put("link", r);
+      await this.ctx.storage.setAlarm(r.expiresAt);
+    }
+    tvSend(ws, "waiting", { expiresAt: r.expiresAt });
+  }
+  async webSocketClose() { /* the record stays until it expires: the TV may reconnect with the same code */ }
+  async webSocketError() {}
+
+  async alarm() {
+    const r = (await this.ctx.storage.get("link")) || null;
+    if (!r) return;
+    if (Date.now() >= r.expiresAt) await this.wipe();
+    else await this.ctx.storage.setAlarm(r.expiresAt);
+  }
+}
+
+/** Router for `/tvlink/*`; null for any other path, which the rooms router keeps handling exactly as before. */
+async function routeTvLink(req, env, url) {
+  if (!url.pathname.startsWith("/tvlink/")) return null;
+  if (!env.TVLINK) return tvJson({ error: "not found" }, 404);
+  const id = tvLinkId(url.searchParams.get("id"));
+  if (!id) return tvJson({ error: "bad id" }, 400);
+  const route = { "/tvlink/wait": ["wait", "GET"], "/tvlink/hello": ["hello", "GET"], "/tvlink/send": ["send", "POST"] }[url.pathname];
+  if (!route) return tvJson({ error: "not found" }, 404);
+  if (req.method !== route[1]) return tvJson({ error: "method" }, 405);
+  const stub = env.TVLINK.get(env.TVLINK.idFromName(id));
+  return stub.fetch(new Request(`https://tvlink/?mode=${route[0]}`, req));
+}

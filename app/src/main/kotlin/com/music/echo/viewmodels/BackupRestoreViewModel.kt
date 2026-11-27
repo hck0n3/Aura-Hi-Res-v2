@@ -88,44 +88,8 @@ class BackupRestoreViewModel @Inject constructor(
     fun backup(context: Context, uri: Uri, onDone: ((Boolean) -> Unit)? = null) {
         // Run the file copy/zip off the main thread so backing up a large library doesn't freeze the UI.
         viewModelScope.launch(Dispatchers.IO) {
-        var dbSnapshot: java.io.File? = null
         runCatching {
-            (context.applicationContext.contentResolver.openOutputStream(uri)
-                ?: throw java.io.IOException("Could not open the backup destination (output stream was null)")).use {
-                it.buffered().zipOutputStream().use { outputStream ->
-                    // LIBRARY-ONLY backup (user request: "que solo guarden lo de la biblioteca, para que
-                    // siempre sean funcionales"). We deliberately DO NOT back up settings.preferences_pb —
-                    // it carries the InnerTube session cookie + tokens + app toggles + one-time init guards,
-                    // i.e. NON-library state that made restores fragile (a restored stale cookie broke
-                    // playback; restored init guards suppressed new features). The backup is now just the
-                    // library DB + EQ presets, so a restore is always functional and never touches the
-                    // user's live login/session on the target device.
-                    // 1) song.db — a CONSISTENT snapshot (VACUUM INTO on API 30+, checkpoint(TRUNCATE)+copy
-                    //    fallback on API 26-29) so a write racing mid-backup can't produce a torn file.
-                    dbSnapshot = snapshotDatabase(context)
-                    FileInputStream(dbSnapshot!!.path).use { inputStream ->
-                        outputStream.putNextEntry(ZipEntry(InternalDatabase.DB_NAME))
-                        inputStream.copyTo(outputStream)
-                    }
-                    // 3) EQ / appearance SharedPreferences the classic backup used to drop, so EQ presets
-                    //    survive a restore. NEVER the license (jr_license is not in the whitelist).
-                    val sharedPrefsDir = java.io.File(context.dataDir, "shared_prefs")
-                    EQ_APPEARANCE_PREFS.forEach { name ->
-                        val f = java.io.File(sharedPrefsDir, "$name.xml")
-                        if (f.exists()) {
-                            outputStream.putNextEntry(ZipEntry("shared_prefs/$name.xml"))
-                            f.inputStream().use { it.copyTo(outputStream) }
-                        }
-                    }
-                }
-            }
-        }.also {
-            // Always clean up the private snapshot (+ any journal siblings), success or fail.
-            dbSnapshot?.let { s ->
-                s.delete()
-                java.io.File(s.path + "-wal").delete()
-                java.io.File(s.path + "-shm").delete()
-            }
+            LibraryBackupZip.write(context, database, uri)
         }.onSuccess {
             if (onDone != null) onDone(true) else withContext(Dispatchers.Main) {
                 Toast.makeText(context, R.string.backup_create_success, Toast.LENGTH_SHORT).show()
@@ -140,33 +104,83 @@ class BackupRestoreViewModel @Inject constructor(
     }
 
     /**
-     * Consistent copy of song.db into a private cache file. Primary path: `VACUUM INTO` (a
-     * transactionally-consistent snapshot; needs SQLite >= 3.27 = API 30+). Fallback for the older
-     * bundled SQLite on API 26-29: a TRUNCATE checkpoint folds the WAL into the main file so it is a
-     * complete, internally-consistent database, which we then copy. Never corrupts.
+     * Row 908: the backup ZIP itself — song.db + the EQ/appearance whitelist, never the settings DataStore (row 15). Shared by
+     * this screen's local and cloud copies and by the automatic copy (backup/AutoBackupWorker.kt), so all three are the same
+     * file and come back through the same [restore].
      */
-    private fun snapshotDatabase(context: Context): java.io.File {
-        val target = java.io.File(context.cacheDir, "song_snapshot_${System.nanoTime()}.db")
-        // VACUUM INTO refuses to write if the target (or a journal sibling) already exists.
-        target.delete()
-        java.io.File(target.path + "-wal").delete()
-        java.io.File(target.path + "-shm").delete()
+    object LibraryBackupZip {
+        fun write(context: Context, database: MusicDatabase, uri: Uri) {
+            var dbSnapshot: java.io.File? = null
+            try {
+                (context.applicationContext.contentResolver.openOutputStream(uri)
+                    ?: throw java.io.IOException("Could not open the backup destination (output stream was null)")).use {
+                    it.buffered().zipOutputStream().use { outputStream ->
+                        // LIBRARY-ONLY backup (user request: "que solo guarden lo de la biblioteca, para que
+                        // siempre sean funcionales"). We deliberately DO NOT back up settings.preferences_pb —
+                        // it carries the InnerTube session cookie + tokens + app toggles + one-time init guards,
+                        // i.e. NON-library state that made restores fragile (a restored stale cookie broke
+                        // playback; restored init guards suppressed new features). The backup is now just the
+                        // library DB + EQ presets, so a restore is always functional and never touches the
+                        // user's live login/session on the target device.
+                        // 1) song.db — a CONSISTENT snapshot (VACUUM INTO on API 30+, checkpoint(TRUNCATE)+copy
+                        //    fallback on API 26-29) so a write racing mid-backup can't produce a torn file.
+                        dbSnapshot = snapshotDatabase(context, database)
+                        FileInputStream(dbSnapshot!!.path).use { inputStream ->
+                            outputStream.putNextEntry(ZipEntry(InternalDatabase.DB_NAME))
+                            inputStream.copyTo(outputStream)
+                        }
+                        // 3) EQ / appearance SharedPreferences the classic backup used to drop, so EQ presets
+                        //    survive a restore. NEVER the license (jr_license is not in the whitelist).
+                        val sharedPrefsDir = java.io.File(context.dataDir, "shared_prefs")
+                        EQ_APPEARANCE_PREFS.forEach { name ->
+                            val f = java.io.File(sharedPrefsDir, "$name.xml")
+                            // Row 908: the second lock — no session, licence or credential file, whatever the whitelist says.
+                            if (f.exists() && iad1tya.echo.music.backup.BackupExclusions.allows("shared_prefs/$name.xml")) {
+                                outputStream.putNextEntry(ZipEntry("shared_prefs/$name.xml"))
+                                f.inputStream().use { it.copyTo(outputStream) }
+                            }
+                        }
+                    }
+                }
+            } finally {
+                // Always clean up the private snapshot (+ any journal siblings), success or fail.
+                dbSnapshot?.let { s ->
+                    s.delete()
+                    java.io.File(s.path + "-wal").delete()
+                    java.io.File(s.path + "-shm").delete()
+                }
+            }
+        }
 
-        // Fold committed WAL frames into the main db first.
-        runCatching { runBlocking(Dispatchers.IO) { database.checkpoint() } }
-
-        val db = database.openHelper.writableDatabase
-        val safePath = target.absolutePath.replace("'", "''")
-        return try {
-            db.execSQL("VACUUM INTO '$safePath'")
-            Timber.tag("BACKUP").i("DB snapshot via VACUUM INTO")
-            target
-        } catch (e: Exception) {
-            Timber.tag("BACKUP").w(e, "VACUUM INTO unavailable; falling back to checkpoint(TRUNCATE)+copy")
+        /**
+         * Consistent copy of song.db into a private cache file. Primary path: `VACUUM INTO` (a
+         * transactionally-consistent snapshot; needs SQLite >= 3.27 = API 30+). Fallback for the older
+         * bundled SQLite on API 26-29: a TRUNCATE checkpoint folds the WAL into the main file so it is a
+         * complete, internally-consistent database, which we then copy. Never corrupts.
+         */
+        private fun snapshotDatabase(context: Context, database: MusicDatabase): java.io.File {
+            val target = java.io.File(context.cacheDir, "song_snapshot_${System.nanoTime()}.db")
+            // VACUUM INTO refuses to write if the target (or a journal sibling) already exists.
             target.delete()
-            runCatching { db.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() } }
-            java.io.File(db.path!!).copyTo(target, overwrite = true)
-            target
+            java.io.File(target.path + "-wal").delete()
+            java.io.File(target.path + "-shm").delete()
+
+            // Fold committed WAL frames into the main db first.
+            runCatching { runBlocking(Dispatchers.IO) { database.checkpoint() } }
+
+            val db = database.openHelper.writableDatabase
+            val safePath = target.absolutePath.replace("'", "''")
+            return try {
+                db.execSQL("VACUUM INTO '$safePath'")
+                Timber.tag("BACKUP").i("DB snapshot via VACUUM INTO")
+                target
+            } catch (e: Exception) {
+                Timber.tag("BACKUP").w(e, "VACUUM INTO unavailable; falling back to checkpoint(TRUNCATE)+copy")
+                target.delete()
+                runCatching { db.query("PRAGMA wal_checkpoint(TRUNCATE)").use { it.moveToFirst() } }
+                java.io.File(db.path!!).copyTo(target, overwrite = true)
+                target
+            }
         }
     }
 
