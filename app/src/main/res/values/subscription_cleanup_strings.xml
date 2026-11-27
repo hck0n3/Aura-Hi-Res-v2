@@ -52,4 +52,31 @@
         <item quantity="one">%d suggested</item>
         <item quantity="other">%d suggested</item>
     </plurals>
+    <!-- Registry row 905: «Seguidos solo en Aura» (follows an import or a restore wrote and the user never confirmed). -->
+    <plurals name="sub_cleanup_local_title">
+        <item quantity="one">%d artist followed only in Aura</item>
+        <item quantity="other">%d artists followed only in Aura</item>
+    </plurals>
+    <string name="sub_cleanup_local_intro">An import (Spotify, Tidal or Deezer) or a restored backup added them in Aura and you never confirmed them. Removing them only changes Aura: your Google account is not touched, and you can undo it.</string>
+    <string name="sub_cleanup_local_reason">Added by an import or a restored backup; never confirmed</string>
+    <string name="sub_cleanup_local_suggested_badge">Probably not yours</string>
+    <string name="sub_cleanup_local_select_all">Select all (%1$d)</string>
+    <string name="sub_cleanup_local_select_suggested">Select the suggested (%1$d)</string>
+    <plurals name="sub_cleanup_local_remove_n">
+        <item quantity="one">Remove %d from Aura</item>
+        <item quantity="other">Remove %d from Aura</item>
+    </plurals>
+    <plurals name="sub_cleanup_local_confirm_title">
+        <item quantity="one">Remove %d artist from Aura?</item>
+        <item quantity="other">Remove %d artists from Aura?</item>
+    </plurals>
+    <string name="sub_cleanup_local_confirm_message">Only Aura changes: you stop following them here and they leave Library ▸ Artists. Your Google account is not touched. You can undo it.</string>
+    <string name="sub_cleanup_local_confirm_action">Remove from Aura</string>
+    <plurals name="sub_cleanup_local_removed">
+        <item quantity="one">%d artist removed from Aura</item>
+        <item quantity="other">%d artists removed from Aura</item>
+    </plurals>
+    <string name="sub_cleanup_local_undo">Undo</string>
+    <string name="sub_cleanup_local_failed">Could not read the artists followed only in Aura.</string>
+    <string name="sub_cleanup_confirm_list">These are the ones that will be removed:</string>
 </resources>

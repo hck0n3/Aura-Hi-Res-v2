@@ -4815,3 +4815,16 @@ Mismos textos, mismos botones, mismos toques y mismas rutas. En la pantalla exte
 | Ajustes ▸ Sincronizar dispositivos (estado «Sincronizado», pendientes, «Borrados retenidos») | **Sin cambio visible:** las posiciones de las canciones no cuentan como elementos ni como borrados | 900 |
 | Aviso **«Tu biblioteca sincronizada está llena: los cambios nuevos de este dispositivo no llegan a tus otros dispositivos.»** (toda la app, `MainActivity`, por `DeviceSyncHub.notice`) | **Nuevo texto** (`device_sync_room_full`, inglés y español): sale una vez por conexión cuando la sala del Worker está llena (150 000 elementos) y rechaza altas nuevas de este aparato; esas altas siguen pendientes aquí (no se pierde nada) y se vuelven a ofrecer en la siguiente conexión o al cabo de una hora | 900 |
 
+## Anexo 2026-11-27 (fila 905): Fase 9, limpiar los artistas que no siguió el usuario (no se quitó ni se ocultó nada)
+
+| Qué | Cambio | Fila |
+|---|---|---|
+| Revisar suscripciones ▸ sección **«N artistas seguidos solo en Aura»** + texto «Los añadió una importación (Spotify, Tidal o Deezer) o una copia restaurada, y nunca los confirmaste. Quitarlos solo cambia Aura: tu cuenta de Google no se toca y puedes deshacerlo.» (`ui/screens/settings/SubscriptionCleanupScreen.kt:123`, `localFollowSection`) | **Nuevo**, encima de la lista de la cuenta; solo aparece si hay alguno (o un «Deshacer» pendiente). En cualquier estado de la lista de la cuenta (cargando, sin sesión, fallo, lista) | 905 |
+| **Seleccionar todos (N)** / **Seleccionar los sugeridos (N)** / **Quitar la selección** (en fila que se parte en dos si no cabe) y **Quitar N de Aura** → vista previa | **Nuevos**; deshabilitados sin sugeridos / sin selección / mientras se escribe | 905 |
+| Fila de artista seguido solo en Aura: casilla, avatar, nombre, «Probablemente no lo seguiste tú» (si no hay ninguna escucha, me gusta, lista ni biblioteca) + «Lo añadió una importación o una copia restaurada; sin confirmar» (+ «Sin me gusta, fuera de tus listas y de tu biblioteca, casi sin escuchas» en los sugeridos) | **Nueva**, una por canal, sugeridos primero | 905 |
+| Diálogo **«¿Quitar N artistas de Aura?»** — «Solo cambia Aura: dejas de seguirlos aquí y salen de Biblioteca ▸ Artistas. Tu cuenta de Google no se toca. Puedes deshacerlo.» + «Estas son las que se quitarán:» con los nombres (lista que se desplaza, 240 dp como mucho) + **Quitar de Aura** / **Cancelar** | **Nuevo** (`SubscriptionCleanupScreen.kt:386`) | 905 |
+| «N artistas quitados de Aura» + **Deshacer** | **Nuevo**, tras quitar; desaparece al deshacer (o si el sistema cierra la app) | 905 |
+| «No se pudieron leer los artistas seguidos solo en Aura.» + **Reintentar** | **Nuevo**, solo si falla esa lectura | 905 |
+| Diálogo **«¿Quitar N suscripciones?»** (cuenta) | **Añade** «Estas son las que se quitarán:» y los nombres de exactamente lo que se va a quitar, debajo del texto de siempre (`SubscriptionCleanupScreen.kt:371`); botones y comportamiento iguales | 905 |
+| Ajustes ▸ Cuentas ▸ «Revisar suscripciones» | **Sin cambio**: sigue saliendo solo con sesión iniciada | 905 |
+

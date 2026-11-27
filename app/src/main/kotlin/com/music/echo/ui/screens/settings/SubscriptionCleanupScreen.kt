@@ -2,6 +2,8 @@ package iad1tya.echo.music.ui.screens.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -9,12 +11,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
@@ -43,6 +47,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -51,7 +56,9 @@ import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.R
 import iad1tya.echo.music.ui.component.AuraTopAppBar
 import iad1tya.echo.music.ui.component.IconButton
+import iad1tya.echo.music.utils.LocalFollowCleanupPolicy
 import iad1tya.echo.music.utils.PhantomSubscriptionPolicy
+import iad1tya.echo.music.viewmodels.LocalFollowCleanupViewModel
 import iad1tya.echo.music.viewmodels.SubscriptionCleanupViewModel
 import iad1tya.echo.music.viewmodels.SubscriptionCleanupViewModel.Phase
 import iad1tya.echo.music.utils.ActionId
@@ -71,6 +78,10 @@ fun SubscriptionCleanupScreen(
     val viewModel: SubscriptionCleanupViewModel = hiltViewModel()
     val state by viewModel.state.collectAsState()
     var confirmCount by remember { mutableStateOf(0) }
+    // Registry row 905: the follows an import or a restore wrote in Aura only (never on the account).
+    val localViewModel: LocalFollowCleanupViewModel = hiltViewModel()
+    val localState by localViewModel.state.collectAsState()
+    var localPreview by remember { mutableStateOf(false) }
 
     val planned = PhantomSubscriptionPolicy.planBatch(
         ordered = state.candidates.map { it.id },
@@ -109,6 +120,7 @@ fun SubscriptionCleanupScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            localFollowSection(localState, localViewModel, onPreview = { localPreview = true })
             when (state.phase) {
                 Phase.LOADING -> item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 16.dp)) {
@@ -349,7 +361,15 @@ fun SubscriptionCleanupScreen(
         AlertDialog(
             onDismissRequest = { confirmCount = 0 },
             title = { Text(pluralStringResource(R.plurals.sub_cleanup_confirm_title, confirmCount, confirmCount)) },
-            text = { Text(stringResource(R.string.sub_cleanup_confirm_message)) },
+            text = {
+                // Row 905: the preview — the names of exactly what the batch will remove.
+                val names = PhantomSubscriptionPolicy.planBatch(
+                    ordered = state.candidates.map { it.id },
+                    selected = state.selected,
+                    blocked = state.candidates.filter { it.blocked }.map { it.id }.toSet(),
+                ).mapNotNull { id -> state.candidates.firstOrNull { it.id == id }?.name }
+                CleanupPreview(stringResource(R.string.sub_cleanup_confirm_message), stringResource(R.string.sub_cleanup_confirm_list), names)
+            },
             confirmButton = {
                 TextButton(onClick = {
                     ActionLog.tap(ActionId.SUBCLEAN_REMOVE_CONFIRM)
@@ -362,6 +382,182 @@ fun SubscriptionCleanupScreen(
             },
         )
     }
+
+    if (localPreview) {
+        // Row 905: the preview of a local removal — what changes (Aura only) and the names, before anything is written.
+        val plan = LocalFollowCleanupPolicy.plan(localState.candidates, localState.selected)
+        AlertDialog(
+            onDismissRequest = { localPreview = false },
+            title = { Text(pluralStringResource(R.plurals.sub_cleanup_local_confirm_title, plan.size, plan.size)) },
+            text = {
+                CleanupPreview(
+                    stringResource(R.string.sub_cleanup_local_confirm_message),
+                    stringResource(R.string.sub_cleanup_confirm_list),
+                    plan.map { it.name },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = plan.isNotEmpty() && !localState.working,
+                    onClick = {
+                        ActionLog.tap(ActionId.SUBCLEAN_LOCAL_REMOVE_CONFIRM)
+                        localPreview = false
+                        localViewModel.removeChosen()
+                    },
+                ) { Text(stringResource(R.string.sub_cleanup_local_confirm_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_LOCAL_REMOVE_CANCEL); localPreview = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+}
+
+/** Row 905: a confirmation's message, then the names it applies to (scrollable when long). */
+@Composable
+private fun CleanupPreview(message: String, listTitle: String, names: List<String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(message)
+        if (names.isNotEmpty()) {
+            Text(listTitle, style = MaterialTheme.typography.titleSmall)
+            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)) {
+                items(names) { name ->
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(vertical = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Row 905 — «Seguidos solo en Aura»: the artists an import (Spotify, Tidal, Deezer) or a restored backup followed in Aura
+ * and the user never confirmed ([LocalFollowCleanupPolicy]). Shown only when there is something (or an undo) to offer.
+ * Select some or all, preview, remove from Aura only, undo. Never touches the account.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+private fun LazyListScope.localFollowSection(
+    state: LocalFollowCleanupViewModel.UiState,
+    viewModel: LocalFollowCleanupViewModel,
+    onPreview: () -> Unit,
+) {
+    if (state.failed) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.sub_cleanup_local_failed), color = MaterialTheme.colorScheme.error)
+                OutlinedButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_LOCAL_RETRY); viewModel.load() }) {
+                    Text(stringResource(R.string.retry))
+                }
+            }
+        }
+        return
+    }
+    if (state.candidates.isEmpty() && state.undoRows == 0) return
+    val planned = LocalFollowCleanupPolicy.plan(state.candidates, state.selected).size
+    val suggested = LocalFollowCleanupPolicy.suggestedSelection(state.candidates).size
+    item {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                pluralStringResource(R.plurals.sub_cleanup_local_title, state.candidates.size, state.candidates.size),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                stringResource(R.string.sub_cleanup_local_intro),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (state.undoRows > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        pluralStringResource(R.plurals.sub_cleanup_local_removed, state.lastRemoved, state.lastRemoved),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_LOCAL_UNDO); viewModel.undoLast() }, enabled = !state.working) {
+                        Text(stringResource(R.string.sub_cleanup_local_undo))
+                    }
+                }
+            }
+            if (state.candidates.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { ActionLog.tap(ActionId.SUBCLEAN_LOCAL_SELECT_ALL); viewModel.selectAll() }, enabled = !state.working) {
+                        Text(stringResource(R.string.sub_cleanup_local_select_all, state.candidates.size))
+                    }
+                    TextButton(
+                        onClick = { ActionLog.tap(ActionId.SUBCLEAN_LOCAL_SELECT_SUGGESTED); viewModel.selectSuggested() },
+                        enabled = suggested > 0 && !state.working,
+                    ) {
+                        Text(stringResource(R.string.sub_cleanup_local_select_suggested, suggested))
+                    }
+                    TextButton(
+                        onClick = { ActionLog.tap(ActionId.SUBCLEAN_LOCAL_CLEAR_SELECTION); viewModel.clearSelection() },
+                        enabled = state.selected.isNotEmpty() && !state.working,
+                    ) {
+                        Text(stringResource(R.string.sub_cleanup_clear_selection))
+                    }
+                }
+                OutlinedButton(
+                    onClick = { ActionLog.tap(ActionId.SUBCLEAN_LOCAL_REMOVE); onPreview() },
+                    enabled = planned > 0 && !state.working,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(pluralStringResource(R.plurals.sub_cleanup_local_remove_n, planned, planned))
+                }
+            }
+        }
+    }
+    items(state.candidates, key = { "local:" + it.id }) { candidate ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !state.working) { ActionLog.tap(ActionId.SUBCLEAN_LOCAL_CANDIDATE); viewModel.toggle(candidate.id) }
+                .padding(vertical = 4.dp),
+        ) {
+            Checkbox(
+                checked = candidate.id in state.selected,
+                onCheckedChange = { viewModel.toggle(candidate.id) },
+                enabled = !state.working,
+            )
+            AsyncImage(
+                model = candidate.thumbnailUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(48.dp).clip(CircleShape),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(candidate.name, style = MaterialTheme.typography.bodyLarge)
+                if (candidate.verdict.suggested) {
+                    Text(
+                        stringResource(R.string.sub_cleanup_local_suggested_badge),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                Text(
+                    stringResource(R.string.sub_cleanup_local_reason),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (candidate.verdict.suggested) {
+                    Text(
+                        stringResource(R.string.sub_cleanup_suggested_reason),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+    item { Spacer(Modifier.height(8.dp)) }
 }
 
 /** Row 856: the header's numbers. [atLeast]: the read stopped before the end of the account's list (row 837). */

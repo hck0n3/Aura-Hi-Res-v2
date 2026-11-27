@@ -1825,6 +1825,15 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.SUBCLEAN.REMOVE_CANCEL` | «Cancelar» (confirmación) |
 | `UI.SUBCLEAN.CONTINUE` | «Continuar» una tanda que se detuvo (fila 839) |
 | `UI.SUBCLEAN.DISCARD` | «Descartar» el aviso «Se detuvo» (fila 839) |
+| `UI.SUBCLEAN.LOCAL_SELECT_ALL` | «Seleccionar todos» en «Seguidos solo en Aura» (fila 905) |
+| `UI.SUBCLEAN.LOCAL_SELECT_SUGGESTED` | «Seleccionar los sugeridos» en «Seguidos solo en Aura» (fila 905) |
+| `UI.SUBCLEAN.LOCAL_CLEAR_SELECTION` | «Quitar la selección» en «Seguidos solo en Aura» (fila 905) |
+| `UI.SUBCLEAN.LOCAL_CANDIDATE` | Marcar / desmarcar un artista seguido solo en Aura (fila 905) |
+| `UI.SUBCLEAN.LOCAL_REMOVE` | «Quitar N de Aura» (abre la vista previa, fila 905) |
+| `UI.SUBCLEAN.LOCAL_REMOVE_CONFIRM` | «Quitar de Aura» (vista previa, fila 905) |
+| `UI.SUBCLEAN.LOCAL_REMOVE_CANCEL` | «Cancelar» (vista previa, fila 905) |
+| `UI.SUBCLEAN.LOCAL_UNDO` | «Deshacer» lo quitado de Aura (fila 905) |
+| `UI.SUBCLEAN.LOCAL_RETRY` | «Reintentar» la lectura de los seguidos solo en Aura (fila 905) |
 
 ### Ajustes ▸ Tema y colores
 

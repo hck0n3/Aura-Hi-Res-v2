@@ -57,4 +57,31 @@
         <item quantity="many">%d de sugeridas</item>
         <item quantity="other">%d sugeridas</item>
     </plurals>
+    <!-- Registry row 905: «Seguidos solo en Aura» (follows an import or a restore wrote and the user never confirmed). -->
+    <plurals name="sub_cleanup_local_title">
+        <item quantity="one">%d artista seguido solo en Aura</item>
+        <item quantity="other">%d artistas seguidos solo en Aura</item>
+    </plurals>
+    <string name="sub_cleanup_local_intro">Los añadió una importación (Spotify, Tidal o Deezer) o una copia restaurada, y nunca los confirmaste. Quitarlos solo cambia Aura: tu cuenta de Google no se toca y puedes deshacerlo.</string>
+    <string name="sub_cleanup_local_reason">Lo añadió una importación o una copia restaurada; sin confirmar</string>
+    <string name="sub_cleanup_local_suggested_badge">Probablemente no lo seguiste tú</string>
+    <string name="sub_cleanup_local_select_all">Seleccionar todos (%1$d)</string>
+    <string name="sub_cleanup_local_select_suggested">Seleccionar los sugeridos (%1$d)</string>
+    <plurals name="sub_cleanup_local_remove_n">
+        <item quantity="one">Quitar %d de Aura</item>
+        <item quantity="other">Quitar %d de Aura</item>
+    </plurals>
+    <plurals name="sub_cleanup_local_confirm_title">
+        <item quantity="one">¿Quitar %d artista de Aura?</item>
+        <item quantity="other">¿Quitar %d artistas de Aura?</item>
+    </plurals>
+    <string name="sub_cleanup_local_confirm_message">Solo cambia Aura: dejas de seguirlos aquí y salen de Biblioteca ▸ Artistas. Tu cuenta de Google no se toca. Puedes deshacerlo.</string>
+    <string name="sub_cleanup_local_confirm_action">Quitar de Aura</string>
+    <plurals name="sub_cleanup_local_removed">
+        <item quantity="one">%d artista quitado de Aura</item>
+        <item quantity="other">%d artistas quitados de Aura</item>
+    </plurals>
+    <string name="sub_cleanup_local_undo">Deshacer</string>
+    <string name="sub_cleanup_local_failed">No se pudieron leer los artistas seguidos solo en Aura.</string>
+    <string name="sub_cleanup_confirm_list">Estas son las que se quitarán:</string>
 </resources>
