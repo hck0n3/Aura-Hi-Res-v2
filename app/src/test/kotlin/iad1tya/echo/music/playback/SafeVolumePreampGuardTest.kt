@@ -2,7 +2,6 @@ package iad1tya.echo.music.playback
 
 import java.io.File
 import kotlin.math.abs
-import kotlin.math.tanh
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,18 +35,25 @@ class SafeVolumePreampGuardTest {
     }
 
     @Test
-    fun `the native chain ends in a limiter and a soft clip that cannot exceed full scale`() {
+    fun `the native chain ends in a limiter and a clamp that cannot exceed full scale`() {
+        // Row 911 replaced Superpowered's limiter (-3 dB threshold, -0.3 dBFS ceiling) and the 0.97 tanh soft clip with
+        // a -1 dBTP true-peak limiter and a hard clamp; what this guard protects (row 679) is unchanged: both stages run
+        // after Safe Volume and nothing leaves at or above full scale.
         val cpp = File(root, "app/src/main/cpp/superpowered/SuperpoweredBridge.cpp").readText()
+        val header = File(root, "app/src/main/cpp/superpowered/AuraTruePeakLimiter.h").readText()
         val process = cpp.substringAfter("// SAFE VOLUME — its own stage")
-        assertTrue("the limiter runs after Safe Volume", process.indexOf("processor->limiter->process(") > 0)
-        assertTrue(cpp.contains("limiter->ceilingDb = -0.3f;"))
-        assertTrue(cpp.contains("limiter->thresholdDb = -3.0f;"))
-        assertTrue(process.indexOf("float out = 0.97f + std::tanh(absX - 0.97f) * 0.03f;") > process.indexOf("processor->limiter->process("))
+        val limiter = process.indexOf("processor->truePeakLimiter->process(workBuffer, num_frames, channels);")
+        assertTrue("the limiter runs after Safe Volume", limiter > 0)
+        assertTrue(header.contains("constexpr float kTpCeilingDbtp = -1.0f;"))
+        val clamp = process.indexOf("if (x > kClamp) workBuffer[i] = kClamp;")
+        assertTrue("the clamp runs after the limiter", clamp > limiter)
+        assertTrue(process.contains("else if (x < -kClamp) workBuffer[i] = -kClamp;"))
         assertTrue("Safe Volume's own gain stays capped at +12 dB", cpp.contains("const float kMaxSafeVolumeGain = 4.0f;"))
-        // The same soft-clip formula, in float: whatever comes in, the magnitude never goes past 1.0 (0 dBFS).
-        for (x in listOf(0.98f, 1.0f, 1.5f, 4.0f, 40.0f, 1e6f)) {
-            val out = 0.97f + tanh(abs(x) - 0.97f) * 0.03f
-            assertTrue("$x -> $out", out <= 1.0f)
+        // The clamp value: whatever comes in, the magnitude never reaches 1.0 (0 dBFS).
+        assertTrue(header.contains("constexpr float kTpSafetyClamp = 0.989f;"))
+        for (x in listOf(0.98f, 1.0f, 1.5f, 4.0f, 40.0f, 1e6f, -1e6f)) {
+            val out = x.coerceIn(-0.989f, 0.989f)
+            assertTrue("$x -> $out", abs(out) < 1.0f)
         }
     }
 }

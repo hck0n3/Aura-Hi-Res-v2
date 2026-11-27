@@ -27,8 +27,8 @@ import iad1tya.echo.music.eq.audio.EqBypass
  *    gate opens on.
  *  - `runEq` is [Inputs.equalizerActive]. Note what rides on it: the EQ bands, the preamp
  *    (`frontGain = activePreampMultiplier`, applied whenever the block runs; `disable()` sets it to
- *    0 dB with the EQ off) and the DE-ESSER (nested inside the `runEq` branch). The limiter
- *    (threshold -3 dB, ceiling -0.3 dBFS) and the 0.97 soft-clip knee run whenever the block runs. So
+ *    0 dB with the EQ off) and the DE-ESSER (nested inside the `runEq` branch). The true-peak limiter
+ *    (ceiling -1 dBTP, row 911) and the -0.1 dBFS hard clamp run whenever the block runs. So
  *    a single "is an EQ profile applied" term already covers the preamp and the de-esser; there is no
  *    separate toggle for either, and a FLAT profile still enables the de-esser, which is why "profile
  *    present" (not "profile audibly non-flat") is the honest term.

@@ -10,8 +10,8 @@ import kotlin.math.tanh
  * The signal path never hard-clips: loud masters are attenuated to a reference, and quiet tracks are
  * brought UP toward that reference (loudness target, TIDAL-style) by a bounded makeup gain. The EQ
  * preamp, the bands and that makeup can push peaks past full scale; the native chain in
- * SuperpoweredBridge.cpp catches them with its limiter (threshold -3 dB, ceiling -0.3 dBFS) and a 0.97
- * soft clip that never exceeds 1.0.
+ * SuperpoweredBridge.cpp catches them with its true-peak limiter (ceiling -1 dBTP, row 911) and a hard clamp
+ * at -0.1 dBFS that never lets a sample reach 1.0.
  */
 
 /**

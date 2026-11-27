@@ -857,13 +857,13 @@ data class EqVerification(
     val peakOutDb: Float,
 ) {
     val responsePasses: Boolean get() = rows.isNotEmpty() && rows.all { it.passes }
-    /** The output never reaches full scale: limited to the -0.3 dBFS ceiling (small tolerance). */
+    /** The output never reaches full scale: its TRUE peak is limited to the -1 dBTP ceiling (row 911, small tolerance). */
     val headroomPasses: Boolean get() = engineReady && peakOutDb <= HEADROOM_LIMIT_DBFS
 
     companion object {
         const val SAMPLE_RATE = 48_000
         const val TOLERANCE_DB = 0.5
-        const val HEADROOM_LIMIT_DBFS = -0.2f
+        const val HEADROOM_LIMIT_DBFS = -0.8f
         val TEST_FREQUENCIES = doubleArrayOf(
             31.5, 45.0, 62.5, 90.0, 125.0, 180.0, 250.0, 355.0, 500.0, 710.0,
             1000.0, 1400.0, 2000.0, 2800.0, 4000.0, 5600.0, 8000.0, 11200.0, 16000.0,

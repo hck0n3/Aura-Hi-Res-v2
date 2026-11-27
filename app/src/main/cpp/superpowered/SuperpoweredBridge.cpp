@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <algorithm>
 
+#include "AuraTruePeakLimiter.h"
+
 #if __has_include("Superpowered.h")
 #define HAS_SUPERPOWERED 1
 #include "Superpowered.h"
@@ -279,7 +281,8 @@ public:
     std::vector<Superpowered::Filter*> filters;
     AuraBiquad eqBiquads[NUM_EQ_FILTERS];
     bool eqBiquadOn[NUM_EQ_FILTERS] = {};
-    Superpowered::Limiter* limiter = nullptr;
+    // Row 911: last stage of the chain, -1 dBTP true-peak lookahead limiter (AuraTruePeakLimiter.h).
+    aura::TruePeakLimiter* truePeakLimiter = nullptr;
     Superpowered::Filter* deEsser = nullptr;
     Superpowered::Filter* deEsserDetector = nullptr;
 
@@ -335,7 +338,7 @@ public:
     // The most recently APPLIED snapshot values (the audio thread's private working copy).
     float activePreampMultiplier = 1.0f;
     // Optional "Safe Volume" stage (user opt-in): a per-track loudness-normalization gain + the
-    // limiter/soft-clip below, run even when the EQ is off so loud masters are brought toward a
+    // true-peak limiter below, run even when the EQ is off so loud masters are brought toward a
     // reference instead of blasting at full native level.
     bool activeSafeVolumeEnabled = false;
     float activeSafeVolumeGain = 1.0f;
@@ -616,14 +619,9 @@ public:
             filters.push_back(filter);
         }
         
-        limiter = new Superpowered::Limiter(samplerate);
-        limiter->ceilingDb = -0.3f; // true-peak safety ceiling (-0.3 dBFS) for Opus/AAC decoded masters
-        // Threshold below the ceiling so the limiter gain-rides EARLIER and rounds peaks smoothly,
-        // instead of the old thresholdDb=0 all-or-nothing catch right at full scale (which forced the
-        // tanh soft-clip to mop up = harshness). -3 dB gives gentler, more transparent limiting.
-        limiter->thresholdDb = -3.0f;
-        limiter->releaseSec = 0.05f; // slightly longer release avoids pumping at the lower threshold
-        limiter->enabled = true;
+        // Row 911: replaces Superpowered's sample-peak Limiter (threshold -3 dB, ceiling -0.3 dBFS) and the tanh
+        // soft clip. Transparent below -1 dBTP (gain exactly 1), and it catches the peaks BETWEEN samples too.
+        truePeakLimiter = new aura::TruePeakLimiter(samplerate);
 
         deEsser = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
         deEsser->frequency = 6500.0f;
@@ -710,7 +708,7 @@ public:
         }
         filters.clear();
         
-        if (limiter) { delete limiter; limiter = nullptr; }
+        if (truePeakLimiter) { delete truePeakLimiter; truePeakLimiter = nullptr; }
         if (deEsser) { delete deEsser; deEsser = nullptr; }
         if (deEsserDetector) { delete deEsserDetector; deEsserDetector = nullptr; }
         if (tidalLowShelf) { delete tidalLowShelf; tidalLowShelf = nullptr; }
@@ -882,8 +880,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_setSafeVolume(JNI
     // stayed quiet forever. (The Kotlin side computed the makeup correctly but handed it to a dead stub
     // processor, so nothing applied it either; both halves are fixed together.)
     //
-    // Boosting is safe here because the limiter below runs for Safe Volume too (ceiling -0.3 dBFS,
-    // threshold -3 dB) and catches the resulting peaks — that is the documented design. The ceiling
+    // Boosting is safe here because the true-peak limiter at the end of the chain runs for Safe Volume too
+    // (ceiling -1 dBTP, row 911) and catches the resulting peaks — that is the documented design. The ceiling
     // matches loudnessMakeupDb's +12 dB cap; anything beyond that is a bug upstream, not a louder track.
     // CLAMP, never fall back to unity: an out-of-range value must become a bounded gain, not a sudden jump
     // to 1.0 (that would be an audible level change if the cap upstream ever moves). NaN fails both
@@ -1010,7 +1008,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureEqResponse
 }
 
 /// VERIFICATION (headroom): pink noise normalized to -0.1 dBFS peak -> preamp front gain -> EQ cascade ->
-/// limiter (live settings) -> soft knee. Returns {peak in, peak after EQ, peak out} in dBFS.
+/// true-peak limiter + hard clamp (live settings, row 911). Returns {peak in, peak after EQ, TRUE peak out} in dB.
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(JNIEnv *env, jobject thiz, jint samplerate, jfloatArray bands, jfloat preampDb) {
     jfloatArray result = env->NewFloatArray(3);
@@ -1052,11 +1050,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(J
         auraRbjCoefficients((double) sr, bandData[i * 4], bandData[i * 4 + 1], bandData[i * 4 + 2], (int) bandData[i * 4 + 3], c);
         cascade[(size_t) i].set(c);
     }
-    auto* limiter = new Superpowered::Limiter(sr);
-    limiter->ceilingDb = -0.3f;
-    limiter->thresholdDb = -3.0f;
-    limiter->releaseSec = 0.05f;
-    limiter->enabled = true;
+    auto* limiter = new aura::TruePeakLimiter(sr);
+    auto* outMeter = new aura::TruePeakMeter();
 
     const float frontGain = (float) std::pow(10.0, preampDb / 20.0); // same as processAudio: no hidden trim
     const int block = 512;
@@ -1071,17 +1066,16 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(J
         }
         for (auto& bq : cascade) bq.process(buf.data(), block, 2);
         for (int i = 0; i < block * 2; ++i) if (pos >= skip && std::abs(buf[(size_t) i]) > peakEq) peakEq = std::abs(buf[(size_t) i]);
-        limiter->process(buf.data(), buf.data(), (unsigned int) block);
+        limiter->process(buf.data(), block, 2);
         for (int i = 0; i < block * 2; ++i) {
-            float x = buf[(size_t) i];
-            const float absX = std::abs(x);
-            if (absX > 0.97f) {
-                const float o = 0.97f + std::tanh(absX - 0.97f) * 0.03f;
-                x = (x > 0) ? o : -o;
-            }
-            if (pos >= skip && std::abs(x) > peakOut) peakOut = std::abs(x);
+            const float x = buf[(size_t) i];
+            if (x > aura::kTpSafetyClamp) buf[(size_t) i] = aura::kTpSafetyClamp;
+            else if (x < -aura::kTpSafetyClamp) buf[(size_t) i] = -aura::kTpSafetyClamp;
         }
+        if (pos >= skip) outMeter->process(buf.data(), block, 2);
     }
+    peakOut = (float) outMeter->peakLinear();
+    delete outMeter;
     delete limiter;
     auto toDb = [](float v) { return v > 0.0f ? (float) (20.0 * std::log10(v)) : -120.0f; };
     float values[3] = {toDb(peakIn), toDb(peakEq), toDb(peakOut)};
@@ -1172,7 +1166,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // and delivers a complete set or nothing at all. Everything read below is either that applied
         // set or audio-thread-private state.
 
-        // FRONT gain = the EQ preamp ONLY. The limiter below (thresholdDb -3) catches its peaks, and a
+        // FRONT gain = the EQ preamp ONLY. The true-peak limiter at the end catches its peaks, and a
         // positive preamp raises the body audibly.
         //
         // Safe Volume is deliberately NOT folded in here — it runs as its own stage AFTER the EQ bands
@@ -1240,16 +1234,15 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // Levels in BOTH directions: attenuates loud masters and brings quiet ones up toward the reference,
         // which is what makes a library play at one consistent volume. The makeup side is capped at +12 dB
         // upstream (loudnessMakeupDb maxBoostDb, row 152) and again here by kMaxSafeVolumeGain (x4); the
-        // limiter below rides the resulting peaks with a 0.05 s release.
+        // true-peak limiter at the end catches the resulting peaks (-1 dBTP, ~100 ms release, row 911).
         //
         // Applied through a RAMP, never as a step: the target can change mid-song (the sanctioned
         // real-loudness-arrived upgrade, or the user toggling Safe Volume), and an instantaneous multiplier
         // change is exactly the audible level jump this feature exists to avoid.
         if (processor->activeSafeVolumeEnabled || processor->safeVolumeGainCurrent != 1.0f) {
             float target = processor->activeSafeVolumeEnabled ? processor->activeSafeVolumeGain : 1.0f;
-            // NOT STEREO: never amplify. Written when the limiter was stereo-only; mono now goes through it
-            // as dual-mono (below), but more than two channels still skip it and would have only the 0.97
-            // soft clip (bounded, but it saturates) after a boost. The conservative clamp is kept for both.
+            // NOT STEREO: never amplify. Written when the limiter was stereo-only; the true-peak limiter of row
+            // 911 handles mono and up to 8 channels, but the conservative clamp is kept as it was.
             // ATTENUATION stays allowed (it cannot clip), so a loud mono master is still tamed; only the
             // makeup is withheld. Stereo — what this player is actually used for — gets the full two-way
             // levelling.
@@ -1328,8 +1321,6 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
             }
         }
 
-        // Limiter (peak safety) — runs whenever the chain runs. Stereo directly, mono as dual-mono, more than
-        // two channels not at all (see below); the soft-clip knee after it runs for every channel count.
         // SPEAKER SUB-BASS PROTECTION (user toggle; Kotlin arms it only while the phone speaker plays).
         if (processor->activeSpeakerBassProtect && processor->speakerBassShelf) {
             if (channels == 1) processor->speakerBassShelf->processMono(workBuffer, workBuffer, num_frames);
@@ -1342,41 +1333,22 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
             processor->glueCompressor->process(workBuffer, workBuffer, num_frames);
         }
 
-        if (processor->limiter && processor->limiter->enabled && channels == 2) {
-            processor->limiter->process(workBuffer, workBuffer, num_frames);
-        } else if (processor->limiter && processor->limiter->enabled && channels == 1) {
-            // MONO LIMITING (2026-09-13): the SDK limiter is stereo-only, so mono tracks used to reach the
-            // output with nothing but the tanh knee below. Run the mono signal as a dual-mono pair through
-            // the same limiter (deEsserBuffer is free scratch at this point) and take one channel back.
-            // Row 790: in slices of MAX_BUFFER_SIZE / 2 frames, so a mono block longer than the scratch's
-            // 16384 dual-mono frames is limited too instead of skipping the limiter. Slices run in order
-            // through the same instance, like consecutive blocks.
-            float* scratch = processor->deEsserBuffer;
-            const int maxSliceFrames = MAX_BUFFER_SIZE / 2;
-            for (int off = 0; off < num_frames; off += maxSliceFrames) {
-                const int n = (num_frames - off < maxSliceFrames) ? (num_frames - off) : maxSliceFrames;
-                for (int i = 0; i < n; ++i) {
-                    scratch[i * 2] = workBuffer[off + i];
-                    scratch[i * 2 + 1] = workBuffer[off + i];
-                }
-                processor->limiter->process(scratch, scratch, (unsigned int) n);
-                for (int i = 0; i < n; ++i) {
-                    workBuffer[off + i] = scratch[i * 2];
-                }
-            }
+        // TRUE-PEAK LIMITER (row 911) — runs whenever the chain runs; never in Modo Fidelidad, where the chain is off.
+        // 4x reconstruction of the peaks between samples, -1 dBTP ceiling, ~1.5 ms lookahead, ~100 ms release, every
+        // channel linked. It handles mono and up to 8 channels in place, so the dual-mono slicing and the ">2
+        // channels skip the limiter" gap of Superpowered's stereo-only limiter (row 790) are gone. Below the ceiling
+        // the gain is exactly 1: the audio is only delayed (AuraTruePeakLimiter::latencyFrames, under 2 ms at 48 kHz).
+        if (processor->truePeakLimiter) {
+            processor->truePeakLimiter->process(workBuffer, num_frames, channels);
         }
-        // MORE THAN TWO CHANNELS (e.g. a 5.1 file) skip the limiter: one stereo instance cannot carry a
-        // multichannel envelope. They end on the soft clip below alone, which stays under full scale (no
-        // hard clip) but saturates loud peaks instead of limiting them.
-
-        // Soft-clip final safety net (rarely fires now that the limiter threshold is -3 dB).
-        for (int i = 0; i < num_frames * channels; ++i) {
-            float x = workBuffer[i];
-            float absX = std::abs(x);
-            // Knee sits ABOVE the limiter ceiling (0.966 = -0.3 dBFS) so it never shapes limited audio.
-            if (absX > 0.97f) {
-                float out = 0.97f + std::tanh(absX - 0.97f) * 0.03f;
-                workBuffer[i] = (x > 0) ? out : -out;
+        // Last-resort HARD clamp at -0.1 dBFS, replacing the tanh soft clip: the limiter's output already sits at or
+        // below -1 dBTP, so this only acts on more than 8 channels or on a numerical accident.
+        {
+            const float kClamp = aura::kTpSafetyClamp;
+            for (int i = 0; i < num_frames * channels; ++i) {
+                const float x = workBuffer[i];
+                if (x > kClamp) workBuffer[i] = kClamp;
+                else if (x < -kClamp) workBuffer[i] = -kClamp;
             }
         }
     }
