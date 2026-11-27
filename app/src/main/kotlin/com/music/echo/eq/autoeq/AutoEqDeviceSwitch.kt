@@ -62,6 +62,13 @@ object AutoEqDeviceSwitch {
     /** A device's correction, ready for the stage: its bands as the stage stores them and the preamp to play them at. */
     data class DeviceCorrection(val bandsJson: String, val preampDb: Float)
 
+    /**
+     * «Aplicar automáticamente» off: no correction comes on, but one a headphone put in still goes away on any other
+     * output, as the offer promises. Nothing while that headphone (or a hand pick over it) is the output.
+     */
+    fun planRelease(state: State, outputKey: String): Map<String, Any?> =
+        if (state.owner == outputKey || state.owner == USER_PICK_PREFIX + outputKey) emptyMap() else plan(state, outputKey, null)
+
     fun plan(state: State, outputKey: String, correction: DeviceCorrection?, force: Boolean = false): Map<String, Any?> {
         val edits = LinkedHashMap<String, Any?>()
         val userPick = state.owner?.startsWith(USER_PICK_PREFIX) == true

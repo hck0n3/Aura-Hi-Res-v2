@@ -63,7 +63,7 @@ object AutoEqDeviceCorrection {
 
     /**
      * Applies the plan for [outputKey] to `echo_eq_prefs` (one write) and returns the resulting [Stage], or null when
-     * nothing changed. Blocking prefs reads: call off the main thread.
+     * nothing changed; [releaseOnly] = [AutoEqDeviceSwitch.planRelease]. Blocking prefs reads: call off the main thread.
      */
     fun sync(
         context: Context,
@@ -71,11 +71,15 @@ object AutoEqDeviceCorrection {
         manualBands: List<ParametricEQBand>,
         autoHeadroomOn: Boolean,
         force: Boolean = false,
+        releaseOnly: Boolean = false,
     ): Stage? {
         val p = eqPrefs(context)
         val state = readState(p)
-        val correction = correctionFor(context, outputKey, manualBands, autoHeadroomOn)
-        val edits = AutoEqDeviceSwitch.plan(state, outputKey, correction, force)
+        val edits = if (releaseOnly) {
+            AutoEqDeviceSwitch.planRelease(state, outputKey)
+        } else {
+            AutoEqDeviceSwitch.plan(state, outputKey, correctionFor(context, outputKey, manualBands, autoHeadroomOn), force)
+        }
         if (edits.isEmpty()) return null
         p.edit().apply {
             edits.forEach { (key, value) ->

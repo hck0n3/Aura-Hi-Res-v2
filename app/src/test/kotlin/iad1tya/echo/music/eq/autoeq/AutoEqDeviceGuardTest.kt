@@ -20,7 +20,9 @@ class AutoEqDeviceGuardTest {
     @Test fun `every output change syncs the correction and Fidelidad still skips the engine`() {
         val service = source("$main/playback/MusicService.kt")
         val eq = service.substringAfter("private fun applyEqForCurrentOutput() {").substringBefore("\n    }\n")
-        assertTrue(eq.contains("if (!store.isAutoApplyEnabled(this@MusicService)) return@launch"))
+        // «Aplicar automáticamente» off: nothing comes on, a headphone's correction still goes away elsewhere.
+        assertTrue(eq.contains("if (!store.isAutoApplyEnabled(this@MusicService)) {\n                // Row 915"))
+        assertTrue(eq.contains("applyDeviceAutoEq(key, releaseOnly = true)\n                return@launch"))
         assertTrue(eq.contains("applyDeviceAutoEq(key)"))
         assertTrue(eq.contains("applyDeviceAutoEq(key, afterDeviceProfile = true)"))
         val body = service.substringAfter("private suspend fun applyDeviceAutoEq(").substringBefore("\n    }\n")
@@ -75,6 +77,6 @@ class AutoEqDeviceGuardTest {
         val refresh = service.substringAfter("private fun refreshDeviceAutoEq() {").substringBefore("\n    }\n")
         assertTrue(refresh.contains("EqDeviceProfileStore.currentOutputKey(this@MusicService), force = true)"))
         val body = service.substringAfter("private suspend fun applyDeviceAutoEq(").substringBefore("\n    }\n")
-        assertTrue(body.contains("base?.bands.orEmpty(), autoHeadroomHint, force)"))
+        assertTrue(body.contains("base?.bands.orEmpty(), autoHeadroomHint, force, releaseOnly)"))
     }
 }

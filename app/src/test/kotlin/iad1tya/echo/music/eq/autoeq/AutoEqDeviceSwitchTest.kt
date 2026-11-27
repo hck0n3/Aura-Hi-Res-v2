@@ -209,6 +209,30 @@ class AutoEqDeviceSwitchTest {
         assertEquals(true, prefs[KEY_ACTIVE])
     }
 
+    @Test fun `with auto-apply off nothing comes on but a headphone's correction still goes away elsewhere`() {
+        fun release(key: String): Boolean {
+            val edits = AutoEqDeviceSwitch.planRelease(state(), key)
+            edits.forEach { (k, v) -> if (v == null) prefs.remove(k) else prefs[k] = v }
+            return edits.isNotEmpty()
+        }
+        assertFalse(release(headphones)) // owner null: nothing to take away, and nothing comes on
+        assertFalse(prefs.containsKey(KEY_ACTIVE))
+        output(headphones, xm4)
+        assertFalse(release(headphones)) // still that headphone: its correction stays
+        assertEquals("[xm4]", prefs[KEY_BANDS])
+        assertTrue(release(phone))
+        assertEquals(false, prefs[KEY_ACTIVE])
+        assertEquals(2.5f, prefs[KEY_MASTER_PREAMP])
+        AutoEqDeviceSwitch.DEVICE_KEYS.forEach { assertFalse(it, prefs.containsKey(it)) }
+        // A hand pick over the headphone stays while it is the output, and only its mark goes elsewhere.
+        output(headphones, xm4)
+        pickByHand("[hd650 by hand]", -6.1f)
+        assertFalse(release(headphones))
+        assertTrue(release(phone))
+        assertEquals("[hd650 by hand]", prefs[KEY_BANDS])
+        assertEquals(true, prefs[KEY_ACTIVE])
+    }
+
     @Test fun `a new boost cap never puts a correction on a stage the headphone does not hold`() {
         prefs += mapOf(KEY_ACTIVE to true, KEY_BANDS to "[hd650]", KEY_MASTER_PREAMP to -6.1f)
         val before = prefs.toMap()
