@@ -1,31 +1,33 @@
-# Aura Hi-Res v2.0.69-beta20 — beta privada: sonido más limpio y corrección para tus audífonos
+# Aura Hi-Res v2.0.69-beta21 — beta privada: voces sin eses que pican, cuerpo a volumen bajo y cada salida con su sonido
 
-Beta solo para probar, sobre la 2.0.69-beta19 (incluye todo lo de las betas anteriores; sus notas siguen valiendo y se juntarán en la versión estable). Es la primera parte de la mejora de audio que pediste. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Te llega por el actualizador solo con «Recibir versiones beta» encendido (Ajustes ▸ Actualizaciones).
+Beta solo para probar, sobre la 2.0.69-beta20 (incluye todo lo de las betas anteriores; sus notas siguen valiendo y se juntarán en la versión estable). Es la segunda parte de la mejora de audio que pediste. Conserva tus datos, tu sesión y tus ajustes: mismo paquete y misma firma. Te llega por el actualizador solo con «Recibir versiones beta» encendido (Ajustes ▸ Actualizaciones).
 
-## Sonido sin distorsión
+## Voces más limpias
 
-- **Limitador nuevo de pico real:** mira también los picos que aparecen entre muestras (los que distorsionan en el DAC y en el Bluetooth) y no deja pasar de −1 dB. Por debajo de ese nivel no toca el sonido en absoluto.
-- **El margen automático ahora cuenta toda la curva:** también la firma Tidal, que antes se sumaba encima sin margen.
-- **El fundido entre canciones ya no se pasa de nivel** al sumar las dos canciones.
-- **Mover un deslizador del ecualizador ya no hace ruidos:** el cambio se suaviza en 10 ms.
-- **El Modo Fidelidad sigue dejando el audio intacto.**
+- **El control de eses ahora es dinámico** (Ecualizador ▸ De-esser): solo actúa en el instante en que una «s» o una «z» pica, como mucho −6 dB y solo entre 5 y 9 kHz. Antes bajaba esa zona en cualquier canción fuerte y brillante, hubiera eses o no, y apagaba las voces. Sin eses no toca nada.
 
-## Nuevo sonido «Aura Referencia»
+## Graves y agudos a volumen bajo
 
-- **Un perfil limpio:** solo un poco de cuerpo en los graves (+1,5 dB) y nada por encima, para que el streaming no suene áspero ni cansado.
-- **Está en la lista de presets del ecualizador.** Es el de fábrica solo en instalaciones nuevas: a ti no te cambia nada hasta que lo elijas. «Aura Hi-Res v3» sigue disponible.
+- **Nuevo interruptor «Graves y agudos a volumen bajo»** (Ajustes ▸ Sonido ▸ Volumen y protección, apagado de fábrica): a volumen bajo el oído pierde graves y algo de agudos. Esto los sube según el volumen de Android (hasta +8 dB de graves y +3 dB de agudos; nada al máximo), con un deslizador de intensidad. Se basa en la norma ISO 226; Aura no conoce el volumen real de tu amplificador o tu barra, por eso puedes ajustar la intensidad.
 
-## Corrección automática para tus audífonos
+## Cada salida con su sonido
 
-- **Al conectar unos audífonos por Bluetooth, Aura te ofrece una vez corregir el sonido para tu modelo** (más de 8.600 mediciones de AutoEq, sin internet).
-- **Queda guardada para ese aparato:** se aplica sola cada vez que lo conectas y se quita con otra salida.
-- **Segura:** nunca sube más de +6 dB (puedes elegir +3, +6 o +9), deja margen y no toca por encima de 10-14 kHz, donde cada oreja es distinta y donde están los defectos del streaming.
-- **Créditos** a AutoEq y a sus fuentes de medición en Ajustes ▸ Sonido ▸ Auto-EQ.
+- **Un parlante o una barra Bluetooth ya no se trata como audífonos:** los efectos de audífonos (sonido espacial, crossfeed) solo se usan en audífonos.
+- **Nuevo «Graves para altavoces pequeños»** (Ajustes ▸ Sonido, apagado de fábrica; te lo sugiere cuando suena por el altavoz del teléfono): hace oír los graves que ese altavoz no puede dar, quitando los que no reproduce y añadiendo sus armónicos. Nunca actúa en audífonos, Bluetooth ni DAC.
+
+## Comparar A/B al mismo volumen
+
+- **«Comparar A/B» en el ecualizador:** mantén presionado para oír la canción sin ecualizador ni efectos (B), **al mismo nivel** que tu sonido (A), para que no gane la que suena más fuerte. Así compruebas si tu ajuste mejora de verdad. No guarda nada.
+
+## Siempre
+
+- **El Modo Fidelidad sigue dejando el audio intacto** y todo lo nuevo deja margen para el limitador de pico real.
 
 ## Para que lo pruebes y me cuentes
 
 - No pude probarlo en tu móvil.
-- Elige «Aura Referencia» en el ecualizador y compáralo con tu preset de siempre.
-- Conecta tus audífonos Bluetooth: ¿te ofrece la corrección para tu modelo? Acéptala y escucha.
-- Escucha un álbum seguido: los cambios de canción no deben tener ningún clic.
+- Pon una canción con mucha voz y escucha las eses.
+- Baja el volumen con «Graves y agudos a volumen bajo» encendido: ¿sigue sonando llena?
+- Con el altavoz del teléfono, prueba «Graves para altavoces pequeños».
+- En el ecualizador, mantén presionado «Comparar A/B».
 - Si algo falla, manda el registro desde Ajustes ▸ Registros con la hora.
