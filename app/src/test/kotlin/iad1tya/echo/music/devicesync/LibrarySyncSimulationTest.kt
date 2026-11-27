@@ -173,6 +173,30 @@ class LibrarySyncSimulationTest {
 
         private fun rows() = playlists.keys.map { LibrarySyncCore.PlaylistRow(it, browseIds[it]) }
 
+        /** Row 900: the songs of [row] in their order here. */
+        fun order(row: String): List<String> = synchronized(lock) { members.filter { it.first == row }.map { it.second } }
+
+        /** Row 900: the user adds [song] to [row] at [index]. */
+        fun insert(row: String, song: String, index: Int) = synchronized(lock) {
+            if (song !in songs) addSong(song)
+            val list = members.filter { it.first == row }.map { it.second }.toMutableList()
+            list.add(index, song)
+            setOrder(row, list)
+        }
+
+        /** Row 900: the user drags [song] of [row] to [index]. */
+        fun move(row: String, song: String, index: Int) = synchronized(lock) {
+            val songs = members.filter { it.first == row }.map { it.second }.toMutableList()
+            songs.remove(song)
+            songs.add(index, song)
+            setOrder(row, songs)
+        }
+
+        private fun setOrder(row: String, songs: List<String>) {
+            members.removeAll { it.first == row }
+            songs.forEach { members += row to it }
+        }
+
         override suspend fun readLocal(playlists: LibrarySyncCore.PlaylistIds, songMetaKnown: (String) -> Boolean): Map<String, String> = synchronized(lock) {
             val facts = LinkedHashMap<String, String>()
             val referenced = LinkedHashSet<String>()
@@ -183,6 +207,10 @@ class LibrarySyncSimulationTest {
             rows().forEach { row -> playlists.linkFact(row)?.let { (k, v) -> facts[k] = v } }
             this.playlists.forEach { (id, n) -> sources[id]?.let { k -> facts[LibrarySyncCore.playlistKey(k)] = LibrarySyncCore.encodePlaylistName(n) } }
             members.forEach { (p, s) -> sources[p]?.let { k -> facts[LibrarySyncCore.memberKey(k, s)] = "1"; referenced += s } }
+            // Row 900: each song's position, as LibrarySyncAdapter does.
+            members.groupBy({ it.first }, { it.second }).forEach { (p, songs) ->
+                sources[p]?.let { k -> facts.putAll(LibrarySyncCore.PlaylistOrder.facts(k, songs, playlists.orderOf(k))) }
+            }
             pins.forEach { (p, meta) -> keyOf[p]?.let { k -> facts[LibrarySyncCore.pinKey(LibrarySyncCore.PinRef("l", "P", k))] = LibrarySyncCore.encodePin(meta) } }
             dislikes.forEach { (set, id) -> facts[LibrarySyncCore.dislikeKey(set, id)] = "1" }
             savedAlbums.forEach { id ->
@@ -226,6 +254,11 @@ class LibrarySyncSimulationTest {
                 if (row != null) pins[row] = meta else { unresolved++; unplaced += LibrarySyncCore.pinKey(ref) }
             }
             for (ref in plan.pinRemovals) if (ref.scope == "l" && ref.code == "P") targets.forRemoval(ref.id).forEach { pins -= it }
+            for (key in plan.reorder) {
+                val positions = plan.after.orderOf(key)
+                if (positions.isEmpty()) continue
+                for (row in targets.rowsOf(key)) setOrder(row, LibrarySyncCore.PlaylistOrder.sorted(members.filter { it.first == row }.map { it.second }, positions))
+            }
             applied++
             ApplyResult(applied, unresolved, unplaced)
         }
@@ -783,7 +816,8 @@ class LibrarySyncSimulationTest {
         phone.backend.members += "LPbig" to "m1"
         for (i in 1..450) phone.backend.like("many$i")
         phone.connect()
-        eventually("the phone sent its library", ms = 10_000) { room.head == 903L }
+        // 450 likes + 450 songs + the list + its song + that song + (row 900) the song's position in the list.
+        eventually("the phone sent its library", ms = 10_000) { room.head == 904L }
         // A rename gives the playlist a newer place in the room's log: after its song, two pages later.
         phone.backend.playlists["LPbig"] = "Después"; phone.changed()
         eventually("the rename is in the room") { room.value("pl:LPbig") == LibrarySyncCore.encodePlaylistName("Después") }
@@ -1421,6 +1455,64 @@ class LibrarySyncSimulationTest {
         restarted.changed()
         settle()
         assertTrue("nothing watched, nothing journaled", restarted.journal.load().isEmpty())
+    }
+
+    // ── row 900: the order of a playlist ────────────────────────────────────────────────────────────────────────────────────────
+
+    private fun twoDevicesWithOrderedList(): Pair<Device, Device> {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.playlists["LPorderlist"] = "Orden"
+        (1..5).forEach { phone.backend.insert("LPorderlist", "s$it", it - 1) }
+        phone.connect(); tablet.connect()
+        eventually("the tablet has the list in the phone's order") { tablet.backend.order("LPorderlist") == listOf("s1", "s2", "s3", "s4", "s5") }
+        settle()
+        return phone to tablet
+    }
+
+    @Test
+    fun `a reorder travels and nothing echoes afterwards`() {
+        val (phone, tablet) = twoDevicesWithOrderedList()
+        phone.backend.move("LPorderlist", "s4", 0); phone.changed()
+        eventually("the move reaches the tablet") { tablet.backend.order("LPorderlist") == listOf("s4", "s1", "s2", "s3", "s5") }
+        settle()
+        val head = room.head
+        phone.changed(); tablet.changed()
+        settle(); settle()
+        assertEquals("one move, then silence", head, room.head)
+    }
+
+    @Test
+    fun `a song added on one device while another is moved on the other keeps both`() {
+        val (phone, tablet) = twoDevicesWithOrderedList()
+        tablet.disconnect()
+        // At the same time: the phone adds s6 after s2, the offline tablet moves s5 to the top.
+        phone.backend.insert("LPorderlist", "s6", 2); phone.changed()
+        eventually("the addition is in the room") { room.value("pm:LPorderlist:s6") == "1" }
+        tablet.backend.move("LPorderlist", "s5", 0); tablet.changed()
+        settle()
+        tablet.connect()
+        val both = listOf("s5", "s1", "s2", "s6", "s3", "s4")
+        eventually("the tablet has both changes") { tablet.backend.order("LPorderlist") == both }
+        eventually("and the phone too") { phone.backend.order("LPorderlist") == both }
+        val head = room.head
+        phone.changed(); tablet.changed()
+        settle(); settle()
+        assertEquals("they agree: nothing more goes out", head, room.head)
+    }
+
+    @Test
+    fun `two moves of the same song - the newest wins on both devices`() {
+        val (phone, tablet) = twoDevicesWithOrderedList()
+        tablet.disconnect()
+        tablet.backend.move("LPorderlist", "s3", 0); tablet.changed() // first: to the top, offline
+        settle()
+        phone.backend.move("LPorderlist", "s3", 4); phone.changed() // later: to the bottom
+        eventually("the phone's move is in the room") { room.value("po:LPorderlist:s3") != null }
+        settle()
+        tablet.connect()
+        val newest = listOf("s1", "s2", "s4", "s5", "s3")
+        eventually("the tablet follows the newest move") { tablet.backend.order("LPorderlist") == newest }
+        assertEquals(newest, phone.backend.order("LPorderlist"))
     }
 
     @Test

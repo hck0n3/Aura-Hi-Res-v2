@@ -216,7 +216,9 @@ class LibrarySync(
         convertJournalLocked()
         val ledger = ledger()
         val current = adapter.readLocal(LibrarySyncCore.PlaylistIds.of(ledger)) { key -> ledger.containsKey(key) }
-        val fresh = LibrarySyncCore.localOps(current, ledger, clock())
+        // Row 900: a song's FIRST position is given once the room has been heard (the diff after catching up), never offline: two
+        // devices that numbered the same list on their own could mix their orders.
+        val fresh = LibrarySyncCore.localOps(current, ledger, clock()).filter { !LibrarySyncCore.isOrder(it.key) || ledger.containsKey(it.key) }
         if (fresh.isEmpty()) return
         fresh.forEach { ledger[it.key] = it }
         store.append(fresh)
@@ -251,7 +253,8 @@ class LibrarySync(
         val before = baseline
         baseline = HashMap(current)
         if (before == null) return
-        val changed = JournalRules.observed(before, current)
+        // A song's first position waits for the diff after catching up, as in [stampOfflineLocked].
+        val changed = JournalRules.observed(before, current).filterKeys { !LibrarySyncCore.isOrder(it) || ledger.containsKey(it) }
         if (changed.isEmpty()) return
         val (at, wall) = announced ?: (mono() to System.currentTimeMillis())
         val first = journal.nextSeq(changed.size)
@@ -392,11 +395,11 @@ class LibrarySync(
         // Row 740: which key each playlist had before this batch and has with it, so a register only reaches the list it names.
         val before = LibrarySyncCore.PlaylistIds.of(ledger)
         var plan = LibrarySyncCore.plan(accepted, before, LibrarySyncCore.PlaylistIds.of(ledger, accepted))
-        val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
+        val known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) && !LibrarySyncCore.isOrder(it.key) }
         var held = emptyList<Reg>()
         if (LibrarySyncCore.brakeTrips(plan.removalCount, known)) {
             // A pile of removals at once is not a person tidying up. Keep every addition, hold every removal, and say so.
-            held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) }
+            held = accepted.filter { it.value == LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) && !LibrarySyncCore.isOrder(it.key) }
             accepted = accepted - held.toSet()
             plan = LibrarySyncCore.plan(accepted, before, LibrarySyncCore.PlaylistIds.of(ledger, accepted + held.map { it.copy(parked = true) }))
             Timber.tag(TAG).w("LIB_SYNC held removals=%d known=%d", held.size, known)
@@ -454,7 +457,7 @@ class LibrarySync(
         val ledger = ledgerMap ?: return
         DeviceSyncHub.libraryStatus.value = DeviceSyncHub.LibraryStatus.Synced(
             atMs = System.currentTimeMillis(),
-            known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) },
+            known = ledger.values.count { it.value != LibrarySyncCore.OFF && !LibrarySyncCore.isMeta(it.key) && !LibrarySyncCore.isOrder(it.key) },
             pending = ledger.values.count { it.pending },
         )
         publishHeldLocked()

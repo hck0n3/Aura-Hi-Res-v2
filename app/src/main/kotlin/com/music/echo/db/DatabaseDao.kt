@@ -2757,9 +2757,17 @@ interface DatabaseDao {
         WHERE p.bookmarkedAt IS NOT NULL AND p.isEditable = 1
           AND p.id NOT IN ('LP_LIKED', 'LP_DOWNLOADED', 'AURA_AI_RECS')
           AND s.isLocal = 0
+        ORDER BY m.playlistId, m.position, m.id
         """
     )
     suspend fun syncMemberRows(): List<SyncMemberRow>
+
+    /** Row 900: one playlist's entries in their order, to put them in the order another device gave them. */
+    @Query("SELECT * FROM playlist_song_map WHERE playlistId = :playlistId ORDER BY position, id")
+    suspend fun syncPlaylistMapRows(playlistId: String): List<PlaylistSongMap>
+
+    @Query("UPDATE playlist_song_map SET position = :position WHERE id = :id")
+    suspend fun syncSetMapPosition(id: Int, position: Int)
 
     /** Title, first artist and cover of songs, for the ones another device may never have seen. */
     @Query(

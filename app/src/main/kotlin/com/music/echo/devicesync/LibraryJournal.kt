@@ -131,13 +131,13 @@ class LibraryJournalStore(private val dir: File) : JournalPersistence {
 object JournalRules {
     /**
      * What changed between two reads of the library: key → its new value ("0" = gone). Create-only facts (`sg:`, `ag:`, `hv:`, `pb:`)
-     * are never «gone» (they leave the read once the ledger knows them).
+     * are never «gone» (they leave the read once the ledger knows them), and a playlist position (`po:`) is never removed either.
      */
     fun observed(before: Map<String, String>, after: Map<String, String>): Map<String, String> {
         val out = LinkedHashMap<String, String>()
         for ((key, value) in after) if (before[key] != value) out[key] = value
         for (key in before.keys) {
-            if (key in after || LibrarySyncCore.isMeta(key) || LibrarySyncCore.parse(key) == null) continue
+            if (key in after || LibrarySyncCore.isMeta(key) || LibrarySyncCore.isOrder(key) || LibrarySyncCore.parse(key) == null) continue
             out[key] = LibrarySyncCore.OFF
         }
         return out
