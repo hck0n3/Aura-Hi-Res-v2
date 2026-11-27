@@ -333,6 +333,8 @@ public:
     float preampCurrent = 1.0f;
     float preampStep = 0.0f;
     int preampGlideLeft = 0;
+    // Row 911: whether the previous block ran the chain (audio thread only), so the limiter restarts empty.
+    bool chainRanLastBlock = false;
     // Row 911: last stage of the chain, -1 dBTP true-peak lookahead limiter (AuraTruePeakLimiter.h).
     aura::TruePeakLimiter* truePeakLimiter = nullptr;
     Superpowered::Filter* deEsser = nullptr;
@@ -1245,6 +1247,10 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // and delivers a complete set or nothing at all. Everything read below is either that applied
         // set or audio-thread-private state.
 
+        // Row 911: the limiter's delay line still holds the last block that ran the chain; after a stretch with the
+        // chain off that audio is stale, so the limiter starts empty again.
+        if (!processor->chainRanLastBlock && processor->truePeakLimiter) processor->truePeakLimiter->reset();
+
         // FRONT gain = the EQ preamp ONLY. The true-peak limiter at the end catches its peaks, and a
         // positive preamp raises the body audibly.
         //
@@ -1448,6 +1454,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
             }
         }
     }
+
+    if (processor) processor->chainRanLastBlock = runChain && workBuffer != nullptr;
 
     if (encoding != 4 && workBuffer) {
         short* outShort = (short*)output;

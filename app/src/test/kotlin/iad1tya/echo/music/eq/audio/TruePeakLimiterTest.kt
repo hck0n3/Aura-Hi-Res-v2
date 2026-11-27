@@ -166,6 +166,9 @@ class TruePeakLimiterTest {
         assertTrue("the hard clamp runs after the limiter", clamp > lim)
         assertFalse("the tanh soft clip is gone", bridge.contains("std::tanh(absX - 0.97f)"))
         assertFalse("Superpowered's sample-peak limiter is gone", bridge.contains("processor->limiter->process("))
+        // After a stretch with the chain off, the limiter restarts empty instead of replaying stale audio.
+        assertTrue(bridge.contains("if (!processor->chainRanLastBlock && processor->truePeakLimiter) processor->truePeakLimiter->reset();"))
+        assertTrue(bridge.contains("if (processor) processor->chainRanLastBlock = runChain && workBuffer != nullptr;"))
         // The clamp can never let a sample out at or above full scale.
         assertTrue(TruePeakLimiterConstants.SAFETY_CLAMP < 1.0f)
         // Safe Volume's own native cap is unchanged (row 152).
