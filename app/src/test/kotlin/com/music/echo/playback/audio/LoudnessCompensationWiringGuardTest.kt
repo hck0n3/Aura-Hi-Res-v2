@@ -100,7 +100,9 @@ class LoudnessCompensationWiringGuardTest {
                     "JNIEnv *env, jobject thiz, jlong ptr, jfloat bassDb, jfloat trebleDb, jfloat trimDb)",
             ),
         )
-        assertTrue(bridge.contains("(processor && processor->loudness && processor->loudness->engaged());"))
+        // The engaged stage alone makes the chain run (one more «or» of runChain; row 920 adds the psychoacoustic bass after it).
+        val runChain = bridge.substringAfter("bool runChain = runEq ||").substringBefore(";")
+        assertTrue(runChain.contains("(processor && processor->loudness && processor->loudness->engaged())"))
         assertTrue(bridge.contains("if (loudness) loudness->setTarget(s.loudnessBass, s.loudnessTreble, s.loudnessTrim);"))
         val process = bridge.substringAfter("bool runChain = runEq ||")
         val call = process.indexOf("processor->loudness->process(workBuffer, num_frames, channels);")

@@ -267,8 +267,12 @@ class VirtualBassTest {
         val apply = src.substringAfter("fun applyVirtualBass(enabled: Boolean) {").substringBefore("\n    }\n")
         assertTrue(apply.contains("if (isInitialized && ptr != 0L) pushToneStages(ptr)"))
         val headroomSwitch = src.substringAfter("fun applyAutoHeadroom(enabled: Boolean) {").substringBefore("\n    }\n")
-        assertTrue(headroomSwitch.contains("if (!this.enabled) {"))
-        assertTrue(headroomSwitch.contains("if (isInitialized && ptr != 0L) pushToneStages(ptr)"))
+        // Rows 918+920 merged: the switch re-publishes the tone stages on EVERY change (with the equalizer off too, which
+        // is what carries the bypass preamp here), never behind an «equalizer on» gate.
+        val republish = headroomSwitch.substringAfter("currentProfile?.let { if (this.enabled) applyProfile(it) }")
+        assertTrue(republish.contains("synchronized(eqApplyLock) {"))
+        assertTrue(republish.contains("if (isInitialized && ptr != 0L) pushToneStages(ptr)"))
+        assertFalse("never only with the equalizer on", republish.contains("if (this.enabled) {"))
         // The native front gain (the preamp) runs whenever the chain runs, and the stage alone makes the chain run.
         val chain = bridge.substringAfter("if (runChain && workBuffer && processor) {")
         assertTrue(chain.indexOf("float frontGain = processor->activePreampMultiplier;") in 0 until
