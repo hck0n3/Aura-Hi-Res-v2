@@ -3192,6 +3192,9 @@ class MainActivity : ComponentActivity() {
                     // «Compartir» of a song: link / MP3 / video (row 520). A floating window like the recognizer's.
                     iad1tya.echo.music.ui.newui.ShareChoiceHost()
 
+                    // Registry row 915: «Corregir el sonido para <modelo>», once per Bluetooth headphone in the catalogue.
+                    iad1tya.echo.music.ui.screens.equalizer.autoeq.AutoEqDeviceOfferHost()
+
                     if (showSettingDialoge) {
                         SettingDialoge(
                             onDismissRequest = { showSettingDialoge = false },

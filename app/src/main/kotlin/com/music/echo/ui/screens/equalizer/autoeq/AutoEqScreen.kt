@@ -218,6 +218,8 @@ fun AutoEqScreen(navController: NavController) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
         )
+        // Row 915: the connected headphone's automatic correction and its boost cap.
+        AutoEqDeviceSection(eqViewModel)
 
         Row(
             Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
