@@ -48,6 +48,15 @@ class AutoEqDeviceSwitchTest {
         return edits.isNotEmpty()
     }
 
+    /** A profile picked from the Auto-EQ list: AxionEqViewModel.applyProfileBatch, then forgetDeviceOwnership(prefs). */
+    private fun pickByHand(bands: String, preamp: Float) {
+        if (prefs[KEY_ACTIVE] != true) prefs[KEY_PREAMP_BEFORE] = prefs[KEY_MASTER_PREAMP] // row 802
+        prefs += mapOf(KEY_BANDS to bands, KEY_PREAMP to preamp, KEY_MASTER_PREAMP to preamp, KEY_ACTIVE to true)
+        val owner = AutoEqDeviceSwitch.ownerAfterManualPick(prefs[KEY_OWNER] as String?)
+        AutoEqDeviceSwitch.DEVICE_KEYS.forEach { prefs.remove(it) }
+        if (owner != null) prefs[KEY_OWNER] = owner
+    }
+
     @Test fun `the headphone's correction comes on with it and goes away with any other output`() {
         assertTrue(output(headphones, xm4))
         assertEquals(true, prefs[KEY_ACTIVE])
@@ -162,5 +171,50 @@ class AutoEqDeviceSwitchTest {
         assertEquals(-6.1f, prefs[KEY_MASTER_PREAMP])
         // Switching the user's pick off later must give back the preamp they were on (2.5).
         assertEquals(2.5f, prefs[KEY_PREAMP_BEFORE])
+    }
+
+    @Test fun `a profile picked by hand over the headphone's correction holds while it stays connected`() {
+        output(headphones, xm4)
+        pickByHand("[hd650 by hand]", -6.1f)
+        assertEquals("user:$headphones", prefs[KEY_OWNER])
+        val picked = prefs.toMap()
+        // A service restart, a SCO or second device joining, a +3/+6/+9 chip: same headphone, nothing changes.
+        assertFalse(output(headphones, xm4))
+        assertFalse(output(headphones, xm4, force = true))
+        assertEquals(picked, prefs)
+        // Leaving it: the pick stays on, only the mark goes.
+        assertTrue(output(phone, null))
+        assertEquals(true, prefs[KEY_ACTIVE])
+        assertEquals("[hd650 by hand]", prefs[KEY_BANDS])
+        assertEquals(-6.1f, prefs[KEY_MASTER_PREAMP])
+        assertEquals(2.5f, prefs[KEY_PREAMP_BEFORE]) // switching the pick off later still gives 2.5 back
+        AutoEqDeviceSwitch.DEVICE_KEYS.forEach { assertFalse(it, prefs.containsKey(it)) }
+        // The next time it connects its correction comes back, and the pick is kept aside for the way back.
+        assertTrue(output(headphones, xm4))
+        assertEquals("[xm4]", prefs[KEY_BANDS])
+        output(phone, null)
+        assertEquals(true, prefs[KEY_ACTIVE])
+        assertEquals("[hd650 by hand]", prefs[KEY_BANDS])
+        assertEquals(-6.1f, prefs[KEY_MASTER_PREAMP])
+    }
+
+    @Test fun `a hand pick over one headphone does not stop another headphone's correction`() {
+        output(headphones, xm4)
+        pickByHand("[hd650 by hand]", -6.1f)
+        assertTrue(output(buds, buds2))
+        assertEquals("[buds]", prefs[KEY_BANDS])
+        assertEquals(buds, prefs[KEY_OWNER])
+        output(phone, null)
+        assertEquals("[hd650 by hand]", prefs[KEY_BANDS])
+        assertEquals(true, prefs[KEY_ACTIVE])
+    }
+
+    @Test fun `a new boost cap never puts a correction on a stage the headphone does not hold`() {
+        prefs += mapOf(KEY_ACTIVE to true, KEY_BANDS to "[hd650]", KEY_MASTER_PREAMP to -6.1f)
+        val before = prefs.toMap()
+        assertFalse(output(headphones, xm4, force = true))
+        assertEquals(before, prefs)
+        assertNull(AutoEqDeviceSwitch.ownerAfterManualPick(null))
+        assertEquals("user:$headphones", AutoEqDeviceSwitch.ownerAfterManualPick("user:$headphones"))
     }
 }

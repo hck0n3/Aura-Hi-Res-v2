@@ -9,7 +9,11 @@ package iad1tya.echo.music.eq.autoeq
  *    device's. If the stage held the user's own pick (no owner), it is kept aside first, and the user's preamp is saved
  *    in `autoeq_preamp_before` exactly as switching Auto-EQ on by hand does (row 802).
  *  - The stage is this device's already → nothing (an unrelated device joining must not undo a switch-off the user made
- *    while listening). [plan] with `force` re-writes it — only while it is on — when its settings change.
+ *    while listening). [plan] with `force` re-writes it — only while it is on — when its settings change; `force` never
+ *    puts a correction back on a stage the device does not hold.
+ *  - The user picked a profile by hand over this headphone's correction ([ownerAfterManualPick]: owner
+ *    `user:<outputKey>`) → nothing while that headphone stays connected; any other output only drops the mark, so the
+ *    pick stays and the correction is offered to the stage again the next time the headphone connects.
  *  - The output has no correction and the stage is a device's → the device's correction goes away and what the user had
  *    comes back: their own Auto-EQ pick (on or off, with its preamp), or none and their preamp.
  *  - The stage is the user's own pick (no owner) → never touched.
@@ -30,6 +34,19 @@ object AutoEqDeviceSwitch {
     /** The keys a manual Auto-EQ choice clears: from then on the stage is the user's again. */
     val DEVICE_KEYS = listOf(KEY_OWNER, KEY_STASH_BANDS, KEY_STASH_ACTIVE, KEY_STASH_PREAMP)
 
+    /** [KEY_OWNER] after a profile picked by hand over a device's correction: `user:<outputKey>`. */
+    const val USER_PICK_PREFIX = "user:"
+
+    /**
+     * [KEY_OWNER] after a profile is picked by hand from the list: over a device's correction it becomes that device's
+     * `user:` mark (the pick holds while the headphone stays connected); otherwise there is no owner.
+     */
+    fun ownerAfterManualPick(owner: String?): String? = when {
+        owner == null -> null
+        owner.startsWith(USER_PICK_PREFIX) -> owner
+        else -> USER_PICK_PREFIX + owner
+    }
+
     data class State(
         val active: Boolean,
         val bandsJson: String?,
@@ -47,9 +64,13 @@ object AutoEqDeviceSwitch {
 
     fun plan(state: State, outputKey: String, correction: DeviceCorrection?, force: Boolean = false): Map<String, Any?> {
         val edits = LinkedHashMap<String, Any?>()
+        val userPick = state.owner?.startsWith(USER_PICK_PREFIX) == true
+        val deviceOwner = if (userPick) null else state.owner
         if (correction != null) {
-            if (state.owner == outputKey && (!force || !state.active)) return edits
-            if (state.owner == null) {
+            if (state.owner == USER_PICK_PREFIX + outputKey) return edits
+            if (force && (deviceOwner != outputKey || !state.active)) return edits
+            if (!force && deviceOwner == outputKey) return edits
+            if (deviceOwner == null) {
                 edits[KEY_STASH_BANDS] = state.bandsJson
                 edits[KEY_STASH_ACTIVE] = state.active
                 edits[KEY_STASH_PREAMP] = state.autoPreamp
@@ -64,6 +85,10 @@ object AutoEqDeviceSwitch {
             return edits
         }
         if (state.owner == null) return edits
+        if (userPick) {
+            DEVICE_KEYS.forEach { edits[it] = null }
+            return edits
+        }
         val restoreActive = state.stashActive == true && state.stashBandsJson != null
         edits[KEY_BANDS] = state.stashBandsJson
         edits[KEY_PREAMP] = state.stashPreamp

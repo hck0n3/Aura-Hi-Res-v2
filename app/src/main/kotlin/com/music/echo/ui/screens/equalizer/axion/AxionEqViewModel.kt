@@ -567,7 +567,8 @@ class AxionEqViewModel @Inject constructor(
                 putBoolean("enabled", true)
             }.apply()
             setAutoEqActive(true)
-            // Row 915: a profile picked by hand is the user's; leaving a headphone must not switch it off.
+            // Row 915: a profile picked by hand is the user's; leaving a headphone must not switch it off, and that
+            // headphone's correction must not come back over it while it stays connected.
             iad1tya.echo.music.eq.autoeq.AutoEqDeviceCorrection.forgetDeviceOwnership(prefs)
         } else {
             // Loading a saved graphic profile: write the manual 10-band (EqConstants.BAND_COUNT) curve as before.

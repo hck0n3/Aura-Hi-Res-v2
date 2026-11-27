@@ -111,13 +111,19 @@ object AutoEqDeviceCorrection {
 
     /**
      * A manual Auto-EQ choice: what a device's correction kept aside is dropped. A profile picked from the list
-     * ([keepOwner] false) makes the stage the user's again, so leaving the headphone does not switch it off. «Quitar
-     * Auto-EQ» ([keepOwner] true) keeps the owner mark, so the removal holds while that headphone stays connected and
-     * the correction only comes back the next time it connects.
+     * ([keepOwner] false) makes the stage the user's again, so leaving the headphone does not switch it off, and over a
+     * device's correction it leaves that device's `user:` mark ([AutoEqDeviceSwitch.ownerAfterManualPick]), so the
+     * correction does not come back over the pick while that headphone stays connected. «Quitar Auto-EQ» ([keepOwner]
+     * true) keeps the owner mark, so the removal holds while that headphone stays connected and the correction only
+     * comes back the next time it connects.
      */
     fun forgetDeviceOwnership(p: SharedPreferences, keepOwner: Boolean = false) {
+        val owner = if (keepOwner) null else AutoEqDeviceSwitch.ownerAfterManualPick(p.getString(AutoEqDeviceSwitch.KEY_OWNER, null))
         p.edit().apply {
-            AutoEqDeviceSwitch.DEVICE_KEYS.forEach { if (!keepOwner || it != AutoEqDeviceSwitch.KEY_OWNER) remove(it) }
+            AutoEqDeviceSwitch.DEVICE_KEYS.forEach { if (it != AutoEqDeviceSwitch.KEY_OWNER) remove(it) }
+            if (!keepOwner) {
+                if (owner == null) remove(AutoEqDeviceSwitch.KEY_OWNER) else putString(AutoEqDeviceSwitch.KEY_OWNER, owner)
+            }
         }.apply()
     }
 }
