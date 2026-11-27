@@ -1129,6 +1129,14 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.STATS.PERIOD_OPEN` | «Cambiar el tipo de periodo» (abre el menú) |
 | `UI.STATS.PERIOD_PICK` | Elegir el tipo de periodo |
 | `UI.STATS.PERIOD_CHIP` | Chip de periodo (semana, mes…) |
+| `UI.STATS.WRAPPED_YEAR` | «Tu año en Aura» (abre el resumen del año) |
+| `UI.STATS.WRAPPED_MONTH` | «Tu mes» (abre el resumen del mes) |
+| `UI.WRAPPED.NEXT` | Resumen: siguiente tarjeta (toque a la derecha, flecha derecha u OK del mando) |
+| `UI.WRAPPED.PREVIOUS` | Resumen: tarjeta anterior (toque a la izquierda o flecha izquierda del mando) |
+| `UI.WRAPPED.SHARE` | Resumen: «Compartir como imagen» |
+| `UI.WRAPPED.CLOSE` | Resumen: cerrar |
+| `UI.HOME.WRAPPED_OPEN` | Inicio: tarjeta «Tu año en Aura» (diciembre y primeros días de enero) |
+| `UI.HOME.WRAPPED_DISMISS` | Inicio: ocultar la tarjeta «Tu año en Aura» de ese año |
 
 ### «Seguir el estilo» (cola)
 

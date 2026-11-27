@@ -1431,3 +1431,6 @@ val DeviceFormChoiceKey = stringPreferencesKey("device_form_choice")
 // Registry row 902 (owner decision H17): «Modo Fidelidad» — bypasses the DSP chain from the playback side so
 // the samples reach the sink untouched, and asks for bit-perfect USB output on Android 14+. Default OFF.
 val FidelityModeKey = booleanPreferencesKey("fidelity_mode")
+
+// Registry row 910: the year whose «Tu año en Aura» card the user hid on Inicio (0 = none). Next December's year shows again.
+val WrappedHomeDismissedYearKey = intPreferencesKey("wrapped_home_dismissed_year")

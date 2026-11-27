@@ -1008,4 +1008,81 @@
     <string name="auto_backup_folder">Folder</string>
     <string name="auto_backup_folder_none">Choose a folder</string>
     <string name="auto_backup_restore_hint">To restore one: “Importar” ▸ “Importar desde archivo local”, and pick an Aura_auto file.</string>
+    <!-- Registry row 909: Estadísticas «Tus hábitos» -->
+    <string name="stats_habits_title">Your habits</string>
+    <string name="stats_habits_by_hour">By hour of the day</string>
+    <string name="stats_habits_by_weekday">By day of the week</string>
+    <string name="stats_habits_top_genres">Top genres</string>
+    <string name="stats_habits_most_times">Played most often: %1$s · %2$s</string>
+    <string name="stats_habits_empty">Nothing played in this period yet.</string>
+    <plurals name="stats_listening_days">
+        <item quantity="one">%d day with music</item>
+        <item quantity="other">%d days with music</item>
+    </plurals>
+    <plurals name="stats_streak_current">
+        <item quantity="one">Current streak: %d day</item>
+        <item quantity="other">Current streak: %d days</item>
+    </plurals>
+    <plurals name="stats_streak_longest">
+        <item quantity="one">Longest streak: %d day</item>
+        <item quantity="other">Longest streak: %d days</item>
+    </plurals>
+    <plurals name="stats_new_artists">
+        <item quantity="one">%d new artist</item>
+        <item quantity="other">%d new artists</item>
+    </plurals>
+    <!-- Registry row 910: «Tu año en Aura» / «Tu mes» -->
+    <string name="wrapped_year_title">Your year in Aura</string>
+    <string name="wrapped_month_title">Your month</string>
+    <string name="wrapped_month_intro">Your month in Aura</string>
+    <string name="wrapped_intro_hint">Tap or swipe to continue</string>
+    <string name="wrapped_minutes_title">You listened for</string>
+    <plurals name="wrapped_minutes">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <string name="wrapped_minutes_detail">Plays: %1$d · Days with music: %2$d · Songs: %3$d · Artists: %4$d</string>
+    <string name="wrapped_top_artists">Your top artists</string>
+    <string name="wrapped_top_songs">Your top songs</string>
+    <string name="wrapped_top_albums">Your top albums</string>
+    <string name="wrapped_top_genres">Your top genres</string>
+    <string name="wrapped_top_day_title">Your biggest day</string>
+    <string name="wrapped_top_day_detail">%1$s of music</string>
+    <string name="wrapped_streak_title">Your longest streak</string>
+    <plurals name="wrapped_streak_days">
+        <item quantity="one">%d day in a row</item>
+        <item quantity="other">%d days in a row</item>
+    </plurals>
+    <string name="wrapped_new_artists_title">New artists you found</string>
+    <string name="wrapped_new_artists_detail">New: %1$d · the one you played most: %2$s</string>
+    <string name="wrapped_personality_title">Your listening personality</string>
+    <string name="wrapped_personality_night_owl">Night owl</string>
+    <string name="wrapped_personality_night_owl_desc">Your music comes alive after 10 p.m.</string>
+    <string name="wrapped_personality_early_bird">Early bird</string>
+    <string name="wrapped_personality_early_bird_desc">You start the day with music.</string>
+    <string name="wrapped_personality_loyal_fan">Loyal fan</string>
+    <string name="wrapped_personality_loyal_fan_desc">One artist takes a big part of your listening.</string>
+    <string name="wrapped_personality_explorer">Explorer</string>
+    <string name="wrapped_personality_explorer_desc">You keep finding new artists.</string>
+    <string name="wrapped_personality_marathon">Marathon listener</string>
+    <string name="wrapped_personality_marathon_desc">Hours of music on the days you listen.</string>
+    <string name="wrapped_personality_all_rounder">All-rounder</string>
+    <string name="wrapped_personality_all_rounder_desc">A bit of everything, at any time.</string>
+    <string name="wrapped_final_minutes">Minutes listened: %1$s</string>
+    <string name="wrapped_final_artist">Top artist: %1$s</string>
+    <string name="wrapped_final_song">Top song: %1$s</string>
+    <string name="wrapped_final_genre">Top genre: %1$s</string>
+    <string name="wrapped_final_personality">Personality: %1$s</string>
+    <string name="wrapped_share">Share as image</string>
+    <string name="wrapped_share_chooser">Share your summary</string>
+    <string name="wrapped_share_failed">Could not create the image</string>
+    <string name="wrapped_share_note">Made on your phone. Only this image leaves it, and only if you share it.</string>
+    <string name="wrapped_too_little_title">Not enough music yet</string>
+    <string name="wrapped_too_little_body">Listen a little more in this period and come back: your summary needs at least %1$d plays and %2$d minutes.</string>
+    <string name="wrapped_next">Next card</string>
+    <string name="wrapped_previous">Previous card</string>
+    <string name="wrapped_progress">Card %1$d of %2$d</string>
+    <string name="wrapped_home_title">Your %1$s in Aura is ready</string>
+    <string name="wrapped_home_body">Your minutes, artists and songs of the year.</string>
+    <string name="wrapped_home_dismiss">Hide this card</string>
 </resources>
