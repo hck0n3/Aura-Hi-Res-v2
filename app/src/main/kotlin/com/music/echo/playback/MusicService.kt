@@ -852,6 +852,17 @@ class MusicService :
     @Volatile private var glueCompressorHint: Boolean = iad1tya.echo.music.constants.GlueCompressorDefault
     @Volatile private var outputDitherHint: Boolean = true
     @Volatile private var speakerBassProtectHint: Boolean = false
+    // Row 918: «Graves y agudos a volumen bajo». Written on Main (collector, device callback, volume broadcast).
+    private var loudnessCompHint: Boolean = iad1tya.echo.music.constants.LoudnessCompensationDefault
+    private var loudnessIntensityHint: Float = iad1tya.echo.music.constants.LoudnessCompensationIntensityDefault
+    @Volatile private var loudnessGains = iad1tya.echo.music.eq.audio.LoudnessCompensation.ZERO
+    private val lowVolumeLoudnessDelegate = lazy {
+        iad1tya.echo.music.playback.audio.LowVolumeLoudness(this) { gains ->
+            loudnessGains = gains
+            playerEqProcessors.values.forEach { it.applyLoudnessCompensation(gains) }
+        }
+    }
+    private val lowVolumeLoudness by lowVolumeLoudnessDelegate
     // PLAN A3: 32-bit float processing for 16-bit decoder output (Opus/AAC). Read by the audio sink on
     // the PLAYBACK thread at every configure (= every new track), never per buffer. Starts at the shared
     // default so a configure that beats the DataStore's first emission gets exactly what the switch shows.
@@ -2088,6 +2099,7 @@ class MusicService :
             applyEqForCurrentOutput()
             applySpatialFromPrefs()
             applyMasteringFromPrefs()
+            if (lowVolumeLoudnessDelegate.isInitialized()) lowVolumeLoudness.onOutputChanged() // row 918
             bitPerfectUsb.onAudioDevicesChanged() // row 902: a DAC plugged in
         }
 
@@ -2096,6 +2108,7 @@ class MusicService :
             applyEqForCurrentOutput()
             applySpatialFromPrefs()
             applyMasteringFromPrefs()
+            if (lowVolumeLoudnessDelegate.isInitialized()) lowVolumeLoudness.onOutputChanged() // row 918
             bitPerfectUsb.onAudioDevicesChanged() // row 902: unplugged → cleared
         }
     }
@@ -2414,6 +2427,14 @@ class MusicService :
         playerEqProcessors.values.forEach { it.applyDeEsser(deEsser) }
     }
 
+    /** Row 918: the switch through the «Modo Fidelidad» table; the controller follows the volume from here on. */
+    private fun applyLoudnessCompensationFromPrefs() {
+        val on = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.LOUDNESS_COMPENSATION, loudnessCompHint, fidelityModeHint,
+        )
+        if (on || lowVolumeLoudnessDelegate.isInitialized()) lowVolumeLoudness.update(on, loudnessIntensityHint)
+    }
+
     /**
      * Pushes the mastering toggles to every player processor. Sub-bass protection is resolved against the
      * LIVE route here: armed only while the phone's own speaker plays, never on headphones, Bluetooth or a
@@ -2471,6 +2492,7 @@ class MusicService :
         applyTidalFromPrefs()
         applyDeEsserFromPrefs()
         applyMasteringFromPrefs()
+        applyLoudnessCompensationFromPrefs()
         // Re-applies (or clears) the Safe Volume level of the current track through the same path as its switch.
         setupLoudnessEnhancer()
         if (::player.isInitialized) {
@@ -3270,6 +3292,20 @@ class MusicService :
                 }
         }
 
+        // Row 918: «Graves y agudos a volumen bajo» (Ajustes ▸ Sonido), off by default.
+        scope.launch {
+            combine(
+                dataStore.data.map { it[iad1tya.echo.music.constants.LoudnessCompensationEnabledKey] ?: iad1tya.echo.music.constants.LoudnessCompensationDefault },
+                dataStore.data.map { it[iad1tya.echo.music.constants.LoudnessCompensationIntensityKey] ?: iad1tya.echo.music.constants.LoudnessCompensationIntensityDefault },
+            ) { on, intensity -> on to intensity }
+                .distinctUntilChanged()
+                .collect { (on, intensity) ->
+                    loudnessCompHint = on
+                    loudnessIntensityHint = intensity
+                    applyLoudnessCompensationFromPrefs()
+                }
+        }
+
         // MASTERING toggles (glue compressor / output dither / phone-speaker sub-bass protection).
         scope.launch {
             combine(
@@ -3430,7 +3466,11 @@ class MusicService :
                 dataStore.data.map { it[iad1tya.echo.music.constants.TidalSimulationEnabledKey] ?: true }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.GlueCompressorEnabledKey] ?: iad1tya.echo.music.constants.GlueCompressorDefault }.distinctUntilChanged(),
                 dataStore.data.map { it[iad1tya.echo.music.constants.SpeakerBassProtectEnabledKey] ?: false }.distinctUntilChanged(),
-                dataStore.data.map { (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f }.distinctUntilChanged(),
+                // Row 918: the low-volume loudness stage processes PCM too.
+                dataStore.data.map {
+                    (it[iad1tya.echo.music.constants.StereoWidthKey] ?: 1f) != 1f ||
+                        (it[iad1tya.echo.music.constants.LoudnessCompensationEnabledKey] ?: iad1tya.echo.music.constants.LoudnessCompensationDefault)
+                }.distinctUntilChanged(),
             ) { spatial, tidal, compressor, speaker, width -> (spatial to tidal) to (compressor || speaker || width) }
                 // Emparejado con la sala en vez de como sexta fuente: `combine` se queda sin
                 // sobrecargas en cinco, y el par mantiene el bloque de arriba tal cual estaba.
@@ -3889,6 +3929,7 @@ class MusicService :
         applyTidalFromPrefs()
         applyDeEsserFromPrefs()
         applyMasteringFromPrefs()
+        eqProcessor.applyLoudnessCompensation(loudnessGains) // row 918
 
         player.apply {
                 setOffloadEnabled(audioOffloadHint)
@@ -12009,6 +12050,7 @@ class MusicService :
             Timber.tag(TAG).d("shutdownSaveReceiver was not registered: ${e.message}")
         }
         audioManager.unregisterAudioDeviceCallback(audioDeviceCallback)
+        if (lowVolumeLoudnessDelegate.isInitialized()) lowVolumeLoudness.release() // row 918
         castConnectionHandler?.release()
         // Registry 764: same exact non-blocking read as the shutdown receiver.
         runCatching { saveNoRepeatMemory(synchronous = true) }

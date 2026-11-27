@@ -102,13 +102,13 @@ class DeEsserSwitchGuardTest {
     fun `the native de-esser branch checks its switch`() {
         assertTrue(
             "the de-esser branch must run only when activeDeEsserEnabled",
-            bridge.contains("if (processor->activeDeEsserEnabled && processor->deEsser && processor->deEsserDetector) {"),
+            bridge.contains("if (processor->activeDeEsserEnabled && processor->deEsser) {"),
         )
-        // Switched off, its envelope and gain start again from flat.
+        // Switched off, its envelope and gain start again from flat. Row 917: the dynamic de-esser (AuraDeEsser.h)
+        // keeps both inside itself, so its reset() is what the old pair of zeroed fields was.
         val offBranch = bridge.substringAfter("if (processor->activeDeEsserEnabled && processor->deEsser")
             .substringAfter("} else {").substringBefore("}")
-        assertTrue(offBranch.contains("processor->currentDeEsserDb = 0.0f;"))
-        assertTrue(offBranch.contains("processor->deEsserEnv = 0.0f;"))
+        assertTrue(offBranch.contains("if (processor->deEsser) processor->deEsser->reset();"))
     }
 
     @Test

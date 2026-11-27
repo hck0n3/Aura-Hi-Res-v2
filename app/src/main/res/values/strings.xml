@@ -1101,4 +1101,7 @@
     <string name="autoeq_device_auto_apply_off">«Apply automatically» in EQ per device is off: the correction would not follow the output.</string>
     <string name="autoeq_max_boost">Maximum boost of the automatic correction</string>
     <string name="autoeq_max_boost_value">+%1$d dB</string>
+    <string name="loudness_comp_title">Bass and treble at low volume</string>
+    <string name="loudness_comp_desc">At low volume the ear loses bass and some treble (ISO 226 equal-loudness contours). This raises them following the Android volume: up to +8 dB of bass and +3 dB of treble, nothing at full volume. Aura cannot know how loud your output really plays: with Bluetooth absolute volume or an amplifier it follows the volume position, not the real decibels. With «Headroom automático» on it lowers the rest by the same amount so nothing clips. Android 9 or later.</string>
+    <string name="loudness_comp_intensity">Intensity: %1$d %%</string>
 </resources>

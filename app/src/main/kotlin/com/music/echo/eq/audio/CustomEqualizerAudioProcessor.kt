@@ -143,6 +143,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     private external fun setSpatial(ptr: Long, enabled: Boolean, algorithm: Int, params: FloatArray)
     private external fun setMasteringOptions(ptr: Long, compressor: Boolean, dither: Boolean, speakerBassProtect: Boolean)
     private external fun setStereoWidth(ptr: Long, width: Float)
+    private external fun setLoudnessCompensation(ptr: Long, bassDb: Float, trebleDb: Float, trimDb: Float)
     private external fun measureEqResponse(sampleRate: Int, bands: FloatArray, freqs: FloatArray): FloatArray
     private external fun measureHeadroom(sampleRate: Int, bands: FloatArray, preampDb: Float): FloatArray
     private external fun disableAllBands(ptr: Long)
@@ -290,6 +291,27 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         if (autoHeadroom == enabled) return
         autoHeadroom = enabled
         currentProfile?.let { if (this.enabled) applyProfile(it) }
+        // Row 918: the low-volume loudness stage takes its own trim from the same switch, with or without the EQ.
+        synchronized(eqApplyLock) {
+            val ptr = nativePtr
+            if (isInitialized && ptr != 0L) pushToneStages(ptr)
+        }
+    }
+
+    // Row 918: «Graves y agudos a volumen bajo» — shelf boosts (dB) from LoudnessCompensation, kept for onConfigure.
+    private var loudness = LoudnessCompensation.ZERO
+
+    /**
+     * Low-volume loudness compensation (row 918), already gated by the caller (switch, «Modo Fidelidad»). Lives in
+     * Ajustes ▸ Sonido, so the equalizer switch has no say over it. With «Headroom automático» on, the stage also
+     * lowers everything by its largest boost, so it never drives the limiter (rows 911-912).
+     */
+    fun applyLoudnessCompensation(gains: LoudnessCompensation.Gains) {
+        synchronized(eqApplyLock) {
+            loudness = gains
+            val ptr = nativePtr
+            if (isInitialized && ptr != 0L) pushToneStages(ptr)
+        }
     }
 
     private fun effectivePreampDb(profile: ParametricEQ): Double {
@@ -372,6 +394,12 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         // in this function only so every native tone setter keeps a single call site.
         setStereoWidth(ptr, stereoWidth)
         setMasteringOptions(ptr, masteringCompressor, masteringDither, masteringSpeakerBassProtect)
+        setLoudnessCompensation(
+            ptr,
+            loudness.bassDb.toFloat(),
+            loudness.trebleDb.toFloat(),
+            LoudnessCompensation.trimDb(loudness, autoHeadroom).toFloat(),
+        )
     }
 
     fun disable() {

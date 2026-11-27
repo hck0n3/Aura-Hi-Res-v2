@@ -1440,3 +1440,16 @@ val FidelityModeKey = booleanPreferencesKey("fidelity_mode")
 
 // Registry row 910: the year whose «Tu año en Aura» card the user hid on Inicio (0 = none). Next December's year shows again.
 val WrappedHomeDismissedYearKey = intPreferencesKey("wrapped_home_dismissed_year")
+
+// Registry row 918: «Graves y agudos a volumen bajo» (Ajustes ▸ Sonido) — ISO 226 loudness compensation that follows the
+// system music volume. Default OFF. MusicService (collector, offload gate) and SoundSettings (switch) read the same constants.
+val LoudnessCompensationEnabledKey = booleanPreferencesKey("loudness_compensation_enabled")
+
+/** The ONE default of [LoudnessCompensationEnabledKey]. */
+const val LoudnessCompensationDefault = false
+
+// Its intensity, 0..1: 1 = the full ISO 226 difference (capped at +8 dB bass / +3 dB treble).
+val LoudnessCompensationIntensityKey = floatPreferencesKey("loudness_compensation_intensity")
+
+/** The ONE default of [LoudnessCompensationIntensityKey]. */
+const val LoudnessCompensationIntensityDefault = 1f

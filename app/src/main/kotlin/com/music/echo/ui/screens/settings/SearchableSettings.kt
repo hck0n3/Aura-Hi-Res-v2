@@ -147,6 +147,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // Row 793: the de-esser's own switch, next to the Tidal one.
             Triple(stringResource(R.string.eq_de_esser_title), "Ecualizador", "settings/equalizer"),
             Triple(stringResource(R.string.eq_de_esser_desc), "Ecualizador", "settings/equalizer"),
+            // Row 918: «Graves y agudos a volumen bajo».
+            Triple(stringResource(R.string.loudness_comp_title), "Sonido y ecualización", "settings/sound"),
+            Triple(stringResource(R.string.loudness_comp_desc), "Sonido y ecualización", "settings/sound"),
             Triple("Modo alto rendimiento", "Rendimiento", "settings/performance"),
             Triple("Vista dividida estilo Spotify", "Rendimiento", "settings/performance"),
             Triple("Mostrar el panel del reproductor", "Rendimiento", "settings/performance"),
