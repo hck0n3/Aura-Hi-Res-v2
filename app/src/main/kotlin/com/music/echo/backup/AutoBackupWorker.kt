@@ -78,7 +78,7 @@ class AutoBackupWorker(context: Context, params: WorkerParameters) : CoroutineWo
         val removed = runCatching {
             val files = dir.listFiles().filter { it.isFile }
             val gone = AutoBackupPolicy.toDelete(files.mapNotNull { it.name }).toSet()
-            files.filter { it.name in gone }.count { it.delete() }
+            files.filter { f -> f.name?.let { it in gone } == true }.count { it.delete() }
         }.getOrDefault(0)
         ctx.dataStore.edit { it[AutoBackupLastOkKey] = System.currentTimeMillis() }
         Timber.tag(TAG).i("copy written, %d old copies removed", removed)
