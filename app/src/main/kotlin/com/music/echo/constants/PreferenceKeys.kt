@@ -1357,6 +1357,12 @@ val AuraHiResV2Curve20260913AppliedKey = booleanPreferencesKey("aura_hires_v2_cu
 /** Fila 357 — one-shot: an EQ still on a preset the owner retired (2026-10-08) moves to "Aura Hi-Res v3". */
 val RetiredPresetsToV3AppliedKey = booleanPreferencesKey("retired_presets_to_v3_20261008_applied")
 
+/**
+ * Row 912 — one-shot: a FRESH install (never an update or a restore) starts on «Aura Referencia» instead of the
+ * seeded "Aura Hi-Res v3". Stamped on every install the first time it runs, so it never acts later.
+ */
+val AuraReferenciaSeedV1AppliedKey = booleanPreferencesKey("aura_referencia_seed_v1_applied")
+
 /** One-shot (owner directive 2026-09-13): crossfade 8 s + EQ preamp +2.2 dB for everyone on this update. */
 val AudioDefaults20260913AppliedKey = booleanPreferencesKey("audio_defaults_20260913_applied")
 

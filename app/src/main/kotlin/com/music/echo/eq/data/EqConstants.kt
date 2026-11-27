@@ -99,7 +99,13 @@ enum class FactoryPreset(val displayName: String, val description: String, val g
     // 2026-10-06): v2's signature with 1 dB of 6-8 kHz treble moved to the 16 kHz "air" band and a light 500 Hz
     // de-box — less harshness, less de-esser and limiter work at the +2.5 dB house preamp. LAST entry, so it can
     // never steal another preset's chip; verified outside the 0.5 dB match tolerance of every other preset.
-    AURA_HI_RES_V3("Aura Hi-Res v3", "Evolución de la v2: el mismo bajo con pegada, medios más despejados y agudos más suaves en las eses, con más aire arriba. Menos fatiga y menos trabajo del limitador.", floatArrayOf(3.5f, 3.5f, 1.0f, -1.0f, -0.5f, 0f, 1.0f, 1.5f, 2.0f, 3.0f))
+    AURA_HI_RES_V3("Aura Hi-Res v3", "Evolución de la v2: el mismo bajo con pegada, medios más despejados y agudos más suaves en las eses, con más aire arriba. Menos fatiga y menos trabajo del limitador.", floatArrayOf(3.5f, 3.5f, 1.0f, -1.0f, -0.5f, 0f, 1.0f, 1.5f, 2.0f, 3.0f)),
+
+    // Row 912 (owner request 2026-11-27, plan point 2 of docs/plan/AUDIO_INVESTIGACION_2026-11-27.md): neutral with a
+    // little body — at most ~2 dB of low shelf, NOTHING above 125 Hz, so no fixed treble boost sits on the 8-16 kHz
+    // region where a lossy stream keeps its artefacts and sibilance. The factory sound of NEW installs only (seeded
+    // once by App.applyAuraReferenciaSeedV1); "Aura Hi-Res v3" stays in the list. LAST entry, like v3 before it.
+    AURA_REFERENCIA("Aura Referencia", "Referencia neutra: un toque de cuerpo en los graves y ningún realce en los agudos. Voces limpias, detalle sin arena y sin cansar, también en streaming.", floatArrayOf(1.5f, 1.0f, 0.5f, 0f, 0f, 0f, 0f, 0f, 0f, 0f))
 }
 
 /**
