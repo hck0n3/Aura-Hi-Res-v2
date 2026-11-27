@@ -34,6 +34,15 @@ const LIB_MAX_KEY = 120;
 const LIB_MAX_VALUE = 800;
 const LIB_MAX_KEYS = 150000;
 const LIB_MAX_ID = 40;
+// Row 901 — cleanup: a removal ("0") that every device of the room has pulled past is forgotten, so the room does not grow for ever.
+// A device «has pulled past» seq N when it asks `lib_pull since >= N` (its own acknowledgement of the log). The numbers are chosen,
+// not measured.
+const PRUNE_DEVICE_RETENTION_MS = 180 * 24 * 3600_000; // a device unseen this long no longer holds the cleanup back
+const PRUNE_MIN_AGE_MS = 30 * 24 * 3600_000; // a removal younger than this is kept whatever the devices say
+const PRUNE_EVERY_MS = 12 * 3600_000; // at most one cleanup pass per room every 12 h, and only when a pull moved a device on
+const PRUNE_SCAN = 2000; // log entries read by one pass
+const PRUNE_FAMILIES = /^(lk|dk|pl|pm|ab|pn):/; // the removals the app sends; nothing else is ever forgotten (`hv:` history is kept)
+const DEVICE_NOTE_EVERY_MS = 3600_000; // a device's «pulled up to» is rewritten when it moves, or once an hour
 const pad = (n) => String(n).padStart(12, "0");
 
 export default {
@@ -101,7 +110,7 @@ export class SyncRoom {
         return this.libPush(ws, msg);
       case "lib_pull":
         if (!me.id) return;
-        return this.libPull(ws, msg);
+        return this.libPull(ws, msg, me);
       case "library":
         if (!me.id) return;
         this.broadcast({ t: "library", from: me.id, what: String(msg.what || "all").slice(0, 24) }, ws);
@@ -278,12 +287,14 @@ export class SyncRoom {
     if (accepted.length) this.broadcast({ t: "lib_ops", seq }, ws);
   }
 
-  async libPull(ws, msg) {
+  async libPull(ws, msg, me) {
     const head = (await this.ctx.storage.get("libseq")) || 0;
     let since = Math.max(0, Math.floor(Number(msg.since) || 0));
     // A client that is AHEAD of this room (the room was emptied or recreated) starts over and re-sends what it has.
     const reset = since > head;
     if (reset) since = 0;
+    // Row 901: what this device has acknowledged; the cleanup never forgets what a device has not pulled yet.
+    if (me?.id && (await this.noteDevice(me.id, since, Date.now()))) await this.libPrune(Date.now());
     const page = await this.ctx.storage.list({ prefix: "s:", start: "s:" + pad(since + 1), limit: LIB_PAGE });
     const items = [];
     let last = since;
@@ -292,6 +303,62 @@ export class SyncRoom {
       last = Number(k.slice(2));
     }
     send(ws, { t: "lib_state", items, seq: last, head, more: items.length === LIB_PAGE && last < head, reset });
+  }
+
+  /** Row 901: remembers up to where device [id] has pulled. True when that moved (or an hour passed): a cleanup may follow. */
+  async noteDevice(id, since, now) {
+    const key = "ld:" + id;
+    const seen = await this.ctx.storage.get(key);
+    if (seen && seen.since === since && now - (seen.at || 0) < DEVICE_NOTE_EVERY_MS) return false;
+    await this.ctx.storage.put(key, { since, at: now });
+    return true;
+  }
+
+  /**
+   * Row 901 — forgets the removals every device has pulled past. The floor is the lowest «pulled up to» among the devices seen in
+   * the last PRUNE_DEVICE_RETENTION_MS (one that has not come back in that long no longer holds it back; it never loses anything
+   * it has: a removal it missed simply never reaches it). Only a removal older than PRUNE_MIN_AGE_MS goes, with the position of the
+   * song it took out of a list (`po:`); additions, names, history and everything that is not a removal stay. The log is walked
+   * once, from a cursor, at most PRUNE_SCAN entries per pass, and the pass stops at the first removal still too young (it is looked
+   * at again in a later pass). Returns how many registers were forgotten.
+   */
+  async libPrune(now) {
+    const storage = this.ctx.storage;
+    if (now - ((await storage.get("libprunedAt")) || 0) < PRUNE_EVERY_MS) return 0;
+    let floor = Infinity;
+    const gone = [];
+    for (const [key, seen] of await storage.list({ prefix: "ld:" })) {
+      if (now - (seen.at || 0) > PRUNE_DEVICE_RETENTION_MS) gone.push(key);
+      else floor = Math.min(floor, seen.since || 0);
+    }
+    if (gone.length) await storage.delete(gone);
+    const cursor = (await storage.get("libprunecur")) || 0;
+    if (!Number.isFinite(floor) || floor <= cursor) return 0;
+    const page = await storage.list({ prefix: "s:", start: "s:" + pad(cursor + 1), end: "s:" + pad(floor + 1), limit: PRUNE_SCAN });
+    const dels = [];
+    let reached = cursor;
+    let young = false;
+    for (const [logKey, entry] of page) {
+      const [key, ts, value] = Array.isArray(entry) ? entry : [];
+      if (value === "0" && typeof key === "string" && PRUNE_FAMILIES.test(key)) {
+        if (now - Number(ts) < PRUNE_MIN_AGE_MS) {
+          young = true;
+          break;
+        }
+        dels.push(logKey, "k:" + key);
+        if (key.startsWith("pm:")) {
+          const position = await storage.get("k:po:" + key.slice(3));
+          if (position) dels.push("k:po:" + key.slice(3), "s:" + pad(position.seq));
+        }
+      }
+      reached = Number(logKey.slice(2));
+    }
+    if (!young && page.size < PRUNE_SCAN) reached = floor;
+    for (let i = 0; i < dels.length; i += 128) await storage.delete(dels.slice(i, i + 128));
+    const removed = dels.filter((k) => k.startsWith("k:")).length;
+    const count = (await storage.get("libcount")) || 0;
+    await storage.put({ libcount: Math.max(0, count - removed), libprunecur: reached, libprunedAt: now });
+    return removed;
   }
 
   command(ws, me, msg) {

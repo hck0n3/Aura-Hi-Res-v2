@@ -391,6 +391,102 @@ test("library: an app that sends three-element ops (an older version) is served 
   newApp.ws.close();
 });
 
+// ── row 901: the room forgets the removals every device has pulled past ──────────────────────────────────────────────────────
+
+const oldTs = 1000; // a removal from 1970: far older than the 30 days the cleanup waits
+test("cleanup: a removal goes only once EVERY device pulled past it; additions, names and young removals stay", async () => {
+  const g = createHash("sha256").update("library-prune").digest("hex");
+  const a = await connect(g, phone);
+  const b = await connect(g, tablet);
+  await a.next((m) => m.t === "hello_ok");
+  await b.next((m) => m.t === "hello_ok");
+  a.send({
+    t: "lib_push",
+    ops: [
+      ["lk:gone", oldTs, "0"],
+      ["pm:LPabc:s1", oldTs, "0"],
+      ["po:LPabc:s1", oldTs, "a01"],
+      ["lk:keep", oldTs, "1"],
+      ["pl:LPabc", oldTs, '{"n":"Gym"}'],
+      ["lk:young", Date.now(), "0"],
+    ],
+  });
+  const head = (await a.next((m) => m.t === "lib_ack")).seq;
+  const pull = async (dev, since) => {
+    dev.send({ t: "lib_pull", since });
+    return dev.next((m) => m.t === "lib_state");
+  };
+  await pull(a, 0);
+  await pull(b, 0);
+  await pull(a, head); // the phone has everything; the tablet has not said so yet
+  // (pulling from 0 again is what a device does after a restore: it needs everything, and holds the cleanup back until it says so)
+  assert.equal((await pull(a, 0)).items.length, 6, "nothing forgotten while one device is behind");
+  await pull(a, head);
+  await pull(b, head); // now both have pulled past every entry
+  // An app joining now (an older version included) gets [key, ts, value] and the live library, without the old removals.
+  const fresh = await connect(g, { id: "old-app-0001", name: "Old", kind: "phone" });
+  await fresh.next((m) => m.t === "hello_ok");
+  const all = await pull(fresh, 0);
+  assert.ok(all.items.every((i) => i.length === 3));
+  assert.deepEqual(
+    all.items.map((i) => i[0]).sort(),
+    ["lk:keep", "lk:young", "pl:LPabc"],
+    "old removals (and the position of the song a list lost) are forgotten",
+  );
+  a.ws.close();
+  b.ws.close();
+  fresh.ws.close();
+});
+
+/** A room on an in-memory storage, to move the clock: get/put/delete/list as the Durable Object storage does them. */
+function memoryRoom() {
+  const data = new Map();
+  const storage = {
+    get: async (k) => (Array.isArray(k) ? new Map(k.filter((x) => data.has(x)).map((x) => [x, data.get(x)])) : data.get(k)),
+    put: async (k, v) => {
+      if (typeof k === "string") data.set(k, v);
+      else for (const [kk, vv] of Object.entries(k)) data.set(kk, vv);
+    },
+    delete: async (k) => (Array.isArray(k) ? k : [k]).forEach((x) => data.delete(x)),
+    list: async ({ prefix, start, end, limit }) => {
+      const keys = [...data.keys()].filter((k) => k.startsWith(prefix) && (!start || k >= start) && (!end || k < end)).sort();
+      return new Map(keys.slice(0, limit ?? keys.length).map((k) => [k, data.get(k)]));
+    },
+  };
+  const room = new SyncRoom({ storage, getWebSockets: () => [] }, {});
+  const sent = [];
+  const ws = { send: (t) => sent.push(JSON.parse(t)) };
+  return { room, data, ws, sent };
+}
+
+test("cleanup: a device not seen for 180 days no longer holds it back, a removal younger than 30 days is kept, and it runs at most every 12 h", async () => {
+  const day = 24 * 3600_000;
+  const now = Date.UTC(2026, 10, 27);
+  const { room, data, ws } = memoryRoom();
+  await room.libPush(ws, { ops: [["lk:old", now - 60 * day, "0"], ["lk:recent", now - 5 * day, "0"], ["lk:after", now - 60 * day, "0"]] });
+  await room.noteDevice("phone-0001", 3, now);
+  await room.noteDevice("lost-0001", 0, now - 200 * day); // paired once, never back
+  assert.equal(await room.libPrune(now), 1, "only the old removal before the young one goes");
+  assert.equal(data.has("k:lk:old"), false);
+  assert.equal(data.has("k:lk:recent"), true, "too young: kept");
+  assert.equal(data.has("k:lk:after"), true, "the pass stopped at the young removal; it is looked at again later");
+  assert.equal(data.has("ld:lost-0001"), false, "the device gone for 200 days is forgotten too");
+  assert.equal(await room.libPrune(now + 3600_000), 0, "not again within 12 h");
+  assert.equal(await room.libPrune(now + 26 * day), 2, "once the young one is old enough, it and the rest go");
+  assert.equal(data.get("libcount"), 0);
+});
+
+test("cleanup: a device that is still behind holds everything after its place", async () => {
+  const now = Date.UTC(2026, 10, 27);
+  const { room, data, ws } = memoryRoom();
+  await room.libPush(ws, { ops: [["lk:a", 1000, "0"], ["lk:b", 1000, "0"]] });
+  await room.noteDevice("phone-0001", 2, now);
+  await room.noteDevice("tablet-0001", 1, now);
+  assert.equal(await room.libPrune(now), 1);
+  assert.equal(data.has("k:lk:a"), false);
+  assert.equal(data.has("k:lk:b"), true, "the tablet has not pulled seq 2 yet");
+});
+
 test("health says which protocol this deployment speaks, and hello_ok repeats it", async () => {
   const res = await mf.dispatchFetch("http://x/health");
   const body = await res.json();

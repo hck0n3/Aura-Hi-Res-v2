@@ -68,6 +68,12 @@ class LibrarySyncSimulationTest {
         /** Row 900: how many times each op id reached the room. */
         val received = HashMap<String, Int>()
 
+        /** Row 901: the Worker's cleanup forgets a removal (its value and its log entry). */
+        @Synchronized
+        fun prune(key: String) {
+            kv.remove(key)?.let { log.remove(it.seq) }
+        }
+
         @Synchronized
         fun join(id: String, inbox: Channel<JsonObject>) {
             inboxes[id] = inbox
@@ -1513,6 +1519,30 @@ class LibrarySyncSimulationTest {
         val newest = listOf("s1", "s2", "s4", "s5", "s3")
         eventually("the tablet follows the newest move") { tablet.backend.order("LPorderlist") == newest }
         assertEquals(newest, phone.backend.order("LPorderlist"))
+    }
+
+    // ── row 901: what the room's cleanup forgot ─────────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `a removal the room forgot before a device came back deletes nothing there and brings nothing back elsewhere`() {
+        val phone = Device("phone"); val tablet = Device("tablet")
+        phone.backend.like("x"); phone.backend.like("stay")
+        phone.connect(); tablet.connect()
+        eventually("both have the likes") { tablet.backend.likes == setOf("x", "stay") }
+        settle()
+        tablet.disconnect()
+        phone.backend.likes -= "x"; phone.changed()
+        eventually("the unlike is in the room") { room.value("lk:x") == "0" }
+        // The tablet stayed away longer than the room keeps a device in mind: the cleanup forgot the unlike.
+        room.prune("lk:x")
+        tablet.connect()
+        settle(); settle()
+        tablet.changed(); phone.changed()
+        settle(); settle()
+        assertTrue("nothing was deleted on the device that missed it", "x" in tablet.backend.likes)
+        assertEquals("and nothing came back in the room", null, room.value("lk:x"))
+        assertFalse("nor on the phone", "x" in phone.backend.likes)
+        assertTrue(setOf("stay").all { it in phone.backend.likes && it in tablet.backend.likes })
     }
 
     @Test
