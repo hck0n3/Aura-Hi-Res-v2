@@ -529,6 +529,8 @@ class AxionEqViewModel @Inject constructor(
      */
     override fun onCleared() {
         super.onCleared()
+        // Row 921: leaving the screen ends «Comparar A/B» (the button's own release covers the normal case).
+        if (abRequested) equalizerService.setAbReference(false)
         runCatching { prefs.unregisterOnSharedPreferenceChangeListener(enabledSync) }
         if (_isDirty.value) {
             runCatching { commit() }
@@ -840,14 +842,24 @@ class AxionEqViewModel @Inject constructor(
         }
     }
 
+    /** Row 921: the gain (dB) the level-matched reference B plays with while «Comparar A/B» is held; null = hearing A. */
+    private val _abReferenceGainDb = MutableStateFlow<Double?>(null)
+    val abReferenceGainDb = _abReferenceGainDb.asStateFlow()
+
     /**
-     * A/B listening: while [bypass] is true the DSP runs without the EQ (bands and preamp); releasing
-     * re-applies the current tuning. Nothing is persisted and the EQ switch is untouched.
+     * Row 921 — «Comparar A/B»: while [bypass] is true the engine plays the reference B (no bands, no equalizer
+     * effects) at A's level (EqualizerService.setAbReference); releasing plays the current tuning A again. Instant:
+     * the processor is not rebuilt and the coefficients glide. Nothing is persisted and the EQ switch is untouched.
+     * Never with the equalizer off or in «Modo Fidelidad» (everything is already bypassed there).
      */
     fun previewBypass(bypass: Boolean) {
-        if (!_enabled.value) return
-        if (bypass) equalizerService.disable() else applyUnlessFidelity(liveProfile())
+        val on = bypass && _enabled.value && !fidelityOn.value
+        abRequested = on
+        _abReferenceGainDb.value = equalizerService.setAbReference(on)
     }
+
+    /** Row 921: whether this instance switched the reference on; [onCleared] ends it (leaving the screen). */
+    private var abRequested = false
 
     /** Live preamp drag (see [setBandGainLive]). */
     fun setPreampLive(db: Float) {

@@ -1048,4 +1048,9 @@
     <string name="sound_virtual_bass_title">Graves para altavoces pequeños</string>
     <string name="sound_virtual_bass_desc">Hace oír los graves que el altavoz del teléfono no puede dar: quita los que no reproduce (por debajo de ≈150 Hz) y añade sus armónicos. Solo actúa en el altavoz del teléfono; nunca con auriculares, Bluetooth, un DAC USB ni en Modo Fidelidad. Apagado por defecto.</string>
     <string name="sound_virtual_bass_suggested">Recomendado ahora: la música sale por el altavoz del teléfono.</string>
+    <string name="eq_ab_compare_button">Comparar A/B (mantén presionado para oír B)</string>
+    <string name="eq_ab_compare_desc">A es tu sonido. B es la misma canción sin el ecualizador ni sus efectos, al mismo nivel (igualado con ruido rosa, ±0,5 dB), para que no gane el que suena más fuerte. No se guarda nada.</string>
+    <string name="eq_ab_compare_listening_b">Escuchando B: sin ecualizador ni efectos, nivel igualado en %1$s dB</string>
+    <string name="eq_ab_compare_unavailable_fidelity">No disponible en Modo Fidelidad: el ecualizador y sus efectos ya están fuera, así que lo que oyes es la referencia.</string>
+    <string name="eq_ab_compare_needs_eq">Activa el ecualizador para comparar.</string>
 </resources>

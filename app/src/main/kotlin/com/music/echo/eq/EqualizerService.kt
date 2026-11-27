@@ -19,6 +19,7 @@ class EqualizerService @Inject constructor() {
     private val audioProcessors = mutableListOf<CustomEqualizerAudioProcessor>()
     private var pendingProfile: SavedEQProfile? = null
     private var shouldDisable: Boolean = false
+    private var abReference: Boolean = false
 
     companion object {
         private const val TAG = "EqualizerService"
@@ -39,6 +40,8 @@ class EqualizerService @Inject constructor() {
             applyProfileToProcessor(processor, profile)
             
         }
+        // Row 921: a player created during an A/B comparison (crossfade, a swap) plays the same side.
+        if (abReference) processor.setAbReference(true)
     }
 
     
@@ -85,8 +88,26 @@ class EqualizerService @Inject constructor() {
     }
 
     
+    /**
+     * Row 921 — «Comparar A/B»: [on] plays the level-matched reference B on every processor, false plays the user's
+     * sound A again (see CustomEqualizerAudioProcessor.setAbReference). Saves nothing and leaves the profile, the
+     * pending profile and the equalizer switch as they are. Returns the gain (dB) B plays with, or null when no
+     * engine plays it.
+     */
+    @OptIn(UnstableApi::class)
+    fun setAbReference(on: Boolean): Double? {
+        abReference = on
+        var gainDb: Double? = null
+        audioProcessors.forEach { processor ->
+            val g = runCatching { processor.setAbReference(on) }.getOrNull()
+            if (gainDb == null) gainDb = g
+        }
+        return gainDb
+    }
+
     @OptIn(UnstableApi::class)
     fun disable() {
+        abReference = false
         if (audioProcessors.isEmpty()) {
             Timber.tag(TAG).w("No audio processors set yet. Storing disable as pending")
             shouldDisable = true

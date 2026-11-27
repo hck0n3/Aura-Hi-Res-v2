@@ -1108,4 +1108,9 @@
     <string name="sound_virtual_bass_title">Bass for small speakers</string>
     <string name="sound_virtual_bass_desc">Lets you hear the bass the phone speaker cannot play: it removes what the speaker cannot reproduce (below ≈150 Hz) and adds its harmonics. Only on the phone speaker; never with headphones, Bluetooth, a USB DAC or in Fidelity mode. Off by default.</string>
     <string name="sound_virtual_bass_suggested">Recommended now: music is playing through the phone speaker.</string>
+    <string name="eq_ab_compare_button">Compare A/B (hold to hear B)</string>
+    <string name="eq_ab_compare_desc">A is your sound. B is the same song without the equalizer or its effects, played at the same level (pink-noise match, within about 0.5 dB), so the louder one does not win just by being louder. Nothing is saved.</string>
+    <string name="eq_ab_compare_listening_b">Listening to B: no equalizer or effects, level matched by %1$s dB</string>
+    <string name="eq_ab_compare_unavailable_fidelity">Not available in Fidelity mode: the equalizer and its effects are already off, so what you hear is the reference.</string>
+    <string name="eq_ab_compare_needs_eq">Turn the equalizer on to compare.</string>
 </resources>

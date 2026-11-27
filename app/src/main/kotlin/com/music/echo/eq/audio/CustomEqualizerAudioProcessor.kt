@@ -407,7 +407,8 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
      */
     private fun pushToneStages(ptr: Long) {
         val plan = EqBypass.toneStages(
-            masterEqOn = enabled,
+            // Row 921: the A/B reference bypasses the same stages the equalizer switch does.
+            masterEqOn = enabled && !abReference,
             spatialEnabled = spatialEnabled,
             tidalSignatureEnabled = tidalSimulationEnabled,
             deEsserEnabled = deEsserEnabled,
@@ -433,6 +434,8 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
 
     fun disable() {
         enabled = false
+        // Row 921: nothing left to compare against; switching the equalizer back on plays the user's sound (A).
+        abReference = false
         // Guard INSIDE the lock — see applyProfile for why evaluating it outside was a use-after-free window.
         synchronized(eqApplyLock) {
             val ptr = nativePtr
@@ -526,9 +529,11 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
                         effectivePreamp,
                     )
                 }
-                setPreamp(ptr, effectivePreamp.toFloat())
+                // Row 921: the A/B reference loads no band (each one glides to flat, row 912) and plays at A's level.
+                val reference = abReference
+                setPreamp(ptr, (if (reference) abReferenceGainDb(profile, effectivePreamp) else effectivePreamp).toFloat())
 
-                allBands.forEachIndexed { index, band ->
+                if (!reference) allBands.forEachIndexed { index, band ->
                     if (bandActive(band)) {
                         val typeCode = when (band.filterType) {
                             FilterType.LSC -> 1  // low shelf
@@ -554,6 +559,51 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     }
 
     private var currentProfile: ParametricEQ? = null
+
+    /**
+     * Row 921 — «Comparar A/B». While true the chain plays the REFERENCE B: no band (they glide to flat over
+     * kEqGlideMs, row 912, so the switch never clicks), the stages the equalizer switch owns bypassed
+     * ([pushToneStages]), and the preamp set to A's level ([EqLevelMatch.referenceGainDb], gliding too). The
+     * processor is not rebuilt, [currentProfile] stays the user's sound, and every caller of [applyProfile]
+     * (a new track's [onConfigure], a slider) keeps B at the new curve's level until the comparison ends.
+     */
+    @Volatile private var abReference = false
+
+    /**
+     * Switches the A/B reference on or off and returns the gain (dB) B plays with, or null when the reference is not
+     * playing (equalizer off, engine not loaded, or [on] false). Persists nothing. Never armed while the equalizer is
+     * off, so switching it on later always starts with the user's sound A.
+     */
+    fun setAbReference(on: Boolean): Double? {
+        synchronized(eqApplyLock) {
+            val target = on && enabled
+            if (abReference != target) {
+                abReference = target
+                if (enabled) currentProfile?.let { applyProfile(it) }
+            }
+            val profile = currentProfile
+            return if (abReference && enabled && isEngineReady() && profile != null) {
+                abReferenceGainDb(profile, effectivePreampDb(profile))
+            } else {
+                null
+            }
+        }
+    }
+
+    private fun abReferenceGainDb(profile: ParametricEQ, effectivePreamp: Double): Double {
+        // A's curve: the bands that sound plus, while it sounds in A, the Tidal signature (same gate as effectivePreampDb).
+        val tidalSounds = EqBypass.toneStages(
+            masterEqOn = enabled,
+            spatialEnabled = spatialEnabled,
+            tidalSignatureEnabled = tidalSimulationEnabled,
+            deEsserEnabled = deEsserEnabled,
+        ).tidalSignature
+        return iad1tya.echo.music.eq.EqLevelMatch.referenceGainDb(
+            (profile.autoBands + profile.bands).filter { it.enabled },
+            tidalSounds,
+            effectivePreamp,
+        )
+    }
 
     // Throttle state for the applyProfile trace (only touched under eqApplyLock).
     private var lastLoggedRawPreamp = Double.NaN
