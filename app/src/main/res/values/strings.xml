@@ -942,4 +942,28 @@
     <string name="fidelity_mode_tempo_locked">Fidelity mode is on: tempo and pitch stay at 1.0× so the audio is not altered. Turn it off in Settings ▸ Sound to change them.</string>
     <string name="fidelity_mode_eq_banner_title">The equalizer is paused</string>
     <string name="fidelity_mode_eq_banner_desc">Fidelity mode is on, so nothing on this screen changes what you hear. Your settings are kept and apply again when you turn it off in Settings ▸ Sound.</string>
+    <!-- Registry row 906: «Tu gusto» (Settings ▸ AI Lyrics Translation). -->
+    <string name="taste_title">Your taste</string>
+    <string name="taste_entry_desc">A summary of what you listen to, made on your phone. Optional AI, off until you accept it</string>
+    <string name="taste_loading">Reading your listening…</string>
+    <string name="taste_empty">There is not enough listening in Aura yet to sum up your taste.</string>
+    <string name="taste_local_title">Summary</string>
+    <string name="taste_local_genres">What plays most in your Aura: %1$s.</string>
+    <string name="taste_local_artists">Your go-to artists: %1$s.</string>
+    <string name="taste_local_decade">Your decade: %1$s.</string>
+    <string name="taste_decade">%1$ds</string>
+    <string name="taste_local_note">Made on your phone from your plays. Nothing is sent.</string>
+    <string name="taste_ai_title">With AI (optional)</string>
+    <string name="taste_ai_off">Off. The AI can write a more personal summary; first you see exactly what would be sent.</string>
+    <string name="taste_ai_review">See what is sent and turn it on</string>
+    <string name="taste_ai_ask">Describe with AI</string>
+    <string name="taste_ai_asking">Asking the AI…</string>
+    <string name="taste_ai_failed">The AI did not answer. Your summary above is still valid.</string>
+    <string name="taste_ai_result_note">Written by AI from the counts you agreed to send.</string>
+    <string name="taste_ai_withdraw">Withdraw permission</string>
+    <string name="taste_consent_title">Before using the AI</string>
+    <string name="taste_consent_body">If you accept, only when you tap «Describe with AI» Aura sends to the Aura AI server (or to your own AI provider, if you set your key in Settings ▸ AI Lyrics Translation):\n• the names of up to 8 of your most played artists and how many times you played them;\n• up to 5 genres and how many times they appear;\n• up to 4 decades of your most played songs and how many songs there are from each;\n• the language of the app.\nNo dates or times of your listening, no song titles, no account, no e-mail and no identifier of any kind are sent. The Aura AI server does not keep the content; your IP is kept for at most 48 hours to limit requests. You can withdraw this permission at any time.</string>
+    <string name="taste_consent_now">What would be sent now: %1$s</string>
+    <string name="taste_consent_accept">Accept</string>
+    <string name="taste_consent_decline">Not now</string>
 </resources>

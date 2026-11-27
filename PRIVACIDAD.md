@@ -1,6 +1,6 @@
 # Política de privacidad — Aura Hi-Res v2
 
-**Versión:** 4 · **Fecha de entrada en vigor:** 24 de noviembre de 2026
+**Versión:** 5 · **Fecha de entrada en vigor:** 27 de noviembre de 2026
 
 Esta es la versión principal de la política de privacidad de **Aura Hi-Res v2** (la "aplicación"). La traducción al inglés está en [PRIVACY_POLICY.md](PRIVACY_POLICY.md); si las dos no coinciden, prevalece esta versión en español. Completa la cláusula 11 de los [Términos y Condiciones](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md).
 
@@ -76,6 +76,7 @@ Dentro de la aplicación, las funciones de IA envían a nuestro servidor de IA (
 | **Lista IA y "Pedir música"** | Disponible; solo envía cuando la usas | El texto que escribes y, al modificar una lista, los títulos y artistas de sus canciones. |
 | **"Recomendado para ti (IA)"** | **Desactivada** | Al activarla, periódicamente: hasta 16 canciones (título y artista) de las que más escuchas y de tus me gusta, hasta 8 de tus artistas más frecuentes, tus géneros dominantes y hasta 24 títulos de la lista anterior. |
 | **Segunda opinión de IA de la cola** | **Desactivada** | Lo indicado en el apartado 2. |
+| **"Tu gusto": descripción con IA** | **Desactivada**: antes te muestra qué se envía y te pide permiso; después, solo envía cuando tocas "Describir con IA" | Los nombres de hasta 8 de tus artistas más escuchados y cuántas veces los escuchaste, hasta 5 géneros y cuántas veces aparecen, hasta 4 décadas de tus canciones más escuchadas y cuántas canciones hay de cada una, y el idioma de la aplicación. Nunca fechas u horas de escucha, títulos de canciones, tu cuenta, tu correo ni identificadores. El resumen sin IA de "Tu gusto" se hace en tu dispositivo y no envía nada. Puedes retirar el permiso en la misma pantalla. |
 | **Traducción de letras** | **Activada** | Solo como último recurso: el texto de la letra (apartado 3). |
 
 ## 5. Para qué usamos los datos

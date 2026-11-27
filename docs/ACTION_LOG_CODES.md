@@ -1571,6 +1571,13 @@ Lo que se escribe (búsquedas, nombres, enlaces, claves, códigos) nunca entra e
 | `UI.SETAI.PROVIDER_HELP_OK` | «Aceptar» en «Obtener Llaves API» |
 | `UI.SETAI.TRANSLATE_MODE_HELP_OK` | «Aceptar» en la ayuda del modo de traducción |
 | `UI.SETAI.RECS_REFRESH` | «Refrescar ahora» la lista recomendada |
+| `UI.SETAI.TASTE` | Abrir «Tu gusto» (fila 906) |
+| `UI.TASTE.BACK` | Atrás (Tu gusto) |
+| `UI.TASTE.AI_REVIEW` | «Ver qué se envía y activarla» (abre el consentimiento de la IA, fila 906) |
+| `UI.TASTE.AI_ASK` | «Describir con IA» (fila 906) |
+| `UI.TASTE.AI_WITHDRAW` | «Retirar el permiso» de la IA (fila 906) |
+| `UI.TASTE.CONSENT_ACCEPT` | «Aceptar» el consentimiento de la IA (fila 906) |
+| `UI.TASTE.CONSENT_DECLINE` | «Ahora no» en el consentimiento de la IA (fila 906) |
 | `UI.SETAI.PROVIDER` | «Proveedor» |
 | `UI.SETAI.PROVIDER_HELP` | «Obtener Llaves API» |
 | `UI.SETAI.BASE_URL` | «URL base» |

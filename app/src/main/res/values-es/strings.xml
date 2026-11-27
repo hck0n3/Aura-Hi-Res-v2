@@ -876,4 +876,28 @@
     <string name="fidelity_mode_tempo_locked">El Modo Fidelidad está activo: el tempo y el tono se quedan en 1,0× para no alterar el audio. Desactívalo en Ajustes ▸ Sonido para cambiarlos.</string>
     <string name="fidelity_mode_eq_banner_title">El ecualizador está en pausa</string>
     <string name="fidelity_mode_eq_banner_desc">El Modo Fidelidad está activo, así que nada de esta pantalla cambia lo que oyes. Tus ajustes se guardan y vuelven a aplicarse al apagarlo en Ajustes ▸ Sonido.</string>
+    <!-- Registry row 906: «Tu gusto» (Ajustes ▸ Traducción de letras con IA). -->
+    <string name="taste_title">Tu gusto</string>
+    <string name="taste_entry_desc">Un resumen de lo que escuchas, hecho en tu móvil. IA opcional, apagada hasta que la aceptes</string>
+    <string name="taste_loading">Leyendo tus escuchas…</string>
+    <string name="taste_empty">Aún no has escuchado lo suficiente en Aura para resumir tu gusto.</string>
+    <string name="taste_local_title">Resumen</string>
+    <string name="taste_local_genres">Lo que más suena en tu Aura: %1$s.</string>
+    <string name="taste_local_artists">Tus artistas de cabecera: %1$s.</string>
+    <string name="taste_local_decade">Tu década: %1$s.</string>
+    <string name="taste_decade">Años %1$d</string>
+    <string name="taste_local_note">Hecho en tu móvil con tus escuchas. No se envía nada.</string>
+    <string name="taste_ai_title">Con IA (opcional)</string>
+    <string name="taste_ai_off">Apagada. La IA puede escribir un resumen más personal; antes verás exactamente qué se enviaría.</string>
+    <string name="taste_ai_review">Ver qué se envía y activarla</string>
+    <string name="taste_ai_ask">Describir con IA</string>
+    <string name="taste_ai_asking">Preguntando a la IA…</string>
+    <string name="taste_ai_failed">La IA no respondió. Tu resumen de arriba sigue valiendo.</string>
+    <string name="taste_ai_result_note">Escrito por IA a partir de los números que aceptaste enviar.</string>
+    <string name="taste_ai_withdraw">Retirar el permiso</string>
+    <string name="taste_consent_title">Antes de usar la IA</string>
+    <string name="taste_consent_body">Si aceptas, solo cuando toques «Describir con IA» Aura envía al servidor de IA de Aura (o a tu propio proveedor de IA, si pusiste tu clave en Ajustes ▸ Traducción de letras con IA):\n• los nombres de hasta 8 de tus artistas más escuchados y cuántas veces los escuchaste;\n• hasta 5 géneros y cuántas veces aparecen;\n• hasta 4 décadas de tus canciones más escuchadas y cuántas canciones hay de cada una;\n• el idioma de la app.\nNo se envían fechas ni horas de tus escuchas, títulos de canciones, tu cuenta, tu correo ni ningún identificador. El servidor de IA de Aura no guarda el contenido; tu IP se guarda como mucho 48 horas para limitar las peticiones. Puedes retirar este permiso cuando quieras.</string>
+    <string name="taste_consent_now">Lo que se enviaría ahora: %1$s</string>
+    <string name="taste_consent_accept">Aceptar</string>
+    <string name="taste_consent_decline">Ahora no</string>
 </resources>

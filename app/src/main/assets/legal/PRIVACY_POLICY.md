@@ -1,6 +1,6 @@
 # Privacy Policy — Aura Hi-Res v2
 
-**Version:** 4 · **Effective date:** November 24, 2026
+**Version:** 5 · **Effective date:** November 27, 2026
 
 This is the English translation of the privacy policy of **Aura Hi-Res v2** (the "App"). The primary version is the Spanish one, [PRIVACIDAD.md](PRIVACIDAD.md); if the two differ, the Spanish version prevails. It expands on clause 11 of the [Terms and Conditions](app/src/main/assets/legal/TERMINOS_Y_CONDICIONES.md) (in Spanish).
 
@@ -76,6 +76,7 @@ Inside the App, the AI features send to our AI server (third-party open models h
 | **AI playlist and "Pedir música"** | Available; sends only when you use it | The text you type and, when modifying a playlist, the titles and artists of its songs. |
 | **"Recomendado para ti (IA)"** | **Off** | Once turned on, periodically: up to 16 songs (title and artist) from your most played and your likes, up to 8 of your most frequent artists, your dominant genres and up to 24 titles from the previous list. |
 | **Smart-queue AI second opinion** | **Off** | As described in section 2. |
+| **"Your taste": AI description** | **Off**: it first shows you what is sent and asks for your permission; after that, it sends only when you tap "Describe with AI" | The names of up to 8 of your most played artists and how many times you played them, up to 5 genres and how many times they appear, up to 4 decades of your most played songs and how many songs there are from each, and the language of the App. Never dates or times of listening, song titles, your account, your e-mail or identifiers. The "Your taste" summary without AI is made on your device and sends nothing. You can withdraw the permission on the same screen. |
 | **Lyrics translation** | **On** | Only as a last resort: the lyrics text (section 3). |
 
 ## 5. What we use the data for

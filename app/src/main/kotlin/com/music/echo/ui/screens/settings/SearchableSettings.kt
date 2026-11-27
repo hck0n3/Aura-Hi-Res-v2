@@ -635,6 +635,9 @@ fun getAllSearchableSettings(): List<Triple<String, String, String>> {
             // Registry row 813: «Revisar suscripciones», a row of Ajustes ▸ Cuentas (shown only while signed in).
             Triple(stringResource(R.string.sub_cleanup_title), "Cuentas", "settings/accounts"),
             Triple(stringResource(R.string.sub_cleanup_desc), "Cuentas", "settings/accounts"),
+            // Registry row 906: «Tu gusto», a row of Ajustes ▸ Traducción de letras con IA.
+            Triple(stringResource(R.string.taste_title), "Traducción de letras IA", "settings/ai"),
+            Triple(stringResource(R.string.taste_entry_desc), "Traducción de letras IA", "settings/ai"),
             // Registry row 890: the rows of «Nube (OneDrive y Dropbox)». Its title is the Ajustes index row itself
             // (Cuentas y sincronización), so it is not echoed here (INDEX-ECHO RULE).
             Triple(stringResource(R.string.cloud_connect_onedrive), stringResource(R.string.cloud_title), "settings/cloud"),

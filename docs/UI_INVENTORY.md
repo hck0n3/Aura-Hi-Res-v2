@@ -4828,3 +4828,14 @@ Mismos textos, mismos botones, mismos toques y mismas rutas. En la pantalla exte
 | Diálogo **«¿Quitar N suscripciones?»** (cuenta) | **Añade** «Estas son las que se quitarán:» y los nombres de exactamente lo que se va a quitar, debajo del texto de siempre (`SubscriptionCleanupScreen.kt:371`); botones y comportamiento iguales | 905 |
 | Ajustes ▸ Cuentas ▸ «Revisar suscripciones» | **Sin cambio**: sigue saliendo solo con sesión iniciada | 905 |
 
+## Anexo 2026-11-27 (fila 906): Fase 9, «Tu gusto» y su IA apagada hasta aceptar (no se quitó ni se ocultó nada)
+
+| Qué | Cambio | Fila |
+|---|---|---|
+| Ajustes ▸ Traducción de letras con IA ▸ grupo **«Tu gusto»** con la fila **«Tu gusto»** — desc. «Un resumen de lo que escuchas, hecho en tu móvil. IA opcional, apagada hasta que la aceptes» (`ui/screens/settings/AiSettings.kt:491-502`) | **Nueva**, entre «Recomendado para ti (IA)» y «Proveedor» → `settings/ai/taste`; en pantalla ancha se abre en el panel derecho con «Traducción de letras con IA» resaltada. La búsqueda de Ajustes la encuentra | 906 |
+| Pantalla **«Tu gusto»** (`ui/screens/settings/TasteScreen.kt`): Atrás; «Leyendo tus escuchas…» mientras carga; «Aún no has escuchado lo suficiente en Aura para resumir tu gusto.» sin historial | **Nueva** | 906 |
+| «Resumen»: párrafo «Lo que más suena en tu Aura: …. Tus artistas de cabecera: …. Tu década: Años 1990.» (solo las frases con datos), etiquetas (géneros, décadas, artistas; no se pueden tocar) y «Hecho en tu móvil con tus escuchas. No se envía nada.» | **Nuevo**, siempre que haya historial; no usa la red | 906 |
+| «Con IA (opcional)»: sin permiso, «Apagada. La IA puede escribir un resumen más personal; antes verás exactamente qué se enviaría.» + **Ver qué se envía y activarla** | **Nuevo** (estado por defecto) | 906 |
+| Diálogo **«Antes de usar la IA»** — lo que se envía (hasta 8 artistas y sus escuchas, hasta 5 géneros, hasta 4 décadas, el idioma), lo que no (fechas u horas, títulos, cuenta, correo, identificadores), que el servidor no guarda el contenido y la IP como mucho 48 h, «Lo que se enviaría ahora: …» con los nombres y números reales + **Aceptar** / **Ahora no** | **Nuevo** (`TasteScreen.kt:168`) | 906 |
+| Con permiso: **Describir con IA** (deshabilitado mientras pregunta), «Preguntando a la IA…», el párrafo y las etiquetas que escribió la IA + «Escrito por IA a partir de los números que aceptaste enviar.», o «La IA no respondió. Tu resumen de arriba sigue valiendo.» (en rojo), y **Retirar el permiso** | **Nuevo** | 906 |
+
