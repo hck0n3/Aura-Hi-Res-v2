@@ -935,6 +935,9 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
     }
     val listenTogetherManager = iad1tya.echo.music.LocalListenTogetherManager.current
     val isInRoom = listenTogetherManager?.isInRoom ?: false
+    // Row 902: «Modo Fidelidad» keeps tempo and pitch at 1.0, and in a room the pitch (MusicService resets any
+    // other value, FidelityMode.allowedPlaybackParameters); say so instead of offering controls that snap back.
+    val fidelityLocked = iad1tya.echo.music.ui.component.rememberFidelityModeOn()
     val skin = iad1tya.echo.music.ui.newui.rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
 
@@ -968,36 +971,43 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
         },
         text = {
             Column {
-                if (!isInRoom) {
-                    ValueAdjuster(
-                        icon = R.drawable.speed,
-                        currentValue = tempo,
-                        values = (0..35).map { round((0.25f + it * 0.05f) * 100) / 100 },
-                        onValueUpdate = {
-                            tempo = it
-                            updatePlaybackParameters()
-                        },
-                        valueText = { "x$it" },
-                        modifier = Modifier.padding(bottom = 12.dp),
+                if (fidelityLocked) {
+                    Text(
+                        text = stringResource(R.string.fidelity_mode_tempo_locked),
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
-                    // Row 744: hidden in a room because every device plays at 1.0× there; say so instead of vanishing.
-                    Text(
-                        text = stringResource(R.string.listen_together_tempo_locked),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 12.dp),
+                    if (!isInRoom) {
+                        ValueAdjuster(
+                            icon = R.drawable.speed,
+                            currentValue = tempo,
+                            values = (0..35).map { round((0.25f + it * 0.05f) * 100) / 100 },
+                            onValueUpdate = {
+                                tempo = it
+                                updatePlaybackParameters()
+                            },
+                            valueText = { "x$it" },
+                            modifier = Modifier.padding(bottom = 12.dp),
+                        )
+                    } else {
+                        // Row 744: hidden in a room because every device plays at 1.0× there; say so instead of vanishing.
+                        Text(
+                            text = stringResource(R.string.listen_together_tempo_locked),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(bottom = 12.dp),
+                        )
+                    }
+                    ValueAdjuster(
+                        icon = R.drawable.discover_tune,
+                        currentValue = transposeValue,
+                        values = (-12..12).toList(),
+                        onValueUpdate = {
+                            transposeValue = it
+                            updatePlaybackParameters()
+                        },
+                        valueText = { "${if (it > 0) "+" else ""}$it" },
                     )
                 }
-                ValueAdjuster(
-                    icon = R.drawable.discover_tune,
-                    currentValue = transposeValue,
-                    values = (-12..12).toList(),
-                    onValueUpdate = {
-                        transposeValue = it
-                        updatePlaybackParameters()
-                    },
-                    valueText = { "${if (it > 0) "+" else ""}$it" },
-                )
             }
         },
     )

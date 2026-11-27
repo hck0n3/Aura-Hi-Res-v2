@@ -331,6 +331,12 @@ class MusicService :
 
     internal var tailQuietRecheckJob: Job? = null
 
+    // Row 903 — «no fade inside an album played in order» (CrossfadeEngine.isAlbumInOrderPair): the verdict for
+    // the current (current → next) pair, looked up once per pair off the main thread. Main thread only.
+    internal var albumInOrderKey: String? = null
+    internal var albumInOrderVerdict = false
+    internal var albumInOrderJob: Job? = null
+
     internal val secondaryPlayerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
             Timber.tag(TAG).e(error, "Secondary player error")
@@ -849,6 +855,19 @@ class MusicService :
     // the PLAYBACK thread at every configure (= every new track), never per buffer. Starts at the shared
     // default so a configure that beats the DataStore's first emission gets exactly what the switch shows.
     @Volatile private var float32ProcessingHint: Boolean = iad1tya.echo.music.constants.Float32ProcessingDefault
+    // Row 902: «Modo Fidelidad» (FidelityModeKey). Written on Main by applyFidelityMode, read on the playback
+    // thread by the sink's configure. safeVolumePrefHint is the user's own Safe Volume switch, kept apart from
+    // safeVolumeEnabledHint, which Fidelidad forces off without touching the stored preference.
+    @Volatile internal var fidelityModeHint: Boolean = false
+    @Volatile private var safeVolumePrefHint: Boolean = true
+    // Row 902: the tempo/pitch the mode first put back (and whether that was inside a Listen Together room),
+    // so turning it off gives them back. Main thread only (applyFidelityMode, onPlaybackParametersChanged).
+    private var playbackParametersBeforeFidelity: PlaybackParameters? = null
+    private var playbackParametersSavedInRoom = false
+    // Row 902: bit-perfect USB output on Android 14+ while «Modo Fidelidad» is on (event-driven, see the class).
+    private val bitPerfectUsb by lazy {
+        iad1tya.echo.music.playback.audio.BitPerfectUsbController(getSystemService(AudioManager::class.java))
+    }
     @Volatile private var stereoWidthHint: Float = 1f
     // Default OFF (owner report 2026-09-22): this trims the master preamp by the loudest active
     // band's boost on every EQ recompute (each slider drag), so moving a band up perceptibly ducked
@@ -2068,6 +2087,7 @@ class MusicService :
             applyEqForCurrentOutput()
             applySpatialFromPrefs()
             applyMasteringFromPrefs()
+            bitPerfectUsb.onAudioDevicesChanged() // row 902: a DAC plugged in
         }
 
         override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
@@ -2075,6 +2095,7 @@ class MusicService :
             applyEqForCurrentOutput()
             applySpatialFromPrefs()
             applyMasteringFromPrefs()
+            bitPerfectUsb.onAudioDevicesChanged() // row 902: unplugged → cleared
         }
     }
 
@@ -2214,7 +2235,8 @@ class MusicService :
         if (effective == null || effective.preamp <= house) return
         val lowered = effective.copy(preamp = house.toDouble())
         eqProfileRepository.setUnsavedProfile(lowered)
-        if (::equalizerService.isInitialized) {
+        // Row 902: under «Modo Fidelidad» only saved (setUnsavedProfile above); applied when the mode is turned off.
+        if (::equalizerService.isInitialized && !fidelityModeHint) {
             runCatching { equalizerService.applyProfile(lowered) }
         }
         Timber.tag(TAG).i(
@@ -2301,7 +2323,8 @@ class MusicService :
             // override this device profile the instant setActiveProfile fires.
             eqProfileRepository.setUnsavedProfile(profile)
             eqProfileRepository.setActiveProfile(profile.id)
-            equalizerService.applyProfile(profile)
+            // Row 902: saved above; «Modo Fidelidad» applies it when it is turned off.
+            if (!fidelityModeHint) equalizerService.applyProfile(profile)
             runCatching {
                 iad1tya.echo.music.eq.data.SoundEffectsSnapshot.apply(this@MusicService, profile.effects)
             }
@@ -2315,18 +2338,28 @@ class MusicService :
     private fun applySpatialFromPrefs() {
         val profile = SpatialAudioProfile.fromName(spatialProfileNameHint)
         val kind = SpatialAudioProfile.detectOutputKind(this)
-        val live = spatialEnabledHint && kind != SpatialOutputKind.BYPASS
+        val live = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.SPATIAL,
+            spatialEnabledHint && kind != SpatialOutputKind.BYPASS,
+            fidelityModeHint,
+        )
         val algorithm = SpatialAudioProfile.nativeAlgorithm(profile, kind)
         val params = profile.toNativeParams()
         playerEqProcessors.values.forEach { it.applySpatial(live, algorithm, params) }
     }
 
     private fun applyTidalFromPrefs() {
-        playerEqProcessors.values.forEach { it.applyTidalSimulation(tidalEnabledHint) }
+        val tidal = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.TIDAL_SIGNATURE, tidalEnabledHint, fidelityModeHint,
+        )
+        playerEqProcessors.values.forEach { it.applyTidalSimulation(tidal) }
     }
 
     private fun applyDeEsserFromPrefs() {
-        playerEqProcessors.values.forEach { it.applyDeEsser(deEsserEnabledHint) }
+        val deEsser = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.DE_ESSER, deEsserEnabledHint, fidelityModeHint,
+        )
+        playerEqProcessors.values.forEach { it.applyDeEsser(deEsser) }
     }
 
     /**
@@ -2337,11 +2370,102 @@ class MusicService :
     private fun applyMasteringFromPrefs() {
         val onPhoneSpeaker = speakerBassProtectHint &&
             SpatialAudioProfile.detectOutputKind(this) == SpatialOutputKind.SPEAKER
+        // Row 902: Fidelidad pauses the compressor, the dither and the width; the speaker protection is KEPT
+        // (FidelityMode.KEPT): it only ever runs on the phone's own speaker, never on a DAC or headphones.
+        val fidelity = fidelityModeHint
+        val compressor = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.GLUE_COMPRESSOR, glueCompressorHint, fidelity,
+        )
+        val dither = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.OUTPUT_DITHER, outputDitherHint, fidelity,
+        )
+        val width = iad1tya.echo.music.playback.audio.FidelityMode.effectiveStereoWidth(stereoWidthHint, fidelity)
         playerEqProcessors.values.forEach {
-            it.applyMastering(glueCompressorHint, outputDitherHint, onPhoneSpeaker)
-            it.applyStereoWidth(stereoWidthHint)
+            it.applyMastering(compressor, dither, onPhoneSpeaker)
+            it.applyStereoWidth(width)
             it.applyAutoHeadroom(autoHeadroomHint)
         }
+    }
+
+    /**
+     * Row 902 — «Modo Fidelidad». Main thread (its DataStore collector). Acts only on a real change, so the
+     * collector's first emission with OFF never re-registers processors that are already registered.
+     *
+     * The equalizer cannot be switched off for good with [CustomEqualizerAudioProcessor.disable] alone: the
+     * EQ screen and the device auto-apply call [EqualizerService.applyProfile], and the processor's own
+     * `onConfigure` re-applies its last profile at every new track. So while the mode is on the processors
+     * STAY attached (an empty EqualizerService list logs a WARN with the profile name on every call) and
+     * are disabled here and again by the sink after every configure, and every caller of applyProfile skips
+     * it (this service and AxionEqViewModel). The edits still reach [eqProfileRepository], so turning the
+     * mode off re-applies the latest profile the user chose, or the disable, the way the profile collector
+     * would.
+     */
+    private fun applyFidelityMode(on: Boolean) {
+        if (on == fidelityModeHint) return
+        fidelityModeHint = on
+        safeVolumeEnabledHint = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.SAFE_VOLUME, safeVolumePrefHint, on,
+        )
+        if (on) {
+            playerEqProcessors.values.forEach { eq ->
+                eq.disable()
+                eq.applySafeVolume(false, 1f)
+            }
+        } else {
+            val latest = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value
+            if (latest != null) equalizerService.applyProfile(latest) else equalizerService.disable()
+        }
+        applySpatialFromPrefs()
+        applyTidalFromPrefs()
+        applyDeEsserFromPrefs()
+        applyMasteringFromPrefs()
+        // Re-applies (or clears) the Safe Volume level of the current track through the same path as its switch.
+        setupLoudnessEnhancer()
+        if (::player.isInitialized) {
+            val inRoom = runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
+            if (on) {
+                iad1tya.echo.music.playback.audio.FidelityMode.allowedPlaybackParameters(
+                    true,
+                    player.playbackParameters.speed,
+                    player.playbackParameters.pitch,
+                    inRoom,
+                )?.let { applyFidelityPlaybackParameters(it, inRoom) }
+            } else {
+                playbackParametersBeforeFidelity?.let { saved ->
+                    val (speed, pitch) = iad1tya.echo.music.playback.audio.FidelityMode.restoredPlaybackParameters(
+                        saved.speed,
+                        saved.pitch,
+                        playbackParametersSavedInRoom,
+                        player.playbackParameters.speed,
+                        inRoom,
+                    )
+                    player.playbackParameters = PlaybackParameters(speed, pitch)
+                }
+            }
+        }
+        if (!on) playbackParametersBeforeFidelity = null
+        bitPerfectUsb.setFidelityMode(on)
+        // No user data: the state only.
+        Timber.tag(TAG).i("FIDELITY mode=%s", if (on) "on" else "off")
+    }
+
+    /** Row 902: sets the tempo/pitch the mode allows, remembering the user's own the first time. Main thread. */
+    private fun applyFidelityPlaybackParameters(target: Pair<Float, Float>, inRoom: Boolean) {
+        if (playbackParametersBeforeFidelity == null) {
+            playbackParametersBeforeFidelity = player.playbackParameters
+            playbackParametersSavedInRoom = inRoom
+        }
+        player.playbackParameters = PlaybackParameters(target.first, target.second)
+    }
+
+    /** Row 902: the bit-perfect preference lives only while playback is wanted (play pressed, not ended). */
+    private fun updateBitPerfectPlayback() {
+        if (!::player.isInitialized) return
+        bitPerfectUsb.setPlaybackActive(
+            player.playWhenReady &&
+                player.playbackState != Player.STATE_ENDED &&
+                player.playbackState != Player.STATE_IDLE,
+        )
     }
 
     override fun onCreate() {
@@ -2615,6 +2739,8 @@ class MusicService :
             combine(eqProfileRepository.activeProfile, eqProfileRepository.unsavedProfile) { active, unsaved ->
                 unsaved ?: active
             }.collect { profile ->
+                // Row 902: «Modo Fidelidad» keeps the equalizer off; applyFidelityMode re-applies this on the way out.
+                if (profile != null && fidelityModeHint) return@collect
                 if (profile != null) {
                     val result = equalizerService.applyProfile(profile)
                     if (result.isSuccess && player.playbackState == Player.STATE_READY && player.isPlaying) {
@@ -3049,7 +3175,11 @@ class MusicService :
                 .collect { enabled ->
                     val wasEnabled = previouslyEnabled
                     previouslyEnabled = enabled
-                    safeVolumeEnabledHint = enabled // mirror for the crossfade pre-level
+                    safeVolumePrefHint = enabled
+                    // mirror for the crossfade pre-level; row 902: «Modo Fidelidad» keeps it off
+                    safeVolumeEnabledHint = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+                        iad1tya.echo.music.playback.audio.FidelityMode.Stage.SAFE_VOLUME, enabled, fidelityModeHint,
+                    )
                     setupLoudnessEnhancer()
                     if (wasEnabled == true && !enabled) resetEqPreamp()
                 }
@@ -3116,6 +3246,14 @@ class MusicService :
                 }
                 .distinctUntilChanged()
                 .collect { enabled -> float32ProcessingHint = enabled }
+        }
+
+        // Row 902 — «Modo Fidelidad» (Ajustes ▸ Sonido). Event-driven: one emission per change of the switch.
+        scope.launch {
+            dataStore.data
+                .map { it[iad1tya.echo.music.constants.FidelityModeKey] ?: false }
+                .distinctUntilChanged()
+                .collect { on -> applyFidelityMode(on) }
         }
 
         // STEREO WIDTH + AUTO HEADROOM (owner directive 2026-09-13).
@@ -3304,7 +3442,9 @@ class MusicService :
                     // preload job, exactly like preloadUpcomingItems does.
                     (prefs[CrossfadeEnabledKey] ?: false) &&
                         !(prefs[iad1tya.echo.music.constants.HighPerformanceModeKey] ?: false) &&
-                        !(prefs[iad1tya.echo.music.constants.DataSaverEnabledKey] ?: false),
+                        !(prefs[iad1tya.echo.music.constants.DataSaverEnabledKey] ?: false) &&
+                        // Row 902: «Modo Fidelidad» never blends two tracks (FidelityMode.Stage.CROSSFADE).
+                        !(prefs[iad1tya.echo.music.constants.FidelityModeKey] ?: false),
                     prefs[CrossfadeDurationKey] ?: iad1tya.echo.music.constants.CrossfadeDefaultSeconds,
                     prefs[CrossfadeGaplessKey] ?: false
                 )
@@ -3569,6 +3709,8 @@ class MusicService :
         // this app's signing certificate (see SuperpoweredLicense). It keeps only applicationContext.
         val eqProcessor = CustomEqualizerAudioProcessor(this)
         equalizerService.addAudioProcessor(eqProcessor)
+        // Row 902: under «Modo Fidelidad» a new processor starts off (before any audio reaches it).
+        if (fidelityModeHint) eqProcessor.disable()
 
         val silenceProcessor = iad1tya.echo.music.playback.audio.SilenceDetectorAudioProcessor {
             // TAIL DETECTION → early crossfade. Fires on the audio pipeline thread, ONLY while
@@ -6852,6 +6994,11 @@ class MusicService :
                 // Safe Volume (default ON): drives the live EQ processor's attenuate-only gain.
                 val safeVol = withContext(Dispatchers.IO) {
                     dataStore.data.map { it[SafeVolumeEnabledKey] ?: true }.first()
+                }.let {
+                    // Row 902: «Modo Fidelidad» levels nothing (unity gain), whatever the switch says.
+                    iad1tya.echo.music.playback.audio.FidelityMode.effective(
+                        iad1tya.echo.music.playback.audio.FidelityMode.Stage.SAFE_VOLUME, it, fidelityModeHint,
+                    )
                 }
 
                 if ((normalizeAudio || safeVol) && currentMediaId != null) {
@@ -7477,7 +7624,8 @@ class MusicService :
         // A song↔video swap of the SAME track is not a manual track change: no volume dip, no silent wait.
         val sameTrackSourceSwap = !trackChanged &&
             android.os.SystemClock.elapsedRealtime() - sourceSwapAtMs < SOURCE_SWAP_WINDOW_MS
-        if (fadeOnManualChangeHint && !isCrossfading && !sameTrackSourceSwap &&
+        // Row 902: «Modo Fidelidad» does not ramp the start of the track either (FidelityMode.Stage.MANUAL_FADE).
+        if (fadeOnManualChangeHint && !fidelityModeHint && !isCrossfading && !sameTrackSourceSwap &&
             (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||
                 reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
         ) {
@@ -8037,6 +8185,7 @@ class MusicService :
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
+        updateBitPerfectPlayback() // row 902
         // A rebuilt video→audio exit has finished the moment audio is audible again (soft exits log themselves).
         if (isPlaying) swapLogDone("video->audio", "rebuild")
         val autoConnected = isAndroidAutoControllerConnected()
@@ -8221,6 +8370,7 @@ class MusicService :
     override fun onPlaybackStateChanged(
         @Player.State playbackState: Int,
     ) {
+        updateBitPerfectPlayback() // row 902
         // #27: do NOT clear awaitingFirstUserPlay here — the restored queue reaches STATE_READY while PAUSED,
         // so clearing on any non-IDLE state would drop the veto during the restore itself. It is cleared only
         // on genuine engagement (real playback via EVENT_IS_PLAYING_CHANGED, a genuine playQueue/widget play,
@@ -8331,6 +8481,7 @@ class MusicService :
     }
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+        updateBitPerfectPlayback() // row 902
         // Registry row 473: the other half of the pause trace (PLAY_TOGGLE in PlayerConnection says the tap arrived;
         // this says what the player did with it and whether something else flipped it back). reason: 1 user,
         // 2 focus loss, 3 noisy, 4 remote, 5 end of item, 6 suppressed too long. Ints and booleans only.
@@ -9163,6 +9314,20 @@ class MusicService :
 
     override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
         super.onPlaybackParametersChanged(playbackParameters)
+        // Row 902: «Modo Fidelidad» keeps tempo and pitch at 1.0 whoever wrote them (dialog, media session);
+        // inside a Listen Together room, which stays in time by nudging the speed, only the pitch. The reset
+        // re-enters this callback once with the allowed values, which pass straight through.
+        val inRoomNow = runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
+        val fidelityTarget = iad1tya.echo.music.playback.audio.FidelityMode.allowedPlaybackParameters(
+            fidelityModeHint,
+            playbackParameters.speed,
+            playbackParameters.pitch,
+            inRoomNow,
+        )
+        if (fidelityTarget != null) {
+            applyFidelityPlaybackParameters(fidelityTarget, inRoomNow)
+            return
+        }
         // Tempo/pitch is something the offload path can only deliver on a HAL that advertises
         // offloadVariableRateSupported=1; media3 otherwise swallows the AudioTrack failure and the
         // Tempo & pitch dialog becomes a placebo (full evidence in setOffloadEnabled). Re-publish
@@ -10681,9 +10846,16 @@ class MusicService :
                 // room. In a room the guest corrects drift by nudging the speed (rows 261/262); a float
                 // route would have to revert on the first nudge, so it is never taken there. If the room
                 // state cannot be read, assume a room: the int16 chain is the conservative answer.
+                // Row 902: «Modo Fidelidad» keeps 16-bit tracks 16-bit (a 16-bit bit-perfect mixer must match them).
                 val float16Allowed: () -> Boolean = {
-                    float32ProcessingHint &&
+                    float32ProcessingHint && !fidelityModeHint &&
                         !runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
+                }
+                // Row 903: hi-res may leave float for Sonic when tempo/pitch are moved — never under «Modo
+                // Fidelidad» (tempo stays 1.0 there) nor in a room (each speed nudge would re-create the
+                // AudioTrack; an unreadable room state counts as a room). Read per configure / per change.
+                val hiResTempoAllowed: () -> Boolean = {
+                    !fidelityModeHint && !runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
                 }
                 val delegateSink = DefaultAudioSink
                     .Builder(this@MusicService)
@@ -10767,6 +10939,23 @@ class MusicService :
                      *  (loud first buffer → ~0 → its learned tail is erased). So externallyFed stays false
                      *  until handleBuffer has driven that drain with an empty buffer. */
                     private var chainDrainPending = false
+                    /** Row 902: this track's AudioTrack format for the bit-perfect USB controller, not told yet.
+                     *  Only the CURRENT player's sink tells it (the instant-video pre-player and a crossfade
+                     *  secondary configure while another player plays); a sink that becomes current later
+                     *  tells it at its next buffer. */
+                    private var streamFormatToReport: iad1tya.echo.music.playback.audio.BitPerfectMixer.StreamFormat? = null
+                    private var streamReportPending = false
+                    /** Row 902: under «Modo Fidelidad», a new format that follows another stream is reported only
+                     *  once the delegate has played that stream out and switched (gapless: configure runs while
+                     *  the previous track's last ~0.5 s is still in the AudioTrack). Same empty-buffer drain as
+                     *  chainDrainPending, on the first handleBuffer after configure only. */
+                    private var streamReportAwaitsDrain = false
+
+                    private fun reportStreamFormatIfCurrent() {
+                        if (eqProcessor !== currentEqProcessor) return
+                        streamReportPending = false
+                        bitPerfectUsb.onStreamFormat(streamFormatToReport)
+                    }
 
                     // media3 1.11 (row 335): the (Format, Int, IntArray?) overload is now FINAL and funnels
                     // into this one; the decision and the takeover below are unchanged.
@@ -10793,7 +10982,9 @@ class MusicService :
                         // "Procesado en 32 bits" switch, no Listen Together room, and tempo/pitch at 1.0 —
                         // read HERE, i.e. once per configuration (= per track), never per buffer.
                         val previousRoute = route
-                        val newRoute = iad1tya.echo.music.playback.audio.SinkDspRouting.route(
+                        // Row 902: a stream is still configured (reset() clears it): the delegate drains it first.
+                        val followsStream = lastSinkConfig != null
+                        var newRoute = iad1tya.echo.music.playback.audio.SinkDspRouting.route(
                             isRaw = androidx.media3.common.MimeTypes.AUDIO_RAW == inputFormat.sampleMimeType,
                             pcmEncoding = inputFormat.pcmEncoding,
                             lowEnd = lowEnd,
@@ -10801,12 +10992,25 @@ class MusicService :
                             float16Allowed = float16Allowed(),
                             speed = requestedParams.speed,
                             pitch = requestedParams.pitch,
+                            hiResTempoAllowed = hiResTempoAllowed(),
                         )
-                        val takeover16 =
-                            newRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_16BIT
                         var delegateFormat = inputFormat
                         var pipeline: androidx.media3.common.audio.AudioProcessingPipeline? = null
                         var activationDeferred = false
+                        if (newRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.HIRES_INT16_FOR_TEMPO) {
+                            // Row 903: hand the delegate 16-bit PCM so its int16 chain (EQ + Sonic) runs. The
+                            // conversion pipeline is ours alone (no shared processor), so it activates now.
+                            val conversion = buildInt16Conversion(inputFormat)
+                            if (conversion != null) {
+                                pipeline = conversion
+                                delegateFormat = inputFormat.buildUpon().setPcmEncoding(C.ENCODING_PCM_16BIT).build()
+                            } else {
+                                // Unreachable for linear PCM; never a playback error: today's hi-res path.
+                                newRoute = iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_HIRES
+                            }
+                        }
+                        val takeover16 =
+                            newRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_16BIT
                         if (iad1tya.echo.music.playback.audio.SinkDspRouting.isTakeover(newRoute)) {
                             // ToFloatPcmAudioProcessor is media3's own converter and self-bypasses when the
                             // input is already float, so a float decoder output costs zero extra work.
@@ -10842,7 +11046,7 @@ class MusicService :
                                 // Hi-res: activate now, exactly as before. 16-bit right after media3's int16
                                 // chain: defer the activation (see dspActivationPending) to handleBuffer.
                                 activationDeferred = takeover16 &&
-                                    previousRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                                    iad1tya.echo.music.playback.audio.SinkDspRouting.delegateRunsInt16Chain(previousRoute)
                                 if (!activationDeferred) {
                                     built.flush() // activates the processors; the pipeline is inert until this
                                 }
@@ -10884,6 +11088,19 @@ class MusicService :
                         }
                         route = effectiveRoute
                         lastSinkConfig = audioSinkConfig
+                        // Row 902: the AudioTrack format of this track, for the bit-perfect USB mixer (once per track).
+                        streamFormatToReport =
+                            iad1tya.echo.music.playback.audio.SinkDspRouting.sinkOutputEncoding(effectiveRoute)?.let { enc ->
+                                iad1tya.echo.music.playback.audio.BitPerfectMixer.StreamFormat(
+                                    encoding = enc,
+                                    sampleRate = inputFormat.sampleRate,
+                                    // ImmutableIntArray (Guava): one entry per output channel.
+                                    channelCount = audioSinkConfig.outputChannelMapping?.length() ?: inputFormat.channelCount,
+                                )
+                            }
+                        streamReportPending = true
+                        streamReportAwaitsDrain = fidelityModeHint && followsStream
+                        if (!streamReportAwaitsDrain) reportStreamFormatIfCurrent()
                         // The silence detector is fed in-chain ONLY on media3's int16 pipeline; on every float
                         // route the sink tap is its only feed (SilenceDetectorAudioProcessor.externallyFed).
                         // Coming off the int16 chain, the tap is switched on only after the delegate has
@@ -10891,7 +11108,7 @@ class MusicService :
                         val bypassed =
                             iad1tya.echo.music.playback.audio.SinkDspRouting.chainBypassedByDelegate(effectiveRoute)
                         chainDrainPending = bypassed &&
-                            previousRoute == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                            iad1tya.echo.music.playback.audio.SinkDspRouting.delegateRunsInt16Chain(previousRoute)
                         silenceProcessor.externallyFed = bypassed && !chainDrainPending
                         if (revertPending) {
                             // A tempo/pitch change was withheld from the delegate during the previous stream's
@@ -10900,7 +11117,17 @@ class MusicService :
                             revertPending = false
                             super.setPlaybackParameters(requestedParams)
                         }
-                        logAudioPath(inputFormat, delegateFormat, pipeline != null, effectiveRoute)
+                        // Row 902: the configure above re-ran the processor's onConfigure, which re-applies its
+                        // last EQ profile (CustomEqualizerAudioProcessor, eq/ — not edited). Under «Modo
+                        // Fidelidad» switch it off again here, on this same thread, before any buffer of the
+                        // new configuration reaches it. Idempotent; once per configure (= per track).
+                        if (fidelityModeHint) eqProcessor.disable()
+                        logAudioPath(
+                            inputFormat,
+                            delegateFormat,
+                            pipeline != null && iad1tya.echo.music.playback.audio.SinkDspRouting.isTakeover(effectiveRoute),
+                            effectiveRoute,
+                        )
                     }
 
                     override fun handleBuffer(
@@ -10938,6 +11165,13 @@ class MusicService :
                                 dspActivationPending = false
                             }
                         }
+                        if (streamReportAwaitsDrain) {
+                            if (!super.handleBuffer(emptyPcm, presentationTimeUs, 0)) return false
+                            streamReportAwaitsDrain = false
+                        }
+                        // Row 902: a sink that became the current player after its configure (instant-video swap,
+                        // crossfade swap). One field read per buffer otherwise.
+                        if (streamReportPending) reportStreamFormatIfCurrent()
                         runCatching {
                             val start = buffer.position()
                             val end = buffer.limit()
@@ -11060,6 +11294,7 @@ class MusicService :
                         requestedParams = playbackParameters
                         if (iad1tya.echo.music.playback.audio.SinkDspRouting.shouldRevert(
                                 route, playbackParameters.speed, playbackParameters.pitch,
+                                hiResTempoAllowed = hiResTempoAllowed(),
                             )
                         ) {
                             // Tempo & pitch dialog, or a Listen Together speed nudge, during a 16-bit float
@@ -11112,16 +11347,30 @@ class MusicService :
                             super.setPlaybackParameters(requestedParams)
                             return true
                         }
+                        // Row 903: a hi-res takeover leaves float the same way, through a 16-bit conversion of
+                        // our own in front of the delegate (Sonic only exists in its int16 chain).
+                        val fromHiRes = route == iad1tya.echo.music.playback.audio.SinkDspRouting.Route.FLOAT_TAKEOVER_HIRES
+                        val conversion = if (fromHiRes) buildInt16Conversion(original.format) else null
+                        if (fromHiRes && conversion == null) {
+                            // Unreachable for linear PCM: stay on float (tempo/pitch at 1.0, as before row 903).
+                            super.setPlaybackParameters(requestedParams)
+                            return true
+                        }
+                        val revertFormat = if (conversion != null) {
+                            original.format.buildUpon().setPcmEncoding(C.ENCODING_PCM_16BIT).build()
+                        } else {
+                            original.format
+                        }
                         // Same stream, mid-way: its encoder delay (Opus pre-skip) was trimmed at the start
                         // already. Handing it over again would make the delegate's TrimmingAudioProcessor,
                         // re-armed by this configure, cut that many frames once more at the switch point
                         // (TrimmingAudioProcessor 1.11.1 onFlush). Padding is kept: it belongs to the end.
                         @Suppress("DEPRECATION")
-                        val revertConfig = if (original.format.encoderDelay == 0) {
+                        val revertConfig = if (conversion == null && original.format.encoderDelay == 0) {
                             original
                         } else {
                             androidx.media3.exoplayer.audio.AudioSink.AudioSinkConfig.Builder(
-                                original.format.buildUpon().setEncoderDelay(0).build(),
+                                revertFormat.buildUpon().setEncoderDelay(0).build(),
                             )
                                 .setPreferredBufferSizeOverride(original.preferredBufferSizeOverride)
                                 .setOutputChannelMapping(original.outputChannelMapping)
@@ -11141,6 +11390,7 @@ class MusicService :
                             runCatching {
                                 dsp?.configure(androidx.media3.common.audio.AudioProcessor.AudioFormat(original.format))
                             }
+                            conversion?.reset()
                             Timber.tag(TAG).w("AUDIO_PATH revert failed (%s); keeping route=%s", e.javaClass.simpleName, route)
                             super.setPlaybackParameters(requestedParams)
                             return true
@@ -11150,16 +11400,51 @@ class MusicService :
                         // belongs to the delegate's int16 pipeline, which re-configures it (same sample rate
                         // → the native instance, Safe Volume level and filter state survive) and frees it on
                         // its own reset().
-                        hiResDsp = null
+                        // Row 903: from hi-res, our 16-bit conversion takes its place (null for a 16-bit track).
+                        hiResDsp = conversion
                         hiResEosQueued = false
                         dspActivationPending = false
                         chainDrainPending = false
-                        route = iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                        route = if (conversion != null) {
+                            iad1tya.echo.music.playback.audio.SinkDspRouting.Route.HIRES_INT16_FOR_TEMPO
+                        } else {
+                            iad1tya.echo.music.playback.audio.SinkDspRouting.Route.DELEGATE_INT16_CHAIN
+                        }
                         silenceProcessor.externallyFed = false
                         super.setPlaybackParameters(requestedParams)
                         // No user data: the route and the reason only.
                         Timber.tag(TAG).i("AUDIO_PATH revert reason=tempo_pitch route=%s", route)
                         return true
+                    }
+
+                    /**
+                     * Row 903: hi-res PCM to 16 bits with media3's own converter, so the delegate takes its int16
+                     * branch (EQ chain + Sonic) instead of its float one, which drops tempo and pitch. 1:1 and
+                     * zero-latency like the float takeover, so handleBuffer forwards timestamps unchanged.
+                     * Null (and nothing left half-configured) when the format cannot be converted.
+                     */
+                    private fun buildInt16Conversion(
+                        format: androidx.media3.common.Format,
+                    ): androidx.media3.common.audio.AudioProcessingPipeline? {
+                        val built = androidx.media3.common.audio.AudioProcessingPipeline(
+                            com.google.common.collect.ImmutableList.of<androidx.media3.common.audio.AudioProcessor>(
+                                androidx.media3.common.audio.ToInt16PcmAudioProcessor(),
+                            ),
+                        )
+                        val out = try {
+                            built.configure(androidx.media3.common.audio.AudioProcessor.AudioFormat(format))
+                        } catch (e: androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException) {
+                            return null
+                        }
+                        if (out.encoding != C.ENCODING_PCM_16BIT ||
+                            out.sampleRate != format.sampleRate ||
+                            out.channelCount != format.channelCount
+                        ) {
+                            built.reset()
+                            return null
+                        }
+                        built.flush() // activates the converter; the pipeline is inert until this
+                        return built
                     }
 
                     override fun release() {
@@ -11636,6 +11921,7 @@ class MusicService :
 
     override fun onDestroy() {
         isRunning = false
+        runCatching { bitPerfectUsb.release() } // row 902: never leave the bit-perfect preference behind
         runCatching { deviceSync?.stop() }
         deviceSync = null
         musicRequestFillJob?.cancel()

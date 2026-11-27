@@ -2675,6 +2675,10 @@ interface DatabaseDao {
     @Query("SELECT song_album_map.* FROM song_album_map JOIN song ON song.id = song_album_map.songId WHERE song.isLocal = 1")
     fun localSongAlbumMaps(): Flow<List<SongAlbumMap>>
 
+    /** Row 903: the album positions of two queue neighbours («no fade inside an album played in order»). */
+    @Query("SELECT * FROM song_album_map WHERE albumId = :albumId AND songId IN (:songIds)")
+    suspend fun songAlbumMapsIn(albumId: String, songIds: List<String>): List<SongAlbumMap>
+
     @Query("SELECT * FROM artist WHERE id IN (:ids)")
     suspend fun getArtistEntitiesByIds(ids: List<String>): List<ArtistEntity>
 

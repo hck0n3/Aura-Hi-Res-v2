@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import iad1tya.echo.music.constants.FidelityModeKey
 import iad1tya.echo.music.eq.EqualizerService
 import iad1tya.echo.music.eq.data.EQProfileRepository
 import iad1tya.echo.music.eq.data.EqConstants
@@ -12,6 +13,7 @@ import iad1tya.echo.music.eq.data.FactoryPreset
 import iad1tya.echo.music.eq.data.FilterType
 import iad1tya.echo.music.eq.data.ParametricEQBand
 import iad1tya.echo.music.eq.data.SavedEQProfile
+import iad1tya.echo.music.utils.dataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -131,6 +133,19 @@ class AxionEqViewModel @Inject constructor(
     private val prefs = context.getSharedPreferences("echo_eq_prefs", Context.MODE_PRIVATE)
     private val n = EqConstants.BAND_COUNT
 
+    /**
+     * Row 902: while «Modo Fidelidad» is on the service keeps the equalizer off, so nothing here reaches the
+     * engine (the edits are still saved and MusicService.applyFidelityMode applies them when the mode ends).
+     * Skipping the call also keeps EqualizerService from logging a line per slider event.
+     */
+    private val fidelityOn = context.dataStore.data.map { it[FidelityModeKey] ?: false }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private fun applyUnlessFidelity(profile: SavedEQProfile) {
+        if (fidelityOn.value) return
+        equalizerService.applyProfile(profile)
+    }
+
     private val _enabled = MutableStateFlow(prefs.getBoolean("enabled", false))
     val enabled = _enabled.asStateFlow()
 
@@ -248,7 +263,7 @@ class AxionEqViewModel @Inject constructor(
         arr[index] = q.coerceIn(PeqConstants.Q_MIN.toFloat(), PeqConstants.Q_MAX.toFloat())
         _graphicQs.value = arr
         _isDirty.value = true
-        if (_enabled.value) equalizerService.applyProfile(liveProfile())
+        if (_enabled.value) applyUnlessFidelity(liveProfile())
     }
 
     /** Filter type for a graphic band: AUTO / PEAK / LOW_SHELF / HIGH_SHELF. Persists + applies. */
@@ -260,7 +275,7 @@ class AxionEqViewModel @Inject constructor(
         prefs.edit().putInt("gtype_$index", arr[index]).apply()
         _isDirty.value = true
         // Apply at once like gain and Q do; commit() only re-applies later through the repository collector.
-        if (_enabled.value) equalizerService.applyProfile(liveProfile())
+        if (_enabled.value) applyUnlessFidelity(liveProfile())
         commit()
     }
 
@@ -419,7 +434,7 @@ class AxionEqViewModel @Inject constructor(
         )
         _peqBands.value = list.toMutableList().also { it[index] = updated }
         _isDirty.value = true
-        if (_enabled.value) equalizerService.applyProfile(liveProfile())
+        if (_enabled.value) applyUnlessFidelity(liveProfile())
     }
 
     /** Append a sensible default PEQ band (max 8). Inserts at 1 kHz, flat, peak. */
@@ -674,7 +689,7 @@ class AxionEqViewModel @Inject constructor(
                 isActive = true,
             )
             eqProfileRepository.setUnsavedProfile(profile)
-            equalizerService.applyProfile(profile)
+            applyUnlessFidelity(profile)
         }
     }
 
@@ -702,7 +717,7 @@ class AxionEqViewModel @Inject constructor(
         arr[index] = v
         _bandGains.value = arr
         _isDirty.value = true
-        if (_enabled.value) equalizerService.applyProfile(liveProfile())
+        if (_enabled.value) applyUnlessFidelity(liveProfile())
     }
 
     // ── In-engine verification (owner directive 2026-09-13: "funcionando a la perfección") ─────────────
@@ -768,11 +783,11 @@ class AxionEqViewModel @Inject constructor(
                 isCustom = false,
                 isActive = false,
             )
-            equalizerService.applyProfile(demo)
+            applyUnlessFidelity(demo)
             try {
                 kotlinx.coroutines.delay(5_000)
             } finally {
-                if (_enabled.value) equalizerService.applyProfile(liveProfile()) else equalizerService.disable()
+                if (_enabled.value) applyUnlessFidelity(liveProfile()) else equalizerService.disable()
             }
         }
     }
@@ -783,7 +798,7 @@ class AxionEqViewModel @Inject constructor(
      */
     fun previewBypass(bypass: Boolean) {
         if (!_enabled.value) return
-        if (bypass) equalizerService.disable() else equalizerService.applyProfile(liveProfile())
+        if (bypass) equalizerService.disable() else applyUnlessFidelity(liveProfile())
     }
 
     /** Live preamp drag (see [setBandGainLive]). */
@@ -791,7 +806,7 @@ class AxionEqViewModel @Inject constructor(
         val v = db.coerceIn(EqConstants.PREAMP_MIN, EqConstants.PREAMP_MAX)
         _preamp.value = v
         _isDirty.value = true
-        if (_enabled.value) equalizerService.applyProfile(liveProfile())
+        if (_enabled.value) applyUnlessFidelity(liveProfile())
     }
 
     /**
