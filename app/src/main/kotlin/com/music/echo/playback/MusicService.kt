@@ -2420,8 +2420,9 @@ class MusicService :
      * bypass route. Re-run from the audio-device callback so plugging headphones in lifts it immediately.
      */
     private fun applyMasteringFromPrefs() {
+        // Row 919: the phone's own speaker only — a Bluetooth / LE Audio speaker used to count as «speaker» here too.
         val onPhoneSpeaker = speakerBassProtectHint &&
-            SpatialAudioProfile.detectOutputKind(this) == SpatialOutputKind.SPEAKER
+            iad1tya.echo.music.eq.audio.OutputClassifier.detect(this) == iad1tya.echo.music.eq.audio.OutputCategory.PHONE_SPEAKER
         // Row 902: Fidelidad pauses the compressor, the dither and the width; the speaker protection is KEPT
         // (FidelityMode.KEPT): it only ever runs on the phone's own speaker, never on a DAC or headphones.
         val fidelity = fidelityModeHint

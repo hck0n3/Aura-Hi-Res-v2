@@ -1,10 +1,6 @@
 package iad1tya.echo.music.eq.audio
 
 import android.content.Context
-import android.media.AudioDeviceInfo
-import android.media.AudioManager
-import android.os.Build
-import androidx.core.content.getSystemService
 import iad1tya.echo.music.R
 
 /**
@@ -157,49 +153,11 @@ enum class SpatialAudioProfile(
             SpatialOutputKind.HEADPHONE -> profile.algorithm
         }
 
-        fun detectOutputKind(context: Context): SpatialOutputKind {
-            val am = context.getSystemService<AudioManager>() ?: return SpatialOutputKind.SPEAKER
-            val devices = runCatching {
-                am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).toList()
-            }.getOrDefault(emptyList())
-            if (devices.isEmpty()) return SpatialOutputKind.SPEAKER
-
-            fun has(type: Int) = devices.any { it.type == type }
-            fun hasAny(vararg types: Int) = types.any { has(it) }
-
-            if (hasAny(
-                    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-                    AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-                    AudioDeviceInfo.TYPE_BLE_HEADSET,
-                )
-            ) {
-                return SpatialOutputKind.HEADPHONE
-            }
-            if (hasAny(
-                    AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-                    AudioDeviceInfo.TYPE_WIRED_HEADSET,
-                    AudioDeviceInfo.TYPE_USB_HEADSET,
-                    AudioDeviceInfo.TYPE_USB_DEVICE,
-                )
-            ) {
-                return SpatialOutputKind.HEADPHONE
-            }
-            if (hasAny(
-                    AudioDeviceInfo.TYPE_HDMI,
-                    AudioDeviceInfo.TYPE_HDMI_ARC,
-                    AudioDeviceInfo.TYPE_AUX_LINE,
-                    AudioDeviceInfo.TYPE_DOCK,
-                )
-            ) {
-                return SpatialOutputKind.BYPASS
-            }
-            if (Build.VERSION.SDK_INT >= 29 && has(AudioDeviceInfo.TYPE_HDMI_EARC)) {
-                return SpatialOutputKind.BYPASS
-            }
-            if (Build.VERSION.SDK_INT >= 31 && has(AudioDeviceInfo.TYPE_BLE_SPEAKER)) {
-                return SpatialOutputKind.SPEAKER
-            }
-            return SpatialOutputKind.SPEAKER
-        }
+        /**
+         * Row 919: from the output's category, not from its transport. Every A2DP device used to be HEADPHONE, so a
+         * Bluetooth speaker, soundbar or car got the HRTF / crossfeed meant for headphones.
+         */
+        fun detectOutputKind(context: Context): SpatialOutputKind =
+            OutputClassifier.spatialKind(OutputClassifier.detect(context))
     }
 }
