@@ -70,6 +70,17 @@ class FidelityModeWiringGuardTest {
     }
 
     @Test
+    fun `the bit-perfect stream format comes only from the current player's sink`() {
+        // One controller, many sinks (main, crossfade secondary, instant-video pre-player).
+        assertEquals(1, Regex("""bitPerfectUsb\.onStreamFormat\(""").findAll(service).count())
+        val report = service.substringAfter("private fun reportStreamFormatIfCurrent() {").substringBefore("\n                    }")
+        assertTrue(report.contains("if (eqProcessor !== currentEqProcessor) return"))
+        assertTrue(report.contains("bitPerfectUsb.onStreamFormat(streamFormatToReport)"))
+        // A sink that becomes current after its configure reports at its next buffer.
+        assertTrue(service.contains("if (streamReportPending) reportStreamFormatIfCurrent()"))
+    }
+
+    @Test
     fun `every other stage goes through the gating table`() {
         for (stage in listOf(
             "Stage.SPATIAL", "Stage.TIDAL_SIGNATURE", "Stage.DE_ESSER", "Stage.GLUE_COMPRESSOR",

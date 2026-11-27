@@ -10939,6 +10939,18 @@ class MusicService :
                      *  (loud first buffer → ~0 → its learned tail is erased). So externallyFed stays false
                      *  until handleBuffer has driven that drain with an empty buffer. */
                     private var chainDrainPending = false
+                    /** Row 902: this track's AudioTrack format for the bit-perfect USB controller, not told yet.
+                     *  Only the CURRENT player's sink tells it (the instant-video pre-player and a crossfade
+                     *  secondary configure while another player plays); a sink that becomes current later
+                     *  tells it at its next buffer. */
+                    private var streamFormatToReport: iad1tya.echo.music.playback.audio.BitPerfectMixer.StreamFormat? = null
+                    private var streamReportPending = false
+
+                    private fun reportStreamFormatIfCurrent() {
+                        if (eqProcessor !== currentEqProcessor) return
+                        streamReportPending = false
+                        bitPerfectUsb.onStreamFormat(streamFormatToReport)
+                    }
 
                     // media3 1.11 (row 335): the (Format, Int, IntArray?) overload is now FINAL and funnels
                     // into this one; the decision and the takeover below are unchanged.
@@ -11070,7 +11082,7 @@ class MusicService :
                         route = effectiveRoute
                         lastSinkConfig = audioSinkConfig
                         // Row 902: the AudioTrack format of this track, for the bit-perfect USB mixer (once per track).
-                        bitPerfectUsb.onStreamFormat(
+                        streamFormatToReport =
                             iad1tya.echo.music.playback.audio.SinkDspRouting.sinkOutputEncoding(effectiveRoute)?.let { enc ->
                                 iad1tya.echo.music.playback.audio.BitPerfectMixer.StreamFormat(
                                     encoding = enc,
@@ -11078,8 +11090,9 @@ class MusicService :
                                     // ImmutableIntArray (Guava): one entry per output channel.
                                     channelCount = audioSinkConfig.outputChannelMapping?.length() ?: inputFormat.channelCount,
                                 )
-                            },
-                        )
+                            }
+                        streamReportPending = true
+                        reportStreamFormatIfCurrent()
                         // The silence detector is fed in-chain ONLY on media3's int16 pipeline; on every float
                         // route the sink tap is its only feed (SilenceDetectorAudioProcessor.externallyFed).
                         // Coming off the int16 chain, the tap is switched on only after the delegate has
@@ -11144,6 +11157,9 @@ class MusicService :
                                 dspActivationPending = false
                             }
                         }
+                        // Row 902: a sink that became the current player after its configure (instant-video swap,
+                        // crossfade swap). One field read per buffer otherwise.
+                        if (streamReportPending) reportStreamFormatIfCurrent()
                         runCatching {
                             val start = buffer.position()
                             val end = buffer.limit()
