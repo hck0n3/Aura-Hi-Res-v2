@@ -331,6 +331,12 @@ class MusicService :
 
     internal var tailQuietRecheckJob: Job? = null
 
+    // Row 903 — «no fade inside an album played in order» (CrossfadeEngine.isAlbumInOrderPair): the verdict for
+    // the current (current → next) pair, looked up once per pair off the main thread. Main thread only.
+    internal var albumInOrderKey: String? = null
+    internal var albumInOrderVerdict = false
+    internal var albumInOrderJob: Job? = null
+
     internal val secondaryPlayerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
             Timber.tag(TAG).e(error, "Secondary player error")

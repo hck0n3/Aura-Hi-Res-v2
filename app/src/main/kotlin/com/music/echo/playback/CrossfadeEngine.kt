@@ -383,7 +383,8 @@ internal fun MusicService.scheduleCrossfade() {
                 videoMode = _videoMode.value,
                 durationMs = player.duration,
                 crossfadeDurationMs = crossfadeDuration.toLong(),
-                gaplessBypass = crossfadeGapless && isNextItemGapless()
+                // Row 903: an album pair played in order is a deliberate gapless advance too.
+                gaplessBypass = (crossfadeGapless && isNextItemGapless()) || isAlbumInOrderPair()
             )
         } == true
         if (!keepPreload) {
@@ -423,6 +424,10 @@ internal fun MusicService.scheduleCrossfade() {
     if (_videoMode.value) return
     if (crossfadeGapless && isNextItemGapless()) {
         traceCrossfade("gapless-bypass", "same-album pair -> deliberate gapless advance (Ajustes)")
+        return
+    }
+    if (isAlbumInOrderPair()) {
+        traceCrossfade("album-in-order", "consecutive album tracks played in order -> gapless")
         return
     }
     if (!player.hasNextMediaItem() && player.repeatMode != REPEAT_MODE_ONE) {
@@ -519,6 +524,48 @@ internal fun MusicService.scheduleCrossfade() {
             startCrossfade()
         }
     }
+}
+
+/**
+ * Row 903 — «no fade inside an album played in order» (owner decision H17), the default for every crossfade:
+ * true when the current and the next queue items are consecutive tracks of the same album and the queue
+ * advances in order ([AlbumInOrder]). The album positions live in the database, so the first sight of a
+ * (current → next) pair answers `false` and looks them up ONCE, off the main thread (one indexed query per
+ * pair, i.e. per track — never per frame); a `true` verdict re-runs [scheduleCrossfade], which then drops the
+ * preload and skips the fade. Unknown positions (an album that was never saved) keep the crossfade as it is.
+ */
+internal fun MusicService.isAlbumInOrderPair(): Boolean {
+    if (player.shuffleModeEnabled || player.repeatMode == REPEAT_MODE_ONE) return false
+    val nextIndex = player.nextMediaItemIndex
+    if (nextIndex == C.INDEX_UNSET) return false
+    val current = player.currentMediaItem ?: return false
+    val next = runCatching { player.getMediaItemAt(nextIndex) }.getOrNull() ?: return false
+    val key = AlbumInOrder.pairKey(current.mediaId, next.mediaId) ?: return false
+    if (key == albumInOrderKey) return albumInOrderVerdict
+    albumInOrderKey = key
+    albumInOrderVerdict = false
+    albumInOrderJob?.cancel()
+    val albumId = current.metadata?.album?.id
+    if (albumId.isNullOrEmpty() || albumId != next.metadata?.album?.id) return false
+    val currentId = current.mediaId
+    val nextId = next.mediaId
+    albumInOrderJob = scope.launch {
+        val maps = withContext(Dispatchers.IO) {
+            runCatching { database.songAlbumMapsIn(albumId, listOf(currentId, nextId)) }.getOrNull()
+        } ?: return@launch
+        val verdict = AlbumInOrder.isInOrderPair(
+            currentAlbumId = albumId,
+            currentAlbumIndex = maps.firstOrNull { it.songId == currentId }?.index,
+            nextAlbumId = albumId,
+            nextAlbumIndex = maps.firstOrNull { it.songId == nextId }?.index,
+            shuffle = false, // re-checked live at the top of every call
+            repeatOne = false,
+        )
+        if (albumInOrderKey != key) return@launch
+        albumInOrderVerdict = verdict
+        if (verdict && !isCrossfading) scheduleCrossfade()
+    }
+    return false
 }
 
 internal fun MusicService.isNextItemGapless(): Boolean {
@@ -629,6 +676,7 @@ internal fun MusicService.onTailSilenceDetected() {
         traceCrossfade("gapless-bypass", "same-album pair -> deliberate gapless advance (Ajustes)")
         return
     }
+    if (isAlbumInOrderPair()) return // row 903
     if (!player.hasNextMediaItem() && player.repeatMode != REPEAT_MODE_ONE) return
     // LEARN this song's tail for the per-song memory (silent tier ONLY: its run start is the true end
     // of audible content; the quiet tier's run start is the START of a still-audible mastered fade-out
