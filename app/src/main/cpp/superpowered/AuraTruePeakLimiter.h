@@ -190,12 +190,20 @@ private:
                     double m = std::fabs((double) h[kTpCentre]);
                     const double m1 = std::fabs((double) h[kTpCentre + 1]);
                     if (m1 > m) m = m1;
-                    for (int p = 0; p < kTpOversample - 1; ++p) {
-                        double y = 0.0;
-                        for (int k = 0; k < kTpTaps; ++k) y += coef[p][k] * h[k];
-                        const double ay = std::fabs(y);
-                        if (ay > m) m = ay;
+                    // The three phases in ONE pass over the window: three independent sums (each in the same k order as
+                    // one phase at a time), so the multiply-adds no longer wait on a single accumulator (battery, rule 7).
+                    static_assert(kTpOversample == 4, "three interpolation phases");
+                    double y0 = 0.0, y1 = 0.0, y2 = 0.0;
+                    for (int k = 0; k < kTpTaps; ++k) {
+                        const double hk = h[k];
+                        y0 += coef[0][k] * hk;
+                        y1 += coef[1][k] * hk;
+                        y2 += coef[2][k] * hk;
                     }
+                    const double a0 = std::fabs(y0), a1 = std::fabs(y1), a2 = std::fabs(y2);
+                    if (a0 > m) m = a0;
+                    if (a1 > m) m = a1;
+                    if (a2 > m) m = a2;
                     if (m > interval) interval = m;
                 }
             }
