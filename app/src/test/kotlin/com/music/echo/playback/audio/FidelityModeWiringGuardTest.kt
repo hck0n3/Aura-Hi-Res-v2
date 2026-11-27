@@ -41,7 +41,7 @@ class FidelityModeWiringGuardTest {
         assertTrue(service.contains("if (fidelityModeHint) eqProcessor.disable() else equalizerService.addAudioProcessor(eqProcessor)"))
         // The processor's own onConfigure restores its last profile: the sink must switch it off again.
         val afterConfigure = Regex(
-            """if \(fidelityModeHint\) eqProcessor\.disable\(\)\s+logAudioPath\(inputFormat, delegateFormat""",
+            """if \(fidelityModeHint\) eqProcessor\.disable\(\)\s+logAudioPath\(\s*inputFormat,\s*delegateFormat""",
         )
         assertTrue("sink re-disable missing", afterConfigure.containsMatchIn(service))
     }
