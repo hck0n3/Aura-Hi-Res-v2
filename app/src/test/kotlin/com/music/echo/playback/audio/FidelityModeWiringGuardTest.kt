@@ -35,15 +35,38 @@ class FidelityModeWiringGuardTest {
     }
 
     @Test
-    fun `the equalizer is detached, disabled and disabled again after every sink configure`() {
-        assertTrue(service.contains("equalizerService.removeAudioProcessor(eq)\n                eq.disable()"))
-        assertTrue(service.contains("playerEqProcessors.values.forEach { eq -> equalizerService.addAudioProcessor(eq) }"))
-        assertTrue(service.contains("if (fidelityModeHint) eqProcessor.disable() else equalizerService.addAudioProcessor(eqProcessor)"))
+    fun `the equalizer stays attached, disabled and disabled again after every sink configure`() {
+        val apply = service.substringAfter("private fun applyFidelityMode(on: Boolean) {")
+            .substringBefore("private fun updateBitPerfectPlayback()")
+        // Never empty EqualizerService's list: its empty branch logs a WARN with the profile name (rule 4)
+        // on every slider event (rule 7).
+        assertTrue(!apply.contains("removeAudioProcessor"))
+        assertTrue(apply.contains("playerEqProcessors.values.forEach { eq ->\n                eq.disable()"))
+        // Turning the mode off applies the latest profile, exactly like the profile collector would.
+        assertTrue(apply.contains("val latest = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value"))
+        assertTrue(apply.contains("if (latest != null) equalizerService.applyProfile(latest) else equalizerService.disable()"))
+        assertTrue(service.contains("equalizerService.addAudioProcessor(eqProcessor)\n"))
+        assertTrue(service.contains("if (fidelityModeHint) eqProcessor.disable()\n\n        val silenceProcessor"))
         // The processor's own onConfigure restores its last profile: the sink must switch it off again.
         val afterConfigure = Regex(
             """if \(fidelityModeHint\) eqProcessor\.disable\(\)\s+logAudioPath\(\s*inputFormat,\s*delegateFormat""",
         )
         assertTrue("sink re-disable missing", afterConfigure.containsMatchIn(service))
+    }
+
+    @Test
+    fun `every caller of applyProfile skips it while the mode is on`() {
+        val collector = service.substringAfter("combine(eqProfileRepository.activeProfile, eqProfileRepository.unsavedProfile) { active, unsaved ->")
+            .substringBefore("val result = equalizerService.applyProfile(profile)")
+        assertTrue(collector.contains("if (profile != null && fidelityModeHint) return@collect"))
+        assertTrue(service.contains("if (!fidelityModeHint) equalizerService.applyProfile(profile)"))
+        assertTrue(service.contains("if (::equalizerService.isInitialized && !fidelityModeHint) {\n            runCatching { equalizerService.applyProfile(lowered) }"))
+        // The only unguarded call in the service is the one that ends the mode.
+        assertEquals(4, Regex("""equalizerService\.applyProfile\(""").findAll(service).count())
+        val vm = source("app/src/main/kotlin/com/music/echo/ui/screens/equalizer/axion/AxionEqViewModel.kt")
+        assertTrue(vm.contains("private val fidelityOn = context.dataStore.data.map { it[FidelityModeKey] ?: false }"))
+        assertTrue(vm.contains("if (fidelityOn.value) return\n        equalizerService.applyProfile(profile)"))
+        assertEquals("AxionEqViewModel calls the engine outside its gate", 1, Regex("""equalizerService\.applyProfile\(""").findAll(vm).count())
     }
 
     @Test

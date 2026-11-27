@@ -2231,7 +2231,8 @@ class MusicService :
         if (effective == null || effective.preamp <= house) return
         val lowered = effective.copy(preamp = house.toDouble())
         eqProfileRepository.setUnsavedProfile(lowered)
-        if (::equalizerService.isInitialized) {
+        // Row 902: under «Modo Fidelidad» only saved (setUnsavedProfile above); applied when the mode is turned off.
+        if (::equalizerService.isInitialized && !fidelityModeHint) {
             runCatching { equalizerService.applyProfile(lowered) }
         }
         Timber.tag(TAG).i(
@@ -2318,7 +2319,8 @@ class MusicService :
             // override this device profile the instant setActiveProfile fires.
             eqProfileRepository.setUnsavedProfile(profile)
             eqProfileRepository.setActiveProfile(profile.id)
-            equalizerService.applyProfile(profile)
+            // Row 902: saved above; «Modo Fidelidad» applies it when it is turned off.
+            if (!fidelityModeHint) equalizerService.applyProfile(profile)
             runCatching {
                 iad1tya.echo.music.eq.data.SoundEffectsSnapshot.apply(this@MusicService, profile.effects)
             }
@@ -2386,11 +2388,13 @@ class MusicService :
      * collector's first emission with OFF never re-registers processors that are already registered.
      *
      * The equalizer cannot be switched off for good with [CustomEqualizerAudioProcessor.disable] alone: the
-     * EQ screen and the device auto-apply call [EqualizerService.applyProfile] directly, and the processor's
-     * own `onConfigure` re-applies its last profile at every new track. So while the mode is on every player
-     * processor is DETACHED from the EqualizerService (an applyProfile then only stores the profile as
-     * pending), disabled here, and disabled again by the sink after every configure. Turning the mode off
-     * re-attaches them: addAudioProcessor re-applies the latest profile the user chose, or the disable.
+     * EQ screen and the device auto-apply call [EqualizerService.applyProfile], and the processor's own
+     * `onConfigure` re-applies its last profile at every new track. So while the mode is on the processors
+     * STAY attached (an empty EqualizerService list logs a WARN with the profile name on every call) and
+     * are disabled here and again by the sink after every configure, and every caller of applyProfile skips
+     * it (this service and AxionEqViewModel). The edits still reach [eqProfileRepository], so turning the
+     * mode off re-applies the latest profile the user chose, or the disable, the way the profile collector
+     * would.
      */
     private fun applyFidelityMode(on: Boolean) {
         if (on == fidelityModeHint) return
@@ -2400,12 +2404,12 @@ class MusicService :
         )
         if (on) {
             playerEqProcessors.values.forEach { eq ->
-                equalizerService.removeAudioProcessor(eq)
                 eq.disable()
                 eq.applySafeVolume(false, 1f)
             }
         } else {
-            playerEqProcessors.values.forEach { eq -> equalizerService.addAudioProcessor(eq) }
+            val latest = eqProfileRepository.unsavedProfile.value ?: eqProfileRepository.activeProfile.value
+            if (latest != null) equalizerService.applyProfile(latest) else equalizerService.disable()
         }
         applySpatialFromPrefs()
         applyTidalFromPrefs()
@@ -2709,6 +2713,8 @@ class MusicService :
             combine(eqProfileRepository.activeProfile, eqProfileRepository.unsavedProfile) { active, unsaved ->
                 unsaved ?: active
             }.collect { profile ->
+                // Row 902: «Modo Fidelidad» keeps the equalizer off; applyFidelityMode re-applies this on the way out.
+                if (profile != null && fidelityModeHint) return@collect
                 if (profile != null) {
                     val result = equalizerService.applyProfile(profile)
                     if (result.isSuccess && player.playbackState == Player.STATE_READY && player.isPlaying) {
@@ -3676,8 +3682,9 @@ class MusicService :
         // The Context is what lets the processor resolve the Superpowered licence key, which is bound to
         // this app's signing certificate (see SuperpoweredLicense). It keeps only applicationContext.
         val eqProcessor = CustomEqualizerAudioProcessor(this)
-        // Row 902: under «Modo Fidelidad» a new processor stays detached (applyFidelityMode attaches it later).
-        if (fidelityModeHint) eqProcessor.disable() else equalizerService.addAudioProcessor(eqProcessor)
+        equalizerService.addAudioProcessor(eqProcessor)
+        // Row 902: under «Modo Fidelidad» a new processor starts off (before any audio reaches it).
+        if (fidelityModeHint) eqProcessor.disable()
 
         val silenceProcessor = iad1tya.echo.music.playback.audio.SilenceDetectorAudioProcessor {
             // TAIL DETECTION → early crossfade. Fires on the audio pipeline thread, ONLY while
