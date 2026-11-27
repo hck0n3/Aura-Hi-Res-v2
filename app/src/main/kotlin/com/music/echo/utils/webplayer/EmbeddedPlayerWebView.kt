@@ -82,6 +82,11 @@ class EmbeddedPlayerWebView private constructor(
                     resumeSafely { it.resume(EmbeddedPlayerUrlResolver.ResolvedStream(url.toString(), headers)) }
                     return WebResourceResponse("audio/mpeg", null, 204, "No Content", emptyMap(), null)
                 }
+                // Row 904: no other media byte reaches the page (video, muxed, ads, the audio after the capture). Anything it
+                // played took the app's audio focus and paused the music; muting at onPageFinished came too late.
+                if (url.host?.endsWith("googlevideo.com") == true && url.path?.contains("videoplayback") == true) {
+                    return WebResourceResponse("audio/mpeg", null, 204, "No Content", emptyMap(), null)
+                }
                 return super.shouldInterceptRequest(view, request)
             }
 
