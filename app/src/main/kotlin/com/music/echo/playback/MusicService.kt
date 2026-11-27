@@ -849,6 +849,11 @@ class MusicService :
     // the PLAYBACK thread at every configure (= every new track), never per buffer. Starts at the shared
     // default so a configure that beats the DataStore's first emission gets exactly what the switch shows.
     @Volatile private var float32ProcessingHint: Boolean = iad1tya.echo.music.constants.Float32ProcessingDefault
+    // Row 902: «Modo Fidelidad» (FidelityModeKey). Written on Main by applyFidelityMode, read on the playback
+    // thread by the sink's configure. safeVolumePrefHint is the user's own Safe Volume switch, kept apart from
+    // safeVolumeEnabledHint, which Fidelidad forces off without touching the stored preference.
+    @Volatile internal var fidelityModeHint: Boolean = false
+    @Volatile private var safeVolumePrefHint: Boolean = true
     @Volatile private var stereoWidthHint: Float = 1f
     // Default OFF (owner report 2026-09-22): this trims the master preamp by the loudest active
     // band's boost on every EQ recompute (each slider drag), so moving a band up perceptibly ducked
@@ -2315,18 +2320,28 @@ class MusicService :
     private fun applySpatialFromPrefs() {
         val profile = SpatialAudioProfile.fromName(spatialProfileNameHint)
         val kind = SpatialAudioProfile.detectOutputKind(this)
-        val live = spatialEnabledHint && kind != SpatialOutputKind.BYPASS
+        val live = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.SPATIAL,
+            spatialEnabledHint && kind != SpatialOutputKind.BYPASS,
+            fidelityModeHint,
+        )
         val algorithm = SpatialAudioProfile.nativeAlgorithm(profile, kind)
         val params = profile.toNativeParams()
         playerEqProcessors.values.forEach { it.applySpatial(live, algorithm, params) }
     }
 
     private fun applyTidalFromPrefs() {
-        playerEqProcessors.values.forEach { it.applyTidalSimulation(tidalEnabledHint) }
+        val tidal = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.TIDAL_SIGNATURE, tidalEnabledHint, fidelityModeHint,
+        )
+        playerEqProcessors.values.forEach { it.applyTidalSimulation(tidal) }
     }
 
     private fun applyDeEsserFromPrefs() {
-        playerEqProcessors.values.forEach { it.applyDeEsser(deEsserEnabledHint) }
+        val deEsser = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.DE_ESSER, deEsserEnabledHint, fidelityModeHint,
+        )
+        playerEqProcessors.values.forEach { it.applyDeEsser(deEsser) }
     }
 
     /**
@@ -2337,11 +2352,67 @@ class MusicService :
     private fun applyMasteringFromPrefs() {
         val onPhoneSpeaker = speakerBassProtectHint &&
             SpatialAudioProfile.detectOutputKind(this) == SpatialOutputKind.SPEAKER
+        // Row 902: Fidelidad pauses the compressor, the dither and the width; the speaker protection is KEPT
+        // (FidelityMode.KEPT): it only ever runs on the phone's own speaker, never on a DAC or headphones.
+        val fidelity = fidelityModeHint
+        val compressor = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.GLUE_COMPRESSOR, glueCompressorHint, fidelity,
+        )
+        val dither = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.OUTPUT_DITHER, outputDitherHint, fidelity,
+        )
+        val width = iad1tya.echo.music.playback.audio.FidelityMode.effectiveStereoWidth(stereoWidthHint, fidelity)
         playerEqProcessors.values.forEach {
-            it.applyMastering(glueCompressorHint, outputDitherHint, onPhoneSpeaker)
-            it.applyStereoWidth(stereoWidthHint)
+            it.applyMastering(compressor, dither, onPhoneSpeaker)
+            it.applyStereoWidth(width)
             it.applyAutoHeadroom(autoHeadroomHint)
         }
+    }
+
+    /**
+     * Row 902 — «Modo Fidelidad». Main thread (its DataStore collector). Acts only on a real change, so the
+     * collector's first emission with OFF never re-registers processors that are already registered.
+     *
+     * The equalizer cannot be switched off for good with [CustomEqualizerAudioProcessor.disable] alone: the
+     * EQ screen and the device auto-apply call [EqualizerService.applyProfile] directly, and the processor's
+     * own `onConfigure` re-applies its last profile at every new track. So while the mode is on every player
+     * processor is DETACHED from the EqualizerService (an applyProfile then only stores the profile as
+     * pending), disabled here, and disabled again by the sink after every configure. Turning the mode off
+     * re-attaches them: addAudioProcessor re-applies the latest profile the user chose, or the disable.
+     */
+    private fun applyFidelityMode(on: Boolean) {
+        if (on == fidelityModeHint) return
+        fidelityModeHint = on
+        safeVolumeEnabledHint = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+            iad1tya.echo.music.playback.audio.FidelityMode.Stage.SAFE_VOLUME, safeVolumePrefHint, on,
+        )
+        if (on) {
+            playerEqProcessors.values.forEach { eq ->
+                equalizerService.removeAudioProcessor(eq)
+                eq.disable()
+                eq.applySafeVolume(false, 1f)
+            }
+        } else {
+            playerEqProcessors.values.forEach { eq -> equalizerService.addAudioProcessor(eq) }
+        }
+        applySpatialFromPrefs()
+        applyTidalFromPrefs()
+        applyDeEsserFromPrefs()
+        applyMasteringFromPrefs()
+        // Re-applies (or clears) the Safe Volume level of the current track through the same path as its switch.
+        setupLoudnessEnhancer()
+        if (on && ::player.isInitialized &&
+            iad1tya.echo.music.playback.audio.FidelityMode.mustResetPlaybackParameters(
+                true,
+                player.playbackParameters.speed,
+                player.playbackParameters.pitch,
+                runCatching { listenTogetherManager.isInRoom }.getOrDefault(true),
+            )
+        ) {
+            player.playbackParameters = PlaybackParameters.DEFAULT
+        }
+        // No user data: the state only.
+        Timber.tag(TAG).i("FIDELITY mode=%s", if (on) "on" else "off")
     }
 
     override fun onCreate() {
@@ -3049,7 +3120,11 @@ class MusicService :
                 .collect { enabled ->
                     val wasEnabled = previouslyEnabled
                     previouslyEnabled = enabled
-                    safeVolumeEnabledHint = enabled // mirror for the crossfade pre-level
+                    safeVolumePrefHint = enabled
+                    // mirror for the crossfade pre-level; row 902: «Modo Fidelidad» keeps it off
+                    safeVolumeEnabledHint = iad1tya.echo.music.playback.audio.FidelityMode.effective(
+                        iad1tya.echo.music.playback.audio.FidelityMode.Stage.SAFE_VOLUME, enabled, fidelityModeHint,
+                    )
                     setupLoudnessEnhancer()
                     if (wasEnabled == true && !enabled) resetEqPreamp()
                 }
@@ -3116,6 +3191,14 @@ class MusicService :
                 }
                 .distinctUntilChanged()
                 .collect { enabled -> float32ProcessingHint = enabled }
+        }
+
+        // Row 902 — «Modo Fidelidad» (Ajustes ▸ Sonido). Event-driven: one emission per change of the switch.
+        scope.launch {
+            dataStore.data
+                .map { it[iad1tya.echo.music.constants.FidelityModeKey] ?: false }
+                .distinctUntilChanged()
+                .collect { on -> applyFidelityMode(on) }
         }
 
         // STEREO WIDTH + AUTO HEADROOM (owner directive 2026-09-13).
@@ -3304,7 +3387,9 @@ class MusicService :
                     // preload job, exactly like preloadUpcomingItems does.
                     (prefs[CrossfadeEnabledKey] ?: false) &&
                         !(prefs[iad1tya.echo.music.constants.HighPerformanceModeKey] ?: false) &&
-                        !(prefs[iad1tya.echo.music.constants.DataSaverEnabledKey] ?: false),
+                        !(prefs[iad1tya.echo.music.constants.DataSaverEnabledKey] ?: false) &&
+                        // Row 902: «Modo Fidelidad» never blends two tracks (FidelityMode.Stage.CROSSFADE).
+                        !(prefs[iad1tya.echo.music.constants.FidelityModeKey] ?: false),
                     prefs[CrossfadeDurationKey] ?: iad1tya.echo.music.constants.CrossfadeDefaultSeconds,
                     prefs[CrossfadeGaplessKey] ?: false
                 )
@@ -3568,7 +3653,8 @@ class MusicService :
         // The Context is what lets the processor resolve the Superpowered licence key, which is bound to
         // this app's signing certificate (see SuperpoweredLicense). It keeps only applicationContext.
         val eqProcessor = CustomEqualizerAudioProcessor(this)
-        equalizerService.addAudioProcessor(eqProcessor)
+        // Row 902: under «Modo Fidelidad» a new processor stays detached (applyFidelityMode attaches it later).
+        if (fidelityModeHint) eqProcessor.disable() else equalizerService.addAudioProcessor(eqProcessor)
 
         val silenceProcessor = iad1tya.echo.music.playback.audio.SilenceDetectorAudioProcessor {
             // TAIL DETECTION → early crossfade. Fires on the audio pipeline thread, ONLY while
@@ -6852,6 +6938,11 @@ class MusicService :
                 // Safe Volume (default ON): drives the live EQ processor's attenuate-only gain.
                 val safeVol = withContext(Dispatchers.IO) {
                     dataStore.data.map { it[SafeVolumeEnabledKey] ?: true }.first()
+                }.let {
+                    // Row 902: «Modo Fidelidad» levels nothing (unity gain), whatever the switch says.
+                    iad1tya.echo.music.playback.audio.FidelityMode.effective(
+                        iad1tya.echo.music.playback.audio.FidelityMode.Stage.SAFE_VOLUME, it, fidelityModeHint,
+                    )
                 }
 
                 if ((normalizeAudio || safeVol) && currentMediaId != null) {
@@ -7477,7 +7568,8 @@ class MusicService :
         // A song↔video swap of the SAME track is not a manual track change: no volume dip, no silent wait.
         val sameTrackSourceSwap = !trackChanged &&
             android.os.SystemClock.elapsedRealtime() - sourceSwapAtMs < SOURCE_SWAP_WINDOW_MS
-        if (fadeOnManualChangeHint && !isCrossfading && !sameTrackSourceSwap &&
+        // Row 902: «Modo Fidelidad» does not ramp the start of the track either (FidelityMode.Stage.MANUAL_FADE).
+        if (fadeOnManualChangeHint && !fidelityModeHint && !isCrossfading && !sameTrackSourceSwap &&
             (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||
                 reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)
         ) {
@@ -9163,6 +9255,19 @@ class MusicService :
 
     override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
         super.onPlaybackParametersChanged(playbackParameters)
+        // Row 902: «Modo Fidelidad» keeps tempo and pitch at 1.0 whoever wrote them (dialog, media session),
+        // except inside a Listen Together room, which stays in time by nudging the speed. The reset re-enters
+        // this callback once with DEFAULT, which passes straight through.
+        if (iad1tya.echo.music.playback.audio.FidelityMode.mustResetPlaybackParameters(
+                fidelityModeHint,
+                playbackParameters.speed,
+                playbackParameters.pitch,
+                runCatching { listenTogetherManager.isInRoom }.getOrDefault(true),
+            )
+        ) {
+            player.playbackParameters = PlaybackParameters.DEFAULT
+            return
+        }
         // Tempo/pitch is something the offload path can only deliver on a HAL that advertises
         // offloadVariableRateSupported=1; media3 otherwise swallows the AudioTrack failure and the
         // Tempo & pitch dialog becomes a placebo (full evidence in setOffloadEnabled). Re-publish
@@ -10681,8 +10786,9 @@ class MusicService :
                 // room. In a room the guest corrects drift by nudging the speed (rows 261/262); a float
                 // route would have to revert on the first nudge, so it is never taken there. If the room
                 // state cannot be read, assume a room: the int16 chain is the conservative answer.
+                // Row 902: «Modo Fidelidad» keeps 16-bit tracks 16-bit (a 16-bit bit-perfect mixer must match them).
                 val float16Allowed: () -> Boolean = {
-                    float32ProcessingHint &&
+                    float32ProcessingHint && !fidelityModeHint &&
                         !runCatching { listenTogetherManager.isInRoom }.getOrDefault(true)
                 }
                 val delegateSink = DefaultAudioSink
@@ -10900,6 +11006,11 @@ class MusicService :
                             revertPending = false
                             super.setPlaybackParameters(requestedParams)
                         }
+                        // Row 902: the configure above re-ran the processor's onConfigure, which re-applies its
+                        // last EQ profile (CustomEqualizerAudioProcessor, eq/ — not edited). Under «Modo
+                        // Fidelidad» switch it off again here, on this same thread, before any buffer of the
+                        // new configuration reaches it. Idempotent; once per configure (= per track).
+                        if (fidelityModeHint) eqProcessor.disable()
                         logAudioPath(inputFormat, delegateFormat, pipeline != null, effectiveRoute)
                     }
 

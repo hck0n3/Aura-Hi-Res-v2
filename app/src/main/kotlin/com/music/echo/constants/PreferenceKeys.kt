@@ -1422,3 +1422,7 @@ val YtmAccountReadsIncompleteKey = stringSetPreferencesKey("ytm_account_reads_in
 
 // Registry row 895 (plan, phase 6.1): «Tipo de aparato» (DeviceFormChoice by name). Absent = AUTO, today's detection.
 val DeviceFormChoiceKey = stringPreferencesKey("device_form_choice")
+
+// Registry row 902 (owner decision H17): «Modo Fidelidad» — bypasses the DSP chain from the playback side so
+// the samples reach the sink untouched, and asks for bit-perfect USB output on Android 14+. Default OFF.
+val FidelityModeKey = booleanPreferencesKey("fidelity_mode")

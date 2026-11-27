@@ -29,6 +29,8 @@ import iad1tya.echo.music.R
 // AudioNormalizationKey and AuraSignatureToneEnabledKey were imported but never rendered here
 // (their toggles/setters are not wired). Only SafeVolumeEnabledKey is used.
 import iad1tya.echo.music.constants.SafeVolumeEnabledKey
+import iad1tya.echo.music.constants.FidelityModeKey
+import iad1tya.echo.music.ui.component.FidelityPausedNote
 import iad1tya.echo.music.ui.component.Material3SettingsGroup
 import iad1tya.echo.music.ui.component.Material3SettingsItem
 import iad1tya.echo.music.utils.rememberPreference
@@ -64,6 +66,9 @@ fun SoundSettings(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
     ) {
+        // Row 902 — «Modo Fidelidad». Read once here: every control it pauses says «En pausa» under itself.
+        val (fidelityMode, onFidelityModeChange) = rememberPreference(FidelityModeKey, defaultValue = false)
+
         // ── Ecualizador (Auto-EQ lives inside AxionEqScreen) ──
         Material3SettingsGroup(
             title = "Ecualizador",
@@ -71,7 +76,12 @@ fun SoundSettings(
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.echoequlizer),
                     title = { Text(stringResource(R.string.echo_equalizer)) },
-                    description = { Text(stringResource(R.string.echo_equalizer_desc)) },
+                    description = {
+                        Column {
+                            Text(stringResource(R.string.echo_equalizer_desc))
+                            FidelityPausedNote(fidelityMode)
+                        }
+                    },
                     onClick = { ActionLog.tap(ActionId.SETSOUND_EQUALIZER); navController.navigate("settings/equalizer") },
                 ),
             ),
@@ -126,7 +136,10 @@ fun SoundSettings(
                     icon = painterResource(R.drawable.volume_up),
                     title = { Text(stringResource(R.string.sound_safe_volume_title)) },
                     description = {
-                        Text(stringResource(R.string.sound_safe_volume_desc))
+                        Column {
+                            Text(stringResource(R.string.sound_safe_volume_desc))
+                            FidelityPausedNote(fidelityMode)
+                        }
                     },
                     trailingContent = {
                         Switch(
@@ -141,7 +154,10 @@ fun SoundSettings(
                     icon = painterResource(R.drawable.volume_up),
                     title = { Text("Headroom automático") },
                     description = {
-                        Text("Baja el preamp tanto como el mayor realce de tu ecualización: los realces nunca saturan.")
+                        Column {
+                            Text("Baja el preamp tanto como el mayor realce de tu ecualización: los realces nunca saturan.")
+                            FidelityPausedNote(fidelityMode)
+                        }
                     },
                     trailingContent = {
                         Switch(
@@ -181,6 +197,7 @@ fun SoundSettings(
                     description = {
                         Column {
                             Text("Mid/Side: abre o cierra los lados sin tocar el centro (voz y bombo). 100 % = sin cambio.")
+                            FidelityPausedNote(fidelityMode)
                             Slider(
                                 value = stereoWidth,
                                 onValueChange = { onStereoWidthChange((it * 20).toInt() / 20f) },
@@ -194,7 +211,10 @@ fun SoundSettings(
                     icon = painterResource(R.drawable.volume_up),
                     title = { Text(stringResource(R.string.sound_glue_compressor_title)) },
                     description = {
-                        Text(stringResource(R.string.sound_glue_compressor_desc))
+                        Column {
+                            Text(stringResource(R.string.sound_glue_compressor_desc))
+                            FidelityPausedNote(fidelityMode)
+                        }
                     },
                     trailingContent = {
                         Switch(
@@ -213,17 +233,34 @@ fun SoundSettings(
         Material3SettingsGroup(
             title = "Calidad de salida",
             items = listOf(
+                // Row 902 (owner decision H17): off by default; what it turns off is listed in its description.
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.music_note),
+                    title = { Text(stringResource(R.string.fidelity_mode_title)) },
+                    description = { Text(stringResource(R.string.fidelity_mode_desc)) },
+                    trailingContent = {
+                        Switch(
+                            checked = fidelityMode,
+                            onCheckedChange = onFidelityModeChange,
+                            thumbContent = thumb(fidelityMode),
+                        )
+                    },
+                    onClick = { onFidelityModeChange(!fidelityMode) },
+                ),
                 Material3SettingsItem(
                     icon = painterResource(R.drawable.music_note),
                     title = { Text("Procesado en 32 bits (experimental)") },
                     description = {
-                        Text(
-                            "El ecualizador y la salida trabajan en coma flotante de 32 bits también con audio de " +
-                                "16 bits (Opus, AAC, MP3), como ya pasa con el Hi-Res. Se aplica desde la siguiente " +
-                                "canción. Vuelve a 16 bits si cambias tempo o tono y en Escuchar juntos. Sin " +
-                                "efecto en equipos de gama baja. Solo se nota con una salida de más de 16 bits " +
-                                "(DAC USB, LDAC de 24 bits)."
-                        )
+                        Column {
+                            Text(
+                                "El ecualizador y la salida trabajan en coma flotante de 32 bits también con audio de " +
+                                    "16 bits (Opus, AAC, MP3), como ya pasa con el Hi-Res. Se aplica desde la siguiente " +
+                                    "canción. Vuelve a 16 bits si cambias tempo o tono y en Escuchar juntos. Sin " +
+                                    "efecto en equipos de gama baja. Solo se nota con una salida de más de 16 bits " +
+                                    "(DAC USB, LDAC de 24 bits)."
+                            )
+                            FidelityPausedNote(fidelityMode)
+                        }
                     },
                     trailingContent = {
                         Switch(
@@ -240,17 +277,20 @@ fun SoundSettings(
                     description = {
                         // Stays visible and live in both states: with 32-bit processing ON it still acts
                         // whenever the output falls back to 16 bits (tempo/pitch, Listen Together, low-end).
-                        Text(
-                            if (float32Processing) {
-                                "Dither triangular con modelado de ruido al convertir a 16 bits. Con «Procesado en 32 bits» " +
-                                    "activado solo actúa cuando la salida vuelve a 16 bits: si cambias tempo o tono, en " +
-                                    "Escuchar juntos o en equipos de gama baja."
-                            } else {
-                                "Dither triangular con modelado de ruido al convertir a 16 bits: pasajes suaves y colas de " +
-                                    "reverb más limpios. Actúa cuando la salida es de 16 bits (lo normal con Opus, AAC y " +
-                                    "MP3); cuando sale en 32 bits, como el Hi-Res en equipos de gama media y alta, no hace falta."
-                            }
-                        )
+                        Column {
+                            Text(
+                                if (float32Processing) {
+                                    "Dither triangular con modelado de ruido al convertir a 16 bits. Con «Procesado en 32 bits» " +
+                                        "activado solo actúa cuando la salida vuelve a 16 bits: si cambias tempo o tono, en " +
+                                        "Escuchar juntos o en equipos de gama baja."
+                                } else {
+                                    "Dither triangular con modelado de ruido al convertir a 16 bits: pasajes suaves y colas de " +
+                                        "reverb más limpios. Actúa cuando la salida es de 16 bits (lo normal con Opus, AAC y " +
+                                        "MP3); cuando sale en 32 bits, como el Hi-Res en equipos de gama media y alta, no hace falta."
+                                }
+                            )
+                            FidelityPausedNote(fidelityMode)
+                        }
                     },
                     trailingContent = {
                         Switch(

@@ -126,6 +126,8 @@ fun PlayerSettings(
         CrossfadeGaplessKey,
         defaultValue = false
     )
+    // Row 902: «Modo Fidelidad» (Ajustes ▸ Sonido) pauses the crossfade and the soft start; both rows say so.
+    val fidelityMode = iad1tya.echo.music.ui.component.rememberFidelityModeOn()
     val (persistentQueue, onPersistentQueueChange) = rememberPreference(
         PersistentQueueKey,
         defaultValue = true
@@ -511,7 +513,12 @@ fun PlayerSettings(
                 add(Material3SettingsItem(
                     icon = painterResource(R.drawable.linear_scale),
                     title = { Text(stringResource(R.string.crossfade)) },
-                    description = { Text(stringResource(R.string.crossfade_desc)) },
+                    description = {
+                        Column {
+                            Text(stringResource(R.string.crossfade_desc))
+                            iad1tya.echo.music.ui.component.FidelityPausedNote(fidelityMode)
+                        }
+                    },
                     showBadge = true,
                     trailingContent = {
                         Switch(
@@ -593,7 +600,12 @@ fun PlayerSettings(
                 add(Material3SettingsItem(
                     icon = painterResource(R.drawable.play),
                     title = { Text("Entrada suave al cambiar de canción") },
-                    description = { Text("Al saltar o elegir otra canción a mano, la nueva entra enseguida con un fundido muy corto (estilo AIMP) en vez de golpe") },
+                    description = {
+                        Column {
+                            Text("Al saltar o elegir otra canción a mano, la nueva entra enseguida con un fundido muy corto (estilo AIMP) en vez de golpe")
+                            iad1tya.echo.music.ui.component.FidelityPausedNote(fidelityMode)
+                        }
+                    },
                     trailingContent = {
                         Switch(
                             checked = fadeOnManualChange,
