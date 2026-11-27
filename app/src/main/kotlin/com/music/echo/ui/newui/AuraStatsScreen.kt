@@ -50,6 +50,7 @@ import com.music.innertube.models.WatchEndpoint
 import iad1tya.echo.music.LocalPlayerAwareWindowInsets
 import iad1tya.echo.music.LocalPlayerConnection
 import iad1tya.echo.music.R
+import iad1tya.echo.music.cloud.BestSourcePolicy
 import iad1tya.echo.music.extensions.toMediaItem
 import iad1tya.echo.music.models.toMediaMetadata
 import iad1tya.echo.music.playback.queues.ListQueue
@@ -121,6 +122,7 @@ fun AuraStatsScreen(
     val mostPlayedArtists by viewModel.mostPlayedArtists.collectAsState()
     val mostPlayedAlbums by viewModel.mostPlayedAlbums.collectAsState()
     val firstEvent by viewModel.firstEvent.collectAsState()
+    val songsById = remember(mostPlayedSongs) { mostPlayedSongs.associateBy { it.id } }
 
     val totalPlayTime by viewModel.totalPlayTime.collectAsState()
     val allTimePlayTime by viewModel.allTimePlayTime.collectAsState()
@@ -216,9 +218,9 @@ fun AuraStatsScreen(
                                 key = { _, song -> song.id },
                             ) { index, song ->
                                 // The stats row and the full Song row are two projections of the same
-                                // query in the same order; `getOrNull` only guards the instant between
-                                // the two flows emitting, where the classic screen would have thrown.
-                                val original = mostPlayedSongs.getOrNull(index)
+                                // query; row 909 pairs them by id (one copy per song across sources), and a
+                                // missing Song only guards the instant between the two flows emitting.
+                                val original = songsById[song.id]
                                 AuraCoverCard(
                                     title = "${index + 1}. ${song.title}",
                                     subtitle = joinByBullet(
@@ -238,6 +240,15 @@ fun AuraStatsScreen(
                                         ActionLog.tap(ActionId.STATS_SONG)
                                         if (song.id == mediaMetadata?.id) {
                                             playerConnection.togglePlayPause()
+                                        } else if (original != null && BestSourcePolicy.sourceOf(song.id) != BestSourcePolicy.Source.ONLINE) {
+                                            // Row 909: a phone or cloud song has no YouTube «next» to build a radio
+                                            // from; it plays itself, as from Biblioteca.
+                                            playerConnection.playQueue(
+                                                ListQueue(
+                                                    title = shuffleQueueTitle,
+                                                    items = listOf(original.toMediaMetadata().toMediaItem()),
+                                                ),
+                                            )
                                         } else {
                                             playerConnection.playQueue(
                                                 YouTubeQueue(
