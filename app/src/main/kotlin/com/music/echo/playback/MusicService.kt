@@ -11041,7 +11041,8 @@ class MusicService :
                                 iad1tya.echo.music.playback.audio.BitPerfectMixer.StreamFormat(
                                     encoding = enc,
                                     sampleRate = inputFormat.sampleRate,
-                                    channelCount = audioSinkConfig.outputChannelMapping?.size ?: inputFormat.channelCount,
+                                    // ImmutableIntArray (Guava): one entry per output channel.
+                                    channelCount = audioSinkConfig.outputChannelMapping?.length() ?: inputFormat.channelCount,
                                 )
                             },
                         )
