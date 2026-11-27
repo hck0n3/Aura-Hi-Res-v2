@@ -335,6 +335,9 @@ public:
     int preampGlideLeft = 0;
     // Row 911: last stage of the chain, -1 dBTP true-peak lookahead limiter (AuraTruePeakLimiter.h).
     aura::TruePeakLimiter* truePeakLimiter = nullptr;
+    // Row 911: set by flushProcessor (media3 flush: seek, reconfigure), consumed by the next processAudio block, which
+    // empties the limiter's delay line and the EQ biquads' state so no audio from before the flush is played after it.
+    std::atomic<bool> flushPending{false};
     Superpowered::Filter* deEsser = nullptr;
     Superpowered::Filter* deEsserDetector = nullptr;
 
@@ -1183,6 +1186,11 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
     // state so a freshly published set takes effect on this very block. No lock is taken here — see
     // the publication contract on SuperpoweredProcessor.
     if (processor) processor->consumeAndApplySnapshot();
+    if (processor && processor->flushPending.load(std::memory_order_relaxed) &&
+        processor->flushPending.exchange(false, std::memory_order_acq_rel)) {
+        if (processor->truePeakLimiter) processor->truePeakLimiter->reset();
+        for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) processor->eqBiquads[bi].reset();
+    }
     // Row 912: with the equalizer off the bands do not run, so a band gliding to flat is stopped right away
     // (it would otherwise come back with stale coefficients when the equalizer is switched on again).
     if (processor && enabled != JNI_TRUE) {
@@ -1489,6 +1497,16 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         int bytesPerSample = (encoding == 4) ? 4 : 2;
         memcpy(output, input, num_frames * channels * bytesPerSample);
     }
+#endif
+}
+
+/// Row 911: media3 flushed the processor (seek, reconfigure). Only raises a flag: the audio thread empties the limiter's
+/// delay line and the EQ state at the start of its next block. Never frees or replaces the processor.
+extern "C" JNIEXPORT void JNICALL
+Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_flushProcessor(JNIEnv *env, jobject thiz, jlong ptr) {
+#if HAS_SUPERPOWERED
+    auto* processor = reinterpret_cast<SuperpoweredProcessor*>(ptr);
+    if (processor) processor->flushPending.store(true, std::memory_order_release);
 #endif
 }
 

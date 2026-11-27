@@ -159,6 +159,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
     private external fun endEqBatch(ptr: Long)
     private external fun processAudio(ptr: Long, inputBuffer: ByteBuffer, outputBuffer: ByteBuffer, numFrames: Int, encoding: Int, channels: Int, enabled: Boolean)
     private external fun releaseSuperpowered(ptr: Long)
+    private external fun flushProcessor(ptr: Long)
 
     // "Safe Volume" stage (ON by default — see SafeVolumeEnabledKey). Kept so it can be re-applied if the
     // native processor is re-created on format change (onConfigure). gainLinear LEVELS IN BOTH DIRECTIONS:
@@ -685,6 +686,16 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         }
 
         buffer.flip()
+    }
+
+    // Row 911: a seek or a reconfigure flushes the chain; the native limiter's ~2 ms delay line and the EQ state must
+    // not carry audio from before it. Only raises a native flag (the processor is kept, never freed here).
+    override fun onFlush(streamMetadata: AudioProcessor.StreamMetadata) {
+        super.onFlush(streamMetadata)
+        synchronized(eqApplyLock) {
+            val ptr = nativePtr
+            if (isInitialized && ptr != 0L) flushProcessor(ptr)
+        }
     }
 
     override fun onReset() {

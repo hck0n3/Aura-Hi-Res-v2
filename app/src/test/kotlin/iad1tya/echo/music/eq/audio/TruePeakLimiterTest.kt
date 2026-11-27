@@ -21,6 +21,9 @@ class TruePeakLimiterTest {
         .firstOrNull { File(it, "settings.gradle.kts").isFile } ?: error("repo root not found")
     private val header by lazy { File(root, "app/src/main/cpp/superpowered/AuraTruePeakLimiter.h").readText() }
     private val bridge by lazy { File(root, "app/src/main/cpp/superpowered/SuperpoweredBridge.cpp").readText() }
+    private val processorSource by lazy {
+        File(root, "app/src/main/kotlin/com/music/echo/eq/audio/CustomEqualizerAudioProcessor.kt").readText()
+    }
 
     private fun db(v: Double) = 20.0 * log10(v)
 
@@ -210,6 +213,39 @@ class TruePeakLimiterTest {
         assertTrue(header.contains("void process(float* data, int frames, int channels) { run(data, frames, channels, true); }"))
         assertTrue(header.contains("if (framesSinceLoud < kTpTaps && (chainOn || sinceChain <= kTpTaps - 1 - kTpCentre)) {"))
         assertTrue(header.contains("if (!chainOn && sinceChain > latency && g == 1.0 && r == 1.0 && hold >= 1.0) {"))
+    }
+
+    @Test
+    fun `after a flush the limiter's delay line holds no audio from before it`() {
+        // Review of row 911: a seek flushes media3's chain; without a native flush the first ~1.8 ms after the seek
+        // were the last frames from BEFORE it.
+        val sr = 48_000
+        val lim = AuraTruePeakLimiter(sr, 2)
+        lim.process(sine(4800, sr, 440.0, 0.5, 0.0, 2), 4800)
+        lim.reset()
+        val after = sine(4800, sr, 3000.0, 0.5, 1.0, 2)
+        val x = after.copyOf()
+        lim.process(x, 4800)
+        val lat = lim.latencyFrames
+        for (i in 0 until lat * 2) assertEquals("frame ${i / 2}: silence, not pre-flush audio", 0f, x[i], 0f)
+        for (i in lat until 4800) assertEquals(after[(i - lat) * 2], x[i * 2], 0f)
+    }
+
+    @Test
+    fun `a media3 flush reaches the native limiter and EQ state without freeing the processor`() {
+        val flush = processorSource.substringAfter("override fun onFlush(streamMetadata: AudioProcessor.StreamMetadata) {")
+            .substringBefore("override fun onReset() {")
+        assertTrue(flush.contains("super.onFlush(streamMetadata)"))
+        assertTrue(flush.contains("synchronized(eqApplyLock) {"))
+        assertTrue(flush.contains("if (isInitialized && ptr != 0L) flushProcessor(ptr)"))
+        assertFalse("a flush must never free the processor", flush.contains("releaseSuperpowered("))
+        assertTrue(processorSource.contains("private external fun flushProcessor(ptr: Long)"))
+        assertTrue(bridge.contains("Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_flushProcessor(JNIEnv *env, jobject thiz, jlong ptr) {"))
+        assertTrue(bridge.contains("if (processor) processor->flushPending.store(true, std::memory_order_release);"))
+        val process = bridge.substringAfter("CustomEqualizerAudioProcessor_processAudio(").substringBefore("int requiredSize = num_frames * channels;")
+        assertTrue(process.contains("processor->flushPending.exchange(false, std::memory_order_acq_rel)"))
+        assertTrue(process.contains("if (processor->truePeakLimiter) processor->truePeakLimiter->reset();"))
+        assertTrue(process.contains("for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) processor->eqBiquads[bi].reset();"))
     }
 
     @Test
