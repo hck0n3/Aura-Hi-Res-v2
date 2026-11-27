@@ -133,7 +133,7 @@ static bool probeSuperpoweredDsp(unsigned int samplerate) {
 /// MUST stay identical to Kotlin EqResponse.coefficients — the EQ graph, the in-app verification and this
 /// engine share one definition. typeCode: 0 peak, 1 low shelf, 2 high shelf, 3 low-pass, 4 high-pass.
 /// Shelves take their slope from Q: S = clamp(Q / 1.414, 0.05, 1).
-static void auraRbjCoefficients(double fs, float frequency, float gainDb, float qIn, int typeCode, float out[5]) {
+static void auraRbjCoefficients(double fs, float frequency, float gainDb, float qIn, int typeCode, double out[5]) {
     double q = qIn < 1e-4f ? 1e-4 : (double) qIn;
     double f0 = frequency;
     if (f0 < 1.0) f0 = 1.0;
@@ -181,34 +181,80 @@ static void auraRbjCoefficients(double fs, float frequency, float gainDb, float 
         a1 = -2.0 * cosW0;
         a2 = 1.0 - alpha / A;
     }
-    out[0] = (float) (b0 / a0); out[1] = (float) (b1 / a0); out[2] = (float) (b2 / a0);
-    out[3] = (float) (a1 / a0); out[4] = (float) (a2 / a0);
+    out[0] = b0 / a0; out[1] = b1 / a0; out[2] = b2 / a0;
+    out[3] = a1 / a0; out[4] = a2 / a0;
+}
+
+/// Row 912: length of the coefficient / preamp glide when a band or the preamp changes (no "zipper" or click).
+static constexpr double kEqGlideMs = 10.0;
+static inline int eqGlideFrames(unsigned int samplerate) {
+    const int n = (int) ((double) samplerate * kEqGlideMs / 1000.0);
+    return n < 1 ? 1 : n;
 }
 
 /// EQ band biquad (transposed direct form II, one state per channel) running the RBJ coefficients above.
 /// Replaces Superpowered custom-coefficient filters for the EQ bands: with those the owner's phone played
 /// silence. A non-finite state (never expected) resets the band instead of muting the whole chain.
+///
+/// Row 912: coefficients and state in DOUBLE precision. In float a 31 Hz band at 96-192 kHz has 1 - cos(w0) of
+/// about 5e-7, a few float ulps, so its response was visibly wrong; double costs nothing measurable here (a few
+/// multiply-adds per band per sample, scalar double is native on arm64 and on armeabi-v7a VFP). And a new set of
+/// coefficients GLIDES in linearly over kEqGlideMs instead of stepping (a slider drag, a preset change): the
+/// stability region of (a1, a2) is a triangle, which is convex, so every point between two stable filters is stable.
 struct AuraBiquad {
-    float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f, a1 = 0.0f, a2 = 0.0f;
-    float z1[2] = {0.0f, 0.0f};
-    float z2[2] = {0.0f, 0.0f};
-    void set(const float c[5]) { b0 = c[0]; b1 = c[1]; b2 = c[2]; a1 = c[3]; a2 = c[4]; }
-    void reset() { z1[0] = z1[1] = z2[0] = z2[1] = 0.0f; }
+    double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;     // coefficients in use
+    double t[5] = {1.0, 0.0, 0.0, 0.0, 0.0};                    // glide target
+    double d[5] = {0.0, 0.0, 0.0, 0.0, 0.0};                    // per-frame step
+    int glideLeft = 0;
+    double z1[2] = {0.0, 0.0};
+    double z2[2] = {0.0, 0.0};
+    /// Jump straight to [c] (used by the measurements and for a band starting from silence-flat state).
+    void set(const double c[5]) {
+        b0 = c[0]; b1 = c[1]; b2 = c[2]; a1 = c[3]; a2 = c[4];
+        for (int k = 0; k < 5; ++k) { t[k] = c[k]; d[k] = 0.0; }
+        glideLeft = 0;
+    }
+    /// Glide from the coefficients in use to [c] over [frames] frames. Same target again: nothing to do.
+    void glideTo(const double c[5], int frames) {
+        bool same = true;
+        for (int k = 0; k < 5; ++k) if (c[k] != t[k]) same = false;
+        if (same) return;
+        const double cur[5] = {b0, b1, b2, a1, a2};
+        for (int k = 0; k < 5; ++k) { t[k] = c[k]; d[k] = (c[k] - cur[k]) / (double) frames; }
+        glideLeft = frames;
+    }
+    bool gliding() const { return glideLeft > 0; }
+    void reset() { z1[0] = z1[1] = z2[0] = z2[1] = 0.0; }
     void process(float* data, int frames, int channels) {
         const int chs = channels < 2 ? channels : 2;
+        const int ramp = glideLeft < frames ? glideLeft : frames;
         for (int ch = 0; ch < chs; ++ch) {
-            float s1 = z1[ch], s2 = z2[ch];
+            double s1 = z1[ch], s2 = z2[ch];
+            double c0 = b0, c1 = b1, c2 = b2, c3 = a1, c4 = a2;
             for (int i = 0; i < frames; ++i) {
+                if (i < ramp) {
+                    c0 += d[0]; c1 += d[1]; c2 += d[2]; c3 += d[3]; c4 += d[4];
+                    if (i == glideLeft - 1) { c0 = t[0]; c1 = t[1]; c2 = t[2]; c3 = t[3]; c4 = t[4]; }
+                }
                 const int idx = i * channels + ch;
-                const float x = data[idx];
-                const float y = b0 * x + s1;
-                s1 = b1 * x - a1 * y + s2;
-                s2 = b2 * x - a2 * y;
-                data[idx] = y;
+                const double x = data[idx];
+                const double y = c0 * x + s1;
+                s1 = c1 * x - c3 * y + s2;
+                s2 = c2 * x - c4 * y;
+                data[idx] = (float) y;
             }
-            if (!std::isfinite(s1) || !std::isfinite(s2)) { s1 = 0.0f; s2 = 0.0f; }
+            if (!std::isfinite(s1) || !std::isfinite(s2)) { s1 = 0.0; s2 = 0.0; }
             z1[ch] = s1;
             z2[ch] = s2;
+        }
+        if (ramp > 0) {
+            if (ramp == glideLeft) {
+                b0 = t[0]; b1 = t[1]; b2 = t[2]; a1 = t[3]; a2 = t[4];
+                glideLeft = 0;
+            } else {
+                b0 += d[0] * ramp; b1 += d[1] * ramp; b2 += d[2] * ramp; a1 += d[3] * ramp; a2 += d[4] * ramp;
+                glideLeft -= ramp;
+            }
         }
     }
 };
@@ -281,6 +327,12 @@ public:
     std::vector<Superpowered::Filter*> filters;
     AuraBiquad eqBiquads[NUM_EQ_FILTERS];
     bool eqBiquadOn[NUM_EQ_FILTERS] = {};
+    // Row 912: a band switched off keeps running while it glides to flat, then stops (no step on a preset change).
+    bool eqBiquadRetiring[NUM_EQ_FILTERS] = {};
+    // Row 912: the preamp gain actually applied, gliding to activePreampMultiplier (audio thread only).
+    float preampCurrent = 1.0f;
+    float preampStep = 0.0f;
+    int preampGlideLeft = 0;
     // Row 911: last stage of the chain, -1 dBTP true-peak lookahead limiter (AuraTruePeakLimiter.h).
     aura::TruePeakLimiter* truePeakLimiter = nullptr;
     Superpowered::Filter* deEsser = nullptr;
@@ -450,6 +502,12 @@ public:
         const EqSnapshot& s = slots[audioSlot];
 
         // Scalars are cheap and always refreshed.
+        if (s.preampMultiplier != activePreampMultiplier) {
+            // Row 912: a new preamp glides in over kEqGlideMs (processAudio) instead of stepping.
+            const int n = eqGlideFrames(currentSamplerate);
+            preampStep = (s.preampMultiplier - preampCurrent) / (float) n;
+            preampGlideLeft = n;
+        }
         activePreampMultiplier = s.preampMultiplier;
         activeSafeVolumeEnabled = s.safeVolumeEnabled;
         activeSafeVolumeGain = s.safeVolumeGain;
@@ -488,16 +546,27 @@ public:
         if (s.bandsRevision == appliedBandsRevision) return;
         appliedBandsRevision = s.bandsRevision;
 
+        // Row 912: every change GLIDES over kEqGlideMs. A band switched on starts from flat (identity, clean
+        // state) and glides to its curve; a band switched off glides to flat and only then stops running.
+        static const double kIdentity[5] = {1.0, 0.0, 0.0, 0.0, 0.0};
+        const int glide = eqGlideFrames(currentSamplerate);
         for (int i = 0; i < NUM_EQ_FILTERS; ++i) {
             const BandParams& b = s.bands[i];
             if (b.enabled) {
                 // RBJ coefficients — the same formulas the EQ graph draws — into the band's own biquad.
-                float c[5];
+                double c[5];
                 auraRbjCoefficients((double) currentSamplerate, b.frequency, b.decibel, b.q, b.typeCode, c);
-                if (!eqBiquadOn[i]) eqBiquads[i].reset();
-                eqBiquads[i].set(c);
+                if (!eqBiquadOn[i]) {
+                    eqBiquads[i].reset();
+                    eqBiquads[i].set(kIdentity);
+                }
+                eqBiquads[i].glideTo(c, glide);
+                eqBiquadOn[i] = true;
+                eqBiquadRetiring[i] = false;
+            } else if (eqBiquadOn[i]) {
+                eqBiquads[i].glideTo(kIdentity, glide);
+                eqBiquadRetiring[i] = true;
             }
-            eqBiquadOn[i] = b.enabled;
             filters[i]->enabled = false; // the Superpowered filter objects no longer run the EQ bands
         }
     }
@@ -979,7 +1048,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureEqResponse
     for (jsize k = 0; k < nf; ++k) {
         std::vector<AuraBiquad> cascade((size_t) nb);
         for (jsize i = 0; i < nb; ++i) {
-            float c[5];
+            double c[5];
             auraRbjCoefficients((double) sr, bandData[i * 4], bandData[i * 4 + 1], bandData[i * 4 + 2], (int) bandData[i * 4 + 3], c);
             cascade[(size_t) i].set(c);
         }
@@ -1046,7 +1115,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_measureHeadroom(J
 
     std::vector<AuraBiquad> cascade((size_t) nb);
     for (jsize i = 0; i < nb; ++i) {
-        float c[5];
+        double c[5];
         auraRbjCoefficients((double) sr, bandData[i * 4], bandData[i * 4 + 1], bandData[i * 4 + 2], (int) bandData[i * 4 + 3], c);
         cascade[(size_t) i].set(c);
     }
@@ -1114,6 +1183,16 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
     // state so a freshly published set takes effect on this very block. No lock is taken here — see
     // the publication contract on SuperpoweredProcessor.
     if (processor) processor->consumeAndApplySnapshot();
+    // Row 912: with the equalizer off the bands do not run, so a band gliding to flat is stopped right away
+    // (it would otherwise come back with stale coefficients when the equalizer is switched on again).
+    if (processor && enabled != JNI_TRUE) {
+        for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) {
+            if (processor->eqBiquadRetiring[bi]) {
+                processor->eqBiquadOn[bi] = false;
+                processor->eqBiquadRetiring[bi] = false;
+            }
+        }
+    }
 
     int requiredSize = num_frames * channels;
     if (requiredSize > MAX_BUFFER_SIZE) {
@@ -1180,7 +1259,18 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // No hidden trim (row 790): the preamp the user sees is the gain applied. It used to be multiplied by
         // 0.7943 (-2 dB), so the house +2.5 dB was really +0.5 dB.
         float frontGain = processor->activePreampMultiplier;
-        if (frontGain != 1.0f) {
+        if (processor->preampGlideLeft > 0) {
+            // Row 912: a preamp change glides in over kEqGlideMs, one step per frame, instead of stepping.
+            float g = processor->preampCurrent;
+            for (int f = 0; f < num_frames; ++f) {
+                if (processor->preampGlideLeft > 0) {
+                    g += processor->preampStep;
+                    if (--processor->preampGlideLeft == 0) g = frontGain;
+                }
+                for (int c = 0; c < channels; ++c) workBuffer[f * channels + c] *= g;
+            }
+            processor->preampCurrent = g;
+        } else if (frontGain != 1.0f) {
             for (int i = 0; i < num_frames * channels; ++i) {
                 workBuffer[i] *= frontGain;
             }
@@ -1189,7 +1279,13 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         if (runEq) {
             // Apply EQ bands (own TDF-II biquads with the graph's RBJ coefficients).
             for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) {
-                if (processor->eqBiquadOn[bi]) processor->eqBiquads[bi].process(workBuffer, num_frames, channels);
+                if (!processor->eqBiquadOn[bi]) continue;
+                processor->eqBiquads[bi].process(workBuffer, num_frames, channels);
+                // Row 912: a switched-off band stops once it has glided to flat.
+                if (processor->eqBiquadRetiring[bi] && !processor->eqBiquads[bi].gliding()) {
+                    processor->eqBiquadOn[bi] = false;
+                    processor->eqBiquadRetiring[bi] = false;
+                }
             }
 
             // Dynamic De-Esser (only with EQ on — it exists to tame EQ-boosted sibilance). Improved
