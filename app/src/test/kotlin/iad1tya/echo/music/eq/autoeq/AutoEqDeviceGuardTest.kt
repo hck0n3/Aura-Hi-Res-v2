@@ -57,4 +57,13 @@ class AutoEqDeviceGuardTest {
         assertTrue(offer.contains("ActionLog.tap(ActionId.AUTOEQ_DEVICE_APPLY)"))
         assertTrue(source("$main/ui/screens/equalizer/autoeq/AutoEqScreen.kt").contains("AutoEqDeviceSection(eqViewModel)"))
     }
+
+    @Test fun `the offer's view model plays the manual curve as saved, not as it was at app start`() {
+        val vm = source("$main/ui/screens/equalizer/axion/AxionEqViewModel.kt")
+        val sync = vm.substringAfter("fun syncDeviceAutoEq(").substringBefore("\n    }\n")
+        assertTrue(sync.indexOf("reloadManualEqFromPrefs()") in 0 until sync.indexOf("AutoEqDeviceCorrection.sync("))
+        val reload = vm.substringAfter("private fun reloadManualEqFromPrefs() {").substringBefore("\n    }")
+        for (key in listOf("band24_", "gtype_", "gq_", "eq_mode")) assertTrue(key, reload.contains("\"$key"))
+        assertTrue(reload.contains("loadPeqBands()"))
+    }
 }

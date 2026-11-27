@@ -237,6 +237,9 @@ class AxionEqViewModel @Inject constructor(
      */
     fun syncDeviceAutoEq(outputKey: String, force: Boolean = false, enableEq: Boolean = false) {
         viewModelScope.launch {
+            // The offer host's instance is the Activity's (outside the NavHost): its manual curve was read once at app
+            // start. Take the saved one, or the preamp and the profile played below would bring back old manual bands.
+            reloadManualEqFromPrefs()
             val stage = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 iad1tya.echo.music.eq.autoeq.AutoEqDeviceCorrection.sync(
                     context, outputKey, allBands(), autoHeadroomOn.value, force,
@@ -251,6 +254,16 @@ class AxionEqViewModel @Inject constructor(
             }
             if (_enabled.value) applyToService()
         }
+    }
+
+    /** Row 915: the manual EQ (graphic and parametric) as `echo_eq_prefs` holds it now. */
+    private fun reloadManualEqFromPrefs() {
+        _bandGains.value = FloatArray(n) { prefs.getFloat("band24_$it", 0f) }
+        _bandTypes.value = IntArray(n) { prefs.getInt("type24_$it", 0) }
+        _graphicTypes.value = IntArray(n) { prefs.getInt("gtype_$it", GRAPHIC_TYPE_AUTO) }
+        _graphicQs.value = FloatArray(n) { prefs.getFloat("gq_$it", EqConstants.Q.toFloat()) }
+        _eqMode.value = runCatching { EqMode.valueOf(prefs.getString("eq_mode", "GRAPHIC")!!) }.getOrDefault(EqMode.GRAPHIC)
+        _peqBands.value = loadPeqBands()
     }
 
     /**
