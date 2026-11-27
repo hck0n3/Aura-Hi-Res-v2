@@ -302,6 +302,8 @@ fun AxionEqScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 EngineUnavailableBanner()
+                // Row 902: «Modo Fidelidad» pauses the equalizer from the playback side; say it here.
+                iad1tya.echo.music.ui.component.FidelityModeEqBanner()
                 EqMainContent(
                     skin = skin,
                     viewModel = viewModel,
