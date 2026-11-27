@@ -132,6 +132,11 @@ val ImportFollowsAwaitingConfirmKey = stringSetPreferencesKey("import_follows_aw
 val ImportFollowsLocalOnlyKey = stringSetPreferencesKey("import_follows_local_only")
 // One-time: the follows already pending before the sets existed were moved into the awaiting set.
 val ImportFollowsPendingHeldV1Key = booleanPreferencesKey("import_follows_pending_held_v1")
+// Registry row 905: the artist ids an import (Spotify, Tidal/Deezer migration) itself followed in Aura. The awaiting set
+// above also holds what the one-time move put there (onboarding picks, follows made signed out, a restore's follows), so
+// only this record says «an import wrote it». A follow tap takes the id out; a full restore clears it (the rows it
+// described are gone).
+val ImportFollowsWrittenByImportKey = stringSetPreferencesKey("import_follows_written_by_import")
 // Saved/pinned podcast shows (JSON array of {id,title,author,artworkUrl,feedUrl}).
 val PinnedPodcastsKey = stringPreferencesKey("pinnedPodcasts")
 // Region (2-letter) the user picked for the podcast charts (persisted across sessions).

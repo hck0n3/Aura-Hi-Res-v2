@@ -203,6 +203,41 @@ object AiPlaylistService {
         ) { content -> AiPlaylistParser.parseEdit(content, visibleCount) }
     }
 
+    /**
+     * Registry row 906: «Tu gusto» ▸ «Describir con IA». The same provider chain as [generate] (the user's own key, else the Aura
+     * Worker). [system] and [user] come from [iad1tya.echo.music.reco.TasteAiGate.ask], which calls this only after the user accepted
+     * the consent; [user] is [iad1tya.echo.music.reco.TasteSummary.payload], the whole data that travels. A reply that is not the
+     * expected JSON is a failure (the local summary stays on screen). Same 1024-token floor as [generate].
+     */
+    suspend fun describeTaste(
+        system: String,
+        user: String,
+        provider: String,
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+    ): Result<String> = withContext(Dispatchers.IO) {
+        val messages = JSONArray().apply {
+            put(JSONObject().apply { put("role", "system"); put("content", system) })
+            put(JSONObject().apply { put("role", "user"); put("content", user) })
+        }
+        runChain(
+            messages = messages,
+            maxTokens = 1024,
+            provider = provider,
+            apiKey = apiKey,
+            baseUrl = baseUrl,
+            model = model,
+            maxRetries = KEYLESS_MAX_RETRIES,
+        ) { content ->
+            if (iad1tya.echo.music.reco.TasteSummary.parseAnswer(content) != null) {
+                Result.success(content)
+            } else {
+                Result.failure(Exception("Not a taste answer"))
+            }
+        }
+    }
+
     private fun toJsonArray(messages: List<ChatMessage>): JSONArray = JSONArray().apply {
         messages.forEach { message ->
             put(

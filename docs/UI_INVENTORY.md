@@ -4815,3 +4815,28 @@ Mismos textos, mismos botones, mismos toques y mismas rutas. En la pantalla exte
 | Ajustes ▸ Sincronizar dispositivos (estado «Sincronizado», pendientes, «Borrados retenidos») | **Sin cambio visible:** las posiciones de las canciones no cuentan como elementos ni como borrados | 900 |
 | Aviso **«Tu biblioteca sincronizada está llena: los cambios nuevos de este dispositivo no llegan a tus otros dispositivos.»** (toda la app, `MainActivity`, por `DeviceSyncHub.notice`) | **Nuevo texto** (`device_sync_room_full`, inglés y español): sale una vez por conexión cuando la sala del Worker está llena (150 000 elementos) y rechaza altas nuevas de este aparato; esas altas siguen pendientes aquí (no se pierde nada) y se vuelven a ofrecer en la siguiente conexión o al cabo de una hora | 900 |
 
+## Anexo 2026-11-27 (fila 905): Fase 9, limpiar los artistas que no siguió el usuario (no se quitó ni se ocultó nada)
+
+| Qué | Cambio | Fila |
+|---|---|---|
+| Revisar suscripciones ▸ sección **«N artistas seguidos solo en Aura»** + texto «Los añadió una importación (Spotify, Tidal o Deezer) y nunca los confirmaste. Quitarlos solo cambia Aura: tu cuenta de Google no se toca y puedes deshacerlo.» (`ui/screens/settings/SubscriptionCleanupScreen.kt:123`, `localFollowSection`) | **Nuevo**, encima de la lista de la cuenta; el título y el texto solo salen si hay alguno (con solo un «Deshacer» pendiente o un fallo al quitar, sale solo esa línea). En cualquier estado de la lista de la cuenta (cargando, sin sesión, fallo, lista). Solo lista lo que siguió una importación hecha con esta versión o una posterior (`ImportFollowsWrittenByImportKey`): nunca lo elegido al empezar, lo seguido sin sesión ni lo que trae una copia restaurada | 905 |
+| **Seleccionar todos (N)** / **Seleccionar los sugeridos (N)** / **Quitar la selección** (en fila que se parte en dos si no cabe) y **Quitar N de Aura** → vista previa | **Nuevos**; deshabilitados sin sugeridos / sin selección / mientras se escribe | 905 |
+| Fila de artista seguido solo en Aura: casilla, avatar, nombre, «Probablemente no lo seguiste tú» (si no hay ninguna escucha, me gusta, lista ni biblioteca) + «Lo añadió una importación; sin confirmar» (+ «Sin me gusta, fuera de tus listas y de tu biblioteca, casi sin escuchas» en los sugeridos) | **Nueva**, una por canal, sugeridos primero | 905 |
+| Diálogo **«¿Quitar N artistas de Aura?»** — «Solo cambia Aura: dejas de seguirlos aquí y salen de Biblioteca ▸ Artistas. Tu cuenta de Google no se toca. Puedes deshacerlo.» + «Estas son las que se quitarán:» con los nombres (lista que se desplaza, 240 dp como mucho) + **Quitar de Aura** / **Cancelar** | **Nuevo** (`SubscriptionCleanupScreen.kt:386`) | 905 |
+| «N artistas quitados de Aura» + **Deshacer** | **Nuevo**, tras quitar; el número es el de la última limpieza aunque se salga y se vuelva a entrar a la pantalla (vive junto al deshacer, no en la pantalla); desaparece al deshacer (o si el sistema cierra la app) | 905 |
+| «No se pudieron quitar. No ha cambiado nada; inténtalo de nuevo.» (en rojo) | **Nuevo**, solo si «Quitar de Aura» no pudo escribir nada; el «Deshacer» anterior, si lo había, se queda | 905 |
+| «No se pudieron leer los artistas seguidos solo en Aura.» + **Reintentar** | **Nuevo**, solo si falla esa lectura | 905 |
+| Diálogo **«¿Quitar N suscripciones?»** (cuenta) | **Añade** «Estas son las que se quitarán:» y los nombres de exactamente lo que se va a quitar, debajo del texto de siempre (`SubscriptionCleanupScreen.kt:371`); botones y comportamiento iguales | 905 |
+| Ajustes ▸ Cuentas ▸ «Revisar suscripciones» | **Sin cambio**: sigue saliendo solo con sesión iniciada | 905 |
+
+## Anexo 2026-11-27 (fila 906): Fase 9, «Tu gusto» y su IA apagada hasta aceptar (no se quitó ni se ocultó nada)
+
+| Qué | Cambio | Fila |
+|---|---|---|
+| Ajustes ▸ Traducción de letras con IA ▸ grupo **«Tu gusto»** con la fila **«Tu gusto»** — desc. «Un resumen de lo que escuchas, hecho en tu móvil. IA opcional, apagada hasta que la aceptes» (`ui/screens/settings/AiSettings.kt:491-502`) | **Nueva**, entre «Recomendado para ti (IA)» y «Proveedor» → `settings/ai/taste`; en pantalla ancha se abre en el panel derecho con «Traducción de letras con IA» resaltada. La búsqueda de Ajustes la encuentra | 906 |
+| Pantalla **«Tu gusto»** (`ui/screens/settings/TasteScreen.kt`): Atrás; «Leyendo tus escuchas…» mientras carga; «Aún no has escuchado lo suficiente en Aura para resumir tu gusto.» sin historial | **Nueva** | 906 |
+| «Resumen»: párrafo «Lo que más suena en tu Aura: …. Tus artistas de cabecera: …. Tu década: Años 1990.» (solo las frases con datos), etiquetas (géneros, décadas, artistas; no se pueden tocar) y «Hecho en tu móvil con tus escuchas. No se envía nada.» | **Nuevo**, siempre que haya historial; no usa la red | 906 |
+| «Con IA (opcional)»: sin permiso, «Apagada. La IA puede escribir un resumen más personal; antes verás exactamente qué se enviaría.» + **Ver qué se envía y activarla** | **Nuevo** (estado por defecto) | 906 |
+| Diálogo **«Antes de usar la IA»** — lo que se envía (hasta 8 artistas y sus escuchas, hasta 5 géneros, hasta 4 décadas, el idioma), lo que no (fechas u horas, títulos, cuenta, correo, identificadores), que el servidor no guarda el contenido y la IP como mucho 48 h, «Lo que se enviaría ahora: …» con los nombres y números reales + **Aceptar** / **Ahora no** | **Nuevo** (`TasteScreen.kt:168`) | 906 |
+| Con permiso: **Describir con IA** (deshabilitado mientras pregunta), «Preguntando a la IA…», el párrafo y las etiquetas que escribió la IA + «Escrito por IA a partir de los números que aceptaste enviar.», o «La IA no respondió. Tu resumen de arriba sigue valiendo.» (en rojo), y **Retirar el permiso** | **Nuevo** | 906 |
+

@@ -28,6 +28,7 @@ import iad1tya.echo.music.utils.ImportFollowsAccounts
 import iad1tya.echo.music.utils.ImportFailuresCsv
 import iad1tya.echo.music.constants.AccountEmailKey
 import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
+import iad1tya.echo.music.constants.ImportFollowsWrittenByImportKey
 import iad1tya.echo.music.constants.SpotifyAccessTokenExpiresAtKey
 import iad1tya.echo.music.constants.SpotifyAccessTokenKey
 import iad1tya.echo.music.constants.SpotifyAccountAvatarUrlKey
@@ -1198,6 +1199,7 @@ class SpotifyImportRepository @Inject constructor(
         if (existing?.followedByUserAt == null) {
             context.dataStore.edit {
                 it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() + match.id
+                it[ImportFollowsWrittenByImportKey] = it[ImportFollowsWrittenByImportKey].orEmpty() + match.id
             }
         }
 

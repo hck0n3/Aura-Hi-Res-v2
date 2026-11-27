@@ -483,6 +483,13 @@ fun NavGraphBuilder.navigationBuilder(
             AiSettings(navController, scrollBehavior)
         }
     }
+
+    // Registry row 906: «Tu gusto», from Ajustes ▸ Traducción de letras con IA.
+    composable("settings/ai/taste") {
+        AuraSettingsPaneFrame(navController, it) {
+            iad1tya.echo.music.ui.screens.settings.TasteScreen(navController, scrollBehavior)
+        }
+    }
     
     composable("settings/player") {
         AuraSettingsPaneFrame(navController, it) {

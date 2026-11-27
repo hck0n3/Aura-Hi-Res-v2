@@ -488,6 +488,21 @@ fun AiSettings(
 
         Spacer(modifier = Modifier.height(27.dp))
 
+        // Registry row 906: «Tu gusto» — the local summary, and the AI description that stays off until accepted.
+        Material3SettingsGroup(
+            title = stringResource(R.string.taste_title),
+            items = listOf(
+                Material3SettingsItem(
+                    icon = painterResource(R.drawable.auto_awesome),
+                    title = { Text(stringResource(R.string.taste_title)) },
+                    description = { Text(stringResource(R.string.taste_entry_desc)) },
+                    onClick = { ActionLog.tap(ActionId.SETAI_TASTE); navController.navigate("settings/ai/taste") },
+                ),
+            ),
+        )
+
+        Spacer(modifier = Modifier.height(27.dp))
+
         Material3SettingsGroup(
             title = stringResource(R.string.ai_provider),
             items = listOf(

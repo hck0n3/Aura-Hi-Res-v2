@@ -20,6 +20,7 @@ import dagger.hilt.android.EntryPointAccessors
 import iad1tya.echo.music.R
 import iad1tya.echo.music.constants.ImportFollowsAwaitingConfirmKey
 import iad1tya.echo.music.constants.ImportFollowsLocalOnlyKey
+import iad1tya.echo.music.constants.ImportFollowsWrittenByImportKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -270,6 +271,7 @@ object AccountPush {
             ctx.dataStore.edit {
                 it[ImportFollowsAwaitingConfirmKey] = it[ImportFollowsAwaitingConfirmKey].orEmpty() - artistId
                 it[ImportFollowsLocalOnlyKey] = it[ImportFollowsLocalOnlyKey].orEmpty() - artistId
+                it[ImportFollowsWrittenByImportKey] = it[ImportFollowsWrittenByImportKey].orEmpty() - artistId
             }
         }
     }

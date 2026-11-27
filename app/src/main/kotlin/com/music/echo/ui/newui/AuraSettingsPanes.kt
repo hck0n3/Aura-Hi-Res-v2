@@ -57,6 +57,7 @@ val AURA_SETTINGS_PANE_CHILDREN: Map<String, String> = mapOf(
     "settings/sound/autoeq" to "settings/sound",
     "settings/accounts/subscription_cleanup" to "settings/accounts",
     "settings/device_sync/held" to "settings/device_sync",
+    "settings/ai/taste" to "settings/ai",
 )
 
 /** Index pane width bounds (dp) and the share of the pane it takes between them. */
