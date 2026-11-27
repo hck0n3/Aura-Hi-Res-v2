@@ -89,6 +89,21 @@ test("a session sent while the TV is reconnecting is handed to its next socket, 
   assert.equal((await t3.next("error")).code, "already_used", "the blob was deleted after its single read");
 });
 
+test("a second hello never replaces the TV's, and the one delivery reaches every waiting socket", async () => {
+  const id = newId();
+  const a = await tv(id);
+  a.hello("TVHELLO==");
+  await a.next("waiting");
+  const b = await tv(id);
+  b.hello("OTHERHELLO==");
+  await b.next("waiting");
+  assert.equal((await (await hello(id)).json()).hello, "TVHELLO==", "the phone always sees the first hello (the TV's key)");
+  assert.deepEqual(await (await sendSession(id, "S==")).json(), { delivered: true });
+  assert.equal((await a.next("session")).session, "S==");
+  assert.equal((await b.next("session")).session, "S==");
+  assert.equal((await sendSession(id, "S2==")).status, 409);
+});
+
 test("nothing can be sent before the TV says hello", async () => {
   const id = newId();
   assert.equal((await hello(id)).status, 404);

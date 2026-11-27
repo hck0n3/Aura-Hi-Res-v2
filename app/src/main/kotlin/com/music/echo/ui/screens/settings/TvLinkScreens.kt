@@ -47,6 +47,7 @@ import iad1tya.echo.music.constants.DataSyncIdKey
 import iad1tya.echo.music.constants.InnerTubeCookieKey
 import iad1tya.echo.music.constants.VisitorDataKey
 import iad1tya.echo.music.tvlink.TvLinkCode
+import iad1tya.echo.music.tvlink.TvLinkKeys
 import iad1tya.echo.music.tvlink.TvLinkRelay
 import iad1tya.echo.music.tvlink.TvLinkSession
 import iad1tya.echo.music.ui.component.AuraTopAppBar
@@ -74,7 +75,9 @@ fun TvLinkReceiveScreen(
 ) {
     val context = LocalContext.current
     val syncUtils = LocalSyncUtils.current
-    var code by rememberSaveable { mutableStateOf(TvLinkCode.generate()) }
+    // Not saved across a rotation on purpose: the key pair below lives only in memory, so a recreated screen shows a new code.
+    var code by remember { mutableStateOf(TvLinkCode.generate()) }
+    val keys = remember(code) { TvLinkKeys.generate() }
     val receiver = remember { TvLinkRelay.Receiver() }
     val state by receiver.state.collectAsState()
     val device = remember { TvLinkRelay.thisDevice() }
@@ -84,7 +87,7 @@ fun TvLinkReceiveScreen(
     var importing by remember(code) { mutableStateOf(false) }
 
     DisposableEffect(code) {
-        receiver.start(code, device)
+        receiver.start(code, device, keys)
         onDispose { receiver.stop() }
     }
     LaunchedEffect(code) {
@@ -140,7 +143,7 @@ fun TvLinkReceiveScreen(
             state is TvLinkRelay.Receiver.State.AlreadyUsed || state is TvLinkRelay.Receiver.State.Invalid
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state is TvLinkRelay.Receiver.State.Disconnected) {
-                Button(onClick = { receiver.start(code, device) }) { Text(stringResource(R.string.tvlink_reconnect)) }
+                Button(onClick = { receiver.start(code, device, keys) }) { Text(stringResource(R.string.tvlink_reconnect)) }
             }
             if (ended || state is TvLinkRelay.Receiver.State.Disconnected) {
                 OutlinedButton(onClick = { code = TvLinkCode.generate() }) { Text(stringResource(R.string.tvlink_new_code)) }
@@ -157,7 +160,7 @@ fun TvLinkReceiveScreen(
 private sealed interface SendPhase {
     data object Idle : SendPhase
     data object Checking : SendPhase
-    data class Confirm(val code: String, val device: String) : SendPhase
+    class Confirm(val code: String, val device: String, val tvKey: ByteArray) : SendPhase
     data class Sending(val code: String, val device: String) : SendPhase
     data class Sent(val device: String, val delivered: Boolean) : SendPhase
     data class Failed(val why: TvLinkRelay.Failure) : SendPhase
@@ -187,7 +190,7 @@ fun TvLinkSendScreen(
         phase = SendPhase.Checking
         scope.launch {
             phase = when (val r = TvLinkRelay.helloOf(normalized)) {
-                is TvLinkRelay.Outcome.Ok -> SendPhase.Confirm(normalized, r.value.device)
+                is TvLinkRelay.Outcome.Ok -> SendPhase.Confirm(normalized, r.value.device, r.value.publicKey)
                 is TvLinkRelay.Outcome.Failed -> SendPhase.Failed(r.why)
             }
         }
@@ -232,7 +235,7 @@ fun TvLinkSendScreen(
                                     dataSyncId = prefs[DataSyncIdKey].orEmpty(),
                                     fromDevice = TvLinkRelay.thisDevice(),
                                 )
-                                phase = when (val r = TvLinkRelay.send(p.code, session)) {
+                                phase = when (val r = TvLinkRelay.send(p.code, p.tvKey, session)) {
                                     is TvLinkRelay.Outcome.Ok -> SendPhase.Sent(p.device, r.value)
                                     is TvLinkRelay.Outcome.Failed -> SendPhase.Failed(r.why)
                                 }

@@ -2,6 +2,7 @@ package iad1tya.echo.music.tvlink
 
 import android.os.Build
 import iad1tya.echo.music.listentogether.ListenTogetherClient
+import java.security.KeyPair
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,9 +86,13 @@ object TvLinkRelay {
         }
     }
 
-    /** Phone: seals [session] with the code and hands it to the relay. Ok(true) = the TV had it at once; Ok(false) = on its reconnect. */
-    suspend fun send(normalized: String, session: TvLinkSession): Outcome<Boolean> = withContext(Dispatchers.IO) {
-        val sealed = TvLinkSeal.seal(normalized, TvLinkSeal.SESSION, TvLinkPayload.session(session))
+    /**
+     * Phone: seals [session] with the code and to the TV's key from its hello ([TvLinkSessionSeal]) and hands it to the relay.
+     * Ok(true) = the TV had it at once; Ok(false) = on its reconnect.
+     */
+    suspend fun send(normalized: String, tvPublicKey: ByteArray, session: TvLinkSession): Outcome<Boolean> = withContext(Dispatchers.IO) {
+        val tvKey = TvLinkKeys.publicFrom(tvPublicKey) ?: return@withContext Outcome.Failed(Failure.WRONG_CODE)
+        val sealed = TvLinkSessionSeal.seal(normalized, tvKey, TvLinkPayload.session(session))
         val body = JSONObject().put("session", sealed).toString().toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url("$httpBase/tvlink/send?id=${TvLinkCode.relayId(normalized)}").post(body).build()
         runCatching {
@@ -122,7 +127,8 @@ object TvLinkRelay {
 
         @Volatile private var socket: WebSocket? = null
 
-        fun start(normalized: String, device: String) {
+        /** [keys] is the pair made for this code: the same one on every reconnect, or the phone's session would not open. */
+        fun start(normalized: String, device: String, keys: KeyPair) {
             stop()
             _state.value = State.Connecting
             val request = runCatching {
@@ -132,7 +138,7 @@ object TvLinkRelay {
                 request,
                 object : WebSocketListener() {
                     override fun onOpen(webSocket: WebSocket, response: Response) {
-                        val hello = TvLinkSeal.seal(normalized, TvLinkSeal.HELLO, TvLinkPayload.hello(device))
+                        val hello = TvLinkSeal.seal(normalized, TvLinkSeal.HELLO, TvLinkPayload.hello(device, keys.public.encoded))
                         webSocket.send(JSONObject().put("type", "hello").put("payload", JSONObject().put("hello", hello)).toString())
                     }
 
@@ -143,9 +149,9 @@ object TvLinkRelay {
                         when (msg.optString("type")) {
                             "waiting" -> _state.value = State.Waiting(payload.optLong("expiresAt"))
                             "session" -> {
-                                val session = TvLinkSeal.open(normalized, TvLinkSeal.SESSION, payload.optString("session"))
+                                val session = TvLinkSessionSeal.open(normalized, keys.private, payload.optString("session"))
                                     ?.let(TvLinkPayload::parseSession)
-                                // A blob that does not open with this code is not from the user's phone: never imported.
+                                // A blob that does not open with this code and this TV's key is not from the user's phone: never imported.
                                 _state.value = if (session != null) State.Received(session) else State.Invalid
                             }
                             "expired" -> _state.value = State.Expired

@@ -70,10 +70,31 @@ class TvLinkCodeTest {
     }
 
     @Test
-    fun `the hello names the device and nothing else`() {
-        val blob = TvLinkSeal.seal(code, TvLinkSeal.HELLO, TvLinkPayload.hello("Sony BRAVIA 4K"))
-        val hello = TvLinkPayload.parseHello(TvLinkSeal.open(code, TvLinkSeal.HELLO, blob)!!)
-        assertEquals(TvLinkHello("Sony BRAVIA 4K"), hello)
+    fun `the session sealed to the TV's key does not open with the QR code alone`() {
+        val tv = TvLinkKeys.generate()
+        val session = TvLinkSession("SAPISID=abc", "visitor", "sync-id", "Pixel 9")
+        val blob = TvLinkSessionSeal.seal(code, tv.public, TvLinkPayload.session(session))
+        assertTrue(Regex("^[A-Za-z0-9+/=]+$").matches(blob))
+        assertTrue("well under the relay's 32 KB", blob.length < 4096)
+        assertEquals(session, TvLinkPayload.parseSession(TvLinkSessionSeal.open(code, tv.private, blob)!!))
+        // Someone who photographed the QR has the code but not the TV's private key.
+        assertNull(TvLinkSessionSeal.open(code, TvLinkKeys.generate().private, blob))
+        assertNull("another code", TvLinkSessionSeal.open(TvLinkCode.generate(), tv.private, blob))
+        assertNull("the outer layer alone is not the session", TvLinkPayload.parseSession(TvLinkSeal.open(code, TvLinkSeal.SESSION, blob)!!))
+        assertNull(TvLinkSessionSeal.open(code, tv.private, "garbage"))
+        assertNull(TvLinkKeys.publicFrom(byteArrayOf(1, 2, 3)))
+        assertArrayEquals(tv.public.encoded, TvLinkKeys.publicFrom(tv.public.encoded)!!.encoded)
+    }
+
+    @Test
+    fun `the hello names the device and carries the TV's public key`() {
+        val tv = TvLinkKeys.generate()
+        val blob = TvLinkSeal.seal(code, TvLinkSeal.HELLO, TvLinkPayload.hello("Sony BRAVIA 4K", tv.public.encoded))
+        assertTrue("well under the relay's 2 KB", blob.length < 1024)
+        val hello = TvLinkPayload.parseHello(TvLinkSeal.open(code, TvLinkSeal.HELLO, blob)!!)!!
+        assertEquals("Sony BRAVIA 4K", hello.device)
+        assertArrayEquals(tv.public.encoded, hello.publicKey)
+        assertNull("a hello without a key is refused", TvLinkPayload.parseHello("""{"v":1,"device":"x"}""".toByteArray()))
         assertEquals("Android", TvLinkPayload.deviceLabel("  "))
         assertEquals("ab", TvLinkPayload.deviceLabel("a\nb"))
         assertEquals(60, TvLinkPayload.deviceLabel("x".repeat(200)).length)

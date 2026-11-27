@@ -1,9 +1,13 @@
 package iad1tya.echo.music.tvlink
 
+import java.util.Base64
 import org.json.JSONObject
 
-/** Row 907: what the TV says about itself (sealed, shown on the phone before anything is sent). */
-data class TvLinkHello(val device: String)
+/**
+ * Row 907: what the TV says about itself (sealed, shown on the phone before anything is sent): its model and the public key
+ * of the pair it made for this code ([TvLinkKeys]; X.509 bytes), which the session is sealed to.
+ */
+class TvLinkHello(val device: String, val publicKey: ByteArray)
 
 /**
  * Row 907: the Google session the phone hands to the TV — exactly the three values the normal login stores
@@ -22,13 +26,21 @@ object TvLinkPayload {
     fun deviceLabel(raw: String?): String =
         raw.orEmpty().filter { !it.isISOControl() }.trim().take(MAX_DEVICE).ifBlank { "Android" }
 
-    fun hello(device: String): ByteArray =
-        JSONObject().put("v", VERSION).put("device", deviceLabel(device)).toString().toByteArray(Charsets.UTF_8)
+    fun hello(device: String, publicKey: ByteArray): ByteArray =
+        JSONObject()
+            .put("v", VERSION)
+            .put("device", deviceLabel(device))
+            .put("pub", Base64.getEncoder().encodeToString(publicKey))
+            .toString()
+            .toByteArray(Charsets.UTF_8)
 
+    /** Null unless it is a hello of this version with a key in it. */
     fun parseHello(bytes: ByteArray): TvLinkHello? = runCatching {
         val o = JSONObject(String(bytes, Charsets.UTF_8))
         if (o.optInt("v") != VERSION) return null
-        TvLinkHello(deviceLabel(o.optString("device")))
+        val pub = Base64.getDecoder().decode(o.optString("pub"))
+        if (pub.isEmpty()) return null
+        TvLinkHello(deviceLabel(o.optString("device")), pub)
     }.getOrNull()
 
     fun session(s: TvLinkSession): ByteArray =

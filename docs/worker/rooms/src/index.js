@@ -597,11 +597,14 @@ export class TvLink {
     return this.ctx.getWebSockets().filter((s) => s.readyState === undefined || s.readyState === 1);
   }
 
-  /** Hands the session to [ws] and leaves only the tombstone: it is never handed out again. */
-  async deliver(ws, r) {
-    tvSend(ws, "session", { session: r.session });
+  /**
+   * Hands the session to the waiting sockets (a TV that reconnected may still hold a dying one; the blob only opens with the TV's
+   * own private key, so a socket that is not the TV learns nothing) and leaves only the tombstone: it is never handed out again.
+   */
+  async deliver(sockets, r) {
+    for (const ws of sockets) tvSend(ws, "session", { session: r.session });
     await this.ctx.storage.put("link", { used: true, expiresAt: r.expiresAt });
-    try { ws.close(1000, "delivered"); } catch { /* gone */ }
+    for (const ws of sockets) { try { ws.close(1000, "delivered"); } catch { /* gone */ } }
   }
 
   async fetch(req) {
@@ -631,8 +634,8 @@ export class TvLink {
       if (r && (r.used || r.session)) return tvJson({ error: "already_used" }, 409);
       if (!r || !r.hello) return tvJson({ error: "no_such_link" }, 404);
       r.session = session;
-      const tv = this.liveSockets()[0];
-      if (tv) { await this.deliver(tv, r); return tvJson({ delivered: true }); }
+      const waiting = this.liveSockets();
+      if (waiting.length) { await this.deliver(waiting, r); return tvJson({ delivered: true }); }
       await this.ctx.storage.put("link", r);
       return tvJson({ delivered: false });
     }
@@ -649,7 +652,7 @@ export class TvLink {
     if (!validBlob(hello, MAX_HELLO)) return tvSend(ws, "error", { code: "bad_hello" });
     let r = await this.record();
     if (r && r.used) { tvSend(ws, "error", { code: "already_used" }); try { ws.close(1000, "used"); } catch { /* gone */ } return; }
-    if (r && r.session) return this.deliver(ws, r);
+    if (r && r.session) return this.deliver([ws], r);
     if (!r) {
       r = { hello, expiresAt: Date.now() + this.ttl };
       await this.ctx.storage.put("link", r);

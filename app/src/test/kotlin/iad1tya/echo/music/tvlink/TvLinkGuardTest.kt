@@ -22,7 +22,7 @@ class TvLinkGuardTest {
 
     @Test
     fun `the relay logs only status codes and exception class names`() {
-        for (path in listOf("tvlink/TvLinkRelay.kt", "tvlink/TvLinkCode.kt", "tvlink/TvLinkPayload.kt", "ui/screens/settings/TvLinkScreens.kt")) {
+        for (path in listOf("tvlink/TvLinkRelay.kt", "tvlink/TvLinkCode.kt", "tvlink/TvLinkPayload.kt", "tvlink/TvLinkSessionSeal.kt", "ui/screens/settings/TvLinkScreens.kt")) {
             val src = main(path)
             val logs = Regex("""Timber[^\n]*""").findAll(src).map { it.value }.filter { "Timber." in it }.toList()
             for (line in logs) {
@@ -51,7 +51,7 @@ class TvLinkGuardTest {
         val screen = main("ui/screens/settings/TvLinkScreens.kt")
         assertEquals(1, Regex("""TvLinkRelay\.send\(""").findAll(screen).count())
         val confirm = screen.substringAfter("is SendPhase.Confirm -> {").substringBefore("is SendPhase.Sending ->")
-        assertTrue("the send is inside the confirmation", confirm.contains("TvLinkRelay.send(p.code, session)"))
+        assertTrue("the send is inside the confirmation", confirm.contains("TvLinkRelay.send(p.code, p.tvKey, session)"))
         assertTrue(confirm.contains("Text(stringResource(R.string.tvlink_send))"))
         val activity = main("MainActivity.kt")
         val branch = activity.substringAfter("if (uri.scheme == \"echomusic\" && uri.host.equals(\"tvlogin\", ignoreCase = true)) {")
