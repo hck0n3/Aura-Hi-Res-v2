@@ -9,6 +9,8 @@ import com.music.innertube.YouTube
 import iad1tya.echo.music.constants.HideVideoSongsKey
 import iad1tya.echo.music.constants.statToPeriod
 import iad1tya.echo.music.db.MusicDatabase
+import iad1tya.echo.music.db.entities.Song
+import iad1tya.echo.music.db.entities.SongWithStats
 import iad1tya.echo.music.reco.GenreCache
 import iad1tya.echo.music.stats.ListeningStats
 import iad1tya.echo.music.stats.StatsDedupe
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -235,12 +238,15 @@ constructor(
             val byId = songs.associateBy { it.id }
             merged to merged.mapNotNull { byId[it.id] }
         }
+            // Off the main thread, once per change for both lists, and only while the screen shows them.
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<SongWithStats>() to emptyList<Song>())
 
     val mostPlayedSongsStats = mergedSongs.map { it.first }
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val mostPlayedSongs = mergedSongs.map { it.second }
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val mostPlayedArtists = rawMostPlayedArtists.map { artists ->
         StatsDedupe.mergeGroups(

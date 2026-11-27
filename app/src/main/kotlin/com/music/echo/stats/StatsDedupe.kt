@@ -24,13 +24,17 @@ object StatsDedupe {
     /**
      * id -> the id of the group it belongs to (the FIRST of its copies in [songs], so pass them most listened first).
      * Every id is in the map; a song with a single copy maps to itself.
+     *
+     * [BestSourcePolicy.sameSong] needs equal normalised titles, so a song is only compared with the groups that share
+     * its title, each title normalised once: linear in the number of songs, not quadratic (thousands on «Todo»).
      */
     fun songGroups(songs: List<SongKey>): Map<String, String> {
-        val clusters = ArrayList<MutableList<BestSourcePolicy.Candidate>>()
+        val clustersByTitle = HashMap<String, MutableList<MutableList<BestSourcePolicy.Candidate>>>()
         val groupOf = LinkedHashMap<String, String>()
         for (song in songs) {
             if (song.id in groupOf) continue
             val candidate = BestSourcePolicy.Candidate(song.id, song.title, song.artists, song.durationSeconds, lossless = false)
+            val clusters = clustersByTitle.getOrPut(NoRepeatKey.normalizeTitle(song.title)) { ArrayList() }
             val home = clusters.firstOrNull { cluster ->
                 BestSourcePolicy.sameSong(cluster.first(), candidate) && cluster.none { it.source == candidate.source }
             }

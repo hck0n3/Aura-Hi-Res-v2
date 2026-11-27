@@ -46,6 +46,31 @@ class StatsDedupeTest {
     }
 
     @Test
+    fun `thousands of songs group in linear time and a copy far down the list still joins its song`() {
+        val many = (0 until 5_000).map { key("v$it", title = "Song $it", seconds = 100 + it % 300) }
+        val songs = listOf(key(online)) + many + key(phone, title = "Song (Remastered)") + key(cloud, title = "Song", seconds = 260)
+        val started = System.nanoTime()
+        val groups = StatsDedupe.songGroups(songs)
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000
+        assertEquals(online, groups[phone])
+        assertEquals("a different length is another song", cloud, groups[cloud])
+        assertEquals("v4999", groups["v4999"])
+        assertEquals(songs.size, groups.size)
+        assertTrue("songGroups took $elapsedMs ms", elapsedMs < 5_000)
+    }
+
+    @Test
+    fun `the song merge runs off the main thread, once for both lists, only while shown`() {
+        val vm = main("viewmodels/StatsViewModel.kt")
+        val merged = vm.substringAfter("private val mergedSongs =").substringBefore("    val mostPlayedArtists =")
+        assertTrue(merged.contains(".flowOn(Dispatchers.Default)"))
+        assertTrue(merged.contains(".stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList<SongWithStats>() to emptyList<Song>())"))
+        assertFalse("the merged lists stop with the screen", merged.contains("SharingStarted.Lazily"))
+        val dedupe = main("stats/StatsDedupe.kt")
+        assertTrue("a song is only compared with the groups of its title", dedupe.contains("clustersByTitle.getOrPut(NoRepeatKey.normalizeTitle(song.title))"))
+    }
+
+    @Test
     fun `merged rows add their plays and time and re-sort by time`() {
         val rows = listOf(Row("a", 3, 900), Row("b", 4, 600), Row("a2", 2, 500))
         val groups = mapOf("a2" to "b")
