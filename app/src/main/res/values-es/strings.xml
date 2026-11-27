@@ -871,7 +871,7 @@
     <string name="perf_class_choice_desc">En uso: %1$s. Al elegir una clase se aplican sus ajustes (Modo alto rendimiento, lienzo animado y Liquid Glass); después puedes cambiar cada uno.</string>
     <string name="perf_class_auto_value">Automático (%1$s)</string>
     <string name="fidelity_mode_title">Modo Fidelidad</string>
-    <string name="fidelity_mode_desc">Envía el audio a la salida sin tocarlo. Mientras está activo no se aplican el ecualizador, Volumen seguro, el ancho estéreo, el compresor, el fundido entre canciones, la entrada suave al cambiar de canción ni el tempo y el tono. El Hi-Res sigue saliendo en 32 bits y, con un DAC USB en Android 14 o posterior, la app pide salida bit-perfect. Tus ajustes se guardan y vuelven al apagarlo.</string>
+    <string name="fidelity_mode_desc">Envía el audio a la salida sin tocarlo. Mientras está activo no se aplican el ecualizador, Volumen seguro, el ancho estéreo, el compresor, el fundido entre canciones, la entrada suave al cambiar de canción ni el tempo y el tono. El Hi-Res sigue saliendo en 32 bits en coma flotante. Con un DAC USB en Android 14 o posterior la app pide salida bit-perfect, que solo se aplica si el DAC ofrece el formato exacto de la pista: un DAC sin modo de 32 bits en coma flotante solo puede darla en las pistas de 16 bits. Tus ajustes se guardan y vuelven al apagarlo.</string>
     <string name="fidelity_mode_paused">En pausa: el Modo Fidelidad está activo (Ajustes ▸ Sonido)</string>
     <string name="fidelity_mode_tempo_locked">El Modo Fidelidad está activo: el tempo y el tono se quedan en 1,0× para no alterar el audio. Desactívalo en Ajustes ▸ Sonido para cambiarlos.</string>
     <string name="fidelity_mode_eq_banner_title">El ecualizador está en pausa</string>

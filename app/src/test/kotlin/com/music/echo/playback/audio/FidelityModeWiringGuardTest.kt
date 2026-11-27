@@ -159,6 +159,10 @@ class FidelityModeWiringGuardTest {
             )) {
                 assertTrue("$res: $name", xml.contains("<string name=\"$name\">"))
             }
+            // Rule 2: bit-perfect is not promised for Hi-Res, which leaves in 32-bit float (a DAC may only offer
+            // integer bit-perfect mixers, and BitPerfectMixer.pick never matches float to integer).
+            val desc = xml.substringAfter("<string name=\"fidelity_mode_desc\">").substringBefore("</string>")
+            assertTrue(res, desc.contains("16-bit tracks") || desc.contains("pistas de 16 bits"))
             // Decision A1 (row 815): no «YouTube Music» in visible text.
             assertTrue(res, !xml.substringAfter("<string name=\"fidelity_mode_title\">").contains("YouTube Music"))
         }
