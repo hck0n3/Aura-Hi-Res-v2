@@ -2417,15 +2417,13 @@ class MusicService :
         applyMasteringFromPrefs()
         // Re-applies (or clears) the Safe Volume level of the current track through the same path as its switch.
         setupLoudnessEnhancer()
-        if (on && ::player.isInitialized &&
-            iad1tya.echo.music.playback.audio.FidelityMode.mustResetPlaybackParameters(
+        if (on && ::player.isInitialized) {
+            iad1tya.echo.music.playback.audio.FidelityMode.allowedPlaybackParameters(
                 true,
                 player.playbackParameters.speed,
                 player.playbackParameters.pitch,
                 runCatching { listenTogetherManager.isInRoom }.getOrDefault(true),
-            )
-        ) {
-            player.playbackParameters = PlaybackParameters.DEFAULT
+            )?.let { (speed, pitch) -> player.playbackParameters = PlaybackParameters(speed, pitch) }
         }
         bitPerfectUsb.setFidelityMode(on)
         // No user data: the state only.
@@ -9288,17 +9286,17 @@ class MusicService :
 
     override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
         super.onPlaybackParametersChanged(playbackParameters)
-        // Row 902: «Modo Fidelidad» keeps tempo and pitch at 1.0 whoever wrote them (dialog, media session),
-        // except inside a Listen Together room, which stays in time by nudging the speed. The reset re-enters
-        // this callback once with DEFAULT, which passes straight through.
-        if (iad1tya.echo.music.playback.audio.FidelityMode.mustResetPlaybackParameters(
-                fidelityModeHint,
-                playbackParameters.speed,
-                playbackParameters.pitch,
-                runCatching { listenTogetherManager.isInRoom }.getOrDefault(true),
-            )
-        ) {
-            player.playbackParameters = PlaybackParameters.DEFAULT
+        // Row 902: «Modo Fidelidad» keeps tempo and pitch at 1.0 whoever wrote them (dialog, media session);
+        // inside a Listen Together room, which stays in time by nudging the speed, only the pitch. The reset
+        // re-enters this callback once with the allowed values, which pass straight through.
+        val fidelityTarget = iad1tya.echo.music.playback.audio.FidelityMode.allowedPlaybackParameters(
+            fidelityModeHint,
+            playbackParameters.speed,
+            playbackParameters.pitch,
+            runCatching { listenTogetherManager.isInRoom }.getOrDefault(true),
+        )
+        if (fidelityTarget != null) {
+            player.playbackParameters = PlaybackParameters(fidelityTarget.first, fidelityTarget.second)
             return
         }
         // Tempo/pitch is something the offload path can only deliver on a HAL that advertises

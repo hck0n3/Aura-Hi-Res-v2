@@ -84,7 +84,8 @@ class FidelityModeWiringGuardTest {
         assertTrue(service.contains("!(prefs[iad1tya.echo.music.constants.FidelityModeKey] ?: false),"))
         assertTrue(service.contains("if (fadeOnManualChangeHint && !fidelityModeHint &&"))
         assertTrue(service.contains("float32ProcessingHint && !fidelityModeHint &&"))
-        assertTrue(service.contains("FidelityMode.mustResetPlaybackParameters(\n                fidelityModeHint,"))
+        assertTrue(service.contains("val fidelityTarget = iad1tya.echo.music.playback.audio.FidelityMode.allowedPlaybackParameters(\n            fidelityModeHint,"))
+        assertTrue(service.contains("player.playbackParameters = PlaybackParameters(fidelityTarget.first, fidelityTarget.second)"))
         // setupLoudnessEnhancer's own read of the Safe Volume switch is gated too (unity gain).
         val setup = service.substringAfter("internal fun setupLoudnessEnhancer()").substringBefore("private fun openAudioEffectSession")
         assertTrue(setup.contains("FidelityMode.Stage.SAFE_VOLUME, it, fidelityModeHint"))
@@ -116,6 +117,8 @@ class FidelityModeWiringGuardTest {
         assertEquals(2, Regex("""FidelityPausedNote\(fidelityMode\)""").findAll(player).count())
         val tempo = source("app/src/main/kotlin/com/music/echo/ui/menu/PlayerMenu.kt")
         assertTrue(tempo.contains("stringResource(R.string.fidelity_mode_tempo_locked)"))
+        // Locked in a room too: there the service keeps the room's speed and puts the pitch back to 1.0.
+        assertTrue(tempo.contains("val fidelityLocked = iad1tya.echo.music.ui.component.rememberFidelityModeOn()\n"))
         for (res in listOf("app/src/main/res/values/strings.xml", "app/src/main/res/values-es/strings.xml")) {
             val xml = source(res)
             for (name in listOf(

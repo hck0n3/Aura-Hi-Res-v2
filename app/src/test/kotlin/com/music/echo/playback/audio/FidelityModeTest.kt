@@ -54,14 +54,28 @@ class FidelityModeTest {
     }
 
     @Test
-    fun `tempo and pitch go back to 1_0 only with the mode on and outside a room`() {
+    fun `tempo and pitch go back to 1_0 only with the mode on`() {
         assertTrue(FidelityMode.mustResetPlaybackParameters(true, 1.25f, 1f, inListenTogetherRoom = false))
         assertTrue(FidelityMode.mustResetPlaybackParameters(true, 1f, 1.0594631f, inListenTogetherRoom = false))
         // Already at 1.0: nothing to do (the reset itself re-enters the callback with DEFAULT).
         assertFalse(FidelityMode.mustResetPlaybackParameters(true, 1f, 1f, inListenTogetherRoom = false))
         // A room keeps in time by nudging the speed: never fought.
         assertFalse(FidelityMode.mustResetPlaybackParameters(true, 1.02f, 1f, inListenTogetherRoom = true))
+        // …but the pitch is: nothing in a room needs it.
+        assertTrue(FidelityMode.mustResetPlaybackParameters(true, 1.02f, 1.122462f, inListenTogetherRoom = true))
         // Mode off: the user's tempo stays.
         assertFalse(FidelityMode.mustResetPlaybackParameters(false, 1.25f, 0.9f, inListenTogetherRoom = false))
+    }
+
+    @Test
+    fun `in a room only the pitch goes back to 1_0 and the room's speed is kept`() {
+        assertEquals(1.02f to 1f, FidelityMode.allowedPlaybackParameters(true, 1.02f, 1.122462f, inListenTogetherRoom = true))
+        assertEquals(null, FidelityMode.allowedPlaybackParameters(true, 0.98f, 1f, inListenTogetherRoom = true))
+        // Outside a room both go back.
+        assertEquals(1f to 1f, FidelityMode.allowedPlaybackParameters(true, 1.25f, 1.122462f, inListenTogetherRoom = false))
+        assertEquals(null, FidelityMode.allowedPlaybackParameters(true, 1f, 1f, inListenTogetherRoom = false))
+        // Mode off: nothing changes, in or out of a room.
+        assertEquals(null, FidelityMode.allowedPlaybackParameters(false, 1.25f, 1.122462f, inListenTogetherRoom = false))
+        assertEquals(null, FidelityMode.allowedPlaybackParameters(false, 1.02f, 1.122462f, inListenTogetherRoom = true))
     }
 }

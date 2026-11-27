@@ -72,17 +72,31 @@ object FidelityMode {
         if (isBypassed(Stage.STEREO_WIDTH, fidelityOn)) 1f else userWidth
 
     /**
-     * Whether the service must put tempo and pitch back to 1.0. Not inside a Listen Together room: there
-     * the guest stays in time by nudging the speed (rows 261/262/744), and breaking the room is worse than
-     * a few seconds of time-stretch. When the room state cannot be read the caller passes `true`.
+     * Whether the service must change tempo or pitch: see [allowedPlaybackParameters].
      */
     fun mustResetPlaybackParameters(
         fidelityOn: Boolean,
         speed: Float,
         pitch: Float,
         inListenTogetherRoom: Boolean,
-    ): Boolean = isBypassed(Stage.TEMPO_PITCH, fidelityOn) &&
-        !inListenTogetherRoom &&
+    ): Boolean = allowedPlaybackParameters(fidelityOn, speed, pitch, inListenTogetherRoom) != null
+
+    /**
+     * The (speed, pitch) the service must set, or null when the current ones may stay. Outside a room both
+     * go back to 1.0. Inside a Listen Together room only the pitch does: the guest stays in time by nudging
+     * the speed (rows 261/262/744), and breaking the room is worse than a few seconds of time-stretch, but
+     * nothing in the room needs a pitch other than 1.0. When the room state cannot be read the caller
+     * passes `true`.
+     */
+    fun allowedPlaybackParameters(
+        fidelityOn: Boolean,
+        speed: Float,
+        pitch: Float,
+        inListenTogetherRoom: Boolean,
+    ): Pair<Float, Float>? {
+        if (!isBypassed(Stage.TEMPO_PITCH, fidelityOn)) return null
+        if (inListenTogetherRoom) return if (pitch == 1f) null else speed to 1f
         // Same comparison as SinkDspRouting.isDefaultParameters (PlaybackParameters.DEFAULT).
-        !(speed == 1f && pitch == 1f)
+        return if (speed == 1f && pitch == 1f) null else 1f to 1f
+    }
 }

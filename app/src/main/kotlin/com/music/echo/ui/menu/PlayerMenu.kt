@@ -935,9 +935,9 @@ fun TempoPitchDialog(onDismiss: () -> Unit) {
     }
     val listenTogetherManager = iad1tya.echo.music.LocalListenTogetherManager.current
     val isInRoom = listenTogetherManager?.isInRoom ?: false
-    // Row 902: «Modo Fidelidad» keeps tempo and pitch at 1.0 outside a room (MusicService resets any other
-    // value, FidelityMode.mustResetPlaybackParameters); say so instead of offering controls that snap back.
-    val fidelityLocked = iad1tya.echo.music.ui.component.rememberFidelityModeOn() && !isInRoom
+    // Row 902: «Modo Fidelidad» keeps tempo and pitch at 1.0, and in a room the pitch (MusicService resets any
+    // other value, FidelityMode.allowedPlaybackParameters); say so instead of offering controls that snap back.
+    val fidelityLocked = iad1tya.echo.music.ui.component.rememberFidelityModeOn()
     val skin = iad1tya.echo.music.ui.newui.rememberAuraPanelSkin()
     val premium = skin.enabled && skin.darkGround
 
