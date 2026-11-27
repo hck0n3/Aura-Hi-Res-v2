@@ -145,6 +145,17 @@ fun BackupAndRestore(
             }
             applyAutoBackup(enableNow || autoBackupEnabled, autoBackupFrequency, uri.toString())
         }
+    // Some devices (no DocumentsUI: certain TVs, stripped ROMs, Android Go) have no folder picker and would crash with
+    // ActivityNotFoundException, as StorageSettings already guards.
+    fun pickAutoBackupFolder(enableAfterPick: Boolean) {
+        autoBackupEnableAfterPick = enableAfterPick
+        try {
+            autoBackupFolderLauncher.launch(null)
+        } catch (_: android.content.ActivityNotFoundException) {
+            autoBackupEnableAfterPick = false
+            android.widget.Toast.makeText(context, context.getString(R.string.export_directory_picker_unavailable), android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
 
     var cloudStatus by remember { mutableStateOf("") }
     var showCloudRestoreConfirm by rememberSaveable { mutableStateOf(false) }
@@ -387,8 +398,7 @@ fun BackupAndRestore(
                                             checked = autoBackupEnabled,
                                             onCheckedChange = { on ->
                                                 if (on && autoBackupFolder.isBlank()) {
-                                                    autoBackupEnableAfterPick = true
-                                                    autoBackupFolderLauncher.launch(null)
+                                                    pickAutoBackupFolder(enableAfterPick = true)
                                                 } else {
                                                     applyAutoBackup(on, autoBackupFrequency)
                                                 }
@@ -397,8 +407,7 @@ fun BackupAndRestore(
                                     },
                                     onClick = {
                                         if (!autoBackupEnabled && autoBackupFolder.isBlank()) {
-                                            autoBackupEnableAfterPick = true
-                                            autoBackupFolderLauncher.launch(null)
+                                            pickAutoBackupFolder(enableAfterPick = true)
                                         } else {
                                             applyAutoBackup(!autoBackupEnabled, autoBackupFrequency)
                                         }
@@ -428,7 +437,7 @@ fun BackupAndRestore(
                                     title = { Text(stringResource(R.string.auto_backup_folder)) },
                                     description = { Text(autoBackupFolderName ?: stringResource(R.string.auto_backup_folder_none)) },
                                     icon = painterResource(R.drawable.backup),
-                                    onClick = { autoBackupFolderLauncher.launch(null) },
+                                    onClick = { pickAutoBackupFolder(enableAfterPick = false) },
                                 ),
                             ),
                         )

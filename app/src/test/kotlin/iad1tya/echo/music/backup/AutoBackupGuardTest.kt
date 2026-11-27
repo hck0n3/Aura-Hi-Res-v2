@@ -83,4 +83,16 @@ class AutoBackupGuardTest {
         val index = main("ui/screens/settings/SearchableSettings.kt")
         assertTrue(index.contains("Triple(stringResource(R.string.auto_backup_title), stringResource(R.string.backup_restore), \"settings/backup_restore\"),"))
     }
+
+    @Test
+    fun `a device without a folder picker gets a message, not a crash`() {
+        val screen = main("ui/screens/settings/BackupAndRestore.kt")
+        assertEquals("the picker opens only through the guarded helper", 1, Regex("""autoBackupFolderLauncher\.launch\(""").findAll(screen).count())
+        val helper = screen.substringAfter("fun pickAutoBackupFolder(enableAfterPick: Boolean) {").substringBefore("\n    }\n")
+        assertTrue(helper.contains("autoBackupFolderLauncher.launch(null)"))
+        assertTrue(helper.contains("} catch (_: android.content.ActivityNotFoundException) {"))
+        assertTrue(helper.contains("autoBackupEnableAfterPick = false"))
+        assertTrue(helper.contains("R.string.export_directory_picker_unavailable"))
+        assertEquals(3, Regex("""pickAutoBackupFolder\(enableAfterPick = (true|false)\)""").findAll(screen).count())
+    }
 }
