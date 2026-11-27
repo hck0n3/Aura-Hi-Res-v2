@@ -144,7 +144,13 @@ class WrappedBuilderTest {
         assertEquals("one way out: the share sheet, with the image only", 1, Regex("""Intent\.ACTION_SEND\b""").findAll(screen).count())
         assertTrue(screen.contains("putExtra(Intent.EXTRA_STREAM, uri)"))
         assertTrue("only after the user taps the share button", screen.contains("ActionLog.tap(ActionId.WRAPPED_SHARE)"))
-        assertTrue(screen.contains("ComposeToImage.saveBitmapAsFile(context, image,"))
+        assertTrue("the image stays in the private cache", screen.contains("WrappedImage.saveForShare(context, image)"))
+        assertFalse("never the public gallery (MediaStore)", screen.contains("saveBitmapAsFile("))
+        val image = code(main("utils/WrappedImage.kt"))
+        assertTrue(image.contains("val dir = File(context.cacheDir, \"images\").apply { mkdirs() }"))
+        assertTrue("one fixed file, overwritten", image.contains("private const val SHARE_FILE = \"aura_wrapped.png\""))
+        assertTrue(image.contains("FileProvider.getUriForFile(context, \"\${context.packageName}.FileProvider\", file)"))
+        assertFalse(image.contains("MediaStore"))
     }
 
     @Test

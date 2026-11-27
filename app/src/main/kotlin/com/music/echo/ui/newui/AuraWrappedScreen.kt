@@ -73,7 +73,6 @@ import iad1tya.echo.music.ui.utils.rememberIsTvOrCar
 import iad1tya.echo.music.ui.utils.tvFocusable
 import iad1tya.echo.music.utils.ActionId
 import iad1tya.echo.music.utils.ActionLog
-import iad1tya.echo.music.utils.ComposeToImage
 import iad1tya.echo.music.utils.WrappedImage
 import iad1tya.echo.music.utils.rememberPreference
 import iad1tya.echo.music.utils.rememberReducedMotion
@@ -433,7 +432,7 @@ private fun AuraWrappedFinal(card: WrappedBuilder.Card.Final, period: WrappedBui
                         try {
                             val image = WrappedImage.render(title, subtitle, lines, footer, top, bottom, accent)
                             val uri = withContext(Dispatchers.IO) {
-                                ComposeToImage.saveBitmapAsFile(context, image, "aura_wrapped_${System.currentTimeMillis()}")
+                                WrappedImage.saveForShare(context, image)
                             }
                             val share = Intent(Intent.ACTION_SEND).apply {
                                 type = "image/png"
