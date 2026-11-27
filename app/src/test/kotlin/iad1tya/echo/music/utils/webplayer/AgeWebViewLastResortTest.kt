@@ -37,6 +37,15 @@ class AgeWebViewLastResortTest {
     }
 
     @Test
+    fun `no other media byte reaches the page, so it never plays and never takes the audio focus (row 904)`() {
+        val intercept = webView.substringAfter("override fun shouldInterceptRequest(").substringBefore("override fun onPageStarted(")
+        val capture = intercept.indexOf("CapturedStream.isAudioOnly(url.toString())")
+        val block = intercept.indexOf("if (url.host?.endsWith(\"googlevideo.com\") == true && url.path?.contains(\"videoplayback\") == true) {")
+        assertTrue("the audio capture still comes first", capture in 0 until block)
+        assertEquals("both the capture and every other videoplayback answer 204", 2, Regex("204, \"No Content\"").findAll(intercept).count())
+    }
+
+    @Test
     fun `format fields come from the url`() {
         assertEquals(251, CapturedStream.itagOf(audioUrl))
         assertEquals(3456789L, CapturedStream.contentLengthOf(audioUrl))
