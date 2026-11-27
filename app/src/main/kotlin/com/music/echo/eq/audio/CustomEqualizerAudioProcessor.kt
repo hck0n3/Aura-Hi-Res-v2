@@ -309,6 +309,13 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         if (autoHeadroom == enabled) return
         autoHeadroom = enabled
         currentProfile?.let { if (this.enabled) applyProfile(it) }
+        // Row 920: with the equalizer off, the bypass preamp (bypassPreampDb) follows the switch too.
+        if (!this.enabled) {
+            synchronized(eqApplyLock) {
+                val ptr = nativePtr
+                if (isInitialized && ptr != 0L) pushToneStages(ptr)
+            }
+        }
     }
 
     private fun effectivePreampDb(profile: ParametricEQ): Double {
@@ -324,6 +331,12 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         return autoHeadroomPreampDb(profile.preamp, active, tidalSounds) -
             if (virtualBassEnabled) VirtualBass.MAX_EXTRA_DB else 0.0
     }
+
+    /**
+     * Row 920: the preamp while the equalizer is off. 0 dB, except that the psychoacoustic bass runs with the equalizer
+     * off too, so «Headroom automático» still takes its extra level off the front gain (the limiter does not pump).
+     */
+    private fun bypassPreampDb(): Float = if (autoHeadroom && virtualBassEnabled) -VirtualBass.MAX_EXTRA_DB.toFloat() else 0f
 
     /** The native engine is loaded and usable for measurements. */
     fun isEngineReady(): Boolean = isInitialized && nativePtr != 0L
@@ -392,6 +405,8 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
         // in this function only so every native tone setter keeps a single call site.
         setStereoWidth(ptr, stereoWidth)
         setMasteringOptions(ptr, masteringCompressor, masteringDither, masteringSpeakerBassProtect)
+        // Row 920: with the equalizer off, its headroom for the psychoacoustic bass (applyProfile owns it when on).
+        if (!enabled) setPreamp(ptr, bypassPreampDb())
         setVirtualBass(ptr, virtualBassEnabled)
     }
 
@@ -405,7 +420,7 @@ class CustomEqualizerAudioProcessor(context: Context) : BaseAudioProcessor() {
             // so no block can run with the preamp already reset while the bands are still boosting.
             beginEqBatch(ptr)
             try {
-                setPreamp(ptr, 0f)
+                setPreamp(ptr, bypassPreampDb())
                 disableAllBands(ptr)
             } finally {
                 endEqBatch(ptr)

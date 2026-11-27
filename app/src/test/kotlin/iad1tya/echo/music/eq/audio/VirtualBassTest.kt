@@ -254,6 +254,40 @@ class VirtualBassTest {
     }
 
     @Test
+    fun `with the equalizer off the automatic headroom still takes the stage's extra level off the preamp`() {
+        val src = source("app/src/main/kotlin/com/music/echo/eq/audio/CustomEqualizerAudioProcessor.kt")
+        // The stage runs with the equalizer off (published as set), so the bypass preamp carries its headroom…
+        assertTrue(src.contains("private fun bypassPreampDb(): Float = if (autoHeadroom && virtualBassEnabled) -VirtualBass.MAX_EXTRA_DB.toFloat() else 0f"))
+        val disable = src.substringAfter("fun disable() {").substringBefore("\n    }\n")
+        assertTrue("disable() publishes the bypass preamp with the band clear", disable.contains("setPreamp(ptr, bypassPreampDb())"))
+        assertFalse(disable.contains("setPreamp(ptr, 0f)"))
+        // …re-published whenever the stage or the switch changes while the equalizer is off (applyProfile owns it when on).
+        val push = src.substringAfter("private fun pushToneStages(ptr: Long) {").substringBefore("\n    }\n")
+        assertTrue(push.contains("if (!enabled) setPreamp(ptr, bypassPreampDb())"))
+        val apply = src.substringAfter("fun applyVirtualBass(enabled: Boolean) {").substringBefore("\n    }\n")
+        assertTrue(apply.contains("if (isInitialized && ptr != 0L) pushToneStages(ptr)"))
+        val headroomSwitch = src.substringAfter("fun applyAutoHeadroom(enabled: Boolean) {").substringBefore("\n    }\n")
+        assertTrue(headroomSwitch.contains("if (!this.enabled) {"))
+        assertTrue(headroomSwitch.contains("if (isInitialized && ptr != 0L) pushToneStages(ptr)"))
+        // The native front gain (the preamp) runs whenever the chain runs, and the stage alone makes the chain run.
+        val chain = bridge.substringAfter("if (runChain && workBuffer && processor) {")
+        assertTrue(chain.indexOf("float frontGain = processor->activePreampMultiplier;") in 0 until
+            chain.indexOf("if (processor->virtualBass) processor->virtualBass->process(workBuffer, num_frames, channels);"))
+        // And the offset covers the stage: front gain -MAX_EXTRA_DB, then the stage, never peaks above the input.
+        val gain = Math.pow(10.0, -VirtualBass.MAX_EXTRA_DB / 20.0)
+        var worst = -100.0
+        var hz = 20.0
+        while (hz <= 400.0) {
+            val f = hz
+            val x = stereo(sr * 2) { 0.99 * sin(2 * PI * f * it / sr) }
+            val y = runStage(FloatArray(x.size) { (x[it] * gain).toFloat() })
+            worst = maxOf(worst, db(peak(y) / peak(x)))
+            hz += 5.0
+        }
+        assertTrue("peak after headroom + stage: $worst dB", worst <= 0.0)
+    }
+
+    @Test
     fun `the service gates it by the phone speaker and by Fidelidad, from events only`() {
         val service = source("app/src/main/kotlin/com/music/echo/playback/MusicService.kt")
         val mastering = service.substringAfter("private fun applyMasteringFromPrefs() {").substringBefore("\n    }\n")
