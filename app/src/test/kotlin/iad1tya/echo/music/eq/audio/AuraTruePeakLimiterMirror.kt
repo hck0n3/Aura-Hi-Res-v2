@@ -98,12 +98,41 @@ class AuraTruePeakLimiter(sampleRate: Int, private val channels: Int) {
     private var rPos = 0
     private var rPrev = 1.0
     private var counter = 0L
+    private var sinceChain = SINCE_CHAIN_CAP
+    private var idle = true
 
     /** Last gain applied (1.0 = untouched). */
     var lastGain = 1.0
         private set
 
-    fun process(data: FloatArray, frames: Int) {
+    /** Chain off and nothing left to limit: a bit-exact delay only. */
+    val isIdle: Boolean get() = idle
+
+    fun process(data: FloatArray, frames: Int) = run(data, frames, chainOn = true)
+
+    /** Chain off: the frames still go through the same delay line (mirror of `passThrough`). */
+    fun passThrough(data: FloatArray, frames: Int) = run(data, frames, chainOn = false)
+
+    /** Mirror of `reset` (called on flush). */
+    fun reset() {
+        hist.forEach { it.fill(0f) }
+        delay.forEach { it.fill(0f) }
+        histPos = 0
+        delayPos = 0
+        prevInterval = 0.0
+        framesSinceLoud = taps
+        dqHead = 0
+        dqCount = 0
+        rRing.fill(1.0)
+        rSum = lookahead.toDouble()
+        rPos = 0
+        rPrev = 1.0
+        counter = 0L
+        sinceChain = SINCE_CHAIN_CAP
+        idle = true
+    }
+
+    private fun run(data: FloatArray, frames: Int, chainOn: Boolean) {
         for (i in 0 until frames) {
             val off = i * channels
             val base = histPos + 1
@@ -118,9 +147,22 @@ class AuraTruePeakLimiter(sampleRate: Int, private val channels: Int) {
             histPos = (histPos + 1) % taps
             if (newestAbs.toDouble() > quietThreshold) framesSinceLoud = 0
             else if (framesSinceLoud < taps) framesSinceLoud++
+            if (chainOn) {
+                sinceChain = 0
+                idle = false
+            } else if (sinceChain < SINCE_CHAIN_CAP) {
+                sinceChain++
+            }
+            val readPos = (delayPos - latencyFrames + delayCapacity) % delayCapacity
+            if (idle) {
+                for (ch in 0 until channels) data[off + ch] = delay[readPos][ch]
+                delayPos = (delayPos + 1) % delayCapacity
+                counter++
+                continue
+            }
 
             var interval = 0.0
-            if (framesSinceLoud < taps) {
+            if (framesSinceLoud < taps && (chainOn || sinceChain <= taps - 1 - centre)) {
                 for (ch in 0 until channels) {
                     val h = hist[ch]
                     var m = maxOf(abs(h[base + centre].toDouble()), abs(h[base + centre + 1].toDouble()))
@@ -166,16 +208,27 @@ class AuraTruePeakLimiter(sampleRate: Int, private val channels: Int) {
             if (g > 1.0) g = 1.0
             lastGain = g
 
-            val readPos = (delayPos - latencyFrames + delayCapacity) % delayCapacity
             for (ch in 0 until channels) {
                 data[off + ch] = if (g == 1.0) delay[readPos][ch] else (delay[readPos][ch].toDouble() * g).toFloat()
             }
             delayPos = (delayPos + 1) % delayCapacity
             counter++
+
+            if (!chainOn && sinceChain > latencyFrames && g == 1.0 && r == 1.0 && hold >= 1.0) {
+                idle = true
+                prevInterval = 0.0
+                dqHead = 0
+                dqCount = 0
+                for (k in 0 until lookahead) rRing[k] = 1.0
+                rSum = lookahead.toDouble()
+                rPos = 0
+                rPrev = 1.0
+            }
         }
     }
 
     companion object {
         const val MAX_LOOKAHEAD = 2048
+        private const val SINCE_CHAIN_CAP = 1 shl 30
     }
 }

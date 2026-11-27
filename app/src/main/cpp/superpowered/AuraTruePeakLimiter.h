@@ -132,13 +132,24 @@ public:
         rPos = 0;
         rPrev = 1.0;
         counter = 0;
+        sinceChain = kSinceChainCap;
+        idle = true;
     }
 
     /// Detection delay (kTpTaps - 1 - kTpCentre) + lookahead - 1.
     int latencyFrames() const { return (kTpTaps - 1 - kTpCentre) + lookahead - 1; }
 
     /// In place, interleaved. More than kMaxChannels channels is left untouched (the caller's clamp still runs).
-    void process(float* data, int frames, int channels) {
+    void process(float* data, int frames, int channels) { run(data, frames, channels, true); }
+
+    /// Chain OFF: the frames still go through the same delay line, so the latency is the same on both sides of a
+    /// chain on/off edge (no hole of zeros when the chain starts, no frames skipped when it stops). The chain's own
+    /// frames still in the line are limited as usual; once they are out and the gain is back at exactly 1, this is a
+    /// bit-exact delayed copy and no detection runs (bypass frames are never limited).
+    void passThrough(float* data, int frames, int channels) { run(data, frames, channels, false); }
+
+private:
+    void run(float* data, int frames, int channels, bool chainOn) {
         if (channels < 1 || channels > kMaxChannels) return;
         const int latency = latencyFrames();
         for (int i = 0; i < frames; ++i) {
@@ -156,10 +167,24 @@ public:
             histPos = (histPos + 1) % kTpTaps;
             if ((double) newestAbs > quietThreshold) framesSinceLoud = 0;
             else if (framesSinceLoud < kTpTaps) ++framesSinceLoud;
+            if (chainOn) {
+                sinceChain = 0;
+                idle = false;
+            } else if (sinceChain < kSinceChainCap) {
+                ++sinceChain;
+            }
+            const int readPos = (delayPos - latency + kDelayCapacity) % kDelayCapacity;
+            if (idle) {
+                for (int ch = 0; ch < channels; ++ch) frame[ch] = delay[readPos][ch];
+                delayPos = (delayPos + 1) % kDelayCapacity;
+                ++counter;
+                continue;
+            }
 
-            // 1) True peak of the interval between h[kTpCentre] and h[kTpCentre + 1], all channels.
+            // 1) True peak of the interval between h[kTpCentre] and h[kTpCentre + 1], all channels. With the chain
+            //    off it is measured only while that interval still touches a chain frame.
             double interval = 0.0;
-            if (framesSinceLoud < kTpTaps) {
+            if (framesSinceLoud < kTpTaps && (chainOn || sinceChain <= kTpTaps - 1 - kTpCentre)) {
                 for (int ch = 0; ch < channels; ++ch) {
                     const float* h = &hist[ch][base];
                     double m = std::fabs((double) h[kTpCentre]);
@@ -215,7 +240,6 @@ public:
             if (g > 1.0) g = 1.0;
 
             // 6) Output the frame `latency` frames back, at the gain computed for it.
-            const int readPos = (delayPos - latency + kDelayCapacity) % kDelayCapacity;
             if (g == 1.0) {
                 for (int ch = 0; ch < channels; ++ch) frame[ch] = delay[readPos][ch];
             } else {
@@ -223,11 +247,23 @@ public:
             }
             delayPos = (delayPos + 1) % kDelayCapacity;
             ++counter;
+
+            // Chain off, its last frame already out and the gain exactly 1 again: plain delay from the next frame on.
+            if (!chainOn && sinceChain > latency && g == 1.0 && r == 1.0 && hold >= 1.0) {
+                idle = true;
+                prevInterval = 0.0;
+                dqHead = 0;
+                dqCount = 0;
+                for (int k = 0; k < lookahead; ++k) rRing[k] = 1.0;
+                rSum = (double) lookahead;
+                rPos = 0;
+                rPrev = 1.0;
+            }
         }
     }
 
-private:
     static constexpr int kDequeCapacity = kMaxLookahead + 1;
+    static constexpr int kSinceChainCap = 1 << 30;
 
     double coef[kTpOversample - 1][kTpTaps];
     double ceiling = 0.891250938;
@@ -253,6 +289,8 @@ private:
     int rPos = 0;
     double rPrev = 1.0;
     int64_t counter = 0;
+    int sinceChain = kSinceChainCap;  // frames entered since the last chain frame
+    bool idle = true;                  // chain off and nothing left to limit: bit-exact delay only
 };
 
 } // namespace aura

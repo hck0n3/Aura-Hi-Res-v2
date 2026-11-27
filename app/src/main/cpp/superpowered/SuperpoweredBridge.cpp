@@ -333,8 +333,6 @@ public:
     float preampCurrent = 1.0f;
     float preampStep = 0.0f;
     int preampGlideLeft = 0;
-    // Row 911: whether the previous block ran the chain (audio thread only), so the limiter restarts empty.
-    bool chainRanLastBlock = false;
     // Row 911: last stage of the chain, -1 dBTP true-peak lookahead limiter (AuraTruePeakLimiter.h).
     aura::TruePeakLimiter* truePeakLimiter = nullptr;
     Superpowered::Filter* deEsser = nullptr;
@@ -1230,8 +1228,8 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
     }
 
     // Run the DSP block if the EQ is on, Safe Volume is on (or still ramping), OR spatial is on.
-    // When ALL of those are off the block is skipped (pure float pass-through) so default playback
-    // stays bit-perfect.
+    // When ALL of those are off the block is skipped (pure float pass-through, only delayed by the
+    // limiter's line: see passThrough below) so default playback stays bit-perfect.
     bool runEq = (enabled == JNI_TRUE);
     // Also run while Safe Volume is ramping BACK to unity after being switched off — otherwise disabling it
     // would skip the chain outright and drop the gain in one step, the very jump the ramp exists to avoid.
@@ -1246,10 +1244,6 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         // NO LOCK HERE. Parameters were taken in above via consumeAndApplySnapshot, which is wait-free
         // and delivers a complete set or nothing at all. Everything read below is either that applied
         // set or audio-thread-private state.
-
-        // Row 911: the limiter's delay line still holds the last block that ran the chain; after a stretch with the
-        // chain off that audio is stale, so the limiter starts empty again.
-        if (!processor->chainRanLastBlock && processor->truePeakLimiter) processor->truePeakLimiter->reset();
 
         // FRONT gain = the EQ preamp ONLY. The true-peak limiter at the end catches its peaks, and a
         // positive preamp raises the body audibly.
@@ -1453,9 +1447,11 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
                 else if (x < -kClamp) workBuffer[i] = -kClamp;
             }
         }
+    } else if (workBuffer && processor && processor->truePeakLimiter) {
+        // Row 911: chain off — the audio still goes through the limiter's delay line (a bit-exact delayed copy once the
+        // chain's last frames are out), so switching the chain on or off mid-song neither drops nor skips samples.
+        processor->truePeakLimiter->passThrough(workBuffer, num_frames, channels);
     }
-
-    if (processor) processor->chainRanLastBlock = runChain && workBuffer != nullptr;
 
     if (encoding != 4 && workBuffer) {
         short* outShort = (short*)output;
