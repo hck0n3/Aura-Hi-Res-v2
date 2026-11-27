@@ -210,6 +210,11 @@ fun AuraStatsScreen(
                 )
             }
 
+            // Row 910: «Tu año en Aura» and «Tu mes», right under the range selector.
+            item(key = "aura_stats_wrapped", contentType = "aura_stats_wrapped") {
+                AuraStatsWrappedEntries(navController = navController, modifier = Modifier.animateItem())
+            }
+
             item(key = "aura_stats_songs", contentType = "aura_stats_songs") {
                 Column(Modifier.animateItem()) {
                     AuraSectionHeader(title = "${mostPlayedSongsStats.size} $songsLabel")

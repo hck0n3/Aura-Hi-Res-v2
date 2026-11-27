@@ -633,6 +633,10 @@ interface DatabaseDao {
     )
     suspend fun statsSongArtistsInRange(fromTimeStamp: Long, toTimeStamp: Long): List<StatsSongArtistRow>
 
+    /** Row 910: how many listens a period has, so Inicio offers «Tu año en Aura» only when there is a summary to show. */
+    @Query("SELECT COUNT(*) FROM event WHERE timestamp >= :fromTimeStamp AND timestamp < :toTimeStamp")
+    suspend fun statsPlayCountInRange(fromTimeStamp: Long, toTimeStamp: Long): Int
+
     /** When each artist row was first played, ever (for «artistas nuevos»). */
     @Query(
         """

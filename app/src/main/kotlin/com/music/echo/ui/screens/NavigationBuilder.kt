@@ -153,6 +153,14 @@ fun NavGraphBuilder.navigationBuilder(
         StatsScreenHost(navController)
     }
 
+    // Registry row 910: «Tu año en Aura» («2026») / «Tu mes» («2026-11»).
+    composable(
+        route = "wrapped/{period}",
+        arguments = listOf(navArgument("period") { type = NavType.StringType }),
+    ) {
+        iad1tya.echo.music.ui.newui.AuraWrappedScreen(navController)
+    }
+
     composable("mood_and_genres") {
         MoodAndGenresScreen(navController, scrollBehavior)
     }

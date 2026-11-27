@@ -121,7 +121,7 @@ object ListeningStats {
         return accs.sortedWith(order.thenBy { it.name.lowercase() }).take(limit).map { it.entry() }
     }
 
-    private fun looksLikeYouTubeArtist(id: String) = id.startsWith("UC")
+    private fun isChannelId(id: String) = id.startsWith("UC")
 
     /**
      * Everything the screens show for [range]. Plays outside [range] are ignored, so a caller may pass more.
@@ -181,7 +181,7 @@ object ListeningStats {
             for (artist in song.artists.distinctBy { StatsDedupe.artistKey(it.id, it.name) }) {
                 val key = StatsDedupe.artistKey(artist.id, artist.name)
                 val acc = artistAcc.getOrPut(key) { Acc(key, artist.id, artist.name, null, null) }
-                if (!looksLikeYouTubeArtist(acc.id) && looksLikeYouTubeArtist(artist.id)) {
+                if (!isChannelId(acc.id) && isChannelId(artist.id)) {
                     acc.id = artist.id
                     acc.name = artist.name
                 }

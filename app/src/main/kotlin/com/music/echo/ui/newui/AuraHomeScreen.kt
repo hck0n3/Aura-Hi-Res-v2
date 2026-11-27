@@ -591,6 +591,18 @@ fun AuraHomeScreen(
                     }
                 }
 
+                // Row 910: «Tu año en Aura» in December and the first days of January, until the user hides it.
+                if (selectedChip == null) {
+                    item(key = "aura_home_wrapped", contentType = "aura_home_wrapped") {
+                        AuraWrappedHomeCard(
+                            navController = navController,
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = AuraSpacing.Gutter, vertical = 4.dp),
+                        )
+                    }
+                }
+
                 // Chips de estado de ánimo de YouTube (dynamic text; only when YouTube returns chips).
                 homePage?.chips?.takeIf { it.isNotEmpty() }?.let { chips ->
                     item(key = "aura_home_chips", contentType = "aura_home_chips") {

@@ -903,4 +903,60 @@
         <item quantity="many">%d artistas nuevos</item>
         <item quantity="other">%d artistas nuevos</item>
     </plurals>
+    <!-- Registry row 910: «Tu año en Aura» / «Tu mes» -->
+    <string name="wrapped_year_title">Tu año en Aura</string>
+    <string name="wrapped_month_title">Tu mes</string>
+    <string name="wrapped_month_intro">Tu mes en Aura</string>
+    <string name="wrapped_intro_hint">Toca o desliza para seguir</string>
+    <string name="wrapped_minutes_title">Escuchaste</string>
+    <plurals name="wrapped_minutes">
+        <item quantity="one">%d minuto</item>
+        <item quantity="many">%d minutos</item>
+        <item quantity="other">%d minutos</item>
+    </plurals>
+    <string name="wrapped_minutes_detail">Reproducciones: %1$d · Días con música: %2$d · Canciones: %3$d · Artistas: %4$d</string>
+    <string name="wrapped_top_artists">Tus artistas más escuchados</string>
+    <string name="wrapped_top_songs">Tus canciones más escuchadas</string>
+    <string name="wrapped_top_albums">Tus álbumes más escuchados</string>
+    <string name="wrapped_top_genres">Tus géneros más escuchados</string>
+    <string name="wrapped_top_day_title">Tu día con más música</string>
+    <string name="wrapped_top_day_detail">%1$s de música</string>
+    <string name="wrapped_streak_title">Tu racha más larga</string>
+    <plurals name="wrapped_streak_days">
+        <item quantity="one">%d día seguido</item>
+        <item quantity="many">%d días seguidos</item>
+        <item quantity="other">%d días seguidos</item>
+    </plurals>
+    <string name="wrapped_new_artists_title">Artistas que descubriste</string>
+    <string name="wrapped_new_artists_detail">Nuevos: %1$d · el que más pusiste: %2$s</string>
+    <string name="wrapped_personality_title">Tu personalidad musical</string>
+    <string name="wrapped_personality_night_owl">Búho nocturno</string>
+    <string name="wrapped_personality_night_owl_desc">Tu música cobra vida pasadas las 22:00.</string>
+    <string name="wrapped_personality_early_bird">Madrugador</string>
+    <string name="wrapped_personality_early_bird_desc">Empiezas el día con música.</string>
+    <string name="wrapped_personality_loyal_fan">Fan incondicional</string>
+    <string name="wrapped_personality_loyal_fan_desc">Un artista se lleva gran parte de lo que escuchas.</string>
+    <string name="wrapped_personality_explorer">Explorador</string>
+    <string name="wrapped_personality_explorer_desc">No paras de descubrir artistas nuevos.</string>
+    <string name="wrapped_personality_marathon">Maratoniano</string>
+    <string name="wrapped_personality_marathon_desc">Horas de música cada día que escuchas.</string>
+    <string name="wrapped_personality_all_rounder">Todoterreno</string>
+    <string name="wrapped_personality_all_rounder_desc">Un poco de todo, a cualquier hora.</string>
+    <string name="wrapped_final_minutes">Minutos escuchados: %1$s</string>
+    <string name="wrapped_final_artist">Artista: %1$s</string>
+    <string name="wrapped_final_song">Canción: %1$s</string>
+    <string name="wrapped_final_genre">Género: %1$s</string>
+    <string name="wrapped_final_personality">Personalidad: %1$s</string>
+    <string name="wrapped_share">Compartir como imagen</string>
+    <string name="wrapped_share_chooser">Compartir tu resumen</string>
+    <string name="wrapped_share_failed">No se pudo crear la imagen</string>
+    <string name="wrapped_share_note">Hecho en tu móvil. Solo sale de él esta imagen, y solo si la compartes.</string>
+    <string name="wrapped_too_little_title">Aún no hay suficiente música</string>
+    <string name="wrapped_too_little_body">Escucha un poco más en este periodo y vuelve: tu resumen necesita al menos %1$d reproducciones y %2$d minutos.</string>
+    <string name="wrapped_next">Siguiente tarjeta</string>
+    <string name="wrapped_previous">Tarjeta anterior</string>
+    <string name="wrapped_progress">Tarjeta %1$d de %2$d</string>
+    <string name="wrapped_home_title">Tu %1$s en Aura ya está listo</string>
+    <string name="wrapped_home_body">Tus minutos, artistas y canciones del año.</string>
+    <string name="wrapped_home_dismiss">Ocultar esta tarjeta</string>
 </resources>
