@@ -11,6 +11,7 @@
 #include <algorithm>
 
 #include "AuraTruePeakLimiter.h"
+#include "AuraDeEsser.h"
 
 #if __has_include("Superpowered.h")
 #define HAS_SUPERPOWERED 1
@@ -338,8 +339,8 @@ public:
     // Row 911: set by flushProcessor (media3 flush: seek, reconfigure), consumed by the next processAudio block, which
     // empties the limiter's delay line and the EQ biquads' state so no audio from before the flush is played after it.
     std::atomic<bool> flushPending{false};
-    Superpowered::Filter* deEsser = nullptr;
-    Superpowered::Filter* deEsserDetector = nullptr;
+    // Row 917: split-band dynamic de-esser (AuraDeEsser.h), only inside the EQ block.
+    aura::DeEsser* deEsser = nullptr;
 
     Superpowered::Filter* tidalLowShelf = nullptr;
     Superpowered::Filter* tidalMidParam = nullptr;
@@ -370,7 +371,6 @@ public:
     float xfLpR = 0.0f;
 
     float conversionBuffer[MAX_BUFFER_SIZE];
-    float deEsserBuffer[MAX_BUFFER_SIZE];
 
     unsigned int currentSamplerate = 44100;
 
@@ -378,10 +378,6 @@ public:
     // AUDIO-THREAD-OWNED STATE. Touched ONLY from processAudio. No other thread may read or write
     // it, so it needs no synchronization of any kind.
     // ------------------------------------------------------------------------------------------
-    float currentDeEsserDb = 0.0f;
-    // De-esser detector envelope (RMS follower over the sibilance band), for smoother, level-relative
-    // detection than the old block-peak binary gate.
-    float deEsserEnv = 0.0f;
     // TARGET gain (what Kotlin asked for, mirrored into activeSafeVolumeGain by the snapshot) and the
     // CURRENT gain actually being applied. They differ only while ramping — see the Safe Volume stage in
     // processAudio. Stepping straight to a new target is what makes a mid-song gain change audible as a
@@ -695,16 +691,7 @@ public:
         // soft clip. Transparent below -1 dBTP (gain exactly 1), and it catches the peaks BETWEEN samples too.
         truePeakLimiter = new aura::TruePeakLimiter(samplerate);
 
-        deEsser = new Superpowered::Filter(Superpowered::Filter::Parametric, samplerate);
-        deEsser->frequency = 6500.0f;
-        deEsser->octave = 0.5f;
-        deEsser->decibel = 0.0f; // Starts flat
-        deEsser->enabled = true;
-
-        deEsserDetector = new Superpowered::Filter(Superpowered::Filter::Bandlimited_Bandpass, samplerate);
-        deEsserDetector->frequency = 6500.0f;
-        deEsserDetector->octave = 1.0f;
-        deEsserDetector->enabled = true;
+        deEsser = new aura::DeEsser(samplerate);
 
         tidalLowShelf = new Superpowered::Filter(Superpowered::Filter::LowShelf, samplerate);
         tidalLowShelf->frequency = 60.0f; // Más bajo para dar profundidad sin barro (antes 85)
@@ -782,7 +769,6 @@ public:
         
         if (truePeakLimiter) { delete truePeakLimiter; truePeakLimiter = nullptr; }
         if (deEsser) { delete deEsser; deEsser = nullptr; }
-        if (deEsserDetector) { delete deEsserDetector; deEsserDetector = nullptr; }
         if (tidalLowShelf) { delete tidalLowShelf; tidalLowShelf = nullptr; }
         if (tidalMidParam) { delete tidalMidParam; tidalMidParam = nullptr; }
         if (tidalHighMidParam) { delete tidalHighMidParam; tidalHighMidParam = nullptr; }
@@ -1190,6 +1176,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
         processor->flushPending.exchange(false, std::memory_order_acq_rel)) {
         if (processor->truePeakLimiter) processor->truePeakLimiter->reset();
         for (int bi = 0; bi < NUM_EQ_FILTERS; ++bi) processor->eqBiquads[bi].reset();
+        if (processor->deEsser) processor->deEsser->reset();
     }
     // Row 912: with the equalizer off the bands do not run, so a band gliding to flat is stopped right away
     // (it would otherwise come back with stale coefficients when the equalizer is switched on again).
@@ -1204,7 +1191,7 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
 
     int requiredSize = num_frames * channels;
     if (requiredSize > MAX_BUFFER_SIZE) {
-        // Oversized block: the fixed native scratch arrays (conversionBuffer/deEsserBuffer) can't hold
+        // Oversized block: the fixed native scratch array (conversionBuffer) can't hold
         // it, so the DSP chain can't run. Do NOT bare-return: media3 reuses the same output ByteBuffer
         // and the caller always flips/publishes it, so returning without writing republishes the
         // previous block's PCM (or uninitialized memory) as an audible click/burst. Emit a bit-exact
@@ -1296,38 +1283,16 @@ Java_iad1tya_echo_music_eq_audio_CustomEqualizerAudioProcessor_processAudio(JNIE
                 }
             }
 
-            // Dynamic De-Esser (only with EQ on — it exists to tame EQ-boosted sibilance). Improved
-            // detection: RMS energy of the 6.5 kHz band through a one-pole envelope (fast attack / slow
-            // release), with a PROPORTIONAL cut (up to -5 dB) instead of the old binary -4/0 peak gate —
-            // less twitchy, less likely to audibly dull the top on loud bright material.
-            if (processor->activeDeEsserEnabled && processor->deEsser && processor->deEsserDetector) {
-                memcpy(processor->deEsserBuffer, workBuffer, requiredSize * sizeof(float));
-                if (channels == 1) processor->deEsserDetector->processMono(processor->deEsserBuffer, processor->deEsserBuffer, num_frames);
-                else processor->deEsserDetector->process(processor->deEsserBuffer, processor->deEsserBuffer, num_frames);
-
-                double sumSq = 0.0;
-                for (int i = 0; i < requiredSize; ++i) {
-                    float v = processor->deEsserBuffer[i];
-                    sumSq += (double)v * v;
-                }
-                float rms = (requiredSize > 0) ? sqrtf((float)(sumSq / (double)requiredSize)) : 0.0f;
-                if (rms > processor->deEsserEnv) processor->deEsserEnv += (rms - processor->deEsserEnv) * 0.5f;
-                else processor->deEsserEnv += (rms - processor->deEsserEnv) * 0.1f;
-
-                float t = (processor->deEsserEnv - 0.05f) / 0.15f; // 0 at ~-26 dBFS RMS, 1 at ~-14 dBFS
-                if (t < 0.0f) t = 0.0f; else if (t > 1.0f) t = 1.0f;
-                float targetDb = -5.0f * t;
-                float diff = targetDb - processor->currentDeEsserDb;
-                if (diff < 0) processor->currentDeEsserDb += diff * 0.5f; // fast attack
-                else processor->currentDeEsserDb += diff * 0.1f;         // slow release
-                processor->deEsser->decibel = processor->currentDeEsserDb;
-
-                if (channels == 1) processor->deEsser->processMono(workBuffer, workBuffer, num_frames);
-                else processor->deEsser->process(workBuffer, workBuffer, num_frames);
+            // Row 917: split-band DYNAMIC de-esser (AuraDeEsser.h), only with the EQ on. It lowers the 5-9 kHz band by up
+            // to 6 dB only while that band stands out from the rest of the mix above 200 Hz (ratio detection: a loud
+            // passage is not de-essed for being loud), 2 ms attack, 80 ms release, channels linked. Without sibilance
+            // the samples are untouched (gain exactly 1). It replaced a 6.5 kHz bell cut driven by the band's absolute
+            // level, which dulled every loud bright master whether or not it had sibilance.
+            if (processor->activeDeEsserEnabled && processor->deEsser) {
+                processor->deEsser->process(workBuffer, num_frames, channels);
             } else {
                 // Switched off: start from flat when it is switched back on.
-                processor->currentDeEsserDb = 0.0f;
-                processor->deEsserEnv = 0.0f;
+                if (processor->deEsser) processor->deEsser->reset();
             }
         }
 
